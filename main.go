@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/quic-go/quic-go/http3"
 
@@ -61,13 +63,23 @@ func main() {
 	transferRuleSvc := services.NewTransferRuleService(ruleRepo, txnRepo, transferRepo, accountRepo)
 	transactionSvc := services.NewTransactionService(txnRepo, accountRepo, ruleSvc, transferRuleSvc)
 	transferSvc := services.NewTransferService(txnRepo, transferRepo, accountRepo)
+	investmentRepo := repository.NewInvestmentRepository(baseRepo)
+	investmentSvc := services.NewInvestmentService(investmentRepo, services.NewYahooClient())
 
-	api := httpserver.NewAPI(authSvc, userSvc, accountSvc, categorySvc, transactionSvc, transferSvc, ruleSvc, transferRuleSvc, jwtSecret)
+	api := httpserver.NewAPI(authSvc, userSvc, accountSvc, categorySvc, transactionSvc, transferSvc, ruleSvc, transferRuleSvc, investmentSvc, jwtSecret)
 
 	mux := http.NewServeMux()
 	mux.Handle("/avatars/", http.StripPrefix("/avatars/", http.FileServer(http.Dir(avatarDir))))
 	mux.Handle("/", api.Handler())
 	handler := mux
+
+	// Background quote + price-history refreshers for all users' investments.
+	runPeriodic("FINANCER_QUOTE_REFRESH_INTERVAL", 30*time.Minute, 60*time.Second, func(ctx context.Context) error {
+		return investmentSvc.RefreshAllPrices(ctx)
+	})
+	runPeriodic("FINANCER_HISTORY_REFRESH_INTERVAL", 30*time.Minute, 5*time.Minute, func(ctx context.Context) error {
+		return investmentSvc.RefreshAllPriceHistory(ctx)
+	})
 
 	// HTTP/1.1 + HTTP/2 for the browser (dev uses this via fetch on localhost).
 	log.Printf("Financer JSON server (HTTP/1.1+2) listening on http://localhost%s", addr)
@@ -99,4 +111,25 @@ func main() {
 	if err := h3.ListenAndServe(); err != nil {
 		log.Fatalf("Failed to start HTTP/3 server: %v", err)
 	}
+}
+
+// runPeriodic runs fn on a ticker with interval from envName (fallback to
+// def when unset), skipping the first tick so the app starts immediately.
+func runPeriodic(envName string, def, min time.Duration, fn func(ctx context.Context) error) {
+	interval := def
+	if v := os.Getenv(envName); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= min {
+			interval = d
+		}
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), interval)
+			if err := fn(ctx); err != nil {
+				log.Printf("%s: %v", envName, err)
+			}
+			cancel()
+		}
+	}()
 }
