@@ -12,6 +12,8 @@ import { Plus, CheckSquare, ReceiptText, ArrowLeftRight } from '@lucide/vue';
 
 const store = useAccountsStore();
 
+const emit = defineEmits<{ (e: 'updated'): void }>();
+
 const accountList = ref<any[]>([]);
 const txnList = ref<any[]>([]);
 const categoryList = ref<any[]>([]);
@@ -85,6 +87,7 @@ async function unlinkTransfer() {
     await transfers().unlinkTransfers({ ids: [linkId] });
     showItemModal.value = false;
     await loadPage();
+    emit('updated');
   } catch (e) { console.error(e); }
 }
 async function submitItem(payload: any) {
@@ -92,6 +95,7 @@ async function submitItem(payload: any) {
     await transactions().updateTransactions({ transactions: [{ ...payload, id: editingItem.value.id }] });
     showItemModal.value = false;
     await loadPage();
+    emit('updated');
   } catch (e) { console.error(e); }
 }
 function requestDeleteItem(item: any) {
@@ -106,6 +110,7 @@ async function confirmDeleteNow() {
     await transactions().deleteTransactions({ ids: confirmDelete.value.ids });
     showItemModal.value = false;
     await loadPage();
+    emit('updated');
   } catch (e) { console.error(e); }
   confirmDelete.value = null;
 }
@@ -173,7 +178,7 @@ async function confirmDeleteNow() {
       :categories="categoryList"
       :default-account-id="store.state.selectedAccountId || accountList[0]?.id || ''"
       @close="showAddModal = false"
-      @imported="loadMeta(); loadPage()"
+      @imported="loadMeta(); loadPage(); emit('updated')"
     />
 
     <EditItemModal

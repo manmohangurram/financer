@@ -94,7 +94,7 @@ onMounted(loadAll);
         </div>
       </div>
 
-      <TransactionsPanel />
+      <TransactionsPanel @updated="loadAll" />
     </template>
 
     <AccountFormModal v-if="showAccountModal" :account="null" @close="showAccountModal = false" @saved="loadAll" />
