@@ -65,7 +65,7 @@ function onApply(f: TransactionFilters) {
         ref="inputEl"
         v-model="text"
         type="text"
-        class="flex-1 min-w-[120px] bg-transparent outline-none focus:outline-none text-text placeholder:text-text-muted py-1 text-[13px]"
+        class="flex-1 min-w-[120px] bg-transparent outline-none text-text placeholder:text-text-muted py-1 text-[13px]"
         placeholder="Search"
         @keydown.enter.prevent="addName"
         @keydown.backspace="onBackspace"
