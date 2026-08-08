@@ -88,7 +88,13 @@ npm test        # frontend vitest
 
 The GitHub Action (`.github/workflows/docker-publish.yml`) builds the image for `linux/arm64` and `linux/amd64` and pushes it to **GHCR** whenever a commit lands on `main`. The image is a single container — the Go binary serves both the API and the built frontend (no nginx). In production builds the frontend calls the API on the same origin, so it works from any device, not just localhost.
 
-**One-time:** make the GHCR package public — github.com → your profile → *Packages* → *Financer* → *Package settings* → *Change visibility* → **Public**.
+**Public repo:** the GHCR package is public too, so pull with no login.
+
+**Private repo:** the package is private like the repo, so `docker pull` returns `unauthorized` unless you authenticate first. Generate a **classic PAT** (github.com → Settings → Developer settings → Personal access tokens → *Tokens (classic)* → *Generate new token*) with the **`read:packages`** and **`repo`** scopes, then on the Pi:
+
+```bash
+echo YOUR_PAT | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
 
 **On the Pi:**
 
@@ -102,6 +108,8 @@ docker run -d --name financer --restart unless-stopped \
   -v ~/financer/data:/data \
   ghcr.io/manmohangurram/financer:latest
 ```
+
+> Optionally, you can make **only the package** public (github.com → your profile → *Packages* → *Financer* → *Package settings* → *Change visibility* → **Public**) while keeping the repo private — then the Pi can pull without a PAT. This only exposes the built image, never the source code.
 
 Open `http://<pi-ip>:8080` and sign up.
 
