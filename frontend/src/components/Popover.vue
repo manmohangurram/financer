@@ -1,5 +1,5 @@
 <script setup lang="ts">
-withDefaults(defineProps<{ panelClass?: string; up?: boolean; right?: boolean }>(), { panelClass: 'right-0 min-w-40', up: false, right: false });
+withDefaults(defineProps<{ panelClass?: string; up?: boolean; right?: boolean; noClip?: boolean }>(), { panelClass: 'right-0 min-w-40', up: false, right: false, noClip: false });
 const emit = defineEmits<{ (e: 'close'): void }>();
 </script>
 
@@ -13,7 +13,7 @@ const emit = defineEmits<{ (e: 'close'): void }>();
         panelClass
       ]"
     >
-      <div class="bg-surface border border-border rounded-xl shadow-popover overflow-hidden" @click.stop>
+      <div class="bg-surface border border-border rounded-xl shadow-popover" :class="noClip ? '' : 'overflow-hidden'" @click.stop>
         <slot />
       </div>
     </div>
