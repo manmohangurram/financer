@@ -85,7 +85,7 @@ func resolveTransfer(ctx context.Context, userID string, txn *api.TransactionRes
 		if txn.Type == api.TransactionType_CREDIT {
 			debitID, creditID = cand.Id, txn.Id
 		}
-		if _, errs := linkRepo.Create(ctx, userID, []repository.LinkTransferInput{{DebitTransactionID: debitID, CreditTransactionID: creditID}}); len(errs) > 0 {
+		if errs := linkRepo.Create(ctx, userID, []repository.LinkTransferInput{{DebitTransactionID: debitID, CreditTransactionID: creditID}}); len(errs) > 0 {
 			return false, false, "", errs[0]
 		}
 		return true, false, cand.Id, nil
@@ -117,7 +117,7 @@ func resolveTransfer(ctx context.Context, userID string, txn *api.TransactionRes
 	if txn.Type == api.TransactionType_CREDIT {
 		debitID, creditID = counterTxn.Id, txn.Id
 	}
-	if _, errs := linkRepo.Create(ctx, userID, []repository.LinkTransferInput{{DebitTransactionID: debitID, CreditTransactionID: creditID}}); len(errs) > 0 {
+	if errs := linkRepo.Create(ctx, userID, []repository.LinkTransferInput{{DebitTransactionID: debitID, CreditTransactionID: creditID}}); len(errs) > 0 {
 		return false, false, "", errs[0]
 	}
 	return true, true, counterTxn.Id, nil
@@ -181,7 +181,7 @@ func (s *TransferService) LinkTransfers(ctx context.Context, msg *api.LinkTransf
 		})
 	}
 
-	_, errs := s.linkRepo.Create(ctx, userID, inputs)
+	errs := s.linkRepo.Create(ctx, userID, inputs)
 	var failedIDs []string
 	for _, e := range preErrs {
 		failedIDs = append(failedIDs, e)

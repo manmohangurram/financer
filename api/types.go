@@ -214,10 +214,3 @@ type CreateTransferResponse struct {
 	DebitTransactionId  string
 	CreditTransactionId string
 }
-
-type TransferLinkResponse struct {
-	Id                  string
-	DebitTransactionId  string
-	CreditTransactionId string
-	CreatedAt           time.Time
-}

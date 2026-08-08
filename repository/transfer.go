@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mohan9182/financer/api"
 	"github.com/google/uuid"
 )
 
@@ -23,32 +22,23 @@ type LinkTransferInput struct {
 	CreditTransactionID string
 }
 
-func (r *TransferRepository) Create(ctx context.Context, userID string, inputs []LinkTransferInput) ([]*api.TransferLinkResponse, []error) {
+func (r *TransferRepository) Create(ctx context.Context, userID string, inputs []LinkTransferInput) []error {
 	if len(inputs) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	var results []*api.TransferLinkResponse
 	var errors []error
 
 	r.ExecInTx(ctx, func(tx *Tx) error {
 		for _, input := range inputs {
-			id := uuid.New().String()
-			now := time.Now().UTC()
 			if _, err := tx.ExecContext(ctx,
 				`INSERT INTO transfer_links (id, user_id, debit_transaction_id, credit_transaction_id, created_at)
 				 VALUES (?, ?, ?, ?, ?)`,
-				id, userID, input.DebitTransactionID, input.CreditTransactionID, now,
+				uuid.New().String(), userID, input.DebitTransactionID, input.CreditTransactionID, time.Now().UTC(),
 			); err != nil {
 				errors = append(errors, fmt.Errorf("failed to link transfer %s/%s: %w", input.DebitTransactionID, input.CreditTransactionID, err))
 				continue
 			}
-			results = append(results, &api.TransferLinkResponse{
-				Id:                  id,
-				DebitTransactionId:  input.DebitTransactionID,
-				CreditTransactionId: input.CreditTransactionID,
-				CreatedAt:           now,
-			})
 		}
 		if len(errors) > 0 {
 			return fmt.Errorf("some transfers failed")
@@ -56,7 +46,7 @@ func (r *TransferRepository) Create(ctx context.Context, userID string, inputs [
 		return nil
 	})
 
-	return results, errors
+	return errors
 }
 
 func (r *TransferRepository) Delete(ctx context.Context, ids []string) []error {
