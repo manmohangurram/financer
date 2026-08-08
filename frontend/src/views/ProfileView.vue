@@ -7,7 +7,7 @@ import { profile } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { getAccessToken, setTokens } from '@/lib/api/transport';
 import { applyTheme, current as currentTheme } from '@/lib/theme';
-import { Camera, Save, Loader2, ShieldCheck, Sun, Moon } from '@lucide/vue';
+import { Camera, Save, Loader2, ShieldCheck, Sun, Moon, Monitor } from '@lucide/vue';
 
 const auth = useAuthStore();
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -136,105 +136,112 @@ onMounted(loadProfile);
     <div v-if="loading" class="text-center py-16 text-subtle">Loading…</div>
 
     <template v-else>
-      <div class="card bg-base-200 border border-border">
-        <div class="card-body p-6 space-y-5">
-          <h2 class="text-lg font-semibold text-text">Profile</h2>
+      <div class="card bg-surface border border-border">
+        <div class="card-body p-0 divide-y divide-border">
 
-          <div class="flex items-center gap-4">
-            <div class="relative">
-              <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-2xl font-bold text-accent-content overflow-hidden">
-                <img v-if="avatarSrc" :src="avatarSrc" alt="Avatar" class="w-full h-full object-cover" />
-                <span v-else>{{ (form.name || '?').slice(0, 2).toUpperCase() }}</span>
+          <section class="p-6 space-y-5">
+            <h2 class="text-lg font-semibold text-text">Profile</h2>
+
+            <div class="flex items-center gap-4">
+              <div class="relative">
+                <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-2xl font-bold text-accent-content overflow-hidden">
+                  <img v-if="avatarSrc" :src="avatarSrc" alt="Avatar" class="w-full h-full object-cover" />
+                  <span v-else>{{ (form.name || '?').slice(0, 2).toUpperCase() }}</span>
+                </div>
+                <button
+                  class="absolute -bottom-1 -right-1 btn btn-ghost btn-xs border border-track rounded-full p-1.5"
+                  aria-label="Upload avatar"
+                  :disabled="avatarBusy"
+                  @click="fileInput?.click()"
+                >
+                  <Camera class="w-4 h-4" />
+                </button>
+                <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadAvatar" />
               </div>
-              <button
-                class="absolute -bottom-1 -right-1 btn btn-ghost btn-xs border border-track rounded-full p-1.5"
-                aria-label="Upload avatar"
-                :disabled="avatarBusy"
-                @click="fileInput?.click()"
-              >
-                <Camera class="w-4 h-4" />
+              <div class="text-[12px] text-subtle">
+                <Loader2 v-if="avatarBusy" class="w-4 h-4 animate-spin inline" />
+                <span v-else>PNG, JPG or WebP, up to 5MB</span>
+              </div>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <AppInput v-model="form.name" label="Name" placeholder="Your name" />
+              <AppInput v-model="form.email" label="Email" type="email" placeholder="you@example.com" autocomplete="email" />
+            </div>
+
+            <div class="flex justify-end">
+              <button class="btn btn-primary btn-sm gap-1.5" :disabled="savingProfile" @click="saveProfile">
+                <Loader2 v-if="savingProfile" class="w-4 h-4 animate-spin" />
+                <Save v-else class="w-4 h-4" />
+                Save
               </button>
-              <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadAvatar" />
             </div>
-            <div class="text-[13px] text-subtle">
-              <Loader2 v-if="avatarBusy" class="w-4 h-4 animate-spin inline" />
-              <span v-else>PNG, JPG or WebP, up to 5MB</span>
+          </section>
+
+          <section class="p-6 space-y-5">
+            <h2 class="text-lg font-semibold text-text">Change password</h2>
+            <p class="text-[12px] text-subtle">Changing your password signs out all other sessions.</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <AppInput v-model="password.currentPassword" label="Current password" type="password" autocomplete="current-password" />
+              <AppInput v-model="password.newPassword" label="New password" type="password" autocomplete="new-password" />
             </div>
-          </div>
+            <div class="flex justify-end">
+              <button class="btn btn-primary btn-sm gap-1.5" :disabled="savingPassword" @click="changePassword">
+                <Loader2 v-if="savingPassword" class="w-4 h-4 animate-spin" />
+                <Save v-else class="w-4 h-4" />
+                Update password
+              </button>
+            </div>
+          </section>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <AppInput v-model="form.name" label="Name" placeholder="Your name" />
-            <AppInput v-model="form.email" label="Email" type="email" placeholder="you@example.com" autocomplete="email" />
-          </div>
+          <section class="p-6 flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-semibold text-text">Appearance</h2>
+              <p class="text-[12px] text-subtle">Choose the app theme. Default follows your system settings.</p>
+            </div>
+            <div class="flex gap-1 rounded-xl bg-surface border border-border p-1" role="group" aria-label="Theme">
+              <button
+                type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
+                :class="currentTheme === 'system' ? 'bg-primary-600 text-white' : 'text-text-muted hover:text-text'"
+                @click="applyTheme('system')"
+              >
+                <Monitor class="w-4 h-4" stroke-width="1.5" />
+                System
+              </button>
+              <button
+                type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
+                :class="currentTheme === 'light' ? 'bg-primary-600 text-white' : 'text-text-muted hover:text-text'"
+                @click="applyTheme('light')"
+              >
+                <Sun class="w-4 h-4" stroke-width="1.5" />
+                Light
+              </button>
+              <button
+                type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
+                :class="currentTheme === 'dark' ? 'bg-primary-600 text-white' : 'text-text-muted hover:text-text'"
+                @click="applyTheme('dark')"
+              >
+                <Moon class="w-4 h-4" stroke-width="1.5" />
+                Dark
+              </button>
+            </div>
+          </section>
 
-          <div class="flex justify-end">
-            <button class="btn btn-primary btn-sm gap-1.5" :disabled="savingProfile" @click="saveProfile">
-              <Loader2 v-if="savingProfile" class="w-4 h-4 animate-spin" />
-              <Save v-else class="w-4 h-4" />
-              Save
+          <section class="p-6 flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-semibold text-text">Sign out all sessions</h2>
+              <p class="text-[12px] text-subtle">Revokes every login on other devices and browsers.</p>
+            </div>
+            <button class="btn btn-outline btn-error btn-sm gap-1.5" :disabled="loggingOutAll" @click="confirmLogoutAll = true">
+              <Loader2 v-if="loggingOutAll" class="w-4 h-4 animate-spin" />
+              <ShieldCheck v-else class="w-4 h-4" />
+              Sign out all
             </button>
-          </div>
-        </div>
-      </div>
+          </section>
 
-      <div class="card bg-base-200 border border-border">
-        <div class="card-body p-6 space-y-5">
-          <h2 class="text-lg font-semibold text-text">Change password</h2>
-          <p class="text-[13px] text-subtle">Changing your password signs out all other sessions.</p>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <AppInput v-model="password.currentPassword" label="Current password" type="password" autocomplete="current-password" />
-            <AppInput v-model="password.newPassword" label="New password" type="password" autocomplete="new-password" />
-          </div>
-          <div class="flex justify-end">
-            <button class="btn btn-primary btn-sm gap-1.5" :disabled="savingPassword" @click="changePassword">
-              <Loader2 v-if="savingPassword" class="w-4 h-4 animate-spin" />
-              <Save v-else class="w-4 h-4" />
-              Update password
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card bg-base-200 border border-border">
-        <div class="card-body p-6 flex items-center justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-semibold text-text">Appearance</h2>
-            <p class="text-[13px] text-subtle">Choose the app theme. Your choice is saved on this device.</p>
-          </div>
-          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1" role="group" aria-label="Theme">
-            <button
-              type="button"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
-              :class="currentTheme === 'light' ? 'bg-primary-600 text-white' : 'text-text-muted hover:text-text'"
-              @click="applyTheme('light')"
-            >
-              <Sun class="w-4 h-4" stroke-width="1.5" />
-              Light
-            </button>
-            <button
-              type="button"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
-              :class="currentTheme === 'dark' ? 'bg-primary-600 text-white' : 'text-text-muted hover:text-text'"
-              @click="applyTheme('dark')"
-            >
-              <Moon class="w-4 h-4" stroke-width="1.5" />
-              Dark
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card bg-base-200 border border-border">
-        <div class="card-body p-6 flex items-center justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-semibold text-text">Sign out all sessions</h2>
-            <p class="text-[13px] text-subtle">Revokes every login on other devices and browsers.</p>
-          </div>
-          <button class="btn btn-outline btn-error btn-sm gap-1.5" :disabled="loggingOutAll" @click="confirmLogoutAll = true">
-            <Loader2 v-if="loggingOutAll" class="w-4 h-4 animate-spin" />
-            <ShieldCheck v-else class="w-4 h-4" />
-            Sign out all
-          </button>
         </div>
       </div>
     </template>
