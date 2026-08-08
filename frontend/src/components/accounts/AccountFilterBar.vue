@@ -69,7 +69,7 @@ onUnmounted(() => {
       type="button"
       aria-label="Scroll left"
       class="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-base-200 border border-border text-text-muted shadow-popover opacity-0 group-hover:opacity-100 transition-opacity"
-      @click="scrollBy(-55)"
+      @click="scrollBy(-150)"
     >
       <ChevronLeft class="w-4 h-4" stroke-width="2" />
     </button>
@@ -78,7 +78,7 @@ onUnmounted(() => {
       type="button"
       aria-label="Scroll right"
       class="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-base-200 border border-border text-text-muted shadow-popover opacity-0 group-hover:opacity-100 transition-opacity"
-      @click="scrollBy(55)"
+      @click="scrollBy(150)"
     >
       <ChevronRight class="w-4 h-4" stroke-width="2" />
     </button>
