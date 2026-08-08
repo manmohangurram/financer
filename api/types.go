@@ -104,3 +104,124 @@ type OperationResponse struct {
 	Success bool
 	Message string
 }
+
+type TransactionType int32
+
+const (
+	TransactionType_DEBIT  TransactionType = 0
+	TransactionType_CREDIT TransactionType = 1
+)
+
+var TransactionType_value = map[string]int32{
+	"DEBIT":  0,
+	"CREDIT": 1,
+}
+
+func (x TransactionType) String() string {
+	if x == TransactionType_CREDIT {
+		return "CREDIT"
+	}
+	return "DEBIT"
+}
+
+type GetTransactionRequest struct {
+	Id string
+}
+
+type ListTransactionsRequest struct {
+	PageSize   int32
+	PageToken  string
+	AccountId  string
+	Type       TransactionType
+	DateFrom   time.Time
+	DateTo     time.Time
+	MinAmount  float32
+	MaxAmount  float32
+	Name       string
+	NameMatch  string
+	SortBy     string
+	SortDir    string
+	Offset     int32
+}
+
+type CreateTransactionsRequest struct {
+	Transactions []*CreateTransactionRequest
+}
+
+type CreateTransactionRequest struct {
+	Name       string
+	Amount     float32
+	Type       TransactionType
+	OccurredAt time.Time
+	AccountId  string
+}
+
+type UpdateTransactionsRequest struct {
+	Transactions []*UpdateTransactionRequest
+}
+
+type UpdateTransactionRequest struct {
+	Id         string
+	Name       string
+	Amount     float32
+	Type       TransactionType
+	OccurredAt time.Time
+	AccountId  string
+}
+
+type DeleteTransactionsRequest struct {
+	Ids []string
+}
+
+type TransactionResponse struct {
+	Id               string
+	Name             string
+	Amount           float32
+	Type             TransactionType
+	OccurredAt       time.Time
+	AccountId        string
+	CreatedAt        time.Time
+	LinkedTransferId string
+}
+
+type ListTransactionsResponse struct {
+	Transactions  []*TransactionResponse
+	NextPageToken string
+	TotalCount    int32
+}
+
+type BulkOperationResponse struct {
+	Success   bool
+	Message   string
+	FailedIds []string
+}
+
+type LinkTransfersRequest struct {
+	Links []*LinkTransferRequest
+}
+
+type LinkTransferRequest struct {
+	DebitTransactionId  string
+	CreditTransactionId string
+}
+
+type UnlinkTransfersRequest struct {
+	Ids []string
+}
+
+type CreateCounterpartRequest struct {
+	TransactionId string
+	ToAccountId   string
+}
+
+type CreateTransferResponse struct {
+	DebitTransactionId  string
+	CreditTransactionId string
+}
+
+type TransferLinkResponse struct {
+	Id                  string
+	DebitTransactionId  string
+	CreditTransactionId string
+	CreatedAt           time.Time
+}

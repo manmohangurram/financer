@@ -13,13 +13,15 @@ import (
 )
 
 type API struct {
-	authSvc *services.AuthService
-	account *services.AccountService
-	secret  string
+	authSvc  *services.AuthService
+	account  *services.AccountService
+	txn      *services.TransactionService
+	transfer *services.TransferService
+	secret   string
 }
 
-func NewAPI(authSvc *services.AuthService, account *services.AccountService, jwtSecret string) *API {
-	return &API{authSvc: authSvc, account: account, secret: jwtSecret}
+func NewAPI(authSvc *services.AuthService, account *services.AccountService, txn *services.TransactionService, transfer *services.TransferService, jwtSecret string) *API {
+	return &API{authSvc: authSvc, account: account, txn: txn, transfer: transfer, secret: jwtSecret}
 }
 
 func (a *API) Handler() http.Handler {
@@ -33,6 +35,15 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/accounts", false, a.createAccount)
 	a.route(mux, "PUT", "/api/accounts/{id}", false, a.updateAccount)
 	a.route(mux, "DELETE", "/api/accounts/{id}", false, a.deleteAccount)
+
+	a.route(mux, "GET", "/api/transactions", false, a.listTransactions)
+	a.route(mux, "POST", "/api/transactions", false, a.createTransactions)
+	a.route(mux, "PUT", "/api/transactions", false, a.updateTransactions)
+	a.route(mux, "DELETE", "/api/transactions", false, a.deleteTransactions)
+
+	a.route(mux, "POST", "/api/transfers/link", false, a.linkTransfers)
+	a.route(mux, "POST", "/api/transfers/counterpart", false, a.createCounterpart)
+	a.route(mux, "POST", "/api/transfers/unlink", false, a.unlinkTransfers)
 
 	return cors(a.auth(mux))
 }

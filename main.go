@@ -44,9 +44,13 @@ func main() {
 
 	baseRepo := repository.NewBaseRepository(writeDB, readDB)
 	accountRepo := repository.NewAccountRepository(baseRepo)
+	txnRepo := repository.NewTransactionRepository(baseRepo)
+	transferRepo := repository.NewTransferRepository(baseRepo)
 	accountSvc := services.NewAccountService(accountRepo)
+	transactionSvc := services.NewTransactionService(txnRepo, accountRepo)
+	transferSvc := services.NewTransferService(txnRepo, transferRepo, accountRepo)
 
-	api := httpserver.NewAPI(authSvc, accountSvc, jwtSecret)
+	api := httpserver.NewAPI(authSvc, accountSvc, transactionSvc, transferSvc, jwtSecret)
 	handler := api.Handler()
 
 	// HTTP/1.1 + HTTP/2 for the browser (dev uses this via fetch on localhost).
