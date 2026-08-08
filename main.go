@@ -46,11 +46,16 @@ func main() {
 	accountRepo := repository.NewAccountRepository(baseRepo)
 	txnRepo := repository.NewTransactionRepository(baseRepo)
 	transferRepo := repository.NewTransferRepository(baseRepo)
+	categoryRepo := repository.NewCategoryRepository(baseRepo)
+	ruleRepo := repository.NewRuleRepository(baseRepo)
 	accountSvc := services.NewAccountService(accountRepo)
-	transactionSvc := services.NewTransactionService(txnRepo, accountRepo)
+	categorySvc := services.NewCategoryService(categoryRepo)
+	ruleSvc := services.NewRuleService(ruleRepo, categoryRepo, txnRepo)
+	transferRuleSvc := services.NewTransferRuleService(ruleRepo, txnRepo, transferRepo, accountRepo)
+	transactionSvc := services.NewTransactionService(txnRepo, accountRepo, ruleSvc, transferRuleSvc)
 	transferSvc := services.NewTransferService(txnRepo, transferRepo, accountRepo)
 
-	api := httpserver.NewAPI(authSvc, accountSvc, transactionSvc, transferSvc, jwtSecret)
+	api := httpserver.NewAPI(authSvc, accountSvc, categorySvc, transactionSvc, transferSvc, ruleSvc, transferRuleSvc, jwtSecret)
 	handler := api.Handler()
 
 	// HTTP/1.1 + HTTP/2 for the browser (dev uses this via fetch on localhost).

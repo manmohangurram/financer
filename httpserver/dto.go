@@ -75,3 +75,120 @@ type wireOp struct {
 func bad(format string, a ...any) error {
 	return &services.APIError{Status: 400, Msg: fmt.Sprintf(format, a...)}
 }
+
+// --- categories ---
+
+type wireCategory struct {
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"createdAt"`
+}
+
+func categoryWire(c *api.CategoryResponse) wireCategory {
+	return wireCategory{
+		Id:        c.Id,
+		Name:      c.Name,
+		CreatedAt: tsRFC3339(c.CreatedAt),
+	}
+}
+
+// --- rules ---
+
+type wireCondition struct {
+	MatchField int32  `json:"matchField"`
+	Operator   int32  `json:"operator"`
+	Pattern    string `json:"pattern"`
+}
+
+type wireRuleAction struct {
+	SetName              string `json:"setName"`
+	SetNameOp            int32  `json:"setNameOp"`
+	SetCategoryId        string `json:"setCategoryId"`
+	SetTransferAccountId string `json:"setTransferAccountId"`
+}
+
+type wireRule struct {
+	Id         string            `json:"id"`
+	Name       string            `json:"name"`
+	Priority   int32             `json:"priority"`
+	Logic      int32             `json:"logic"`
+	Conditions []wireCondition   `json:"conditions"`
+	Actions    []wireRuleAction  `json:"actions"`
+	CreatedAt  string            `json:"createdAt"`
+}
+
+func ruleWire(a *api.RuleResponse) wireRule {
+	out := wireRule{
+		Id:        a.Id,
+		Name:      a.Name,
+		Priority:  a.Priority,
+		Logic:     int32(a.Logic),
+		CreatedAt: tsRFC3339(a.CreatedAt),
+	}
+	for _, c := range a.Conditions {
+		out.Conditions = append(out.Conditions, wireCondition{
+			MatchField: int32(c.MatchField),
+			Operator:   int32(c.Operator),
+			Pattern:    c.Pattern,
+		})
+	}
+	for _, act := range a.Actions {
+		out.Actions = append(out.Actions, wireRuleAction{
+			SetName:              act.SetName,
+			SetNameOp:            int32(act.SetNameOp),
+			SetCategoryId:        act.SetCategoryId,
+			SetTransferAccountId: act.SetTransferAccountId,
+		})
+	}
+	return out
+}
+
+// toRuleLogic accepts 1/2 (RULE_LOGIC_OR/AND) or its string name.
+func toRuleLogic(v any) (api.RuleLogic, error) {
+	switch x := v.(type) {
+	case nil:
+		return 0, fmt.Errorf("logic is required")
+	case float64:
+		return api.RuleLogic(x), nil
+	case string:
+		if n, ok := api.RuleLogic_value[x]; ok {
+			return api.RuleLogic(n), nil
+		}
+		return 0, fmt.Errorf("unknown logic %q", x)
+	default:
+		return 0, fmt.Errorf("invalid logic %v", v)
+	}
+}
+
+func enumToValue[T ~int32](v any, name string) (T, error) {
+	switch x := v.(type) {
+	case float64:
+		return T(x), nil
+	case string:
+		var n int64
+		if _, err := fmt.Sscanf(x, "%d", &n); err == nil {
+			return T(n), nil
+		}
+	}
+	return 0, fmt.Errorf("invalid %s %v", name, v)
+}
+
+func toConditions(in []struct {
+	MatchField any    `json:"matchField"`
+	Operator   any    `json:"operator"`
+	Pattern    string `json:"pattern"`
+}) ([]*api.RuleCondition, error) {
+	out := make([]*api.RuleCondition, 0, len(in))
+	for _, c := range in {
+		mf, err := enumToValue[api.RuleMatchField](c.MatchField, "matchField")
+		if err != nil {
+			return nil, err
+		}
+		op, err := enumToValue[api.RuleMatchOperator](c.Operator, "operator")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, &api.RuleCondition{MatchField: mf, Operator: op, Pattern: c.Pattern})
+	}
+	return out, nil
+}

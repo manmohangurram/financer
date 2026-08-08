@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mohan9182/financer/api"
@@ -12,32 +13,36 @@ import (
 // --- transactions ---
 
 type reqTxn struct {
-	Transactions jsonListTxn `json:"transactions"`
-	PageSize     int32       `json:"pageSize"`
-	PageToken    string      `json:"pageToken"`
-	AccountId    string      `json:"accountId"`
-	Type         any         `json:"type"`
-	Ids          []string    `json:"ids"`
+	Transactions      jsonListTxn `json:"transactions"`
+	PageSize          int32       `json:"pageSize"`
+	PageToken         string      `json:"pageToken"`
+	AccountId         string      `json:"accountId"`
+	CategoryId        []string    `json:"categoryId"`
+	Type              any         `json:"type"`
+	Ids               []string    `json:"ids"`
+	ReplaceCategories bool        `json:"replaceCategories"`
 }
 
 type jsonListTxn []struct {
-	Id         string  `json:"id"`
-	Name       string  `json:"name"`
-	Amount     float64 `json:"amount"`
-	Type       any     `json:"type"`
-	OccurredAt any     `json:"occurredAt"`
-	AccountId  string  `json:"accountId"`
+	Id          string   `json:"id"`
+	Name        string   `json:"name"`
+	Amount      float64  `json:"amount"`
+	Type        any      `json:"type"`
+	OccurredAt  any      `json:"occurredAt"`
+	AccountId   string   `json:"accountId"`
+	CategoryIds []string `json:"categoryIds"`
 }
 
 type wireTxn struct {
-	Id               string  `json:"id"`
-	Name             string  `json:"name"`
-	Amount           float64 `json:"amount"`
-	Type             string  `json:"type"`
-	OccurredAt       string  `json:"occurredAt"`
-	AccountId        string  `json:"accountId"`
-	CreatedAt        string  `json:"createdAt"`
-	LinkedTransferId string  `json:"linkedTransferId"`
+	Id               string   `json:"id"`
+	Name             string   `json:"name"`
+	Amount           float64  `json:"amount"`
+	Type             string   `json:"type"`
+	OccurredAt       string   `json:"occurredAt"`
+	AccountId        string   `json:"accountId"`
+	CreatedAt        string   `json:"createdAt"`
+	LinkedTransferId string   `json:"linkedTransferId"`
+	CategoryIds      []string `json:"categoryIds"`
 }
 
 func txnWire(t *api.TransactionResponse) wireTxn {
@@ -50,6 +55,7 @@ func txnWire(t *api.TransactionResponse) wireTxn {
 		AccountId:        t.AccountId,
 		CreatedAt:        tsRFC3339(t.CreatedAt),
 		LinkedTransferId: t.LinkedTransferId,
+		CategoryIds:      t.CategoryIds,
 	}
 }
 
@@ -98,6 +104,9 @@ func (a *API) listTransactions(ctx context.Context, _ string, r *http.Request) (
 	if v := q.Get("type"); v != "" {
 		in.Type = v
 	}
+	if v := q.Get("categoryId"); v != "" {
+		in.CategoryId = strings.Split(v, ",")
+	}
 	t, err := txnTypeValue(in.Type)
 	if err != nil {
 		return nil, bad("%v", err)
@@ -107,7 +116,7 @@ func (a *API) listTransactions(ctx context.Context, _ string, r *http.Request) (
 	minAmount := queryFloat(q, "minAmount")
 	maxAmount := queryFloat(q, "maxAmount")
 	out, err := a.txn.ListTransactions(ctx, &api.ListTransactionsRequest{
-		PageSize: in.PageSize, PageToken: in.PageToken, AccountId: in.AccountId, Type: t,
+		PageSize: in.PageSize, PageToken: in.PageToken, AccountId: in.AccountId, CategoryId: in.CategoryId, Type: t,
 		DateFrom: dateFrom, DateTo: dateTo, MinAmount: minAmount, MaxAmount: maxAmount,
 		Name: q.Get("name"), NameMatch: q.Get("nameMatch"),
 		SortBy: q.Get("sortBy"), SortDir: q.Get("sortDir"), Offset: queryInt(q, "offset"),
@@ -142,7 +151,7 @@ func (a *API) createTransactions(ctx context.Context, _ string, r *http.Request)
 			return nil, bad("%v", err)
 		}
 		txns = append(txns, &api.CreateTransactionRequest{
-			Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId,
+			Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId, CategoryIds: t.CategoryIds,
 		})
 	}
 	out, err := a.txn.CreateTransactions(ctx, &api.CreateTransactionsRequest{Transactions: txns})
@@ -168,7 +177,7 @@ func (a *API) updateTransactions(ctx context.Context, _ string, r *http.Request)
 			return nil, bad("%v", err)
 		}
 		txns = append(txns, &api.UpdateTransactionRequest{
-			Id: t.Id, Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId,
+			Id: t.Id, Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId, CategoryIds: t.CategoryIds, ReplaceCategories: in.ReplaceCategories,
 		})
 	}
 	out, err := a.txn.UpdateTransactions(ctx, &api.UpdateTransactionsRequest{Transactions: txns})
