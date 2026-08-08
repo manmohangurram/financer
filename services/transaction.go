@@ -29,6 +29,21 @@ func txnDelta(txn *api.TransactionResponse) float32 {
 	return -txn.Amount
 }
 
+// Dashboard returns the user's balance and income/expense sums. Portfolio and
+// account/investment lists are assembled by the handler from their services.
+func (s *TransactionService) Dashboard(ctx context.Context) (*api.DashboardResponse, error) {
+	userID, _ := ctx.Value(auth.UserIDKey).(string)
+	balance, err := s.accRepo.SumBalance(ctx, userID)
+	if err != nil {
+		return nil, ServerError("%v", err)
+	}
+	income, expenses, err := s.txnRepo.SumByType(ctx, userID)
+	if err != nil {
+		return nil, ServerError("%v", err)
+	}
+	return &api.DashboardResponse{TotalBalance: balance, TotalIncome: income, TotalExpenses: expenses}, nil
+}
+
 func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.ListTransactionsRequest) (*api.ListTransactionsResponse, error) {
 	userID, _ := ctx.Value(auth.UserIDKey).(string)
 

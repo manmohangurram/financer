@@ -108,3 +108,14 @@ func (r *AccountRepository) UpdateBalance(ctx context.Context, accountID string,
 	)
 	return err
 }
+
+// SumBalance returns the total stored balance across a user's accounts.
+func (r *AccountRepository) SumBalance(ctx context.Context, userID string) (float32, error) {
+	var total float32
+	if err := r.readDB.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ?`, userID,
+	).Scan(&total); err != nil {
+		return 0, fmt.Errorf("summing balances: %w", err)
+	}
+	return total, nil
+}

@@ -3,8 +3,7 @@ import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/lib/stores/auth';
 import Popover from '@/components/Popover.vue';
-import { Menu, Layers, CreditCard, BarChart3, Settings2, LogOut, ChevronUp } from '@lucide/vue';
-
+import { Menu, Layers, LayoutDashboard, CreditCard, BarChart3, Settings2, LogOut, ChevronUp } from '@lucide/vue';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -65,6 +64,15 @@ function handleLogout() {
       <div class="text-[12px] font-semibold text-faint tracking-[0.09em] uppercase px-8 pb-3 pt-1">Menu</div>
 
       <nav class="flex-1 px-4 flex flex-col gap-[3px]">
+        <router-link
+          to="/dashboard"
+          class="flex items-center gap-3.5 px-4 py-3.5 rounded-[11px] text-[16.5px] font-medium transition-colors"
+          :class="isActive('/dashboard') ? 'bg-primary-500/[0.13] text-primary-200' : 'text-text-muted hover:bg-white/5 hover:text-white'"
+        >
+          <LayoutDashboard class="w-[22px] h-[22px]" stroke-width="1.5" />
+          Dashboard
+        </router-link>
+
         <router-link
           to="/accounts"
           class="flex items-center gap-3.5 px-4 py-3.5 rounded-[11px] text-[16.5px] font-medium transition-colors"

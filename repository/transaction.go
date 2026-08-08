@@ -84,6 +84,16 @@ func (r *TransactionRepository) GetByID(ctx context.Context, id string) (*api.Tr
 	return txn, nil
 }
 
+// SumByType returns total credits (income) and debits (expenses) for a user.
+func (r *TransactionRepository) SumByType(ctx context.Context, userID string) (income, expenses float32, err error) {
+	err = r.readDB.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(CASE WHEN type = 1 THEN amount ELSE 0 END), 0),
+		        COALESCE(SUM(CASE WHEN type = 0 THEN amount ELSE 0 END), 0)
+		 FROM transactions WHERE user_id = ?`, userID,
+	).Scan(&income, &expenses)
+	return income, expenses, err
+}
+
 type ListTxnResult struct {
 	Transactions  []*api.TransactionResponse
 	NextPageToken string
