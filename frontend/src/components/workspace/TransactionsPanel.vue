@@ -173,7 +173,7 @@ async function confirmDeleteNow() {
       :categories="categoryList"
       :default-account-id="store.state.selectedAccountId || accountList[0]?.id || ''"
       @close="showAddModal = false"
-      @imported="loadMeta; loadPage()"
+      @imported="loadMeta(); loadPage()"
     />
 
     <EditItemModal

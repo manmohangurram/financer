@@ -5,7 +5,7 @@ import AppInput from '@/components/AppInput.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { profile } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
-import { getAccessToken } from '@/lib/api/transport';
+import { getAccessToken, setTokens } from '@/lib/api/transport';
 import { Camera, Save, Loader2, ShieldCheck } from '@lucide/vue';
 
 const auth = useAuthStore();
@@ -65,7 +65,12 @@ async function changePassword() {
   error.value = '';
   notice.value = '';
   try {
-    await profile().changePassword(password.value);
+    const resp = await profile().changePassword(password.value);
+    // The API returns fresh tokens (the old refresh is revoked); store them
+    // or the session dies at the next refresh.
+    if (resp?.accessToken && resp?.refreshToken) {
+      setTokens(resp.accessToken, resp.refreshToken);
+    }
     password.value = { currentPassword: '', newPassword: '' };
     notice.value = 'Password changed. Other sessions were signed out.';
   } catch (e: any) {
