@@ -6,7 +6,7 @@ import TransactionForm from '@/components/workspace/TransactionForm.vue';
 import { transactions } from '@/lib/api/client';
 import { dateToUnixSeconds, toLocalDateString } from '@/lib/utils/format';
 import { roundMoney } from '@/lib/utils/money';
-import { guessMapping, mapCsvRowsToTransactions, parseCsvText, type CsvField } from '@/lib/utils/csv';
+import { guessMapping, mapCsvRowsToTransactions, parseCsvText, csvFileKey, type CsvField } from '@/lib/utils/csv';
 import { Upload, PenLine, FileSpreadsheet } from '@lucide/vue';
 
 const props = defineProps<{ accounts: any[]; categories: any[]; defaultAccountId: string }>();
@@ -28,6 +28,7 @@ const step = ref(1);
 const accountId = ref(props.defaultAccountId);
 const headers = ref<string[]>([]);
 const rows = ref<string[][]>([]);
+const fileKey = ref('');
 const mapping = ref<CsvField[]>([]);
 const error = ref('');
 const submitting = ref(false);
@@ -100,6 +101,7 @@ function processFile(file: File | undefined | null) {
     if (!parsed) { error.value = 'Need header + at least 1 data row.'; return; }
     headers.value = parsed.headers;
     rows.value = parsed.rows;
+    fileKey.value = csvFileKey(text);
     guessFields();
     step.value = 2;
   });
@@ -134,7 +136,7 @@ async function runImport() {
   importing.value = true;
   error.value = '';
   try {
-    const txns = mapCsvRowsToTransactions(rows.value, mapping.value, accountId.value);
+    const txns = mapCsvRowsToTransactions(rows.value, mapping.value, accountId.value, fileKey.value);
     if (txns.length === 0) {
       error.value = 'No valid rows to import — check the column mapping and data.';
       return;

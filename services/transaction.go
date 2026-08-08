@@ -104,6 +104,7 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 			AccountId:   t.AccountId,
 			CreatedAt:   now,
 			CategoryIds: t.CategoryIds,
+			ExternalId:  t.ExternalId,
 		})
 	}
 
@@ -111,16 +112,23 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 	for i, txn := range txns {
 		inputs[i] = repository.CreateTransactionInput{Txn: txn, CategoryIDs: txn.CategoryIds}
 	}
-	errs := s.txnRepo.Create(ctx, userID, inputs)
+	inserted, errs := s.txnRepo.Create(ctx, userID, inputs)
 
+	var insertedTxns []*api.TransactionResponse
+	skipped := 0
 	for _, txn := range txns {
+		if !inserted[txn.Id] {
+			skipped++
+			continue
+		}
+		insertedTxns = append(insertedTxns, txn)
 		s.accRepo.UpdateBalance(ctx, txn.AccountId, txnDelta(txn))
 		credit, debit := txnTotals(txn)
 		s.accRepo.ApplyTotals(ctx, txn.AccountId, credit, debit)
 	}
 
-	if s.transferRule != nil {
-		if _, _, err := s.transferRule.ApplyToTransactions(ctx, txns); err != nil {
+	if s.transferRule != nil && len(insertedTxns) > 0 {
+		if _, _, err := s.transferRule.ApplyToTransactions(ctx, insertedTxns); err != nil {
 			logx.Error("transfer rule apply failed", "err", err)
 			errs = append(errs, err)
 		}
@@ -131,11 +139,13 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 			Success:   false,
 			Message:   "some transactions failed",
 			FailedIds: errStrings(errs),
+			Skipped:   int32(skipped),
 		}, nil
 	}
 	return &api.BulkOperationResponse{
 		Success: true,
 		Message: "transactions created successfully",
+		Skipped: int32(skipped),
 	}, nil
 }
 

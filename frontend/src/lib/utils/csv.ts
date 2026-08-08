@@ -44,6 +44,23 @@ export interface ImportedTransaction {
   accountId: string;
   occurredAt: { seconds: number; nanos: number };
   categoryIds: string[];
+  externalId: string;
+}
+
+// fnv1a hash — a stable per-file fingerprint (not security, just a key) so a
+// re-imported file gets the same external ids and duplicates are skipped.
+function fnv1a(str: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+}
+
+// csvFileKey returns a stable fingerprint for a CSV's raw text.
+export function csvFileKey(text: string): string {
+  return fnv1a(text);
 }
 
 function parseTypeValue(v: string): number | null {
@@ -101,7 +118,7 @@ function buildDate(dateCell: string): number {
   return isNaN(d.getTime()) ? Date.now() : d.getTime();
 }
 
-export function mapCsvRowsToTransactions(rows: string[][], mapping: string[], accountId: string): ImportedTransaction[] {
+export function mapCsvRowsToTransactions(rows: string[][], mapping: string[], accountId: string, fileKey = ''): ImportedTransaction[] {
   const idx = {
     type: mapping.indexOf('type'),
     debit: mapping.indexOf('debit'),
@@ -111,7 +128,7 @@ export function mapCsvRowsToTransactions(rows: string[][], mapping: string[], ac
     description: mapping.indexOf('description')
   };
   return rows
-    .map((row) => {
+    .map((row, i) => {
       const { amount, type } = resolveAmountAndType(row, idx);
       return {
         name: idx.description >= 0 ? row[idx.description] : 'Imported',
@@ -119,7 +136,8 @@ export function mapCsvRowsToTransactions(rows: string[][], mapping: string[], ac
         type,
         accountId,
         occurredAt: { seconds: Math.floor(buildDate(row[idx.date]) / 1000), nanos: 0 },
-        categoryIds: [] as string[]
+        categoryIds: [] as string[],
+        externalId: fileKey ? `${fileKey}:${i}` : ''
       };
     })
     .filter((t) => t.name && t.amount);

@@ -59,7 +59,9 @@ Every run against the running backend before a release or after any backend/fron
 - Pagination — next/prev work when more rows than page size
 - **CSV import:** Add → Import CSV → upload a file → column mapping auto-guesses (Date/Description/Debit/Credit); both "Single amount column" and "Debit + Credit columns" formats work; preview shows the row count; Import creates the transactions, the list refreshes, and the account balances on the page update without a reload
 - Imports larger than 500 rows are split into 500-per-request batches; a >1000-row CSV still imports (chunked)
+- **Idempotent retry:** importing the same CSV twice creates rows only the first time — the second reports `skipped` and balances do not move again (crash-resume safe)
 - `POST /api/transactions` with >1000 transactions is rejected with 400
+- `PUT /api/transactions` with >1000 transactions is rejected with 400
 - Invalid CSV (no header, zero rows) shows an inline error
 - **Categories on a transaction:** create a transaction with a category; edit it and change the category — the row shows the new category (always-replace on update)
 

@@ -30,6 +30,7 @@ type jsonListTxn []struct {
 	OccurredAt  any      `json:"occurredAt"`
 	AccountId   string   `json:"accountId"`
 	CategoryIds []string `json:"categoryIds"`
+	ExternalId  string   `json:"externalId"`
 }
 
 type wireTxn struct {
@@ -150,7 +151,7 @@ func (a *API) createTransactions(ctx context.Context, _ string, r *http.Request)
 			return nil, bad("%v", err)
 		}
 		txns = append(txns, &api.CreateTransactionRequest{
-			Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId, CategoryIds: t.CategoryIds,
+			Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId, CategoryIds: t.CategoryIds, ExternalId: t.ExternalId,
 		})
 	}
 	out, err := a.txn.CreateTransactions(ctx, &api.CreateTransactionsRequest{Transactions: txns})
