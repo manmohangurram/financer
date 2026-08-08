@@ -14,11 +14,12 @@ import (
 
 type API struct {
 	authSvc *services.AuthService
+	account *services.AccountService
 	secret  string
 }
 
-func NewAPI(authSvc *services.AuthService, jwtSecret string) *API {
-	return &API{authSvc: authSvc, secret: jwtSecret}
+func NewAPI(authSvc *services.AuthService, account *services.AccountService, jwtSecret string) *API {
+	return &API{authSvc: authSvc, account: account, secret: jwtSecret}
 }
 
 func (a *API) Handler() http.Handler {
@@ -27,6 +28,11 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/auth/login", true, a.authLogin)
 	a.route(mux, "POST", "/api/auth/refresh", true, a.authRefreshToken)
 	a.route(mux, "GET", "/api/me", false, a.authGetMe)
+
+	a.route(mux, "GET", "/api/accounts", false, a.listAccounts)
+	a.route(mux, "POST", "/api/accounts", false, a.createAccount)
+	a.route(mux, "PUT", "/api/accounts/{id}", false, a.updateAccount)
+	a.route(mux, "DELETE", "/api/accounts/{id}", false, a.deleteAccount)
 
 	return cors(a.auth(mux))
 }

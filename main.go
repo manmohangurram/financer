@@ -10,6 +10,7 @@ import (
 
 	"github.com/mohan9182/financer/db"
 	"github.com/mohan9182/financer/httpserver"
+	"github.com/mohan9182/financer/repository"
 	"github.com/mohan9182/financer/services"
 )
 
@@ -41,7 +42,11 @@ func main() {
 
 	authSvc := services.NewAuthService(writeDB, jwtSecret)
 
-	api := httpserver.NewAPI(authSvc, jwtSecret)
+	baseRepo := repository.NewBaseRepository(writeDB, readDB)
+	accountRepo := repository.NewAccountRepository(baseRepo)
+	accountSvc := services.NewAccountService(accountRepo)
+
+	api := httpserver.NewAPI(authSvc, accountSvc, jwtSecret)
 	handler := api.Handler()
 
 	// HTTP/1.1 + HTTP/2 for the browser (dev uses this via fetch on localhost).
