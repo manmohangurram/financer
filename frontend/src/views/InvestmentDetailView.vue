@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import InvestmentDetail from '@/components/investments/InvestmentDetail.vue';
 import InvestmentModal from '@/components/investments/InvestmentModal.vue';
@@ -12,21 +12,18 @@ const router = useRouter();
 
 const loading = ref(true);
 const error = ref('');
-const investmentList = ref<any[]>([]);
+const investment = ref<any>(null);
 const lots = ref<any[]>([]);
 const showInvestmentModal = ref(false);
 const showLotModal = ref(false);
 const lotSide = ref<'buy' | 'sell'>('buy');
 const confirmDelete = ref<{ kind: 'investment' | 'lot'; item: any } | null>(null);
 
-const investment = computed(() => investmentList.value.find((i: any) => i.id === route.params.id) || null);
-
-async function loadAll() {
+async function loadInvestment() {
   loading.value = true;
   error.value = '';
   try {
-    const resp = await investments().listInvestments({});
-    investmentList.value = resp.investments || [];
+    investment.value = await investments().getInvestment({ id: route.params.id });
   } catch (e: any) {
     error.value = e?.message || 'Failed to load investment';
   }
@@ -43,7 +40,7 @@ async function loadLots(id: string) {
 }
 
 async function load() {
-  await loadAll();
+  await loadInvestment();
   if (investment.value?.id) await loadLots(investment.value.id);
 }
 
@@ -59,7 +56,7 @@ async function handleInvestmentSubmit(payload: any) {
   try {
     await investments().updateInvestment(payload);
     showInvestmentModal.value = false;
-    await loadAll();
+    await loadInvestment();
   } catch (e: any) {
     error.value = e?.message || 'Failed to save investment';
   }

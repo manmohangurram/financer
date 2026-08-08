@@ -41,6 +41,7 @@ export interface TransferServiceClient {
 export interface InvestmentServiceClient {
   createInvestment: (req: unknown) => Promise<any>;
   listInvestments: (req: unknown) => Promise<any>;
+  getInvestment: (req: unknown) => Promise<any>;
   updateInvestment: (req: unknown) => Promise<any>;
   deleteInvestment: (req: unknown) => Promise<any>;
   addLot: (req: unknown) => Promise<any>;
@@ -172,6 +173,7 @@ export function investments(): InvestmentServiceClient {
     _investments = {
       createInvestment: api('POST', '/api/investments'),
       listInvestments: api('GET', '/api/investments'),
+      getInvestment: api('GET', '/api/investments/{id}'),
       updateInvestment: api('PUT', '/api/investments/{id}'),
       deleteInvestment: api('DELETE', '/api/investments/{id}'),
       addLot: api('POST', '/api/investments/{investmentId}/lots'),

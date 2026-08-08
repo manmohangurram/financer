@@ -54,6 +54,14 @@ func (a *API) listInvestments(ctx context.Context, _ string, _ *http.Request) (a
 	}{Investments: items}, nil
 }
 
+func (a *API) getInvestment(ctx context.Context, _ string, r *http.Request) (any, error) {
+	out, err := a.invest.GetInvestment(ctx, &api.GetInvestmentRequest{Id: r.PathValue("id")})
+	if err != nil {
+		return nil, err
+	}
+	return investmentWire(out), nil
+}
+
 func (a *API) updateInvestment(ctx context.Context, _ string, r *http.Request) (any, error) {
 	var in reqInvestment
 	if err := decodeBody(r.Body, &in); err != nil {
