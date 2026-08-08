@@ -74,10 +74,6 @@ type CreateAccountRequest struct {
 	AccountType     AccountType
 }
 
-type GetAccountRequest struct {
-	Id string
-}
-
 type UpdateAccountRequest struct {
 	Id              string
 	BankName        string
