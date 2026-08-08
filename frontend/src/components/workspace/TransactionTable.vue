@@ -7,7 +7,6 @@ import { ArrowLeftRight, Pencil } from '@lucide/vue';
 const props = defineProps<{
   transactions: any[];
   categories: any[];
-  showCheckboxes?: boolean;
   selectedIds?: string[];
   readonly?: boolean;
   scrollable?: boolean;
@@ -30,7 +29,8 @@ const colors = computed(() => categoryColorMap(props.categories.map((c: any) => 
 
 const allSelected = computed(() => props.transactions.length > 0 && props.transactions.every((t) => props.selectedIds?.includes(t.id)));
 const someSelected = computed(() => !allSelected.value && props.transactions.some((t) => props.selectedIds?.includes(t.id)));
-const colCount = computed(() => (props.readonly ? 4 : 5) + (props.showCheckboxes ? 1 : 0));
+const hasSelection = computed(() => (props.selectedIds?.length ?? 0) > 0);
+const colCount = computed(() => (props.readonly ? 4 : 6));
 const fillRows = computed(() => Array(Math.max(0, (props.minRows || 0) - props.transactions.length)));
 
 function isCredit(t: any) {
@@ -43,7 +43,7 @@ function txnCategory(txn: any) {
 
 function openRow(txn: any) {
   if (props.readonly) return;
-  if (!props.showCheckboxes || !props.selectedIds?.length) emit('edit', txn);
+  emit('edit', txn);
 }
 
 function counterpart(txn: any) {
@@ -61,17 +61,17 @@ function counterpart(txn: any) {
   <div class="w-full" :class="scrollable ? 'max-h-56 overflow-auto' : 'overflow-x-auto'">
     <table class="w-full">
       <thead>
-        <tr class="text-[12px] text-subtle font-medium border-b border-border" :class="scrollable && 'sticky top-0 bg-surface z-10'">
-          <th v-if="showCheckboxes" class="py-3 pl-4 w-10">
-            <div class="flex items-center">
-              <input
-                type="checkbox"
-                class="checkbox checkbox-sm"
-                :checked="allSelected"
-                :indeterminate="someSelected"
-                @change="emit('toggle-select-all')"
-              />
-            </div>
+        <tr class="text-[12px] text-subtle font-medium border-b border-border group" :class="scrollable && 'sticky top-0 bg-surface z-10'">
+          <th v-if="!readonly" class="py-3 pl-4 w-8">
+            <input
+              type="checkbox"
+              class="checkbox checkbox-sm transition-opacity"
+              :class="hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+              :checked="allSelected"
+              :indeterminate="someSelected"
+              @change="emit('toggle-select-all')"
+              aria-label="Select all"
+            />
           </th>
           <th class="text-left py-3 px-2 w-[20%] lg:w-[10%]">Date</th>
           <th class="text-left py-3 px-2 w-[50%] lg:w-[40%]">Name</th>
@@ -90,15 +90,15 @@ function counterpart(txn: any) {
           ]"
           @click="openRow(txn)"
         >
-          <td v-if="showCheckboxes" class="py-3 pl-4" @click.stop>
-            <div class="flex items-center">
-              <input
-                type="checkbox"
-                class="checkbox checkbox-sm"
-                :checked="selectedIds?.includes(txn.id)"
-                @change="emit('toggle-select', txn)"
-              />
-            </div>
+          <td v-if="!readonly" class="py-3 pl-4 w-8" @click.stop>
+            <input
+              type="checkbox"
+              class="checkbox checkbox-sm transition-opacity"
+              :class="hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+              :checked="selectedIds?.includes(txn.id)"
+              @change="emit('toggle-select', txn)"
+              aria-label="Select row"
+            />
           </td>
           <td class="py-3 px-2 text-[13px] text-subtle whitespace-nowrap">{{ formatDate(txn.occurredAt || '') }}</td>
           <td class="py-3 px-2">
