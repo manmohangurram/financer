@@ -294,7 +294,9 @@ type priceRange struct {
 }
 
 var priceHistoryRanges = map[string]priceRange{
-	"1d": {days: 1, interval: "15m"},
+	// 1d uses a 3-day lookback so it always includes the last trading session
+	// (a trailing 24h window is empty over weekends/holidays).
+	"1d": {days: 3, interval: "15m"},
 	"7d": {days: 7, interval: "1d", limit: 7},
 	"1m": {days: 30, interval: "1d"},
 	"6m": {days: 180, interval: "1d"},
