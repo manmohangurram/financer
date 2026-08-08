@@ -195,7 +195,7 @@ async function confirmDeleteNow() {
       @unlink="unlinkTransfer"
     />
 
-    <TransferModal v-if="showTransfer" :txns="txnList" :accounts="accountList" @close="showTransfer = false" @done="loadPage" />
+    <TransferModal v-if="showTransfer" :txns="txnList" :accounts="accountList" @close="showTransfer = false" @done="loadPage(); emit('updated')" />
 
     <ConfirmDialog
       v-if="confirmDelete"
