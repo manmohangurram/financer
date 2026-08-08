@@ -103,9 +103,11 @@ How this project is built from the ground up, in development order, with how eac
 
 ## Phase 13 — Deployment
 `feat/deploy` → `main`
-- Multi-stage Docker build (frontend: node build → nginx static; backend: Go binary), nginx reverse proxy for `/api`.
-- Production env: `FINANCER_JWT_SECRET` required, optional TLS for HTTP/3.
-- **Done when:** `docker compose up` serves the app and API on a clean machine.
+- Single container: the Go server serves both the API and the built Vue frontend (embedded/`frontend/dist`, SPA fallback) — no nginx.
+- Multi-stage Docker build (node → frontend dist; Go `CGO_ENABLED=0` static binary for `arm64`/`amd64` via buildx `TARGETARCH`).
+- GitHub Action (`docker-publish.yml`) builds and pushes to GHCR (`ghcr.io/manmohangurram/financer`) on push to `main` / tags; Pi runs `docker compose up -d`.
+- Runtime data lives under one root (`FINANCER_DATA_DIR`, default `data`, `/data` in container) with `db/`, `certs/`, `config/`, `avatars/` subfolders — a single volume mount persists everything; the bundled Yahoo config is copied to `config/` on first run.
+- **Done when:** `docker compose up -d` serves the app and API on a clean Raspberry Pi.
 
 ---
 

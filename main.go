@@ -21,9 +21,22 @@ import (
 func main() {
 	logx.Init()
 
+	// All runtime data lives under one root (default ./data, /data in the
+	// container) so a single volume mount persists everything: db/, certs/,
+	// config/, avatars/.
+	dataDir := os.Getenv("FINANCER_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "data"
+	}
+	for _, sub := range []string{"db", "certs", "config", "avatars"} {
+		if err := os.MkdirAll(filepath.Join(dataDir, sub), 0o755); err != nil {
+			log.Fatalf("Failed to create %s dir: %v", filepath.Join(dataDir, sub), err)
+		}
+	}
+
 	dbPath := os.Getenv("FINANCER_DB_PATH")
 	if dbPath == "" {
-		dbPath = "data/financer.db"
+		dbPath = filepath.Join(dataDir, "db", "financer.db")
 	}
 	jwtSecret := os.Getenv("FINANCER_JWT_SECRET")
 	if jwtSecret == "" {
@@ -48,10 +61,7 @@ func main() {
 
 	authSvc := services.NewAuthService(writeDB, jwtSecret)
 
-	avatarDir := filepath.Join(filepath.Dir(dbPath), "avatars")
-	if err := os.MkdirAll(avatarDir, 0o755); err != nil {
-		log.Fatalf("Failed to create avatar dir: %v", err)
-	}
+	avatarDir := filepath.Join(dataDir, "avatars")
 	userSvc := services.NewUserService(writeDB, jwtSecret, avatarDir)
 
 	baseRepo := repository.NewBaseRepository(writeDB, readDB)
@@ -67,6 +77,17 @@ func main() {
 	transactionSvc := services.NewTransactionService(txnRepo, accountRepo, ruleSvc, transferRuleSvc)
 	transferSvc := services.NewTransferService(txnRepo, transferRepo, accountRepo)
 	investmentRepo := repository.NewInvestmentRepository(baseRepo)
+	// Yahoo config lives under data/config; write the bundled default on first run.
+	if os.Getenv("FINANCER_YAHOO_CONFIG") == "" {
+		yahooPath := filepath.Join(dataDir, "config", "yahoo.json")
+		if _, err := os.Stat(yahooPath); os.IsNotExist(err) {
+			if err := writeDefaultYahooConfig(yahooPath); err != nil {
+				log.Fatalf("Failed to write default yahoo config: %v", err)
+			}
+			logx.Info("wrote default yahoo config", "path", yahooPath)
+		}
+		os.Setenv("FINANCER_YAHOO_CONFIG", yahooPath)
+	}
 	yahoo, err := services.NewYahooClient()
 	if err != nil {
 		log.Fatalf("Failed to load Yahoo config: %v", err)
@@ -75,9 +96,19 @@ func main() {
 
 	api := httpserver.NewAPI(authSvc, userSvc, accountSvc, categorySvc, transactionSvc, transferSvc, ruleSvc, transferRuleSvc, investmentSvc, jwtSecret)
 
+	staticDir := os.Getenv("FINANCER_STATIC_DIR")
+	if staticDir == "" {
+		staticDir = "frontend/dist"
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/avatars/", http.StripPrefix("/avatars/", http.FileServer(http.Dir(avatarDir))))
-	mux.Handle("/", api.Handler())
+	mux.Handle("/api/", api.Handler())
+	if h := spaHandler(staticDir); h != nil {
+		mux.Handle("/", h)
+	} else {
+		mux.Handle("/", api.Handler())
+	}
 	handler := mux
 
 	// Background quote + price-history refreshers for all users' investments.
@@ -99,8 +130,14 @@ func main() {
 	// HTTP/3 (QUIC). Needs a cert; browsers only engage HTTP/3 over HTTPS on
 	// a real domain. Optional — omitted unless a cert is provided.
 	certFile, keyFile := os.Getenv("FINANCER_TLS_CERT"), os.Getenv("FINANCER_TLS_KEY")
-	if certFile == "" || keyFile == "" {
-		logx.Info("HTTP/3 skipped: set FINANCER_TLS_CERT + FINANCER_TLS_KEY to enable")
+	if certFile == "" {
+		certFile = filepath.Join(dataDir, "certs", "cert.pem")
+	}
+	if keyFile == "" {
+		keyFile = filepath.Join(dataDir, "certs", "key.pem")
+	}
+	if _, err := os.Stat(certFile); os.IsNotExist(err) {
+		logx.Info("HTTP/3 skipped: no TLS cert at " + certFile + " (put cert.pem/key.pem in data/certs or set FINANCER_TLS_CERT/KEY)")
 		select {}
 	}
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)

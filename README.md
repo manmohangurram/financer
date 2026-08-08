@@ -42,10 +42,13 @@ Open `http://localhost:5173` and sign in.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FINANCER_DB_PATH` | `data/financer.db` | SQLite database path |
+| `FINANCER_DATA_DIR` | `data` | Root for all runtime data: `db/`, `config/`, `certs/`, `avatars/` subfolders |
+| `FINANCER_DB_PATH` | `<DATA_DIR>/db/financer.db` | SQLite database path |
 | `FINANCER_JWT_SECRET` | — | JWT signing secret (set in production) |
 | `FINANCER_ADDR` | `:8080` | API listen address |
-| `FINANCER_TLS_CERT` / `FINANCER_TLS_KEY` | — | Enable HTTP/3 (QUIC) when set |
+| `FINANCER_STATIC_DIR` | `frontend/dist` | Built frontend served at `/`; omit/absent → API-only (dev) |
+| `FINANCER_YAHOO_CONFIG` | `<DATA_DIR>/config/yahoo.json` | Yahoo endpoints; bundled default copied there on first run |
+| `FINANCER_TLS_CERT` / `FINANCER_TLS_KEY` | `<DATA_DIR>/certs/{cert,key}.pem` | Enable HTTP/3 (QUIC) when present |
 | `FINANCER_QUOTE_REFRESH_INTERVAL` | `30m` | Background quote refresh |
 | `FINANCER_HISTORY_REFRESH_INTERVAL` | `30m` | Background price-history refresh |
 
@@ -81,6 +84,36 @@ go test ./...   # backend unit + repository integration tests
 npm test        # frontend vitest
 ```
 
-## Deployment
+## Deployment (self-host on a Raspberry Pi)
 
-The frontend is a pure static SPA (`frontend/dist/`) — serve it from any static host (or nginx) pointing `VITE_API_URL` at the Go backend. See the roadmap for a Docker multi-stage recipe.
+The GitHub Action (`.github/workflows/docker-publish.yml`) builds the image for `linux/arm64` and `linux/amd64` and pushes it to **GHCR** whenever a commit lands on `main`. The image is a single container — the Go binary serves both the API and the built frontend (no nginx). In production builds the frontend calls the API on the same origin, so it works from any device, not just localhost.
+
+**One-time:** make the GHCR package public — github.com → your profile → *Packages* → *Financer* → *Package settings* → *Change visibility* → **Public**.
+
+**On the Pi:**
+
+```bash
+docker pull ghcr.io/manmohangurram/financer:latest
+mkdir -p ~/financer/data
+
+docker run -d --name financer --restart unless-stopped \
+  -p 8080:8080 \
+  -e FINANCER_JWT_SECRET=change-me \
+  -v ~/financer/data:/data \
+  ghcr.io/manmohangurram/financer:latest
+```
+
+Open `http://<pi-ip>:8080` and sign up.
+
+**Data layout** — everything persists under the volume mount (`/data`):
+
+- `db/financer.db` — SQLite database
+- `config/yahoo.json` — Yahoo endpoint bases (auto-copied on first run; edit to add/swap bases)
+- `certs/cert.pem` + `certs/key.pem` — optional HTTP/3 (QUIC) TLS pair
+- `avatars/` — uploaded profile pictures
+
+**Build the image yourself (any architecture):**
+
+```bash
+docker buildx build --platform linux/arm64 -t financer:local .
+```

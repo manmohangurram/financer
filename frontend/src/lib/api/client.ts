@@ -1,6 +1,8 @@
 import { getAccessToken } from './transport';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Same origin by default in production builds (the Go server serves both the
+// API and the built frontend). Dev (vite) points at the Go backend explicitly.
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 export interface AccountServiceClient {
   createAccount: (req: unknown) => Promise<any>;

@@ -10,7 +10,7 @@ import { applyTheme, current as currentTheme } from '@/lib/theme';
 import { Camera, Save, Loader2, ShieldCheck, Sun, Moon, Monitor } from '@lucide/vue';
 
 const auth = useAuthStore();
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 const loading = ref(true);
 const error = ref('');
