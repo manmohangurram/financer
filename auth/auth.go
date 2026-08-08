@@ -13,15 +13,17 @@ type ContextKey string
 const UserIDKey ContextKey = "user_id"
 
 type UserClaims struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
+	UserID       string `json:"user_id"`
+	Email        string `json:"email"`
+	TokenVersion int64  `json:"ver"`
 	jwt.RegisteredClaims
 }
 
-func GenerateAccessToken(userID, email, secret string) (string, error) {
+func GenerateAccessToken(userID, email, secret string, tokenVersion int64) (string, error) {
 	claims := UserClaims{
-		UserID: userID,
-		Email:  email,
+		UserID:       userID,
+		Email:        email,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -34,12 +36,16 @@ func GenerateAccessToken(userID, email, secret string) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func GenerateRefreshToken(userID, secret string) (string, error) {
-	claims := jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		Issuer:    "financer",
-		Subject:   userID,
+func GenerateRefreshToken(userID, secret string, tokenVersion int64) (string, error) {
+	claims := UserClaims{
+		UserID:       userID,
+		TokenVersion: tokenVersion,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "financer",
+			Subject:   userID,
+		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

@@ -13,18 +13,19 @@ import (
 )
 
 type API struct {
-	authSvc     *services.AuthService
-	account     *services.AccountService
-	category    *services.CategoryService
-	txn         *services.TransactionService
-	transfer    *services.TransferService
-	rule        *services.RuleService
+	authSvc      *services.AuthService
+	userSvc      *services.UserService
+	account      *services.AccountService
+	category     *services.CategoryService
+	txn          *services.TransactionService
+	transfer     *services.TransferService
+	rule         *services.RuleService
 	transferRule *services.TransferRuleService
-	secret      string
+	secret       string
 }
 
-func NewAPI(authSvc *services.AuthService, account *services.AccountService, category *services.CategoryService, txn *services.TransactionService, transfer *services.TransferService, rule *services.RuleService, transferRule *services.TransferRuleService, jwtSecret string) *API {
-	return &API{authSvc: authSvc, account: account, category: category, txn: txn, transfer: transfer, rule: rule, transferRule: transferRule, secret: jwtSecret}
+func NewAPI(authSvc *services.AuthService, userSvc *services.UserService, account *services.AccountService, category *services.CategoryService, txn *services.TransactionService, transfer *services.TransferService, rule *services.RuleService, transferRule *services.TransferRuleService, jwtSecret string) *API {
+	return &API{authSvc: authSvc, userSvc: userSvc, account: account, category: category, txn: txn, transfer: transfer, rule: rule, transferRule: transferRule, secret: jwtSecret}
 }
 
 func (a *API) Handler() http.Handler {
@@ -33,6 +34,12 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/auth/login", true, a.authLogin)
 	a.route(mux, "POST", "/api/auth/refresh", true, a.authRefreshToken)
 	a.route(mux, "GET", "/api/me", false, a.authGetMe)
+
+	a.route(mux, "GET", "/api/me/profile", false, a.getProfile)
+	a.route(mux, "PUT", "/api/me/profile", false, a.updateProfile)
+	a.route(mux, "POST", "/api/me/password", false, a.changePassword)
+	a.route(mux, "POST", "/api/me/logout-all", false, a.logoutAll)
+	a.route(mux, "POST", "/api/me/avatar", false, a.uploadAvatar)
 
 	a.route(mux, "GET", "/api/accounts", false, a.listAccounts)
 	a.route(mux, "POST", "/api/accounts", false, a.createAccount)

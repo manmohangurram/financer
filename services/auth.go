@@ -76,11 +76,16 @@ func (s *AuthService) RefreshToken(ctx context.Context, msg *api.RefreshTokenReq
 	}
 
 	var email, name string
+	var tokenVersion int64
 	err = s.db.QueryRow(
-		`SELECT email, name FROM users WHERE id = ?`, claims.Subject,
-	).Scan(&email, &name)
+		`SELECT email, name, token_version FROM users WHERE id = ?`, claims.Subject,
+	).Scan(&email, &name, &tokenVersion)
 	if err != nil {
 		return nil, Unauthorized("user not found")
+	}
+
+	if claims.TokenVersion != tokenVersion {
+		return nil, Unauthorized("session has been revoked")
 	}
 
 	return s.issueTokens(claims.Subject, email, name)
@@ -89,11 +94,15 @@ func (s *AuthService) RefreshToken(ctx context.Context, msg *api.RefreshTokenReq
 // issueTokens builds the access/refresh pair for a user and returns the auth
 // response carrying them.
 func (s *AuthService) issueTokens(userID, email, name string) (*api.AuthResponse, error) {
-	accessToken, err := auth.GenerateAccessToken(userID, email, s.jwtSecret)
+	var tokenVersion int64
+	if err := s.db.QueryRow(`SELECT token_version FROM users WHERE id = ?`, userID).Scan(&tokenVersion); err != nil {
+		return nil, ServerError("failed to read user")
+	}
+	accessToken, err := auth.GenerateAccessToken(userID, email, s.jwtSecret, tokenVersion)
 	if err != nil {
 		return nil, ServerError("failed to generate token")
 	}
-	refreshToken, err := auth.GenerateRefreshToken(userID, s.jwtSecret)
+	refreshToken, err := auth.GenerateRefreshToken(userID, s.jwtSecret, tokenVersion)
 	if err != nil {
 		return nil, ServerError("failed to generate token")
 	}

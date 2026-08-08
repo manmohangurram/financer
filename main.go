@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/quic-go/quic-go/http3"
 
@@ -42,6 +43,12 @@ func main() {
 
 	authSvc := services.NewAuthService(writeDB, jwtSecret)
 
+	avatarDir := filepath.Join(filepath.Dir(dbPath), "avatars")
+	if err := os.MkdirAll(avatarDir, 0o755); err != nil {
+		log.Fatalf("Failed to create avatar dir: %v", err)
+	}
+	userSvc := services.NewUserService(writeDB, jwtSecret, avatarDir)
+
 	baseRepo := repository.NewBaseRepository(writeDB, readDB)
 	accountRepo := repository.NewAccountRepository(baseRepo)
 	txnRepo := repository.NewTransactionRepository(baseRepo)
@@ -55,8 +62,12 @@ func main() {
 	transactionSvc := services.NewTransactionService(txnRepo, accountRepo, ruleSvc, transferRuleSvc)
 	transferSvc := services.NewTransferService(txnRepo, transferRepo, accountRepo)
 
-	api := httpserver.NewAPI(authSvc, accountSvc, categorySvc, transactionSvc, transferSvc, ruleSvc, transferRuleSvc, jwtSecret)
-	handler := api.Handler()
+	api := httpserver.NewAPI(authSvc, userSvc, accountSvc, categorySvc, transactionSvc, transferSvc, ruleSvc, transferRuleSvc, jwtSecret)
+
+	mux := http.NewServeMux()
+	mux.Handle("/avatars/", http.StripPrefix("/avatars/", http.FileServer(http.Dir(avatarDir))))
+	mux.Handle("/", api.Handler())
+	handler := mux
 
 	// HTTP/1.1 + HTTP/2 for the browser (dev uses this via fetch on localhost).
 	log.Printf("Financer JSON server (HTTP/1.1+2) listening on http://localhost%s", addr)
