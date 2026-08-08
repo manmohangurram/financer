@@ -204,7 +204,7 @@ func (s *InvestmentService) SearchSymbols(ctx context.Context, msg *api.SearchSy
 	}
 	results, err := s.yahoo.Search(ctx, msg.Query)
 	if err != nil {
-		return nil, ServerError("%v", err)
+		return nil, BadGateway("symbol search temporarily unavailable: %v", err)
 	}
 	return &api.SearchSymbolsResponse{Results: results}, nil
 }
@@ -225,7 +225,7 @@ func (s *InvestmentService) RefreshPrices(ctx context.Context, _ *api.RefreshPri
 	}
 	quotes, err := s.yahoo.GetQuotes(ctx, symbols)
 	if err != nil {
-		return nil, ServerError("%v", err)
+		return nil, BadGateway("price refresh temporarily unavailable: %v", err)
 	}
 	updated := 0
 	for sym, quote := range quotes {
@@ -412,7 +412,7 @@ func toPricePoints(ts []int64, closes []float64) []PricePoint {
 func (s *InvestmentService) fetchAndCachePriceHistory(ctx context.Context, investmentID, symbol, rangeID string, cfg priceRange, rng string, period1, period2 int64) ([]PricePoint, error) {
 	raw, err := s.yahoo.GetHistory(ctx, symbol, rng, cfg.interval, cfg.limit, period1, period2)
 	if err != nil {
-		return nil, ServerError("price history: %v", err)
+		return nil, BadGateway("price data temporarily unavailable: %v", err)
 	}
 	points := aggregatePricePoints(raw, cfg.agg)
 	ts := make([]int64, len(points))

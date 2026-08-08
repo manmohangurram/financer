@@ -220,6 +220,8 @@ func statusName(code int) string {
 		return "not_found"
 	case 409:
 		return "already_exists"
+	case 502:
+		return "upstream_unavailable"
 	default:
 		return "internal"
 	}
