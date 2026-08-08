@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/mohan9182/financer/auth"
+	"github.com/mohan9182/financer/logx"
 	"github.com/mohan9182/financer/services"
 )
 
@@ -34,7 +34,6 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/auth/signup", true, a.authSignup)
 	a.route(mux, "POST", "/api/auth/login", true, a.authLogin)
 	a.route(mux, "POST", "/api/auth/refresh", true, a.authRefreshToken)
-	a.route(mux, "GET", "/api/me", false, a.authGetMe)
 
 	a.route(mux, "GET", "/api/me/profile", false, a.getProfile)
 	a.route(mux, "PUT", "/api/me/profile", false, a.updateProfile)
@@ -57,9 +56,9 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "PUT", "/api/transactions", false, a.updateTransactions)
 	a.route(mux, "DELETE", "/api/transactions", false, a.deleteTransactions)
 
-	a.route(mux, "POST", "/api/transfers/link", false, a.linkTransfers)
-	a.route(mux, "POST", "/api/transfers/counterpart", false, a.createCounterpart)
-	a.route(mux, "POST", "/api/transfers/unlink", false, a.unlinkTransfers)
+	a.route(mux, "POST", "/api/transfer-links", false, a.linkTransfers)
+	a.route(mux, "DELETE", "/api/transfer-links", false, a.unlinkTransfers)
+	a.route(mux, "POST", "/api/transfer-links/counterpart", false, a.createCounterpart)
 
 	a.route(mux, "GET", "/api/rules", false, a.listRules)
 	a.route(mux, "POST", "/api/rules", false, a.createRule)
@@ -74,8 +73,8 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "DELETE", "/api/investments/{id}", false, a.deleteInvestment)
 	a.route(mux, "GET", "/api/investments/{id}/lots", false, a.listLots)
 	a.route(mux, "POST", "/api/investments/{id}/lots", false, a.addLot)
+	a.route(mux, "DELETE", "/api/investments/{id}/lots/{lotId}", false, a.deleteLot)
 	a.route(mux, "GET", "/api/investments/{id}/price-history", false, a.priceHistory)
-	a.route(mux, "DELETE", "/api/lots/{id}", false, a.deleteLot)
 	a.route(mux, "GET", "/api/investments/search", false, a.searchSymbols)
 	a.route(mux, "POST", "/api/investments/refresh-prices", false, a.refreshPrices)
 	a.route(mux, "GET", "/api/portfolio/summary", false, a.getPortfolioSummary)
@@ -83,22 +82,58 @@ func (a *API) Handler() http.Handler {
 	return cors(a.auth(mux))
 }
 
+// statusBody lets handlers signal a non-200 status (201 on create, 204 on delete).
+type statusBody struct {
+	status int
+	body   any
+}
+
+func created(v any) statusBody {
+	return statusBody{status: http.StatusCreated, body: v}
+}
+
+func noContent() statusBody {
+	return statusBody{status: http.StatusNoContent}
+}
+
 // handler decodes the body and writes a JSON result/error.
 type handler func(ctx context.Context, userID string, r *http.Request) (any, error)
 
+// statusRecorder captures the response status so the outcome of every request
+// can be logged.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
 func (a *API) route(mux *http.ServeMux, method, path string, public bool, h handler) {
 	mux.HandleFunc(method+" "+path, func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s", method, path)
+		rec := &statusRecorder{ResponseWriter: w}
 		uid := ""
 		if v, ok := r.Context().Value(auth.UserIDKey).(string); ok {
 			uid = v
 		}
+		// One request-scoped logger: every line in this handler (and any
+		// handler error it writes) carries method/path/user automatically.
+		lg := logx.Request(method, path, uid)
 		out, err := h(r.Context(), uid, r)
 		if err != nil {
-			writeError(w, err)
+			writeError(rec, err)
+			lg.Debug("request failed", "status", rec.status)
 			return
 		}
-		writeJSON(w, http.StatusOK, out)
+		status := http.StatusOK
+		if sb, ok := out.(statusBody); ok {
+			status = sb.status
+			out = sb.body
+		}
+		writeJSON(rec, status, out)
+		lg.Debug("request completed", "status", status)
 	})
 }
 
@@ -153,6 +188,9 @@ func decodeBody(body io.Reader, dst any) error {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	if status == http.StatusNoContent {
+		return
+	}
 	_ = json.NewEncoder(w).Encode(v)
 }
 
@@ -162,8 +200,9 @@ func writeError(w http.ResponseWriter, err error) {
 	if apiErr, ok := err.(*services.APIError); ok {
 		code = apiErr.Status
 		name = statusName(code)
+		logx.Debug("api error", "status", code, "code", name, "message", err.Error())
 	} else {
-		log.Printf("handler error: %v", err)
+		logx.Error("unexpected internal error", "err", err)
 	}
 	writeJSON(w, code, map[string]string{"code": name, "message": err.Error()})
 }

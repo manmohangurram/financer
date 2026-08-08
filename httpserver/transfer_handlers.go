@@ -37,7 +37,7 @@ func (a *API) linkTransfers(ctx context.Context, _ string, r *http.Request) (any
 	if err != nil {
 		return nil, err
 	}
-	return bulkWire(out), nil
+	return created(bulkWire(out)), nil
 }
 
 func (a *API) createCounterpart(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -45,7 +45,11 @@ func (a *API) createCounterpart(ctx context.Context, _ string, r *http.Request) 
 	if err := decodeBody(r.Body, &in); err != nil {
 		return nil, err
 	}
-	return a.transfer.CreateCounterpart(ctx, &api.CreateCounterpartRequest{TransactionId: in.TransactionId, ToAccountId: in.ToAccountId})
+	out, err := a.transfer.CreateCounterpart(ctx, &api.CreateCounterpartRequest{TransactionId: in.TransactionId, ToAccountId: in.ToAccountId})
+	if err != nil {
+		return nil, err
+	}
+	return created(out), nil
 }
 
 func (a *API) unlinkTransfers(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -53,9 +57,9 @@ func (a *API) unlinkTransfers(ctx context.Context, _ string, r *http.Request) (a
 	if err := decodeBody(r.Body, &in); err != nil {
 		return nil, err
 	}
-	out, err := a.transfer.UnlinkTransfers(ctx, &api.UnlinkTransfersRequest{Ids: in.Ids})
+	_, err := a.transfer.UnlinkTransfers(ctx, &api.UnlinkTransfersRequest{Ids: in.Ids})
 	if err != nil {
 		return nil, err
 	}
-	return bulkWire(out), nil
+	return noContent(), nil
 }

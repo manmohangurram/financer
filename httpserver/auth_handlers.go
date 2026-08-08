@@ -35,12 +35,6 @@ func authWire(a *api.AuthResponse) wireAuth {
 	}
 }
 
-type wireMe struct {
-	UserId string `json:"userId"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
-}
-
 func (a *API) authSignup(ctx context.Context, _ string, r *http.Request) (any, error) {
 	var in reqAuth
 	if err := decodeBody(r.Body, &in); err != nil {
@@ -52,7 +46,7 @@ func (a *API) authSignup(ctx context.Context, _ string, r *http.Request) (any, e
 	if err != nil {
 		return nil, err
 	}
-	return authWire(out), nil
+	return created(authWire(out)), nil
 }
 
 func (a *API) authLogin(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -77,12 +71,4 @@ func (a *API) authRefreshToken(ctx context.Context, _ string, r *http.Request) (
 		return nil, err
 	}
 	return authWire(out), nil
-}
-
-func (a *API) authGetMe(ctx context.Context, uid string, _ *http.Request) (any, error) {
-	out, err := a.authSvc.GetMe(ctx, uid, &api.GetMeRequest{})
-	if err != nil {
-		return nil, err
-	}
-	return wireMe{UserId: out.UserId, Email: out.Email, Name: out.Name}, nil
 }

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"github.com/mohan9182/financer/logx"
 	"time"
 
 	"github.com/google/uuid"
@@ -91,6 +92,7 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 
 	if s.transferRule != nil {
 		if _, _, err := s.transferRule.ApplyToTransactions(ctx, txns); err != nil {
+			logx.Error("transfer rule apply failed", "err", err)
 			errs = append(errs, err)
 		}
 	}
@@ -129,7 +131,10 @@ func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.Up
 	for i, txn := range txns {
 		ids[i] = txn.Id
 	}
-	oldTxns, _ := s.txnRepo.GetByIDBatch(ctx, ids)
+	oldTxns, err := s.txnRepo.GetByIDBatch(ctx, ids)
+	if err != nil {
+		logx.With("count", len(ids)).Error("failed to preload transactions before update (balances may drift)", "err", err)
+	}
 	oldMap := make(map[string]*api.TransactionResponse, len(oldTxns))
 	for _, t := range oldTxns {
 		oldMap[t.Id] = t
@@ -137,7 +142,7 @@ func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.Up
 
 	inputs := make([]repository.UpdateTransactionInput, len(txns))
 	for i := range txns {
-		inputs[i] = repository.UpdateTransactionInput{Txn: txns[i], CategoryIDs: txns[i].CategoryIds, ReplaceCategories: msg.Transactions[i].ReplaceCategories}
+		inputs[i] = repository.UpdateTransactionInput{Txn: txns[i], CategoryIDs: txns[i].CategoryIds}
 	}
 	errs := s.txnRepo.Update(ctx, inputs)
 
@@ -195,7 +200,10 @@ func (s *TransactionService) DeleteTransactions(ctx context.Context, msg *api.De
 		return nil, BadRequest("no ids provided")
 	}
 
-	oldTxns, _ := s.txnRepo.GetByIDBatch(ctx, ids)
+	oldTxns, err := s.txnRepo.GetByIDBatch(ctx, ids)
+	if err != nil {
+		logx.With("count", len(ids)).Error("failed to preload transactions before delete (balances may drift)", "err", err)
+	}
 	errs := s.txnRepo.Delete(ctx, ids)
 
 	seen := make(map[string]bool)

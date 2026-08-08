@@ -13,11 +13,14 @@ import (
 
 	"github.com/mohan9182/financer/db"
 	"github.com/mohan9182/financer/httpserver"
+	"github.com/mohan9182/financer/logx"
 	"github.com/mohan9182/financer/repository"
 	"github.com/mohan9182/financer/services"
 )
 
 func main() {
+	logx.Init()
+
 	dbPath := os.Getenv("FINANCER_DB_PATH")
 	if dbPath == "" {
 		dbPath = "data/financer.db"
@@ -41,7 +44,7 @@ func main() {
 	if err := db.RunMigrations(writeDB); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
-	log.Println("Database migrations applied successfully")
+	logx.Info("database migrations applied successfully")
 
 	authSvc := services.NewAuthService(writeDB, jwtSecret)
 
@@ -82,7 +85,7 @@ func main() {
 	})
 
 	// HTTP/1.1 + HTTP/2 for the browser (dev uses this via fetch on localhost).
-	log.Printf("Financer JSON server (HTTP/1.1+2) listening on http://localhost%s", addr)
+	logx.Info("Financer JSON server listening", "addr", addr)
 	go func() {
 		if err := http.ListenAndServe(addr, handler); err != nil {
 			log.Fatalf("Failed to start TCP server: %v", err)
@@ -93,7 +96,7 @@ func main() {
 	// a real domain. Optional — omitted unless a cert is provided.
 	certFile, keyFile := os.Getenv("FINANCER_TLS_CERT"), os.Getenv("FINANCER_TLS_KEY")
 	if certFile == "" || keyFile == "" {
-		log.Println("HTTP/3 skipped: set FINANCER_TLS_CERT + FINANCER_TLS_KEY to enable")
+		logx.Info("HTTP/3 skipped: set FINANCER_TLS_CERT + FINANCER_TLS_KEY to enable")
 		select {}
 	}
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -107,7 +110,7 @@ func main() {
 			Certificates: []tls.Certificate{cert},
 		},
 	}
-	log.Printf("HTTP/3 (QUIC) server listening on https://localhost%s", addr)
+	logx.Info("HTTP/3 (QUIC) server listening", "addr", addr)
 	if err := h3.ListenAndServe(); err != nil {
 		log.Fatalf("Failed to start HTTP/3 server: %v", err)
 	}
@@ -124,10 +127,11 @@ func runPeriodic(envName string, def, min time.Duration, fn func(ctx context.Con
 	}
 	go func() {
 		ticker := time.NewTicker(interval)
+		logx.Info("refresher started", "name", envName, "interval", interval.String())
 		for range ticker.C {
 			ctx, cancel := context.WithTimeout(context.Background(), interval)
 			if err := fn(ctx); err != nil {
-				log.Printf("%s: %v", envName, err)
+				logx.Error("refresher failed", "name", envName, "err", err)
 			}
 			cancel()
 		}

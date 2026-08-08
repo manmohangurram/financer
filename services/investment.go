@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/mohan9182/financer/logx"
 	"time"
 
 	"github.com/mohan9182/financer/auth"
@@ -394,7 +394,7 @@ func (s *InvestmentService) fetchAndCachePriceHistory(ctx context.Context, inves
 		closes[i] = p.Close
 	}
 	if err := s.repo.UpsertPriceHistory(ctx, investmentID, rangeID, ts, closes, time.Now().Unix()); err != nil {
-		log.Printf("caching price history %s %s: %v", symbol, rangeID, err)
+		logx.Debug("price history cache failed", "symbol", symbol, "range", rangeID, "err", err)
 	}
 	return points, nil
 }
@@ -415,7 +415,7 @@ func (s *InvestmentService) RefreshAllPriceHistory(ctx context.Context) error {
 				continue
 			}
 			if _, err := s.fetchAndCachePriceHistory(ctx, inst.Id, inst.Symbol, rangeID, cfg); err != nil {
-				log.Printf("price history refresh %s %s: %v", inst.Symbol, rangeID, err)
+				logx.Debug("price history refresh failed", "symbol", inst.Symbol, "range", rangeID, "err", err)
 			}
 		}
 	}
