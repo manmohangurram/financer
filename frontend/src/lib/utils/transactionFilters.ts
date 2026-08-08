@@ -6,38 +6,40 @@ export interface TransactionFilters {
   minAmount: string;
   maxAmount: string;
   categoryId: string;
-  name: string;
+  names: string[];
   type: '' | 'CREDIT' | 'DEBIT';
 }
 
 export function emptyFilters(): TransactionFilters {
-  return { dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', name: '', type: '' };
+  return { dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', names: [], type: '' };
 }
 
 export function hasActiveFilters(filters: TransactionFilters): boolean {
-  return !!(filters.dateFrom || filters.dateTo || filters.minAmount || filters.maxAmount || filters.categoryId || filters.name || filters.type);
+  return !!(filters.dateFrom || filters.dateTo || filters.minAmount || filters.maxAmount || filters.categoryId || filters.names.length || filters.type);
 }
 
-export interface FilterChip {
+export interface FilterBubble {
   key: keyof TransactionFilters;
+  value: string;
   label: string;
 }
 
-export function buildActiveFilterChips(filters: TransactionFilters, categoryList: any[]): FilterChip[] {
-  const chips: FilterChip[] = [];
-  if (filters.dateFrom) chips.push({ key: 'dateFrom', label: `From: ${filters.dateFrom}` });
-  if (filters.dateTo) chips.push({ key: 'dateTo', label: `To: ${filters.dateTo}` });
-  if (filters.minAmount) chips.push({ key: 'minAmount', label: `Min: ${formatCurrency(Number(filters.minAmount))}` });
-  if (filters.maxAmount) chips.push({ key: 'maxAmount', label: `Max: ${formatCurrency(Number(filters.maxAmount))}` });
+export function buildFilterBubbles(filters: TransactionFilters, categoryList: any[]): FilterBubble[] {
+  const bubbles: FilterBubble[] = [];
+  filters.names.forEach((n) => bubbles.push({ key: 'names', value: n, label: `Name: "${n}"` }));
   if (filters.categoryId) {
     const cat = categoryList.find((c: any) => c.id === filters.categoryId);
-    chips.push({ key: 'categoryId', label: `Category: ${cat?.name || filters.categoryId}` });
+    bubbles.push({ key: 'categoryId', value: filters.categoryId, label: `Category: ${cat?.name || filters.categoryId}` });
   }
-  if (filters.name) chips.push({ key: 'name', label: `Name: "${filters.name}"` });
-  if (filters.type) chips.push({ key: 'type', label: `Type: ${filters.type === 'CREDIT' ? 'Credit' : 'Debit'}` });
-  return chips;
+  if (filters.type) bubbles.push({ key: 'type', value: filters.type, label: `Type: ${filters.type === 'CREDIT' ? 'Credit' : 'Debit'}` });
+  if (filters.dateFrom) bubbles.push({ key: 'dateFrom', value: filters.dateFrom, label: `From: ${filters.dateFrom}` });
+  if (filters.dateTo) bubbles.push({ key: 'dateTo', value: filters.dateTo, label: `To: ${filters.dateTo}` });
+  if (filters.minAmount) bubbles.push({ key: 'minAmount', value: filters.minAmount, label: `Min: ${formatCurrency(Number(filters.minAmount))}` });
+  if (filters.maxAmount) bubbles.push({ key: 'maxAmount', value: filters.maxAmount, label: `Max: ${formatCurrency(Number(filters.maxAmount))}` });
+  return bubbles;
 }
 
-export function clearFilterKey(filters: TransactionFilters, key: keyof TransactionFilters): TransactionFilters {
-  return { ...filters, [key]: '' };
+export function removeFilterBubble(filters: TransactionFilters, bubble: FilterBubble): TransactionFilters {
+  if (bubble.key === 'names') return { ...filters, names: filters.names.filter((n) => n !== bubble.value) };
+  return { ...filters, [bubble.key]: '' };
 }

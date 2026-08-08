@@ -78,12 +78,14 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Filters
 
-- **Filter button** (toolbar, beside Add/Transfer/Select) opens the filter popover; button is highlighted (primary accent) while any filter is active
-- Filters popover opens with From/To date, Min/Max amount, Category, Name (case-insensitive contains), and Type (Both/Credit/Debit)
-- Applying a filter narrows the transaction list; clearing restores it
-- Filtering by a category only returns transactions with that category
-- Filtering by Type=Debit only returns debit rows; Type=Credit only returns credit rows
-- Active filters render as removable chips above the table; clicking ✕ on a chip removes that filter; **Clear all** resets and returns to page 1
+- Filter bar sits between the **Transactions** heading and the **Add** button
+- Typing a name and pressing Enter adds a name bubble inside the field and searches immediately
+- Multiple name bubbles combine with OR (results match any name); Backspace on an empty input removes the last name bubble
+- The filter button (icon + chevron) at the right of the bar opens the popup with From/To date, Min/Max amount, Category, and Type (Both/Credit/Debit)
+- Applying the popup adds bubbles for each set filter; the popup's Clear resets only the popup fields (name bubbles stay)
+- Each bubble is removable via its ✕; removing a filter re-applies
+- Filtering by a category only returns transactions with that category; Type=Debit/Credit narrows by type
+- The bar looks like a normal input and shows the placeholder "Search" when no filters are active
 - **Account filter:** with many accounts the bar scrolls horizontally (invisible scrollbar); left/right arrows appear on hover and scroll ~55px; arrows hide at the scroll ends
 - **Responsive:** at <1024px the sidebar auto-collapses, the Spending Tracker button and the Categories column hide (below `lg`), and the Accounts sub-heading hides (below `md`); no horizontal overflow at 1280/1920/2560 widths (16:9 and 16:10)
 

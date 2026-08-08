@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import Pagination from '@/components/Pagination.vue';
 import TransactionTable from '@/components/workspace/TransactionTable.vue';
-import { buildActiveFilterChips, clearFilterKey, emptyFilters, type TransactionFilters } from '@/lib/utils/transactionFilters';
+import { hasActiveFilters, emptyFilters, type TransactionFilters } from '@/lib/utils/transactionFilters';
 
 const props = defineProps<{
   pagedTxns: any[];
@@ -15,7 +15,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'edit', txn: any): void; (e: 'bulk-delete', ids: string[]): void; (e: 'transfer', txn: any): void }>();
 
-const showCheckboxes = defineModel<boolean>('showCheckboxes', { default: false });
 const filters = defineModel<TransactionFilters>('filters', { default: emptyFilters });
 const page = defineModel<number>('page', { default: 0 });
 
@@ -42,31 +41,10 @@ function bulkDelete() {
   selectedIds.value = [];
   emit('bulk-delete', ids);
 }
-
-function removeFilter(key: keyof TransactionFilters) {
-  filters.value = clearFilterKey(filters.value, key);
-  page.value = 0;
-}
-
-function clearFilters() {
-  filters.value = emptyFilters();
-  page.value = 0;
-}
 </script>
 
 <template>
   <div>
-    <div v-if="buildActiveFilterChips(filters, categories).length > 0" class="flex flex-wrap gap-2 mb-3">      <span
-        v-for="chip in buildActiveFilterChips(filters, categories)"
-        :key="chip.key"
-        class="badge badge-error badge-outline gap-1 text-[12px]"
-      >
-        {{ chip.label }}
-        <button class="hover:text-base-content" @click="removeFilter(chip.key)">✕</button>
-      </span>
-      <button @click="clearFilters" class="text-[12px] text-subtle hover:text-text self-center ml-1">Clear all</button>
-    </div>
-
     <div v-if="selectedIds.length > 0" class="flex items-center justify-between mb-3 px-4 py-2.5 rounded-xl bg-primary-500/10 border border-primary-500/30">
       <span class="text-[13px] text-primary-400 font-medium">{{ selectedIds.length }} selected</span>
       <div class="flex gap-2">
@@ -78,11 +56,10 @@ function clearFilters() {
     <TransactionTable
       :transactions="pagedTxns"
       :categories="categories"
-      :show-checkboxes="showCheckboxes"
       :selected-ids="selectedIds"
       :transfer-txns="allTxns"
       :accounts="accounts"
-      :empty-text="buildActiveFilterChips(filters, categories).length ? 'No transactions match filters' : 'No transactions yet'"
+      :empty-text="hasActiveFilters(filters) ? 'No transactions match filters' : 'No transactions yet'"
       @toggle-select="toggleSelect"
       @toggle-select-all="toggleSelectAll"
       @edit="emit('edit', $event)"
