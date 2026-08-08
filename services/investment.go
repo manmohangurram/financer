@@ -294,14 +294,30 @@ type priceRange struct {
 }
 
 var priceHistoryRanges = map[string]priceRange{
-	// 1d uses a 3-day lookback so it always includes the last trading session
-	// (a trailing 24h window is empty over weekends/holidays).
-	"1d": {days: 3, interval: "15m"},
+	"1d": {days: 1, interval: "15m"},
 	"7d": {days: 7, interval: "1d", limit: 7},
 	"1m": {days: 30, interval: "1d"},
 	"6m": {days: 180, interval: "1d"},
 	"1y": {days: 365, interval: "1d", agg: "week"},
 	"3y": {days: 1095, interval: "1d", agg: "month"},
+}
+
+// presetPeriod converts a preset range to period1/period2 Unix timestamps.
+// The 1d (intraday) range uses Friday's session on weekends, since a trailing
+// 24h window is empty when the market has been closed.
+func presetPeriod(rangeID string, cfg priceRange, now time.Time) (period1, period2 int64) {
+	if rangeID == "1d" {
+		if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
+			daysBack := 1
+			if now.Weekday() == time.Sunday {
+				daysBack = 2
+			}
+			friday := time.Date(now.Year(), now.Month(), now.Day()-daysBack, 0, 0, 0, 0, now.Location())
+			return friday.Unix(), friday.Add(24 * time.Hour).Unix()
+		}
+		return now.Add(-24 * time.Hour).Unix(), now.Unix()
+	}
+	return now.AddDate(0, 0, -cfg.days).Unix(), now.Unix()
 }
 
 func aggregatePricePoints(points []PricePoint, agg string) []PricePoint {
@@ -369,9 +385,7 @@ func (s *InvestmentService) GetPriceHistory(ctx context.Context, investmentID, r
 		}
 		// Preset ranges are translated to explicit timestamps (period-based),
 		// matching Yahoo's period1/period2 chart requests.
-		now := time.Now()
-		period1 = now.AddDate(0, 0, -cfg.days).Unix()
-		period2 = now.Unix()
+		period1, period2 = presetPeriod(rangeID, cfg, time.Now())
 		cacheKey = rangeID
 	}
 
@@ -448,7 +462,8 @@ func (s *InvestmentService) RefreshAllPriceHistory(ctx context.Context) error {
 			if len(ts) > 0 && now-lastFetched < int64(priceHistoryFreshness[rangeID].Seconds()) {
 				continue
 			}
-			if _, err := s.fetchAndCachePriceHistory(ctx, inst.Id, inst.Symbol, rangeID, cfg, time.Now().AddDate(0, 0, -cfg.days).Unix(), time.Now().Unix()); err != nil {
+			p1, p2 := presetPeriod(rangeID, cfg, time.Now())
+			if _, err := s.fetchAndCachePriceHistory(ctx, inst.Id, inst.Symbol, rangeID, cfg, p1, p2); err != nil {
 				logx.Debug("price history refresh failed", "symbol", inst.Symbol, "range", rangeID, "err", err)
 			}
 		}
