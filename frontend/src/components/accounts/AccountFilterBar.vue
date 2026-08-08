@@ -18,7 +18,7 @@ function accountLabel(a: any) {
       <button
         @click="store.select(null)"
         class="px-3 py-1.5 rounded-xl text-[13.5px] font-medium transition-all flex items-center gap-2"
-        :class="store.state.selectedAccountId === null ? 'bg-primary-500 text-white' : 'bg-surface text-text-muted border border-border hover:border-primary-500/40'"
+        :class="store.state.selectedAccountId === null ? 'bg-primary-600 text-white' : 'bg-surface text-text-muted border border-border hover:border-primary-500/40'"
       >
         <span class="w-2 h-2 rounded-full" :class="store.state.selectedAccountId === null ? 'bg-white' : 'bg-track'"></span>
         All Accounts
@@ -28,7 +28,7 @@ function accountLabel(a: any) {
         :key="acc.id"
         @click="store.select(acc.id)"
         class="px-3 py-1.5 rounded-xl text-[13.5px] font-medium transition-all flex items-center gap-2"
-        :class="store.state.selectedAccountId === acc.id ? 'bg-primary-500 text-white' : 'bg-surface text-text-muted border border-border hover:border-primary-500/40'"
+        :class="store.state.selectedAccountId === acc.id ? 'bg-primary-600 text-white' : 'bg-surface text-text-muted border border-border hover:border-primary-500/40'"
       >
         <span class="w-2 h-2 rounded-full" :class="store.state.selectedAccountId === acc.id ? 'bg-white' : isCredit(acc.accountType) ? 'bg-expense' : 'bg-income'"></span>
         {{ accountLabel(acc) }}

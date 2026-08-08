@@ -99,7 +99,7 @@ function handleLogout() {
             :aria-expanded="userMenuOpen"
             @click="userMenuOpen = !userMenuOpen"
           >
-            <div class="w-[42px] h-[42px] rounded-full bg-accent flex items-center justify-center text-[15px] font-bold text-white shrink-0">
+            <div class="w-[42px] h-[42px] rounded-full bg-accent flex items-center justify-center text-[15px] font-bold text-accent-content shrink-0">
               {{ userInitials }}
             </div>
             <div class="flex-1 min-w-0">

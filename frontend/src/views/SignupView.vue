@@ -28,7 +28,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4" style="background: radial-gradient(ellipse at 30% 20%, var(--color-bg-auth) 0%, var(--color-bg) 60%);">
+  <main class="min-h-screen flex items-center justify-center p-4" style="background: radial-gradient(ellipse at 30% 20%, var(--color-bg-auth) 0%, var(--color-bg) 60%);">
     <div class="w-full max-w-md">
       <div class="text-center mb-10">
         <div class="flex items-center justify-center gap-4 mb-5">
@@ -64,5 +64,5 @@ async function handleSubmit() {
         </div>
       </div>
     </div>
-  </div>
+  </main>
 </template>

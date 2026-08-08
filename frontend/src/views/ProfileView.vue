@@ -141,7 +141,7 @@ onMounted(loadProfile);
 
           <div class="flex items-center gap-4">
             <div class="relative">
-              <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-2xl font-bold text-white overflow-hidden">
+              <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-2xl font-bold text-accent-content overflow-hidden">
                 <img v-if="avatarSrc" :src="avatarSrc" alt="Avatar" class="w-full h-full object-cover" />
                 <span v-else>{{ (form.name || '?').slice(0, 2).toUpperCase() }}</span>
               </div>

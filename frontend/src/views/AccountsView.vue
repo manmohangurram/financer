@@ -94,7 +94,7 @@ onMounted(loadAll);
         </div>
         <button
           @click="router.push('/accounts/spending')"
-          class="h-[60px] px-4 shrink-0 flex items-center gap-3 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white border border-primary-400/40 shadow-card hover:shadow-card-hover hover:brightness-110 active:scale-[0.98] transition-all"
+          class="h-[60px] px-4 shrink-0 flex items-center gap-3 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-white border border-primary-400/40 shadow-card hover:shadow-card-hover hover:brightness-110 active:scale-[0.98] transition-all"
         >
           <span class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
             <BarChart3 class="w-5 h-5" stroke-width="2" />

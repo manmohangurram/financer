@@ -151,6 +151,15 @@ Every run against the running backend before a release or after any backend/fron
 - No net::ERR_FAILED / CORS / access-control-allow-headers errors on any backend request
 - All network requests return 2xx for happy paths; 4xx for intentional invalid input
 
+## Accessibility (WCAG 2.1 AA)
+
+- Lighthouse accessibility score is 100 on the authenticated pages and /login (color contrast, landmarks, labels)
+- Sidebar/user text uses AA-compliant tokens (`text-muted`, `subtle`, `faint` ≥ 4.5:1 on dark)
+- Primary buttons use `primary`/`primary-600` with white text (≥ 4.5:1)
+- Category badges use the AA-compliant `CATEGORY_PALETTE` (all 16 colors ≥ 4.5:1 on dark)
+- Every page has a `<main>` landmark (Login/Signup are standalone `<main>`; app pages render in the shell's `<main>`)
+- Forms use labeled controls (`AppInput`/`AppSelect`/`AppModal`); interactive elements are keyboard-reachable
+
 ## Backend smoke (curl)
 
 - Login returns accessToken + refreshToken

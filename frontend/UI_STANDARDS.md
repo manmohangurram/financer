@@ -133,7 +133,7 @@ Every list/screen must handle all three:
 
 - **Keyboard:** every interactive element is a real `<button>`/`<a>`/`<input>`/`<select>` (focusable by default). Verify by tabbing through.
 - **Labels:** every input has a visible label or `aria-label`.
-- **Contrast:** text is `text`/`text-secondary` on `surface`; never `subtle`/`faint` for essential text.
+- **Contrast:** text is `text`/`text-secondary` on `surface`; never `subtle`/`faint` for essential text. All text tokens (`text-muted`, `subtle`, `faint`) are tuned to pass WCAG AA (≥4.5:1) on the dark surfaces (`bg`, `base-200`).
 - **Don't rely on color alone:** income/expense must pair color with a sign (`+`/`−`) or icon.
 - **Focus:** global `:focus-visible` outline is set in `main.css` — don't override it.
 - **Reduced motion:** handled globally via `prefers-reduced-motion` in `main.css`; don't add new animations that bypass it.
