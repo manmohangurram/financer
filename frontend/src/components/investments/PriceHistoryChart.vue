@@ -26,7 +26,8 @@ const CHART_RANGES = computed(() => {
 });
 type RangeId = '1D' | '7D' | '1M' | '6M' | '1Y' | '3Y' | 'CUSTOM';
 
-const range = ref<RangeId>('3Y');
+// Default range is type-based: stocks open on 1D, mutual funds on 7D.
+const range = ref<RangeId>('7D');
 const customStart = ref(toLocalDateString(new Date(Date.now() - 29 * 86400000)));
 const customEnd = ref(toLocalDateString(new Date()));
 const points = ref<{ t: number; close: number }[]>([]);
@@ -211,9 +212,9 @@ watch(customEnd, (v) => {
   if (range.value === 'CUSTOM') load();
 });
 
-// Reset to a range the current investment type offers (e.g. MF has no 1D).
+// Set the type-based default range when a new investment loads.
 watch(() => props.investment?.id, () => {
-  if (!CHART_RANGES.value.some((r) => r.id === range.value)) range.value = '3Y';
+  range.value = props.investment?.investmentType === 'INVESTMENT_TYPE_STOCK' ? '1D' : '7D';
   load();
 }, { immediate: true });
 watch(range, load);
@@ -268,7 +269,7 @@ watch(range, load);
         </g>
 
         <path :d="areaPath" :fill="`url(#area-${props.investment.id})`" />
-        <path :d="linePath" fill="none" :class="strokeCls" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        <path :d="linePath" fill="none" :class="strokeCls" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
 
         <line
           v-if="hovered !== null"
@@ -278,10 +279,10 @@ watch(range, load);
         />
         <circle
           v-if="hovered !== null"
-          :cx="hoverX" :cy="coords[hovered]?.y ?? 0" r="4"
+          :cx="hoverX" :cy="coords[hovered]?.y ?? 0" r="2.5"
           :class="strokeCls"
           class="fill-base-200"
-          stroke-width="2"
+          stroke-width="1"
         />
       </svg>
 
