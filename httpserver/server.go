@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -101,7 +101,7 @@ type handler func(ctx context.Context, userID string, r *http.Request) (any, err
 
 func (a *API) route(mux *http.ServeMux, method, path string, public bool, h handler) {
 	mux.HandleFunc(method+" "+path, func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s", method, path)
+		slog.Debug("http request", "method", method, "path", path)
 		uid := ""
 		if v, ok := r.Context().Value(auth.UserIDKey).(string); ok {
 			uid = v
@@ -184,7 +184,7 @@ func writeError(w http.ResponseWriter, err error) {
 		code = apiErr.Status
 		name = statusName(code)
 	} else {
-		log.Printf("handler error: %v", err)
+		slog.Error("handler error", "err", err)
 	}
 	writeJSON(w, code, map[string]string{"code": name, "message": err.Error()})
 }
