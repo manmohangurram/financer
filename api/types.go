@@ -124,10 +124,6 @@ func (x TransactionType) String() string {
 	return "DEBIT"
 }
 
-type GetTransactionRequest struct {
-	Id string
-}
-
 type ListTransactionsRequest struct {
 	PageSize   int32
 	PageToken  string

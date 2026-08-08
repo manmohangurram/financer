@@ -26,17 +26,6 @@ func txnDelta(txn *api.TransactionResponse) float32 {
 	return -txn.Amount
 }
 
-func (s *TransactionService) GetTransaction(ctx context.Context, msg *api.GetTransactionRequest) (*api.TransactionResponse, error) {
-	txn, err := s.txnRepo.GetByID(ctx, msg.Id)
-	if err != nil {
-		return nil, ServerError("%v", err)
-	}
-	if txn == nil {
-		return nil, NotFound("transaction %s not found", msg.Id)
-	}
-	return txn, nil
-}
-
 func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.ListTransactionsRequest) (*api.ListTransactionsResponse, error) {
 	userID, _ := ctx.Value(auth.UserIDKey).(string)
 
