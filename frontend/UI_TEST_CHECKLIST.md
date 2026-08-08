@@ -78,9 +78,12 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Filters
 
-- Filters popover opens with From/To date, Min/Max amount, Category, Name, match mode
+- **Filter button** (toolbar, beside Add/Transfer/Select) opens the filter popover; button is highlighted (primary accent) while any filter is active
+- Filters popover opens with From/To date, Min/Max amount, Category, Name (case-insensitive contains), and Type (Both/Credit/Debit)
 - Applying a filter narrows the transaction list; clearing restores it
 - Filtering by a category only returns transactions with that category
+- Filtering by Type=Debit only returns debit rows; Type=Credit only returns credit rows
+- Active filters render as removable chips above the table; clicking ✕ on a chip removes that filter; **Clear all** resets and returns to page 1
 - **Account filter:** with many accounts the bar scrolls horizontally (invisible scrollbar); left/right arrows appear on hover and scroll ~55px; arrows hide at the scroll ends
 - **Responsive:** at <1024px the sidebar auto-collapses, the Spending Tracker button and the Categories column hide (below `lg`), and the Accounts sub-heading hides (below `md`); no horizontal overflow at 1280/1920/2560 widths (16:9 and 16:10)
 

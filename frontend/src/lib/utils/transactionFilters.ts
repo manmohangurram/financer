@@ -7,12 +7,11 @@ export interface TransactionFilters {
   maxAmount: string;
   categoryId: string;
   name: string;
-  nameMatch: 'contains' | 'exact';
   type: '' | 'CREDIT' | 'DEBIT';
 }
 
 export function emptyFilters(): TransactionFilters {
-  return { dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', name: '', nameMatch: 'contains', type: '' };
+  return { dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', name: '', type: '' };
 }
 
 export function hasActiveFilters(filters: TransactionFilters): boolean {

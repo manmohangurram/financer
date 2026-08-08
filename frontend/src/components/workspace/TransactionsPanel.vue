@@ -4,11 +4,13 @@ import TransactionsTab from '@/components/workspace/TransactionsTab.vue';
 import AddTransactionModal from '@/components/workspace/AddTransactionModal.vue';
 import EditItemModal from '@/components/workspace/EditItemModal.vue';
 import TransferModal from '@/components/workspace/TransferModal.vue';
+import FilterTransactionsPopover from '@/components/workspace/FilterTransactionsPopover.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import Popover from '@/components/Popover.vue';
 import { accounts, transactions, categories, transfers } from '@/lib/api/client';
-import { emptyFilters, type TransactionFilters } from '@/lib/utils/transactionFilters';
+import { emptyFilters, hasActiveFilters, type TransactionFilters } from '@/lib/utils/transactionFilters';
 import { useAccountsStore } from '@/lib/stores/accounts';
-import { Plus, CheckSquare, ReceiptText, ArrowLeftRight } from '@lucide/vue';
+import { Plus, CheckSquare, ReceiptText, Filter, Ellipsis } from '@lucide/vue';
 
 const store = useAccountsStore();
 
@@ -29,7 +31,10 @@ const showAddModal = ref(false);
 const showItemModal = ref(false);
 const editingItem = ref<any>(null);
 const showTransfer = ref(false);
+const transferPrefill = ref<{ sourceId: string; fromId: string } | null>(null);
 const showCheckboxes = ref(false);
+const showFilter = ref(false);
+const showMore = ref(false);
 const confirmDelete = ref<{ ids: string[]; label: string } | null>(null);
 
 const pagedTxns = computed(() => txnList.value);
@@ -47,7 +52,7 @@ async function loadPage() {
       maxAmount: filters.value.maxAmount || undefined,
       categoryId: filters.value.categoryId || undefined,
       name: filters.value.name || undefined,
-      nameMatch: filters.value.nameMatch || undefined,
+      type: filters.value.type || undefined,
       ...(page.value > 0 && pageToken.value ? { pageToken: pageToken.value } : {})
     });
     txnList.value = (resp.transactions || []).map((t: any) => ({ ...t, type: t.type === 'CREDIT' ? 1 : 0 }));
@@ -79,6 +84,14 @@ function openAdd() {
 }
 function openEditItem(item: any) {
   editingItem.value = item; showItemModal.value = true;
+}
+function applyFilters(f: TransactionFilters) {
+  filters.value = f;
+  showFilter.value = false;
+}
+function openTransfer(txn: any) {
+  transferPrefill.value = { sourceId: txn.id, fromId: txn.accountId };
+  showTransfer.value = true;
 }
 async function unlinkTransfer() {
   const linkId = editingItem.value?.linkedTransferId;
@@ -141,18 +154,44 @@ async function confirmDeleteNow() {
               <Plus class="w-4 h-4" />
               Add
             </button>
-            <button @click="showTransfer = true" class="btn btn-ghost btn-sm border border-track gap-1.5" title="Transfer">
-              <ArrowLeftRight class="w-3.5 h-3.5" />
-              Transfer
-            </button>
-            <button
-              @click="showCheckboxes = !showCheckboxes"
-              class="shrink-0 btn btn-ghost btn-sm border border-track gap-1.5 transition-colors"
-              :class="showCheckboxes ? 'bg-primary-500/10 text-primary-400 border-primary-500/30' : 'text-text'"
-            >
-              <CheckSquare class="w-3.5 h-3.5" />
-              {{ showCheckboxes ? 'Done' : 'Select' }}
-            </button>
+            <div class="relative">
+              <button
+                @click="showFilter = !showFilter"
+                class="btn btn-ghost btn-sm border border-track gap-1.5"
+                :class="hasActiveFilters(filters) ? 'bg-primary-500/10 text-primary-400 border-primary-500/30' : 'text-text'"
+              >
+                <Filter class="w-3.5 h-3.5" />
+                Filter
+              </button>
+              <FilterTransactionsPopover
+                v-if="showFilter"
+                :filters="filters"
+                :categories="categoryList"
+                @apply="applyFilters"
+                @close="showFilter = false"
+              />
+            </div>
+            <div class="relative">
+              <button
+                @click="showMore = !showMore"
+                class="btn btn-ghost btn-sm border border-track"
+                aria-label="More actions"
+                title="More"
+              >
+                <Ellipsis class="w-4 h-4" />
+              </button>
+              <Popover v-if="showMore" panel-class="right-0 w-48" @close="showMore = false">
+                <div class="py-1">
+                  <button
+                    @click="showCheckboxes = !showCheckboxes; showMore = false"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-left text-text-muted hover:text-primary-200 hover:bg-white/5 transition-colors"
+                  >
+                    <CheckSquare class="w-[18px] h-[18px]" stroke-width="1.5" />
+                    {{ showCheckboxes ? 'Done selecting' : 'Select rows' }}
+                  </button>
+                </div>
+              </Popover>
+            </div>
           </div>
         </div>
 
@@ -168,6 +207,7 @@ async function confirmDeleteNow() {
           v-model:show-checkboxes="showCheckboxes"
           @edit="openEditItem"
           @bulk-delete="requestBulkDelete"
+          @transfer="openTransfer"
         />
       </div>
     </div>
@@ -195,7 +235,7 @@ async function confirmDeleteNow() {
       @unlink="unlinkTransfer"
     />
 
-    <TransferModal v-if="showTransfer" :txns="txnList" :accounts="accountList" @close="showTransfer = false" @done="loadPage(); emit('updated')" />
+    <TransferModal v-if="showTransfer" :txns="txnList" :accounts="accountList" :prefill="transferPrefill || undefined" @close="showTransfer = false" @done="loadPage(); emit('updated')" />
 
     <ConfirmDialog
       v-if="confirmDelete"

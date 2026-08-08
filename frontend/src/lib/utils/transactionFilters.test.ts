@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { emptyFilters, hasActiveFilters, buildActiveFilterChips, clearFilterKey, type TransactionFilters } from '@/lib/utils/transactionFilters';
 
 describe('transactionFilters', () => {
-  it('emptyFilters defaults nameMatch to contains and type to empty', () => {
+  it('emptyFilters defaults type to empty', () => {
     const f = emptyFilters();
-    expect(f).toEqual({ dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', name: '', nameMatch: 'contains', type: '' });
+    expect(f).toEqual({ dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', name: '', type: '' });
   });
 
   it('hasActiveFilters is true when type is set', () => {

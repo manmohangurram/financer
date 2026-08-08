@@ -26,13 +26,7 @@ function apply() {
 
       <div>
         <label class="block text-[12px] text-text-muted mb-1.5">Name</label>
-        <div class="flex gap-2">
-          <AppInput v-model="draft.name" placeholder="Search by name" class="flex-1" />
-          <AppSelect v-model="draft.nameMatch" class="w-24">
-            <option value="contains">Contains</option>
-            <option value="exact">Exact</option>
-          </AppSelect>
-        </div>
+        <AppInput v-model="draft.name" placeholder="Search by name" />
       </div>
 
       <div class="grid grid-cols-2 gap-3">
