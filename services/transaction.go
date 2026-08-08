@@ -81,6 +81,9 @@ func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.List
 }
 
 func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.CreateTransactionsRequest) (*api.BulkOperationResponse, error) {
+	if len(msg.Transactions) > 1000 {
+		return nil, BadRequest("too many transactions in one request (max 1000)")
+	}
 	userID, _ := ctx.Value(auth.UserIDKey).(string)
 	var txns []*api.TransactionResponse
 	now := time.Now().UTC()

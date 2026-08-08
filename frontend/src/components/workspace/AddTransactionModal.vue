@@ -135,7 +135,16 @@ async function runImport() {
   error.value = '';
   try {
     const txns = mapCsvRowsToTransactions(rows.value, mapping.value, accountId.value);
-    if (txns.length) await transactions().createTransactions({ transactions: txns });
+    if (txns.length === 0) {
+      error.value = 'No valid rows to import — check the column mapping and data.';
+      return;
+    }
+    // One call holds at most 500 rows; larger files are split into batches.
+    const BATCH = 500;
+    for (let i = 0; i < txns.length; i += BATCH) {
+      const batch = txns.slice(i, i + BATCH);
+      await transactions().createTransactions({ transactions: batch });
+    }
     emit('imported');
     emit('close');
   } catch (e: any) {
