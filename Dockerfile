@@ -12,12 +12,16 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend
+# Declare the buildx automatic platform args so GOARCH/GOOS resolve to the
+# TARGET platform (undeclared, ${TARGETARCH} is empty and cross-compiles x86).
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 # modernc.org/sqlite is pure Go, so CGO_ENABLED=0 cross-compiles natively.
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} go build -trimpath -ldflags="-s -w" -o /out/financer .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build -trimpath -ldflags="-s -w" -o /out/financer .
 
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata
