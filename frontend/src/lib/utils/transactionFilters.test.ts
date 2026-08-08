@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { emptyFilters, hasActiveFilters, buildActiveFilterChips, clearFilterKey } from '@/lib/utils/transactionFilters';
+import { emptyFilters, hasActiveFilters, buildActiveFilterChips, clearFilterKey, type TransactionFilters } from '@/lib/utils/transactionFilters';
 
 describe('transactionFilters', () => {
   it('emptyFilters defaults nameMatch to contains and type to empty', () => {
@@ -12,7 +12,7 @@ describe('transactionFilters', () => {
   });
 
   it('buildActiveFilterChips includes name, amount (currency-formatted), category, and type chips', () => {
-    const f = { ...emptyFilters(), name: 'uber', minAmount: '50', maxAmount: '100', categoryId: 'cat1', type: 'DEBIT' };
+    const f: TransactionFilters = { ...emptyFilters(), name: 'uber', minAmount: '50', maxAmount: '100', categoryId: 'cat1', type: 'DEBIT' };
     const chips = buildActiveFilterChips(f, [{ id: 'cat1', name: 'Transportation' }]);
     expect(chips).toEqual([
       { key: 'minAmount', label: 'Min: ₹50.00' },
@@ -24,7 +24,7 @@ describe('transactionFilters', () => {
   });
 
   it('clearFilterKey resets a key to empty string', () => {
-    const f = { ...emptyFilters(), name: 'x', type: 'CREDIT' };
+    const f: TransactionFilters = { ...emptyFilters(), name: 'x', type: 'CREDIT' };
     expect(clearFilterKey(f, 'name')).toMatchObject({ name: '', type: 'CREDIT' });
     expect(clearFilterKey(f, 'type')).toMatchObject({ type: '' });
   });
