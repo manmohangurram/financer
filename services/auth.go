@@ -42,23 +42,7 @@ func (s *AuthService) Signup(ctx context.Context, msg *api.SignupRequest) (*api.
 		return nil, Conflict("email already exists")
 	}
 
-	accessToken, err := auth.GenerateAccessToken(userID, msg.Email, s.jwtSecret)
-	if err != nil {
-		return nil, ServerError("failed to generate token")
-	}
-
-	refreshToken, err := auth.GenerateRefreshToken(userID, s.jwtSecret)
-	if err != nil {
-		return nil, ServerError("failed to generate token")
-	}
-
-	return &api.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		UserId:       userID,
-		Email:        msg.Email,
-		Name:         msg.Name,
-	}, nil
+	return s.issueTokens(userID, msg.Email, msg.Name)
 }
 
 func (s *AuthService) Login(ctx context.Context, msg *api.LoginRequest) (*api.AuthResponse, error) {
@@ -78,23 +62,7 @@ func (s *AuthService) Login(ctx context.Context, msg *api.LoginRequest) (*api.Au
 		return nil, Unauthorized("invalid credentials")
 	}
 
-	accessToken, err := auth.GenerateAccessToken(userID, msg.Email, s.jwtSecret)
-	if err != nil {
-		return nil, ServerError("failed to generate token")
-	}
-
-	refreshToken, err := auth.GenerateRefreshToken(userID, s.jwtSecret)
-	if err != nil {
-		return nil, ServerError("failed to generate token")
-	}
-
-	return &api.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		UserId:       userID,
-		Email:        msg.Email,
-		Name:         name,
-	}, nil
+	return s.issueTokens(userID, msg.Email, name)
 }
 
 func (s *AuthService) RefreshToken(ctx context.Context, msg *api.RefreshTokenRequest) (*api.AuthResponse, error) {
@@ -115,20 +83,24 @@ func (s *AuthService) RefreshToken(ctx context.Context, msg *api.RefreshTokenReq
 		return nil, Unauthorized("user not found")
 	}
 
-	accessToken, err := auth.GenerateAccessToken(claims.Subject, email, s.jwtSecret)
+	return s.issueTokens(claims.Subject, email, name)
+}
+
+// issueTokens builds the access/refresh pair for a user and returns the auth
+// response carrying them.
+func (s *AuthService) issueTokens(userID, email, name string) (*api.AuthResponse, error) {
+	accessToken, err := auth.GenerateAccessToken(userID, email, s.jwtSecret)
 	if err != nil {
 		return nil, ServerError("failed to generate token")
 	}
-
-	refreshToken, err := auth.GenerateRefreshToken(claims.Subject, s.jwtSecret)
+	refreshToken, err := auth.GenerateRefreshToken(userID, s.jwtSecret)
 	if err != nil {
 		return nil, ServerError("failed to generate token")
 	}
-
 	return &api.AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		UserId:       claims.Subject,
+		UserId:       userID,
 		Email:        email,
 		Name:         name,
 	}, nil
