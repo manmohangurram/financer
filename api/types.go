@@ -572,3 +572,29 @@ type DashboardResponse struct {
 	Accounts       []*AccountResponse
 	Investments    []*InvestmentResponse
 }
+
+type SpendingRequest struct {
+	Range     string
+	From      string
+	To        string
+	AccountId string
+}
+
+type SpendingBucket struct {
+	Key    string
+	Label  string
+	Amount float32
+}
+
+type SpendingCategory struct {
+	Id     string
+	Name   string
+	Debit  float32
+	Credit float32
+	Net    float32
+}
+
+type SpendingResponse struct {
+	Buckets    []*SpendingBucket
+	Categories []*SpendingCategory
+}

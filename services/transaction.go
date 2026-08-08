@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
-	"github.com/mohan9182/financer/logx"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mohan9182/financer/auth"
 	"github.com/mohan9182/financer/api"
+	"github.com/mohan9182/financer/logx"
 	"github.com/mohan9182/financer/repository"
 )
 
@@ -51,6 +52,71 @@ func (s *TransactionService) Dashboard(ctx context.Context) (*api.DashboardRespo
 		return nil, ServerError("%v", err)
 	}
 	return &api.DashboardResponse{TotalBalance: balance, TotalIncome: credit, TotalExpenses: debit}, nil
+}
+
+// Spending returns day/month spending buckets and per-category debit/credit/
+// net for a range, computed in SQL (transfer exclusion: non-debt transfers
+// don't count; debt-account transfers do).
+func (s *TransactionService) Spending(ctx context.Context, msg *api.SpendingRequest) (*api.SpendingResponse, error) {
+	userID := ctx.Value(auth.UserIDKey).(string)
+	now := time.Now().UTC()
+
+	gran := "day"
+	var from, to time.Time
+	switch msg.Range {
+	case "7D":
+		from, to = now.AddDate(0, 0, -7), now
+	case "1M":
+		from, to = now.AddDate(0, -1, 0), now
+	case "6M":
+		from, to, gran = now.AddDate(0, -6, 0), now, "month"
+	case "1Y":
+		from, to, gran = now.AddDate(0, -12, 0), now, "month"
+	}
+	if msg.From != "" || msg.To != "" {
+		from, _ = time.Parse("2006-01-02", msg.From)
+		to, _ = time.Parse("2006-01-02", msg.To)
+		if !to.IsZero() {
+			to = to.Add(24 * time.Hour) // inclusive end-of-day
+		}
+		if !from.IsZero() && !to.IsZero() && int(to.Sub(from).Hours()/24) > 30 {
+			gran = "month"
+		}
+	}
+	f := repository.SpendingFilter{Granularity: gran, From: from, To: to, AccountID: msg.AccountId}
+
+	rows, err := s.txnRepo.SpendingBuckets(ctx, userID, f)
+	if err != nil {
+		return nil, ServerError("%v", err)
+	}
+	cats, err := s.txnRepo.SpendingCategories(ctx, userID, f)
+	if err != nil {
+		return nil, ServerError("%v", err)
+	}
+
+	buckets := make([]*api.SpendingBucket, 0, len(rows))
+	for _, r := range rows {
+		buckets = append(buckets, &api.SpendingBucket{Key: r.Key, Label: bucketLabel(r.Key, gran), Amount: r.Amount})
+	}
+	for _, c := range cats {
+		c.Net = c.Debit - c.Credit
+	}
+	return &api.SpendingResponse{Buckets: buckets, Categories: cats}, nil
+}
+
+func bucketLabel(key, gran string) string {
+	layout := "2006-01-02"
+	if gran == "month" {
+		layout = "2006-01"
+	}
+	t, err := time.Parse(layout, key)
+	if err != nil {
+		return key
+	}
+	if gran == "month" {
+		return t.Format("Jan 06")
+	}
+	return fmt.Sprintf("%d %s", t.Day(), t.Format("Jan"))
 }
 
 func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.ListTransactionsRequest) (*api.ListTransactionsResponse, error) {
