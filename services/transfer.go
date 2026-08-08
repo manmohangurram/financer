@@ -113,6 +113,11 @@ func resolveTransfer(ctx context.Context, userID string, txn *api.TransactionRes
 	if errs := txnRepo.Create(ctx, userID, []repository.CreateTransactionInput{{Txn: counterTxn}}); len(errs) > 0 {
 		return false, false, "", errs[0]
 	}
+	// The counterpart is a real transaction on the target account: keep the
+	// balance and cached credit/debit totals in sync (previously skipped).
+	accountRepo.UpdateBalance(ctx, counterTxn.AccountId, txnDelta(counterTxn))
+	credit, debit := txnTotals(counterTxn)
+	accountRepo.ApplyTotals(ctx, counterTxn.AccountId, credit, debit)
 	debitID, creditID := txn.Id, counterTxn.Id
 	if txn.Type == api.TransactionType_CREDIT {
 		debitID, creditID = counterTxn.Id, txn.Id

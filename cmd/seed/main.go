@@ -126,6 +126,17 @@ func main() {
 		fmt.Printf("Created transaction: %s (₹%.2f)\n", t.name, t.amount)
 	}
 
+	// Keep the cached account credit/debit totals consistent with the seeded
+	// transactions (the dashboard reads these; they must match).
+	if _, err := writeDB.ExecContext(ctx,
+		`UPDATE accounts SET
+			total_credit = (SELECT COALESCE(SUM(amount), 0) FROM transactions t WHERE t.account_id = accounts.id AND t.type = 1),
+			total_debit  = (SELECT COALESCE(SUM(amount), 0) FROM transactions t WHERE t.account_id = accounts.id AND t.type = 0)
+		 WHERE user_id = ?`, userID,
+	); err != nil {
+		log.Printf("Account totals backfill error: %v", err)
+	}
+
 	rules := []struct {
 		name     string
 		priority int32

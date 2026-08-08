@@ -35,6 +35,8 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/auth/login", true, a.authLogin)
 	a.route(mux, "POST", "/api/auth/refresh", true, a.authRefreshToken)
 
+	a.route(mux, "GET", "/api/dashboard", false, a.dashboard)
+
 	a.route(mux, "GET", "/api/me/profile", false, a.getProfile)
 	a.route(mux, "PUT", "/api/me/profile", false, a.updateProfile)
 	a.route(mux, "POST", "/api/me/password", false, a.changePassword)

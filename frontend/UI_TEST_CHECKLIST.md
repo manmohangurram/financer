@@ -24,12 +24,21 @@ Every run against the running backend before a release or after any backend/fron
 
 ## App shell / navigation
 
-- Sidebar shows only **Accounts** and **Investments** (no Dashboard/Spending/Transactions/Rules/Categories items)
+- Sidebar shows only **Dashboard**, **Accounts** and **Investments** (no Spending/Transactions/Rules/Categories items)
 - User popup (bottom avatar) shows **Settings** and **Logout**
-- `/` redirects to `/accounts`
+- `/` redirects to `/dashboard`
 - Rules and Categories are **sub-pages under /accounts** (`/accounts/rules`, `/accounts/categories`) reached via the header buttons on the Accounts page
 - Settings opens `/settings` → Profile page
 - Mobile (narrow viewport): hamburger toggles the sidebar, overlay closes it
+
+## Dashboard (`/dashboard`)
+
+- Login lands on Dashboard
+- Stat cards show Net Worth (accounts + portfolio), Total Income, Total Expenses, and Account count matching the backend (`GET /api/dashboard` returns all values in one request; zero client-side math)
+- Portfolio Snapshot lists accounts (compact cards) with correct balances
+- Investments Portfolio lists investments sorted by P&L (or the empty state when none)
+- "View all" links to /investments
+- Net Worth = account balance sum + portfolio current value
 
 ## Accounts (`/accounts`)
 
@@ -131,6 +140,9 @@ Every run against the running backend before a release or after any backend/fron
 ## Backend smoke (curl)
 
 - Login returns accessToken + refreshToken
+- Authed `GET /api/dashboard` returns `totalBalance`, `totalIncome`, `totalExpenses`, `portfolioValue`, `accounts`, `investments` in one request (no client math)
+- Dashboard income/expense come from the cached per-account `total_credit`/`total_debit` and stay consistent with the transaction list (create/edit/delete a transaction, then reload dashboard)
+- Transfer counterpart creation moves the target account's balance and totals (regression: was skipped)
 - Authed `GET /api/me/profile` returns userId/name/email/avatarUrl
 - Authed `GET /api/accounts` returns accounts with balances
 - Authed `GET /api/transactions` returns clean cent amounts (19.99, not 19.98999977…) with `categoryIds`, `linkedTransferId`, `totalCount`

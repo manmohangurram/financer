@@ -560,3 +560,12 @@ type PortfolioSummaryResponse struct {
 	TotalUnrealizedPnl float32
 	TotalRealizedPnl   float32
 }
+
+type DashboardResponse struct {
+	TotalBalance   float32
+	TotalIncome    float32
+	TotalExpenses  float32
+	PortfolioValue float32
+	Accounts       []*AccountResponse
+	Investments    []*InvestmentResponse
+}
