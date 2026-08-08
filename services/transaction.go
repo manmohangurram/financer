@@ -11,12 +11,14 @@ import (
 )
 
 type TransactionService struct {
-	txnRepo *repository.TransactionRepository
-	accRepo *repository.AccountRepository
+	txnRepo      *repository.TransactionRepository
+	accRepo      *repository.AccountRepository
+	ruleSvc      *RuleService
+	transferRule *TransferRuleService
 }
 
-func NewTransactionService(txnRepo *repository.TransactionRepository, accRepo *repository.AccountRepository) *TransactionService {
-	return &TransactionService{txnRepo: txnRepo, accRepo: accRepo}
+func NewTransactionService(txnRepo *repository.TransactionRepository, accRepo *repository.AccountRepository, ruleSvc *RuleService, transferRule *TransferRuleService) *TransactionService {
+	return &TransactionService{txnRepo: txnRepo, accRepo: accRepo, ruleSvc: ruleSvc, transferRule: transferRule}
 }
 
 func txnDelta(txn *api.TransactionResponse) float32 {
@@ -30,7 +32,7 @@ func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.List
 	userID, _ := ctx.Value(auth.UserIDKey).(string)
 
 	f := repository.TxnListFilter{
-		AccountID: msg.AccountId, TxnType: msg.Type,
+		AccountID: msg.AccountId, CategoryIDs: msg.CategoryId, TxnType: msg.Type,
 		DateFrom: msg.DateFrom, DateTo: msg.DateTo, MinAmount: msg.MinAmount, MaxAmount: msg.MaxAmount,
 		Name: msg.Name, NameMatch: msg.NameMatch, PageSize: msg.PageSize, PageToken: msg.PageToken,
 		SortBy: msg.SortBy, SortDir: msg.SortDir, Offset: msg.Offset,
@@ -38,6 +40,12 @@ func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.List
 	result, err := s.txnRepo.List(ctx, userID, f)
 	if err != nil {
 		return nil, ServerError("%v", err)
+	}
+
+	if s.ruleSvc != nil {
+		if err := s.ruleSvc.Overlay(ctx, result.Transactions); err != nil {
+			return nil, ServerError("%v", err)
+		}
 	}
 
 	count, _ := s.txnRepo.Count(ctx, userID, f)
@@ -62,24 +70,31 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 			occurredAt = t.OccurredAt
 		}
 		txns = append(txns, &api.TransactionResponse{
-			Id:         uuid.New().String(),
-			Name:       t.Name,
-			Amount:     round2f(t.Amount),
-			Type:       t.Type,
-			OccurredAt: occurredAt,
-			AccountId:  t.AccountId,
-			CreatedAt:  now,
+			Id:          uuid.New().String(),
+			Name:        t.Name,
+			Amount:      round2f(t.Amount),
+			Type:        t.Type,
+			OccurredAt:  occurredAt,
+			AccountId:   t.AccountId,
+			CreatedAt:   now,
+			CategoryIds: t.CategoryIds,
 		})
 	}
 
 	inputs := make([]repository.CreateTransactionInput, len(txns))
 	for i, txn := range txns {
-		inputs[i] = repository.CreateTransactionInput{Txn: txn}
+		inputs[i] = repository.CreateTransactionInput{Txn: txn, CategoryIDs: txn.CategoryIds}
 	}
 	errs := s.txnRepo.Create(ctx, userID, inputs)
 
 	for _, txn := range txns {
 		s.accRepo.UpdateBalance(ctx, txn.AccountId, txnDelta(txn))
+	}
+
+	if s.transferRule != nil {
+		if _, _, err := s.transferRule.ApplyToTransactions(ctx, txns); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -99,11 +114,12 @@ func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.Up
 	var txns []*api.TransactionResponse
 	for _, t := range msg.Transactions {
 		txn := &api.TransactionResponse{
-			Id:        t.Id,
-			Name:      t.Name,
-			Amount:    round2f(t.Amount),
-			Type:      t.Type,
-			AccountId: t.AccountId,
+			Id:          t.Id,
+			Name:        t.Name,
+			Amount:      round2f(t.Amount),
+			Type:        t.Type,
+			AccountId:   t.AccountId,
+			CategoryIds: t.CategoryIds,
 		}
 		if !t.OccurredAt.IsZero() {
 			txn.OccurredAt = t.OccurredAt
@@ -123,7 +139,7 @@ func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.Up
 
 	inputs := make([]repository.UpdateTransactionInput, len(txns))
 	for i := range txns {
-		inputs[i] = repository.UpdateTransactionInput{Txn: txns[i]}
+		inputs[i] = repository.UpdateTransactionInput{Txn: txns[i], CategoryIDs: txns[i].CategoryIds, ReplaceCategories: msg.Transactions[i].ReplaceCategories}
 	}
 	errs := s.txnRepo.Update(ctx, inputs)
 

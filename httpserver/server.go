@@ -13,15 +13,18 @@ import (
 )
 
 type API struct {
-	authSvc  *services.AuthService
-	account  *services.AccountService
-	txn      *services.TransactionService
-	transfer *services.TransferService
-	secret   string
+	authSvc     *services.AuthService
+	account     *services.AccountService
+	category    *services.CategoryService
+	txn         *services.TransactionService
+	transfer    *services.TransferService
+	rule        *services.RuleService
+	transferRule *services.TransferRuleService
+	secret      string
 }
 
-func NewAPI(authSvc *services.AuthService, account *services.AccountService, txn *services.TransactionService, transfer *services.TransferService, jwtSecret string) *API {
-	return &API{authSvc: authSvc, account: account, txn: txn, transfer: transfer, secret: jwtSecret}
+func NewAPI(authSvc *services.AuthService, account *services.AccountService, category *services.CategoryService, txn *services.TransactionService, transfer *services.TransferService, rule *services.RuleService, transferRule *services.TransferRuleService, jwtSecret string) *API {
+	return &API{authSvc: authSvc, account: account, category: category, txn: txn, transfer: transfer, rule: rule, transferRule: transferRule, secret: jwtSecret}
 }
 
 func (a *API) Handler() http.Handler {
@@ -36,6 +39,11 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "PUT", "/api/accounts/{id}", false, a.updateAccount)
 	a.route(mux, "DELETE", "/api/accounts/{id}", false, a.deleteAccount)
 
+	a.route(mux, "GET", "/api/categories", false, a.listCategories)
+	a.route(mux, "POST", "/api/categories", false, a.createCategories)
+	a.route(mux, "PUT", "/api/categories", false, a.updateCategories)
+	a.route(mux, "DELETE", "/api/categories", false, a.deleteCategories)
+
 	a.route(mux, "GET", "/api/transactions", false, a.listTransactions)
 	a.route(mux, "POST", "/api/transactions", false, a.createTransactions)
 	a.route(mux, "PUT", "/api/transactions", false, a.updateTransactions)
@@ -44,6 +52,13 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/transfers/link", false, a.linkTransfers)
 	a.route(mux, "POST", "/api/transfers/counterpart", false, a.createCounterpart)
 	a.route(mux, "POST", "/api/transfers/unlink", false, a.unlinkTransfers)
+
+	a.route(mux, "GET", "/api/rules", false, a.listRules)
+	a.route(mux, "POST", "/api/rules", false, a.createRule)
+	a.route(mux, "PUT", "/api/rules/{id}", false, a.updateRule)
+	a.route(mux, "DELETE", "/api/rules/{id}", false, a.deleteRule)
+	a.route(mux, "POST", "/api/rules/preview", false, a.previewRule)
+	a.route(mux, "POST", "/api/rules/{id}/run", false, a.runRule)
 
 	return cors(a.auth(mux))
 }

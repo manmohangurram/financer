@@ -100,6 +100,45 @@ type ListAccountsResponse struct {
 	Accounts []*AccountResponse
 }
 
+// --- categories ---
+
+type ListCategoriesRequest struct {
+	PageSize  int32
+	PageToken string
+}
+
+type CreateCategoriesRequest struct {
+	Categories []*CreateCategoryRequest
+}
+
+type CreateCategoryRequest struct {
+	Name string
+}
+
+type UpdateCategoriesRequest struct {
+	Categories []*UpdateCategoryRequest
+}
+
+type UpdateCategoryRequest struct {
+	Id   string
+	Name string
+}
+
+type DeleteCategoriesRequest struct {
+	Ids []string
+}
+
+type CategoryResponse struct {
+	Id        string
+	Name      string
+	CreatedAt time.Time
+}
+
+type ListCategoriesResponse struct {
+	Categories    []*CategoryResponse
+	NextPageToken string
+}
+
 type OperationResponse struct {
 	Success bool
 	Message string
@@ -128,6 +167,7 @@ type ListTransactionsRequest struct {
 	PageSize   int32
 	PageToken  string
 	AccountId  string
+	CategoryId []string
 	Type       TransactionType
 	DateFrom   time.Time
 	DateTo     time.Time
@@ -150,6 +190,7 @@ type CreateTransactionRequest struct {
 	Type       TransactionType
 	OccurredAt time.Time
 	AccountId  string
+	CategoryIds []string
 }
 
 type UpdateTransactionsRequest struct {
@@ -157,12 +198,14 @@ type UpdateTransactionsRequest struct {
 }
 
 type UpdateTransactionRequest struct {
-	Id         string
-	Name       string
-	Amount     float32
-	Type       TransactionType
-	OccurredAt time.Time
-	AccountId  string
+	Id               string
+	Name             string
+	Amount           float32
+	Type             TransactionType
+	OccurredAt       time.Time
+	AccountId        string
+	CategoryIds      []string
+	ReplaceCategories bool
 }
 
 type DeleteTransactionsRequest struct {
@@ -178,6 +221,7 @@ type TransactionResponse struct {
 	AccountId        string
 	CreatedAt        time.Time
 	LinkedTransferId string
+	CategoryIds      []string
 }
 
 type ListTransactionsResponse struct {
@@ -213,4 +257,180 @@ type CreateCounterpartRequest struct {
 type CreateTransferResponse struct {
 	DebitTransactionId  string
 	CreditTransactionId string
+}
+
+// --- rules ---
+
+type RuleLogic int32
+
+const (
+	RuleLogic_RULE_LOGIC_OR  RuleLogic = 1
+	RuleLogic_RULE_LOGIC_AND RuleLogic = 2
+)
+
+var RuleLogic_value = map[string]int32{
+	"RULE_LOGIC_OR":  1,
+	"RULE_LOGIC_AND": 2,
+}
+
+func (x RuleLogic) String() string {
+	if x == RuleLogic_RULE_LOGIC_AND {
+		return "RULE_LOGIC_AND"
+	}
+	return "RULE_LOGIC_OR"
+}
+
+type RuleMatchField int32
+
+const (
+	RuleMatchField_RULE_MATCH_FIELD_UNSPECIFIED RuleMatchField = 0
+	RuleMatchField_RULE_MATCH_FIELD_NAME        RuleMatchField = 1
+	RuleMatchField_RULE_MATCH_FIELD_AMOUNT      RuleMatchField = 2
+	RuleMatchField_RULE_MATCH_FIELD_TYPE        RuleMatchField = 3
+	RuleMatchField_RULE_MATCH_FIELD_CATEGORY    RuleMatchField = 4
+	RuleMatchField_RULE_MATCH_FIELD_ACCOUNT     RuleMatchField = 5
+)
+
+var RuleMatchField_value = map[string]int32{
+	"RULE_MATCH_FIELD_UNSPECIFIED": 0,
+	"RULE_MATCH_FIELD_NAME":        1,
+	"RULE_MATCH_FIELD_AMOUNT":      2,
+	"RULE_MATCH_FIELD_TYPE":        3,
+	"RULE_MATCH_FIELD_CATEGORY":    4,
+	"RULE_MATCH_FIELD_ACCOUNT":     5,
+}
+
+func (x RuleMatchField) String() string {
+	return [...]string{
+		"RULE_MATCH_FIELD_UNSPECIFIED",
+		"RULE_MATCH_FIELD_NAME",
+		"RULE_MATCH_FIELD_AMOUNT",
+		"RULE_MATCH_FIELD_TYPE",
+		"RULE_MATCH_FIELD_CATEGORY",
+		"RULE_MATCH_FIELD_ACCOUNT",
+	}[x]
+}
+
+type RuleMatchOperator int32
+
+const (
+	RuleMatchOperator_RULE_MATCH_OPERATOR_UNSPECIFIED  RuleMatchOperator = 0
+	RuleMatchOperator_RULE_MATCH_OPERATOR_CONTAINS     RuleMatchOperator = 1
+	RuleMatchOperator_RULE_MATCH_OPERATOR_STARTS_WITH  RuleMatchOperator = 2
+	RuleMatchOperator_RULE_MATCH_OPERATOR_ENDS_WITH    RuleMatchOperator = 3
+	RuleMatchOperator_RULE_MATCH_OPERATOR_EQUALS       RuleMatchOperator = 4
+	RuleMatchOperator_RULE_MATCH_OPERATOR_GREATER_THAN RuleMatchOperator = 5
+	RuleMatchOperator_RULE_MATCH_OPERATOR_LESS_THAN    RuleMatchOperator = 6
+	RuleMatchOperator_RULE_MATCH_OPERATOR_REGEX        RuleMatchOperator = 7
+)
+
+var RuleMatchOperator_value = map[string]int32{
+	"RULE_MATCH_OPERATOR_UNSPECIFIED":  0,
+	"RULE_MATCH_OPERATOR_CONTAINS":     1,
+	"RULE_MATCH_OPERATOR_STARTS_WITH":  2,
+	"RULE_MATCH_OPERATOR_ENDS_WITH":    3,
+	"RULE_MATCH_OPERATOR_EQUALS":       4,
+	"RULE_MATCH_OPERATOR_GREATER_THAN": 5,
+	"RULE_MATCH_OPERATOR_LESS_THAN":    6,
+	"RULE_MATCH_OPERATOR_REGEX":        7,
+}
+
+func (x RuleMatchOperator) String() string {
+	return [...]string{
+		"RULE_MATCH_OPERATOR_UNSPECIFIED",
+		"RULE_MATCH_OPERATOR_CONTAINS",
+		"RULE_MATCH_OPERATOR_STARTS_WITH",
+		"RULE_MATCH_OPERATOR_ENDS_WITH",
+		"RULE_MATCH_OPERATOR_EQUALS",
+		"RULE_MATCH_OPERATOR_GREATER_THAN",
+		"RULE_MATCH_OPERATOR_LESS_THAN",
+		"RULE_MATCH_OPERATOR_REGEX",
+	}[x]
+}
+
+type RuleActionOp int32
+
+const (
+	RuleActionOp_RULE_ACTION_OP_UNSPECIFIED RuleActionOp = 0
+	RuleActionOp_RULE_ACTION_OP_RENAME      RuleActionOp = 1
+	RuleActionOp_RULE_ACTION_OP_ADD_PREFIX  RuleActionOp = 2
+	RuleActionOp_RULE_ACTION_OP_ADD_SUFFIX  RuleActionOp = 3
+)
+
+var RuleActionOp_value = map[string]int32{
+	"RULE_ACTION_OP_UNSPECIFIED": 0,
+	"RULE_ACTION_OP_RENAME":      1,
+	"RULE_ACTION_OP_ADD_PREFIX":  2,
+	"RULE_ACTION_OP_ADD_SUFFIX":  3,
+}
+
+func (x RuleActionOp) String() string {
+	return [...]string{
+		"RULE_ACTION_OP_UNSPECIFIED",
+		"RULE_ACTION_OP_RENAME",
+		"RULE_ACTION_OP_ADD_PREFIX",
+		"RULE_ACTION_OP_ADD_SUFFIX",
+	}[x]
+}
+
+type ListRulesRequest struct{}
+
+type CreateRuleRequest struct {
+	Name       string
+	Priority   int32
+	Logic      RuleLogic
+	Conditions []*RuleCondition
+	Actions    []*RuleAction
+}
+
+type UpdateRuleRequest struct {
+	Id         string
+	Name       string
+	Priority   int32
+	Logic      RuleLogic
+	Conditions []*RuleCondition
+	Actions    []*RuleAction
+}
+
+type DeleteRuleRequest struct {
+	Id string
+}
+
+type RuleCondition struct {
+	MatchField RuleMatchField
+	Operator   RuleMatchOperator
+	Pattern    string
+}
+
+type RuleAction struct {
+	SetName              string
+	SetNameOp            RuleActionOp
+	SetCategoryId        string
+	SetTransferAccountId string
+}
+
+type RuleResponse struct {
+	Id         string
+	Name       string
+	Priority   int32
+	Logic      RuleLogic
+	Conditions []*RuleCondition
+	Actions    []*RuleAction
+	CreatedAt  time.Time
+}
+
+type ListRulesResponse struct {
+	Rules []*RuleResponse
+}
+
+type PreviewRuleRequest struct {
+	Logic      RuleLogic
+	Conditions []*RuleCondition
+	Limit      int32
+}
+
+type RunRuleResponse struct {
+	Matched int32
+	Linked  int32
+	Created int32
 }
