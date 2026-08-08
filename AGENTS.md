@@ -24,6 +24,13 @@ npm test            # vitest — pure helpers/composables under src/lib
 
 **Verification checklist:** after any change run `go build ./... && go vet ./... && go test ./...` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
 
+**Review before every PR:** before opening a pull request for a branch, run these review skills and fold any fixes into the branch:
+- `ponytail-review` — over-engineering scan (delete/stdlib/native/yagni/shrink).
+- `code-simplification` — reduce complexity without changing behavior.
+- `code-review-and-quality` — correctness, security, maintainability.
+- `performance-optimization` — measure and fix measurable bottlenecks (skip if nothing to measure).
+- `finishing-a-development-branch` — branch completion: verify tests, present merge options.
+
 ## Architecture
 
 **Request flow:** `main.go` opens the DB, runs migrations, constructs repositories → services, then registers HTTP handlers via `httpserver.NewAPI`. REST JSON under `/api/...`; routes in `httpserver/server.go` via `a.route(mux, method, path, public, handler)`; path params via `r.PathValue("id")`. JWT auth wraps handlers; only `/api/auth/{signup,login,refresh}` are public; the user id is injected into `context.Context` under `auth.UserIDKey`.
