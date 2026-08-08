@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"log/slog"
+	"github.com/mohan9182/financer/logx"
 	"time"
 
 	"github.com/google/uuid"
@@ -92,7 +92,7 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 
 	if s.transferRule != nil {
 		if _, _, err := s.transferRule.ApplyToTransactions(ctx, txns); err != nil {
-			slog.Error("transfer rule apply failed", "err", err)
+			logx.Error("transfer rule apply failed", "err", err)
 			errs = append(errs, err)
 		}
 	}
@@ -133,7 +133,7 @@ func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.Up
 	}
 	oldTxns, err := s.txnRepo.GetByIDBatch(ctx, ids)
 	if err != nil {
-		slog.Error("failed to preload transactions for balance recalc", "err", err)
+		logx.With("count", len(ids)).Error("failed to preload transactions before update (balances may drift)", "err", err)
 	}
 	oldMap := make(map[string]*api.TransactionResponse, len(oldTxns))
 	for _, t := range oldTxns {
@@ -202,7 +202,7 @@ func (s *TransactionService) DeleteTransactions(ctx context.Context, msg *api.De
 
 	oldTxns, err := s.txnRepo.GetByIDBatch(ctx, ids)
 	if err != nil {
-		slog.Error("failed to preload transactions for delete recalc", "err", err)
+		logx.With("count", len(ids)).Error("failed to preload transactions before delete (balances may drift)", "err", err)
 	}
 	errs := s.txnRepo.Delete(ctx, ids)
 

@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/mohan9182/financer/auth"
+	"github.com/mohan9182/financer/logx"
 	"github.com/mohan9182/financer/services"
 )
 
@@ -118,10 +118,13 @@ func (a *API) route(mux *http.ServeMux, method, path string, public bool, h hand
 		if v, ok := r.Context().Value(auth.UserIDKey).(string); ok {
 			uid = v
 		}
+		// One request-scoped logger: every line in this handler (and any
+		// handler error it writes) carries method/path/user automatically.
+		lg := logx.Request(method, path, uid)
 		out, err := h(r.Context(), uid, r)
 		if err != nil {
 			writeError(rec, err)
-			slog.Debug("request done", "method", method, "path", path, "status", rec.status)
+			lg.Debug("request failed", "status", rec.status)
 			return
 		}
 		status := http.StatusOK
@@ -130,7 +133,7 @@ func (a *API) route(mux *http.ServeMux, method, path string, public bool, h hand
 			out = sb.body
 		}
 		writeJSON(rec, status, out)
-		slog.Debug("request done", "method", method, "path", path, "status", status)
+		lg.Debug("request completed", "status", status)
 	})
 }
 
@@ -197,9 +200,9 @@ func writeError(w http.ResponseWriter, err error) {
 	if apiErr, ok := err.(*services.APIError); ok {
 		code = apiErr.Status
 		name = statusName(code)
-		slog.Debug("api error", "status", code, "code", name, "message", err.Error())
+		logx.Debug("api error", "status", code, "code", name, "message", err.Error())
 	} else {
-		slog.Error("handler error", "err", err)
+		logx.Error("unexpected internal error", "err", err)
 	}
 	writeJSON(w, code, map[string]string{"code": name, "message": err.Error()})
 }

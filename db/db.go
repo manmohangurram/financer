@@ -5,7 +5,7 @@ import (
 	"database/sql/driver"
 	"embed"
 	"fmt"
-	"log/slog"
+	"github.com/mohan9182/financer/logx"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -153,7 +153,7 @@ func RunMigrations(db *sql.DB) error {
 			return fmt.Errorf("committing migration %s: %w", fileName, err)
 		}
 
-		slog.Info("applied migration", "file", fileName)
+		logx.Info("applied migration", "file", fileName)
 	}
 
 	return nil

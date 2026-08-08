@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+	"github.com/mohan9182/financer/logx"
 	"net/http"
 	"net/url"
 	"strings"
@@ -76,7 +76,7 @@ func (c *YahooClient) GetQuotes(ctx context.Context, symbols []string) (map[stri
 		u := fmt.Sprintf("%s/v8/finance/chart/%s?interval=1d&range=1d", c.baseURL, url.PathEscape(sym))
 		resp, err := c.get(ctx, u)
 		if err != nil {
-			slog.Debug("quote fetch failed", "symbol", sym, "err", err)
+			logx.Debug("quote fetch failed", "symbol", sym, "err", err)
 			continue
 		}
 		var payload struct {
@@ -93,7 +93,7 @@ func (c *YahooClient) GetQuotes(ctx context.Context, symbols []string) (map[stri
 		decodeErr := json.NewDecoder(resp.Body).Decode(&payload)
 		resp.Body.Close()
 		if decodeErr != nil || len(payload.Chart.Result) == 0 || payload.Chart.Result[0].Meta.RegularMarketPrice == 0 {
-			slog.Debug("quote skipped", "symbol", sym, "err", decodeErr)
+			logx.Debug("quote skipped: no valid price data", "symbol", sym, "err", decodeErr)
 			continue
 		}
 		prev := payload.Chart.Result[0].Meta.RegularMarketPreviousClose
