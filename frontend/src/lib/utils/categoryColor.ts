@@ -1,4 +1,4 @@
-import { current as currentTheme } from '@/lib/theme';
+import { resolved } from '@/lib/theme';
 
 // 16 light hues that all pass WCAG AA (>=4.5:1) as text on the dark surfaces,
 // interleaved so adjacent categories differ in hue.
@@ -19,7 +19,7 @@ export const CATEGORY_PALETTE_LIGHT = [
 ];
 
 export function categoryColorMap(names: string[]): Record<string, string> {
-  const palette = currentTheme.value === 'light' ? CATEGORY_PALETTE_LIGHT : CATEGORY_PALETTE;
+  const palette = resolved.value === 'light' ? CATEGORY_PALETTE_LIGHT : CATEGORY_PALETTE;
   const sorted = Array.from(new Set(names)).sort();
   const map: Record<string, string> = {};
   sorted.forEach((n, i) => {

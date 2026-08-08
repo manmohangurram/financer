@@ -8,8 +8,12 @@
     <title>Financer</title>
     <script>
       // Apply the persisted theme before the bundle loads to avoid a flash.
+      // 'system' (the default) follows the OS preference via prefers-color-scheme.
       (function () {
-        var t = localStorage.getItem('financer-theme');
+        var t = localStorage.getItem('financer-theme') || 'system';
+        if (t === 'system') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
         document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark';
       })();
     </script>
