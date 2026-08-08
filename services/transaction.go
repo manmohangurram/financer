@@ -130,7 +130,7 @@ func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.List
 	f := repository.TxnListFilter{
 		AccountID: msg.AccountId, CategoryIDs: msg.CategoryId, TxnType: msg.Type,
 		DateFrom: msg.DateFrom, DateTo: msg.DateTo, MinAmount: msg.MinAmount, MaxAmount: msg.MaxAmount,
-		Name: msg.Name, NameMatch: msg.NameMatch, PageSize: msg.PageSize, PageToken: msg.PageToken,
+		Names: msg.Names, PageSize: msg.PageSize, PageToken: msg.PageToken,
 		SortBy: msg.SortBy, SortDir: msg.SortDir, Offset: msg.Offset,
 	}
 	result, err := s.txnRepo.List(ctx, userID, f)

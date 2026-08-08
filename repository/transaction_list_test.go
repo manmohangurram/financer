@@ -26,7 +26,7 @@ func TestListFilters(t *testing.T) {
 	tdb, userID := seedListTxns(t)
 	ctx := context.Background()
 
-	res, err := tdb.txnRepo.List(ctx, userID, TxnListFilter{MinAmount: 100, Name: "Rent", NameMatch: "contains"})
+	res, err := tdb.txnRepo.List(ctx, userID, TxnListFilter{MinAmount: 100, Names: []string{"Rent"}})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -35,10 +35,22 @@ func TestListFilters(t *testing.T) {
 	}
 }
 
+func TestListMultipleNamesOR(t *testing.T) {
+	tdb, userID := seedListTxns(t)
+	ctx := context.Background()
+	res, err := tdb.txnRepo.List(ctx, userID, TxnListFilter{Names: []string{"Coffee", "Salary"}})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(res.Transactions) != 2 {
+		t.Fatalf("expected Coffee + Salary, got %d rows", len(res.Transactions))
+	}
+}
+
 func TestCountMatchesList(t *testing.T) {
 	tdb, userID := seedListTxns(t)
 	ctx := context.Background()
-	f := TxnListFilter{Name: "ent", NameMatch: "contains"}
+	f := TxnListFilter{Names: []string{"ent"}}
 	res, err := tdb.txnRepo.List(ctx, userID, f)
 	if err != nil {
 		t.Fatalf("List: %v", err)
