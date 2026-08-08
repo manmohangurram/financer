@@ -99,3 +99,12 @@ func (r *AccountRepository) List(ctx context.Context, userID string) ([]*api.Acc
 		scanAccount, userID,
 	)
 }
+
+// UpdateBalance applies a signed delta to an account's stored balance.
+func (r *AccountRepository) UpdateBalance(ctx context.Context, accountID string, delta float32) error {
+	_, err := r.ExecContext(ctx,
+		`UPDATE accounts SET balance = ROUND(COALESCE(balance, 0) + ?, 2) WHERE id = ?`,
+		delta, accountID,
+	)
+	return err
+}
