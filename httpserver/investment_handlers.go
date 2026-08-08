@@ -65,7 +65,7 @@ func (a *API) updateInvestment(ctx context.Context, _ string, r *http.Request) (
 	}
 	in.Id = r.PathValue("id")
 	out, err := a.invest.UpdateInvestment(ctx, &api.UpdateInvestmentRequest{
-		Id: in.Id, Name: in.Name, InvestmentType: t, ManualNav: float32(in.ManualNav),
+		Id: in.Id, Symbol: in.Symbol, Name: in.Name, InvestmentType: t, ManualNav: float32(in.ManualNav),
 	})
 	if err != nil {
 		return nil, err

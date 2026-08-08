@@ -73,15 +73,29 @@ func (r *InvestmentRepository) ListInvestments(ctx context.Context, userID strin
 	)
 }
 
-func (r *InvestmentRepository) UpdateInvestment(ctx context.Context, id string, name string, it api.InvestmentType, manualNav float32) (*api.InvestmentResponse, error) {
+func (r *InvestmentRepository) UpdateInvestment(ctx context.Context, id string, symbol, name string, it api.InvestmentType, manualNav float32) (*api.InvestmentResponse, error) {
+	var oldSym sql.NullString
+	r.readDB.QueryRowContext(ctx, `SELECT symbol FROM investments WHERE id = ?`, id).Scan(&oldSym)
+
+	var sym sql.NullString
+	if symbol != "" {
+		sym = sql.NullString{String: symbol, Valid: true}
+	}
 	_, err := r.ExecContext(ctx,
-		`UPDATE investments SET name = ?, investment_type = ?, manual_nav = ? WHERE id = ?`,
-		name, int(it),
+		`UPDATE investments SET symbol = COALESCE(?, symbol), name = ?, investment_type = ?, manual_nav = ? WHERE id = ?`,
+		sym, name, int(it),
 		sql.NullFloat64{Float64: float64(manualNav), Valid: manualNav != 0},
 		id,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("updating investment: %w", err)
+	}
+	// The cached price history belongs to the old symbol; drop it when the
+	// symbol changed so it refetches under the new ticker.
+	if symbol != "" && oldSym.String != symbol {
+		if _, err := r.ExecContext(ctx, `DELETE FROM investment_price_history WHERE investment_id = ?`, id); err != nil {
+			return nil, fmt.Errorf("clearing price history: %w", err)
+		}
 	}
 	return r.GetInvestment(ctx, id)
 }

@@ -512,6 +512,7 @@ type CreateInvestmentRequest struct {
 
 type UpdateInvestmentRequest struct {
 	Id             string
+	Symbol         string
 	Name           string
 	InvestmentType InvestmentType
 	ManualNav      float32

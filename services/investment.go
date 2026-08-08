@@ -116,7 +116,10 @@ func (s *InvestmentService) UpdateInvestment(ctx context.Context, msg *api.Updat
 		msg.InvestmentType != api.InvestmentType_INVESTMENT_TYPE_MUTUAL_FUND {
 		return nil, BadRequest("INVESTMENT_TYPE must be STOCK or MUTUAL_FUND")
 	}
-	inst, err := s.repo.UpdateInvestment(ctx, msg.Id, msg.Name, msg.InvestmentType, msg.ManualNav)
+	if msg.InvestmentType == api.InvestmentType_INVESTMENT_TYPE_STOCK && msg.Symbol == "" {
+		return nil, BadRequest("symbol is required for STOCK")
+	}
+	inst, err := s.repo.UpdateInvestment(ctx, msg.Id, msg.Symbol, msg.Name, msg.InvestmentType, msg.ManualNav)
 	if err != nil {
 		return nil, ServerError("%v", err)
 	}
