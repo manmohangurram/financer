@@ -1,0 +1,26 @@
+# Go
+*.exe
+*.test
+*.out
+
+# Editors / tooling config
+.claude/
+.zed/
+
+# Data / runtime
+data/
+*.log
+*.log.err
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
+# Local tooling scratch
+graphify-out/
+.superpowers/
+docs/superpowers/
