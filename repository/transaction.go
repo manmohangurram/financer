@@ -330,17 +330,21 @@ func (r *TransactionRepository) IsTransferLinked(ctx context.Context, userID, tx
 	return true, nil
 }
 
-func (r *TransactionRepository) Create(ctx context.Context, userID string, inputs []CreateTransactionInput) []error {
+// Create inserts transactions with INSERT OR IGNORE and reports which ids were
+// actually inserted. A row whose (user_id, external_id) already exists is
+// skipped silently (idempotent import) and is not in the returned set.
+func (r *TransactionRepository) Create(ctx context.Context, userID string, inputs []CreateTransactionInput) (map[string]bool, []error) {
 	if len(inputs) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	var errors []error
+	inserted := make(map[string]bool)
 
 	r.ExecInTx(ctx, func(tx *Tx) error {
 		stmt, err := tx.PrepareContext(ctx,
-			`INSERT INTO transactions (id, user_id, name, amount, type, occurred_at, account_id, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO transactions (id, user_id, name, amount, type, occurred_at, account_id, created_at, external_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("preparing statement: %w", err))
@@ -359,10 +363,19 @@ func (r *TransactionRepository) Create(ctx context.Context, userID string, input
 
 		for _, input := range inputs {
 			txn := input.Txn
-			if _, err := stmt.ExecContext(ctx, txn.Id, userID, txn.Name, txn.Amount, int(txn.Type), txn.OccurredAt, txn.AccountId, txn.CreatedAt); err != nil {
+			var ext sql.NullString
+			if txn.ExternalId != "" {
+				ext = sql.NullString{String: txn.ExternalId, Valid: true}
+			}
+			res, err := stmt.ExecContext(ctx, txn.Id, userID, txn.Name, txn.Amount, int(txn.Type), txn.OccurredAt, txn.AccountId, txn.CreatedAt, ext)
+			if err != nil {
 				errors = append(errors, fmt.Errorf("failed to create %s: %w", txn.Id, err))
 				continue
 			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				continue // duplicate external_id — skip silently
+			}
+			inserted[txn.Id] = true
 			for _, catID := range input.CategoryIDs {
 				if _, err := catStmt.ExecContext(ctx, txn.Id, catID); err != nil {
 					errors = append(errors, fmt.Errorf("failed to link category %s to %s: %w", catID, txn.Id, err))
@@ -375,7 +388,7 @@ func (r *TransactionRepository) Create(ctx context.Context, userID string, input
 		return nil
 	})
 
-	return errors
+	return inserted, errors
 }
 
 func (r *TransactionRepository) Update(ctx context.Context, inputs []UpdateTransactionInput) []error {

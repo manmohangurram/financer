@@ -110,8 +110,12 @@ func resolveTransfer(ctx context.Context, userID string, txn *api.TransactionRes
 		Id: uuid.New().String(), Name: "Transfer from " + accountDisplayName(srcAcc), Amount: txn.Amount,
 		Type: opposite, AccountId: targetAccountID, OccurredAt: txn.OccurredAt, CreatedAt: time.Now().UTC(),
 	}
-	if errs := txnRepo.Create(ctx, userID, []repository.CreateTransactionInput{{Txn: counterTxn}}); len(errs) > 0 {
+	inserted, errs := txnRepo.Create(ctx, userID, []repository.CreateTransactionInput{{Txn: counterTxn}})
+	if len(errs) > 0 {
 		return false, false, "", errs[0]
+	}
+	if !inserted[counterTxn.Id] {
+		return false, false, "", nil
 	}
 	// The counterpart is a real transaction on the target account: keep the
 	// balance and cached credit/debit totals in sync (previously skipped).

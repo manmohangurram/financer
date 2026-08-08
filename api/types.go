@@ -197,12 +197,13 @@ type CreateTransactionsRequest struct {
 }
 
 type CreateTransactionRequest struct {
-	Name       string
-	Amount     float32
-	Type       TransactionType
-	OccurredAt time.Time
-	AccountId  string
+	Name        string
+	Amount      float32
+	Type        TransactionType
+	OccurredAt  time.Time
+	AccountId   string
 	CategoryIds []string
+	ExternalId  string
 }
 
 type UpdateTransactionsRequest struct {
@@ -233,6 +234,7 @@ type TransactionResponse struct {
 	CreatedAt        time.Time
 	LinkedTransferId string
 	CategoryIds      []string
+	ExternalId       string
 }
 
 type ListTransactionsResponse struct {
@@ -245,6 +247,7 @@ type BulkOperationResponse struct {
 	Success   bool
 	Message   string
 	FailedIds []string
+	Skipped   int32
 }
 
 type LinkTransfersRequest struct {

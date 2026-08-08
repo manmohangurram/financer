@@ -44,6 +44,7 @@ type wireBulk struct {
 	Success   bool     `json:"success"`
 	Message   string   `json:"message"`
 	FailedIds []string `json:"failedIds,omitempty"`
+	Skipped   int32    `json:"skipped,omitempty"`
 }
 
 func bulkWire(b *api.BulkOperationResponse) wireBulk {
@@ -51,6 +52,7 @@ func bulkWire(b *api.BulkOperationResponse) wireBulk {
 		Success:   b.Success,
 		Message:   b.Message,
 		FailedIds: b.FailedIds,
+		Skipped:   b.Skipped,
 	}
 }
 
