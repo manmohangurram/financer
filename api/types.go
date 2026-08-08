@@ -19,20 +19,12 @@ type RefreshTokenRequest struct {
 	RefreshToken string
 }
 
-type GetMeRequest struct{}
-
 type AuthResponse struct {
 	AccessToken  string
 	RefreshToken string
 	UserId       string
 	Email        string
 	Name         string
-}
-
-type GetMeResponse struct {
-	UserId string
-	Email  string
-	Name   string
 }
 
 // --- user settings ---
@@ -218,14 +210,13 @@ type UpdateTransactionsRequest struct {
 }
 
 type UpdateTransactionRequest struct {
-	Id               string
-	Name             string
-	Amount           float32
-	Type             TransactionType
-	OccurredAt       time.Time
-	AccountId        string
-	CategoryIds      []string
-	ReplaceCategories bool
+	Id          string
+	Name        string
+	Amount      float32
+	Type        TransactionType
+	OccurredAt  time.Time
+	AccountId   string
+	CategoryIds []string
 }
 
 type DeleteTransactionsRequest struct {

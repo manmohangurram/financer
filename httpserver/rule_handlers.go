@@ -1,4 +1,4 @@
-﻿package httpserver
+package httpserver
 
 import (
 	"context"
@@ -74,7 +74,7 @@ func (a *API) createRule(ctx context.Context, _ string, r *http.Request) (any, e
 	if err != nil {
 		return nil, err
 	}
-	return ruleWire(out), nil
+	return created(ruleWire(out)), nil
 }
 
 func (a *API) updateRule(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -106,11 +106,11 @@ func (a *API) deleteRule(ctx context.Context, _ string, r *http.Request) (any, e
 		return nil, err
 	}
 	in.Id = r.PathValue("id")
-	out, err := a.rule.DeleteRule(ctx, &api.DeleteRuleRequest{Id: in.Id})
+	_, err := a.rule.DeleteRule(ctx, &api.DeleteRuleRequest{Id: in.Id})
 	if err != nil {
 		return nil, err
 	}
-	return wireOp{Success: out.Success, Message: out.Message}, nil
+	return noContent(), nil
 }
 
 type reqRulePreview struct {

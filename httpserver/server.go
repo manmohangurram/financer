@@ -34,7 +34,6 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/auth/signup", true, a.authSignup)
 	a.route(mux, "POST", "/api/auth/login", true, a.authLogin)
 	a.route(mux, "POST", "/api/auth/refresh", true, a.authRefreshToken)
-	a.route(mux, "GET", "/api/me", false, a.authGetMe)
 
 	a.route(mux, "GET", "/api/me/profile", false, a.getProfile)
 	a.route(mux, "PUT", "/api/me/profile", false, a.updateProfile)
@@ -57,9 +56,9 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "PUT", "/api/transactions", false, a.updateTransactions)
 	a.route(mux, "DELETE", "/api/transactions", false, a.deleteTransactions)
 
-	a.route(mux, "POST", "/api/transfers/link", false, a.linkTransfers)
-	a.route(mux, "POST", "/api/transfers/counterpart", false, a.createCounterpart)
-	a.route(mux, "POST", "/api/transfers/unlink", false, a.unlinkTransfers)
+	a.route(mux, "POST", "/api/transfer-links", false, a.linkTransfers)
+	a.route(mux, "DELETE", "/api/transfer-links", false, a.unlinkTransfers)
+	a.route(mux, "POST", "/api/transfer-links/counterpart", false, a.createCounterpart)
 
 	a.route(mux, "GET", "/api/rules", false, a.listRules)
 	a.route(mux, "POST", "/api/rules", false, a.createRule)
@@ -74,13 +73,27 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "DELETE", "/api/investments/{id}", false, a.deleteInvestment)
 	a.route(mux, "GET", "/api/investments/{id}/lots", false, a.listLots)
 	a.route(mux, "POST", "/api/investments/{id}/lots", false, a.addLot)
+	a.route(mux, "DELETE", "/api/investments/{id}/lots/{lotId}", false, a.deleteLot)
 	a.route(mux, "GET", "/api/investments/{id}/price-history", false, a.priceHistory)
-	a.route(mux, "DELETE", "/api/lots/{id}", false, a.deleteLot)
 	a.route(mux, "GET", "/api/investments/search", false, a.searchSymbols)
 	a.route(mux, "POST", "/api/investments/refresh-prices", false, a.refreshPrices)
 	a.route(mux, "GET", "/api/portfolio/summary", false, a.getPortfolioSummary)
 
 	return cors(a.auth(mux))
+}
+
+// statusBody lets handlers signal a non-200 status (201 on create, 204 on delete).
+type statusBody struct {
+	status int
+	body   any
+}
+
+func created(v any) statusBody {
+	return statusBody{status: http.StatusCreated, body: v}
+}
+
+func noContent() statusBody {
+	return statusBody{status: http.StatusNoContent}
 }
 
 // handler decodes the body and writes a JSON result/error.
@@ -98,7 +111,12 @@ func (a *API) route(mux *http.ServeMux, method, path string, public bool, h hand
 			writeError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, out)
+		status := http.StatusOK
+		if sb, ok := out.(statusBody); ok {
+			status = sb.status
+			out = sb.body
+		}
+		writeJSON(w, status, out)
 	})
 }
 
@@ -153,6 +171,9 @@ func decodeBody(body io.Reader, dst any) error {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	if status == http.StatusNoContent {
+		return
+	}
 	_ = json.NewEncoder(w).Encode(v)
 }
 

@@ -137,7 +137,7 @@ func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.Up
 
 	inputs := make([]repository.UpdateTransactionInput, len(txns))
 	for i := range txns {
-		inputs[i] = repository.UpdateTransactionInput{Txn: txns[i], CategoryIDs: txns[i].CategoryIds, ReplaceCategories: msg.Transactions[i].ReplaceCategories}
+		inputs[i] = repository.UpdateTransactionInput{Txn: txns[i], CategoryIDs: txns[i].CategoryIds}
 	}
 	errs := s.txnRepo.Update(ctx, inputs)
 

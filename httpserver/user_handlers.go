@@ -72,7 +72,7 @@ func (a *API) logoutAll(ctx context.Context, uid string, _ *http.Request) (any, 
 	if err != nil {
 		return nil, err
 	}
-	return wireOp{Success: out.Success, Message: out.Message}, nil
+	return bulkWire(&api.BulkOperationResponse{Success: out.Success, Message: out.Message}), nil
 }
 
 func (a *API) uploadAvatar(ctx context.Context, uid string, r *http.Request) (any, error) {
@@ -88,5 +88,5 @@ func (a *API) uploadAvatar(ctx context.Context, uid string, r *http.Request) (an
 	if err != nil {
 		return nil, err
 	}
-	return profileWire(out), nil
+	return created(profileWire(out)), nil
 }

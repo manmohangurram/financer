@@ -324,9 +324,6 @@ func (r *RuleRepository) GetActions(ctx context.Context, ruleID string) ([]*api.
 }
 
 type OverlayRule struct {
-	ID         string
-	Name       string
-	Priority   int
 	Logic      string
 	Actions    []*api.RuleAction
 	Conditions []RuleCondData
@@ -343,9 +340,6 @@ func (r *RuleRepository) ListForOverlay(ctx context.Context, userID string) ([]O
 	rules := make([]OverlayRule, 0, len(records))
 	for _, rec := range records {
 		rules = append(rules, OverlayRule{
-			ID:         rec.Id,
-			Name:       rec.Name,
-			Priority:   int(rec.Priority),
 			Logic:      LogicString(rec.Logic),
 			Actions:    rec.Actions,
 			Conditions: ConditionsToData(rec.Conditions),

@@ -13,14 +13,13 @@ import (
 // --- transactions ---
 
 type reqTxn struct {
-	Transactions      jsonListTxn `json:"transactions"`
-	PageSize          int32       `json:"pageSize"`
-	PageToken         string      `json:"pageToken"`
-	AccountId         string      `json:"accountId"`
-	CategoryId        []string    `json:"categoryId"`
-	Type              any         `json:"type"`
-	Ids               []string    `json:"ids"`
-	ReplaceCategories bool        `json:"replaceCategories"`
+	Transactions jsonListTxn `json:"transactions"`
+	PageSize     int32       `json:"pageSize"`
+	PageToken    string      `json:"pageToken"`
+	AccountId    string      `json:"accountId"`
+	CategoryId   []string    `json:"categoryId"`
+	Type         any         `json:"type"`
+	Ids          []string    `json:"ids"`
 }
 
 type jsonListTxn []struct {
@@ -158,7 +157,7 @@ func (a *API) createTransactions(ctx context.Context, _ string, r *http.Request)
 	if err != nil {
 		return nil, err
 	}
-	return bulkWire(out), nil
+	return created(bulkWire(out)), nil
 }
 
 func (a *API) updateTransactions(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -177,7 +176,7 @@ func (a *API) updateTransactions(ctx context.Context, _ string, r *http.Request)
 			return nil, bad("%v", err)
 		}
 		txns = append(txns, &api.UpdateTransactionRequest{
-			Id: t.Id, Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId, CategoryIds: t.CategoryIds, ReplaceCategories: in.ReplaceCategories,
+			Id: t.Id, Name: t.Name, Amount: float32(t.Amount), Type: ty, OccurredAt: occ, AccountId: t.AccountId, CategoryIds: t.CategoryIds,
 		})
 	}
 	out, err := a.txn.UpdateTransactions(ctx, &api.UpdateTransactionsRequest{Transactions: txns})
@@ -192,9 +191,9 @@ func (a *API) deleteTransactions(ctx context.Context, _ string, r *http.Request)
 	if err := decodeBody(r.Body, &in); err != nil {
 		return nil, err
 	}
-	out, err := a.txn.DeleteTransactions(ctx, &api.DeleteTransactionsRequest{Ids: in.Ids})
+	_, err := a.txn.DeleteTransactions(ctx, &api.DeleteTransactionsRequest{Ids: in.Ids})
 	if err != nil {
 		return nil, err
 	}
-	return bulkWire(out), nil
+	return noContent(), nil
 }

@@ -1,4 +1,4 @@
-﻿package httpserver
+package httpserver
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 type reqInvestment struct {
 	Id             string  `json:"id"`
-	InvestmentId   string  `json:"investmentId"`
 	Symbol         string  `json:"symbol"`
 	Name           string  `json:"name"`
 	InvestmentType any     `json:"investmentType"`
@@ -21,7 +20,6 @@ type reqInvestment struct {
 	Quantity       float64 `json:"quantity"`
 	Price          float64 `json:"price"`
 	OccurredAt     any     `json:"occurredAt"`
-	Query          string  `json:"query"`
 }
 
 func (a *API) createInvestment(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -39,7 +37,7 @@ func (a *API) createInvestment(ctx context.Context, _ string, r *http.Request) (
 	if err != nil {
 		return nil, err
 	}
-	return investmentWire(out), nil
+	return created(investmentWire(out)), nil
 }
 
 func (a *API) listInvestments(ctx context.Context, _ string, _ *http.Request) (any, error) {
@@ -81,11 +79,11 @@ func (a *API) deleteInvestment(ctx context.Context, _ string, r *http.Request) (
 		return nil, err
 	}
 	in.Id = r.PathValue("id")
-	out, err := a.invest.DeleteInvestment(ctx, &api.DeleteInvestmentRequest{Id: in.Id})
+	_, err := a.invest.DeleteInvestment(ctx, &api.DeleteInvestmentRequest{Id: in.Id})
 	if err != nil {
 		return nil, err
 	}
-	return wireOp{Success: out.Success, Message: out.Message}, nil
+	return noContent(), nil
 }
 
 func (a *API) addLot(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -107,7 +105,7 @@ func (a *API) addLot(ctx context.Context, _ string, r *http.Request) (any, error
 	if err != nil {
 		return nil, err
 	}
-	return lotWire(out), nil
+	return created(lotWire(out)), nil
 }
 
 func (a *API) deleteLot(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -115,12 +113,11 @@ func (a *API) deleteLot(ctx context.Context, _ string, r *http.Request) (any, er
 	if err := decodeBody(r.Body, &in); err != nil {
 		return nil, err
 	}
-	in.Id = r.PathValue("id")
-	out, err := a.invest.DeleteLot(ctx, &api.DeleteLotRequest{Id: in.Id})
+	_, err := a.invest.DeleteLot(ctx, &api.DeleteLotRequest{Id: r.PathValue("lotId")})
 	if err != nil {
 		return nil, err
 	}
-	return wireOp{Success: out.Success, Message: out.Message}, nil
+	return noContent(), nil
 }
 
 func (a *API) listLots(ctx context.Context, _ string, r *http.Request) (any, error) {

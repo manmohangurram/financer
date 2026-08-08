@@ -43,7 +43,7 @@ func queryDate(q url.Values, key string) (time.Time, error) {
 type wireBulk struct {
 	Success   bool     `json:"success"`
 	Message   string   `json:"message"`
-	FailedIds []string `json:"failedIds"`
+	FailedIds []string `json:"failedIds,omitempty"`
 }
 
 func bulkWire(b *api.BulkOperationResponse) wireBulk {
@@ -65,11 +65,6 @@ func tsRFC3339(t time.Time) string {
 // doesn't leak into the wire.
 func cents(v float32) float64 {
 	return math.Round(float64(v)*100) / 100
-}
-
-type wireOp struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
 }
 
 func bad(format string, a ...any) error {

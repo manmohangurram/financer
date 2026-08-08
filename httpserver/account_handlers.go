@@ -89,7 +89,7 @@ func (a *API) updateAccount(ctx context.Context, _ string, r *http.Request) (any
 	if err != nil {
 		return nil, err
 	}
-	return accountWire(out), nil
+	return created(accountWire(out)), nil
 }
 
 func (a *API) deleteAccount(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -98,11 +98,11 @@ func (a *API) deleteAccount(ctx context.Context, _ string, r *http.Request) (any
 		return nil, err
 	}
 	in.Id = r.PathValue("id")
-	out, err := a.account.DeleteAccount(ctx, &api.DeleteAccountRequest{Id: in.Id})
+	_, err := a.account.DeleteAccount(ctx, &api.DeleteAccountRequest{Id: in.Id})
 	if err != nil {
 		return nil, err
 	}
-	return wireOp{Success: out.Success, Message: out.Message}, nil
+	return noContent(), nil
 }
 
 func (a *API) listAccounts(ctx context.Context, _ string, _ *http.Request) (any, error) {

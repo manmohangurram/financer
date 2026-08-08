@@ -49,9 +49,8 @@ type CreateTransactionInput struct {
 }
 
 type UpdateTransactionInput struct {
-	Txn               *api.TransactionResponse
-	CategoryIDs       []string
-	ReplaceCategories bool
+	Txn         *api.TransactionResponse
+	CategoryIDs []string
 }
 
 func scanTransaction(row scannable) (*api.TransactionResponse, error) {
@@ -419,15 +418,15 @@ func (r *TransactionRepository) Update(ctx context.Context, inputs []UpdateTrans
 				errors = append(errors, fmt.Errorf("transaction %s not found", txn.Id))
 				continue
 			}
-			if input.ReplaceCategories {
-				if _, err := tx.ExecContext(ctx, `DELETE FROM transaction_categories WHERE transaction_id = ?`, txn.Id); err != nil {
-					errors = append(errors, fmt.Errorf("failed to clear categories for %s: %w", txn.Id, err))
-					continue
-				}
-				for _, catID := range input.CategoryIDs {
-					if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO transaction_categories (transaction_id, category_id) VALUES (?, ?)`, txn.Id, catID); err != nil {
-						errors = append(errors, fmt.Errorf("failed to link category %s to %s: %w", catID, txn.Id, err))
-					}
+			// Replace categories: an update carries the full category set
+			// (the client sends current categoryIds on every edit).
+			if _, err := tx.ExecContext(ctx, `DELETE FROM transaction_categories WHERE transaction_id = ?`, txn.Id); err != nil {
+				errors = append(errors, fmt.Errorf("failed to clear categories for %s: %w", txn.Id, err))
+				continue
+			}
+			for _, catID := range input.CategoryIDs {
+				if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO transaction_categories (transaction_id, category_id) VALUES (?, ?)`, txn.Id, catID); err != nil {
+					errors = append(errors, fmt.Errorf("failed to link category %s to %s: %w", catID, txn.Id, err))
 				}
 			}
 		}

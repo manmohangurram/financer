@@ -114,19 +114,3 @@ func (s *AuthService) issueTokens(userID, email, name string) (*api.AuthResponse
 		Name:         name,
 	}, nil
 }
-
-func (s *AuthService) GetMe(ctx context.Context, userID string, _ *api.GetMeRequest) (*api.GetMeResponse, error) {
-	var email, name string
-	err := s.db.QueryRow(
-		`SELECT email, name FROM users WHERE id = ?`, userID,
-	).Scan(&email, &name)
-	if err != nil {
-		return nil, NotFound("user not found")
-	}
-
-	return &api.GetMeResponse{
-		UserId: userID,
-		Email:  email,
-		Name:   name,
-	}, nil
-}

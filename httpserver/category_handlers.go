@@ -1,4 +1,4 @@
-﻿package httpserver
+package httpserver
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 
 type reqCategory struct {
 	Id   string   `json:"id"`
-	Name string   `json:"name"`
 	Ids  []string `json:"ids"`
 	Bulk []struct {
 		Id   string `json:"id"`
@@ -48,7 +47,7 @@ func (a *API) createCategories(ctx context.Context, _ string, r *http.Request) (
 	if err != nil {
 		return nil, err
 	}
-	return bulkWire(out), nil
+	return created(bulkWire(out)), nil
 }
 
 func (a *API) updateCategories(ctx context.Context, _ string, r *http.Request) (any, error) {
@@ -72,9 +71,9 @@ func (a *API) deleteCategories(ctx context.Context, _ string, r *http.Request) (
 	if err := decodeBody(r.Body, &in); err != nil {
 		return nil, err
 	}
-	out, err := a.category.DeleteCategories(ctx, &api.DeleteCategoriesRequest{Ids: in.Ids})
+	_, err := a.category.DeleteCategories(ctx, &api.DeleteCategoriesRequest{Ids: in.Ids})
 	if err != nil {
 		return nil, err
 	}
-	return bulkWire(out), nil
+	return noContent(), nil
 }
