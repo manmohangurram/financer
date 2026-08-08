@@ -48,12 +48,10 @@ func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.List
 		}
 	}
 
-	count, _ := s.txnRepo.Count(ctx, userID, f)
-
 	return &api.ListTransactionsResponse{
 		Transactions:  result.Transactions,
 		NextPageToken: result.NextPageToken,
-		TotalCount:    count,
+		TotalCount:    result.TotalCount,
 	}, nil
 }
 

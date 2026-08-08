@@ -88,6 +88,7 @@ func (r *TransactionRepository) GetByID(ctx context.Context, id string) (*api.Tr
 type ListTxnResult struct {
 	Transactions  []*api.TransactionResponse
 	NextPageToken string
+	TotalCount    int32
 }
 
 type TxnListFilter struct {
@@ -155,12 +156,41 @@ func buildTxnWhere(f TxnListFilter) (string, []any) {
 	return query, args
 }
 
+type listTxnRow struct {
+	txn         api.TransactionResponse
+	linkID      string
+	categoryIDs []string
+	totalCount  int32
+}
+
+func scanListRow(row scannable) (*listTxnRow, error) {
+	var r listTxnRow
+	var occurredAt, createdAt time.Time
+	var txnType int
+	var catGroup sql.NullString
+	if err := row.Scan(&r.txn.Id, &r.txn.Name, &r.txn.Amount, &txnType, &occurredAt, &r.txn.AccountId, &createdAt,
+		&r.linkID, &catGroup, &r.totalCount); err != nil {
+		return nil, err
+	}
+	r.txn.Type = api.TransactionType(txnType)
+	r.txn.OccurredAt = occurredAt
+	r.txn.CreatedAt = createdAt
+	if catGroup.Valid && catGroup.String != "" {
+		r.categoryIDs = strings.Split(catGroup.String, ",")
+	}
+	return &r, nil
+}
+
 func (r *TransactionRepository) List(ctx context.Context, userID string, f TxnListFilter) (*ListTxnResult, error) {
 	where, args := buildTxnWhere(f)
 	args = append([]any{userID}, args...)
 
-	query := `SELECT t.id, t.name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at
-			  FROM transactions t ` + where
+	query := `SELECT t.id, t.name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at,
+	              COALESCE(l.id, ''),
+	              (SELECT GROUP_CONCAT(tc.category_id) FROM transaction_categories tc WHERE tc.transaction_id = t.id),
+	              COUNT(*) OVER () AS total
+	          FROM transactions t
+	          LEFT JOIN transfer_links l ON l.debit_transaction_id = t.id OR l.credit_transaction_id = t.id ` + where
 
 	if f.SortBy != "" {
 		// Amount sort: primary type first in the chosen direction; the other
@@ -195,40 +225,35 @@ func (r *TransactionRepository) List(ctx context.Context, userID string, f TxnLi
 		}
 	}
 
-	results, err := QueryAll(ctx, r.readDB, query, scanTransaction, args...)
+	rows, err := QueryAll(ctx, r.readDB, query, scanListRow, args...)
 	if err != nil {
 		return nil, fmt.Errorf("listing transactions: %w", err)
 	}
 
+	txns := make([]*api.TransactionResponse, 0, len(rows))
+	var total int32
+	for _, row := range rows {
+		txn := &row.txn
+		txn.LinkedTransferId = row.linkID
+		txn.CategoryIds = row.categoryIDs
+		total = row.totalCount
+		txns = append(txns, txn)
+	}
+
 	var nextToken string
-	if f.SortBy == "" && f.PageSize > 0 && int32(len(results)) > f.PageSize {
-		results = results[:f.PageSize]
-		last := results[len(results)-1]
+	if f.SortBy == "" && f.PageSize > 0 && int32(len(txns)) > f.PageSize {
+		txns = txns[:f.PageSize]
+		last := txns[len(txns)-1]
 		nextToken = encodeTxnCursor(TxnCursor{
 			OccurredAt: last.OccurredAt,
 			ID:         last.Id,
 		})
 	}
 
-	for _, txn := range results {
-		r.populateLink(ctx, txn)
-	}
-	r.populateCategories(ctx, results...)
-
-	return &ListTxnResult{Transactions: results, NextPageToken: nextToken}, nil
+	return &ListTxnResult{Transactions: txns, NextPageToken: nextToken, TotalCount: total}, nil
 }
 
-func (r *TransactionRepository) Count(ctx context.Context, userID string, f TxnListFilter) (int32, error) {
-	where, args := buildTxnWhere(f)
-	args = append([]any{userID}, args...)
-	var n int32
-	if err := r.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM transactions t "+where, args...).Scan(&n); err != nil {
-		return 0, fmt.Errorf("counting transactions: %w", err)
-	}
-	return n, nil
-}
-
-// populateLink attaches the transfer link id (if any) to a transaction.
+// populateLink attaches the transfer link id (if any) to a single transaction.
 func (r *TransactionRepository) populateLink(ctx context.Context, txn *api.TransactionResponse) {
 	var linkID sql.NullString
 	r.readDB.QueryRowContext(ctx,
@@ -240,8 +265,6 @@ func (r *TransactionRepository) populateLink(ctx context.Context, txn *api.Trans
 	}
 }
 
-// populateCategories fills CategoryIds for a batch of transactions with a
-// single query.
 func (r *TransactionRepository) populateCategories(ctx context.Context, txns ...*api.TransactionResponse) {
 	if len(txns) == 0 {
 		return

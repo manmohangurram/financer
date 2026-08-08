@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mohan9182/financer/api"
@@ -185,11 +186,89 @@ func (r *RuleRepository) List(ctx context.Context, userID string) ([]*api.RuleRe
 		return nil, fmt.Errorf("listing rules: %w", err)
 	}
 
+	ids := make([]string, len(results))
+	for i, rule := range results {
+		ids[i] = rule.Id
+	}
+	conds, _ := r.conditionsByRule(ctx, ids)
+	acts, _ := r.actionsByRule(ctx, ids)
 	for _, rule := range results {
-		rule.Conditions, _ = r.GetConditions(ctx, rule.Id)
-		rule.Actions, _ = r.GetActions(ctx, rule.Id)
+		rule.Conditions = conds[rule.Id]
+		rule.Actions = acts[rule.Id]
 	}
 	return results, nil
+}
+
+func inPlaceholders(n int) string {
+	ps := make([]string, n)
+	for i := range ps {
+		ps[i] = "?"
+	}
+	return strings.Join(ps, ",")
+}
+
+func (r *RuleRepository) conditionsByRule(ctx context.Context, ids []string) (map[string][]*api.RuleCondition, error) {
+	out := make(map[string][]*api.RuleCondition)
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.readDB.QueryContext(ctx,
+		`SELECT rule_id, match_field, operator, pattern FROM rule_conditions WHERE rule_id IN (`+inPlaceholders(len(ids))+`)`, toAny(ids)...)
+	if err != nil {
+		return nil, fmt.Errorf("querying conditions: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rid, mf, op, pattern string
+		if err := rows.Scan(&rid, &mf, &op, &pattern); err != nil {
+			return nil, fmt.Errorf("scanning condition: %w", err)
+		}
+		out[rid] = append(out[rid], &api.RuleCondition{
+			MatchField: parseMatchFieldEnum(mf),
+			Operator:   parseMatchOperatorEnum(op),
+			Pattern:    pattern,
+		})
+	}
+	return out, rows.Err()
+}
+
+func (r *RuleRepository) actionsByRule(ctx context.Context, ids []string) (map[string][]*api.RuleAction, error) {
+	out := make(map[string][]*api.RuleAction)
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.readDB.QueryContext(ctx,
+		`SELECT rule_id, action_type, name_op, value, category_id, transfer_account_id FROM rule_actions
+		 WHERE rule_id IN (`+inPlaceholders(len(ids))+`) ORDER BY rule_id, rowid`, toAny(ids)...)
+	if err != nil {
+		return nil, fmt.Errorf("querying actions: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rid, actionType, nameOp, value, catID, transferAccountID string
+		if err := rows.Scan(&rid, &actionType, &nameOp, &value, &catID, &transferAccountID); err != nil {
+			return nil, fmt.Errorf("scanning action: %w", err)
+		}
+		a := &api.RuleAction{}
+		if actionType == "SET_TRANSFER_ACCOUNT" {
+			a.SetTransferAccountId = transferAccountID
+		} else if actionType == "SET_CATEGORY" {
+			a.SetCategoryId = catID
+		} else {
+			a.SetName = value
+			a.SetNameOp = parseRuleActionOp(nameOp)
+		}
+		out[rid] = append(out[rid], a)
+	}
+	return out, rows.Err()
+}
+
+func toAny(ids []string) []any {
+	out := make([]any, len(ids))
+	for i, id := range ids {
+		out[i] = id
+	}
+	return out
 }
 
 func (r *RuleRepository) GetConditions(ctx context.Context, ruleID string) ([]*api.RuleCondition, error) {
@@ -263,16 +342,14 @@ func (r *RuleRepository) ListForOverlay(ctx context.Context, userID string) ([]O
 	// List orders by priority DESC already.
 	rules := make([]OverlayRule, 0, len(records))
 	for _, rec := range records {
-		conds, _ := r.GetConditions(ctx, rec.Id)
-		rule := OverlayRule{
+		rules = append(rules, OverlayRule{
 			ID:         rec.Id,
 			Name:       rec.Name,
 			Priority:   int(rec.Priority),
 			Logic:      LogicString(rec.Logic),
 			Actions:    rec.Actions,
-			Conditions: ConditionsToData(conds),
-		}
-		rules = append(rules, rule)
+			Conditions: ConditionsToData(rec.Conditions),
+		})
 	}
 	return rules, nil
 }
