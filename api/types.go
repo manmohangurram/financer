@@ -35,6 +35,26 @@ type GetMeResponse struct {
 	Name   string
 }
 
+// --- user settings ---
+
+type ProfileResponse struct {
+	UserId    string
+	Name      string
+	Email     string
+	AvatarUrl string
+}
+
+type UpdateProfileRequest struct {
+	Name      string
+	Email     string
+	AvatarUrl string
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string
+	NewPassword     string
+}
+
 type AccountType int32
 
 const (
