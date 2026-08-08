@@ -1,15 +1,16 @@
 # Roadmap — Financer (Personal Finance Tracker)
 
-How this project is built from the ground up, in development order, with how each piece lands and merges. **Account-related features ship first; investments and spending analysis come last.** If a missing feature is discovered during development, it is documented here (added to the relevant phase or a new phase) before or alongside the work.
+How this project is built from the ground up, in development order, with how each piece lands and merges. **Account-related features ship first; investments and spending analysis come last. Phases 1–4 are backend-only — the frontend ships together in Phase 5** (shell + UI for everything built so far), and later phases add their own UI. If a missing feature is discovered during development, it is documented here (added to the relevant phase or a new phase) before or alongside the work.
 
 ## Conventions (apply to every phase)
 
 - **Commit style:** [Conventional Commits](https://www.conventionalcommits.org) — `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `perf:`. One logical change per commit; imperative subject line.
 - **Branching:** every phase ships on a feature branch (`feat/<phase>`) merged to `main` via a pull request after tests pass. No direct commits to `main`.
 - **Merge gate:** `go build ./...`, `go vet ./...`, `go test ./...`, `npm run build`, `npm test` all green, plus a manual browser smoke test.
-- **Review before merge:** run a code-quality pass (ponytail-review for over-engineering, performance-optimization for measurable bottlenecks) before each PR.
+- **Review before merge:** before opening a PR, run `ponytail-review`, `code-simplification`, `code-review-and-quality`, `performance-optimization`, and `finishing-a-development-branch`; fold any fixes into the branch.
 - **PR template:** every pull request uses `.github/PULL_REQUEST_TEMPLATE.md`.
 - **Schema per phase:** each phase that touches the database ships its own migration (`NNNNNN_description.up.sql` / `.down.sql`), applied in filename order. The schema builds incrementally in the same order as the features below.
+- **Per-feature files:** each feature owns its handler, service, and repository files (e.g. `httpserver/account_handlers.go`, `services/account.go`, `repository/account.go`) rather than one shared `handlers.go` — this keeps features separable so a phase ships only its own files.
 
 ---
 
@@ -23,38 +24,36 @@ How this project is built from the ground up, in development order, with how eac
 
 ## Phase 2 — Accounts
 `feat/accounts` → `main`
-- Migration `000001_users_accounts`: `users`, `accounts`.
+- Migration `000002_accounts`: `accounts`.
 - Accounts CRUD with account types (Checking, Savings, Credit Card, Loan, Crypto Wallet) and stored balance.
-- Frontend: login/signup pages, token store, accounts list/cards, account filter bar.
-- **Done when:** create/edit/delete accounts end-to-end; balances stored and scoped per user.
+- **Done when:** create/edit/delete/list accounts end-to-end; balances stored and scoped per user. Backend only — UI lands in Phase 5.
 
 ## Phase 3 — Transactions & Transfers
 `feat/transactions-transfers` → `main`
-- Migration `000002_transactions_transfers`: `transactions`, `transfer_links`.
+- Migration `000003_transactions_transfers`: `transactions`, `transfer_links`.
 - Transactions CRUD: create (single + bulk), list with server-side filters (date range, amount, name, category) and pagination, update, delete; account balance recalc.
-- Transfers: link (debit ↔ credit), unlink, create missing counterpart; unified transfer modal with candidate matching (±5 days, ±10% amount, fee-tolerant).
-- Frontend: transactions table with sort/filters/pagination, add/edit modals, transfer modal.
-- **Done when:** transaction lifecycle works, balances stay correct, transfers link/unlink/create-counterpart work.
+- Transfers: link (debit ↔ credit), unlink, create missing counterpart (candidate matching ±5 days / ±10% amount, fee-tolerant).
+- **Done when:** transaction lifecycle works, balances stay correct, transfers link/unlink/create-counterpart work. Backend only — UI lands in Phase 5.
 
 ## Phase 4 — Categories & Rules
 `feat/categories-rules` → `main`
-- Migration `000003_categories_rules`: `categories`, `transaction_categories`, `aliases`, `alias_conditions`, `alias_actions`.
+- Migration `000004_categories_rules`: `categories`, `transaction_categories`, `rules`, `rule_conditions`, `rule_actions`.
 - Categories CRUD (bulk); transaction → category mapping.
 - Rules: conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR), outputs (rename / set category / transfer-to-account), read-time non-destructive overlay, SQL preview, run-now.
-- Frontend: rule builder, preview table, categories management.
-- **Done when:** a rule auto-categorizes on next load and deletes cleanly (no persisted mutation).
+- **Done when:** a rule auto-categorizes on next load and deletes cleanly (no persisted mutation). Backend only — UI lands in Phase 5.
 
 ## Phase 5 — Frontend Shell & Design System
 `feat/shell` → `main`
 - App layout (sidebar nav, responsive), routing, and the `financer` theme (Tailwind v4 + daisyUI v5 tokens).
 - **Light + dark theme support:** token-driven per-theme mapping (`color-scheme` toggles), contrast verified independently in both themes, persisted theme toggle.
 - Reusable components: `AppModal`, `AppInput`, `AppSelect`, `Pagination`, `ConfirmDialog`, `Popover`, `StatCard`, `AccountCard`.
+- **UI for phases 1–4 ships here:** login/signup pages, token store, accounts list/cards + filter bar, transactions table + add/edit modals, unified transfer modal, rules builder/preview/run-now, categories management.
 - `UI_STANDARDS.md` — tokens, spacing, typography, button variants, accessibility baseline.
-- **Done when:** every page renders in the shared shell with consistent components, contrast passes in both themes.
+- **Done when:** every phase 1–4 feature is usable in the shared shell with consistent components, contrast passes in both themes.
 
 ## Phase 6 — User Settings
 `feat/settings` → `main`
-- Migration `000005_user_settings`: adds `avatar_url` to `users`.
+- Migration `000006_user_settings`: adds `avatar_url` to `users`.
 - Profile page: view/edit display name, email, and profile picture (avatar upload); change password (current + new, re-auth on change); logout-all-sessions.
 - Backend: `GET`/`PUT /api/me/profile`, `POST /api/me/password`, avatar upload endpoint.
 - **Done when:** name, avatar, and password updates persist and the updated profile shows across the app.
@@ -79,7 +78,7 @@ How this project is built from the ground up, in development order, with how eac
 
 ## Phase 10 — Investments
 `feat/investments` → `main`
-- Migration `000004_investments`: `instruments`, `instrument_lots`, `instrument_price_history`.
+- Migration `000005_investments`: `instruments`, `instrument_lots`, `instrument_price_history`.
 - Instruments (stock/mutual fund), buy/sell lots, FIFO cost basis and realized P&L, symbol search, Yahoo quote fetch + cache, price-history chart, portfolio summary.
 - **Done when:** add lots, refresh prices, and see portfolio P&L match a manual FIFO calculation.
 
