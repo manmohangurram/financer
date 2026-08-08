@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/lib/stores/auth';
 import Popover from '@/components/Popover.vue';
@@ -13,12 +13,12 @@ const userMenuOpen = ref(false);
 // Auto-collapse to the icon rail when there isn't room for the full sidebar
 // (below lg). The persisted preference applies when wide.
 const mq = window.matchMedia('(max-width: 1023px)');
-const isNarrow = ref(mq.matches);
-const collapsed = ref(isNarrow.value ? true : localStorage.getItem('financer-sidebar-collapsed') === '1');
-mq.addEventListener('change', (e) => {
-  isNarrow.value = e.matches;
+const collapsed = ref(mq.matches ? true : localStorage.getItem('financer-sidebar-collapsed') === '1');
+const onMqChange = (e: MediaQueryListEvent) => {
   if (e.matches) collapsed.value = true;
-});
+};
+mq.addEventListener('change', onMqChange);
+onUnmounted(() => mq.removeEventListener('change', onMqChange));
 
 const isActive = (href: string) =>
   route.path === href || (href !== '/' && route.path.startsWith(href));

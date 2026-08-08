@@ -164,10 +164,12 @@ func (c *YahooClient) GetQuotes(ctx context.Context, symbols []string) (map[stri
 // fetchQuote tries each configured base and, for bare symbols, the .NS
 // exchange suffix until a valid quote is found.
 func (c *YahooClient) fetchQuote(ctx context.Context, sym string) (YahooQuote, bool) {
+	now := time.Now()
+	p1, p2 := now.Add(-24*time.Hour).Unix(), now.Unix()
 	for _, base := range c.bases {
 		for _, cand := range symbolCandidates(sym) {
 			u := buildURL(base, c.chart, map[string]string{
-				"symbol": cand, "interval": "1d", "range": "1d",
+				"symbol": cand, "interval": "1d", "period1": fmt.Sprintf("%d", p1), "period2": fmt.Sprintf("%d", p2),
 			})
 			resp, err := c.get(ctx, u)
 			if err != nil {
