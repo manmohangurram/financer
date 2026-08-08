@@ -62,3 +62,4 @@ npm test            # vitest — pure helpers/composables under src/lib
 - **`occurred_at` storage:** the SQLite driver stores `time.Time` as `"YYYY-MM-DD HH:MM:SS +0000 UTC"` — `date()`/`strftime()` can't parse it. Extract date parts with `substr(t.occurred_at, 1, 10)` (day) or `substr(t.occurred_at, 1, 7)` (month).
 - **Debt accounts** (Loan=4, Credit Card=3) count as real spending in analytics; non-debt transfers are excluded.
 - **Commits:** Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`/`test:`/`chore:`/`perf:`); one logical change per commit. Feature branches → PR → `main`. See `ROADMAP.md` for the build order.
+- **PR titles:** follow the same Conventional Commits format: `<type>: <scope>: <short summary>` where scope is the phase number, e.g. `feat: phase 3: transactions CRUD, balance recalc, transfer linking` or `fix: phase 3: dead transfer result cleanup`. Use this exact format for every PR title.
