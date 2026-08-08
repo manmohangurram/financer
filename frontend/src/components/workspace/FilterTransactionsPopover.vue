@@ -20,7 +20,7 @@ function apply() {
 </script>
 
 <template>
-  <Popover panel-class="right-0 w-96" no-clip @close="emit('close')">
+  <Popover panel-class="right-0 w-[29rem]" no-clip @close="emit('close')">
     <div class="p-4 space-y-4">
       <h3 class="text-sm font-semibold text-text">Filter transactions</h3>
 

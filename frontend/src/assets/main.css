@@ -134,10 +134,30 @@ label[for] {
   box-shadow: none;
 }
 
-:focus-visible {
+html :focus-visible {
   outline: 2px solid var(--color-primary-500);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* daisyUI form controls draw their focus outline/underline from --input-color
+   (defaults to base-content = white in the dark theme); theme it to primary. */
+html .input:focus,
+html .input:focus-within,
+html .select:focus,
+html .select:focus-within {
+  --input-color: var(--color-primary-500);
+}
+
+/* No spinner arrows on number inputs anywhere. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 @media (prefers-reduced-motion: reduce) {
