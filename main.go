@@ -67,7 +67,11 @@ func main() {
 	transactionSvc := services.NewTransactionService(txnRepo, accountRepo, ruleSvc, transferRuleSvc)
 	transferSvc := services.NewTransferService(txnRepo, transferRepo, accountRepo)
 	investmentRepo := repository.NewInvestmentRepository(baseRepo)
-	investmentSvc := services.NewInvestmentService(investmentRepo, services.NewYahooClient())
+	yahoo, err := services.NewYahooClient()
+	if err != nil {
+		log.Fatalf("Failed to load Yahoo config: %v", err)
+	}
+	investmentSvc := services.NewInvestmentService(investmentRepo, yahoo)
 
 	api := httpserver.NewAPI(authSvc, userSvc, accountSvc, categorySvc, transactionSvc, transferSvc, ruleSvc, transferRuleSvc, investmentSvc, jwtSecret)
 

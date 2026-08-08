@@ -54,6 +54,14 @@ func (a *API) listInvestments(ctx context.Context, _ string, _ *http.Request) (a
 	}{Investments: items}, nil
 }
 
+func (a *API) getInvestment(ctx context.Context, _ string, r *http.Request) (any, error) {
+	out, err := a.invest.GetInvestment(ctx, &api.GetInvestmentRequest{Id: r.PathValue("id")})
+	if err != nil {
+		return nil, err
+	}
+	return investmentWire(out), nil
+}
+
 func (a *API) updateInvestment(ctx context.Context, _ string, r *http.Request) (any, error) {
 	var in reqInvestment
 	if err := decodeBody(r.Body, &in); err != nil {
@@ -65,7 +73,7 @@ func (a *API) updateInvestment(ctx context.Context, _ string, r *http.Request) (
 	}
 	in.Id = r.PathValue("id")
 	out, err := a.invest.UpdateInvestment(ctx, &api.UpdateInvestmentRequest{
-		Id: in.Id, Name: in.Name, InvestmentType: t, ManualNav: float32(in.ManualNav),
+		Id: in.Id, Symbol: in.Symbol, Name: in.Name, InvestmentType: t, ManualNav: float32(in.ManualNav),
 	})
 	if err != nil {
 		return nil, err
@@ -139,7 +147,8 @@ func (a *API) listLots(ctx context.Context, _ string, r *http.Request) (any, err
 }
 
 func (a *API) priceHistory(ctx context.Context, _ string, r *http.Request) (any, error) {
-	points, err := a.invest.GetPriceHistory(ctx, r.PathValue("id"), r.URL.Query().Get("range"), r.URL.Query().Get("refresh") == "1")
+	q := r.URL.Query()
+	points, err := a.invest.GetPriceHistory(ctx, r.PathValue("id"), q.Get("range"), q.Get("from"), q.Get("to"), q.Get("refresh") == "1")
 	if err != nil {
 		return nil, err
 	}

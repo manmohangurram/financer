@@ -133,7 +133,9 @@ Every list/screen must handle all three:
 
 - **Keyboard:** every interactive element is a real `<button>`/`<a>`/`<input>`/`<select>` (focusable by default). Verify by tabbing through.
 - **Labels:** every input has a visible label or `aria-label`.
-- **Contrast:** text is `text`/`text-secondary` on `surface`; never `subtle`/`faint` for essential text.
+- **Contrast:** text is `text`/`text-secondary` on `surface`; never `subtle`/`faint` for essential text. All text tokens (`text-muted`, `subtle`, `faint`) are tuned to pass WCAG AA (≥4.5:1) on the dark surfaces (`bg`, `base-200`).
+- **Themes:** three modes — `system` (default; resolves to the OS preference via `prefers-color-scheme` and reacts to live changes), `dark`, `light` — switched via `data-theme` and persisted in `localStorage` (`frontend/src/lib/theme.ts`). `resolveTheme`/`resolved` map mode → applied theme; UI that must match the screen (e.g. category colors) uses `resolved`, never the raw mode. App tokens (`surface`, `text`, `subtle`, `bg`, `income`/`expense`, …) have light overrides in the `[data-theme='light']` block in `main.css`; daisyUI base colors come from the `light` theme block. `CATEGORY_PALETTE_LIGHT` is used automatically when the resolved theme is light (category badges must pass AA on the 9.4%-tinted badge background).
+- **Sidebar:** collapsible to an icon rail (toggle above the user box, persisted; auto-collapses below 1024px). Nav links are full-width so the active highlight is a rounded rectangle, not an oval.
 - **Don't rely on color alone:** income/expense must pair color with a sign (`+`/`−`) or icon.
 - **Focus:** global `:focus-visible` outline is set in `main.css` — don't override it.
 - **Reduced motion:** handled globally via `prefers-reduced-motion` in `main.css`; don't add new animations that bypass it.

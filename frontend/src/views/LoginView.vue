@@ -27,7 +27,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4" style="background: radial-gradient(ellipse at 30% 20%, var(--color-bg-auth) 0%, var(--color-bg) 60%);">
+  <main class="min-h-screen flex items-center justify-center p-4" style="background: radial-gradient(ellipse at 30% 20%, var(--color-bg-auth) 0%, var(--color-bg) 60%);">
     <div class="w-full max-w-md">
       <div class="text-center mb-10">
         <div class="flex items-center justify-center gap-4 mb-5">
@@ -35,7 +35,7 @@ async function handleSubmit() {
             <Layers class="w-6 h-6 text-white" stroke-width="2" />
           </div>
           <div class="text-left">
-            <div class="text-[28px] font-extrabold text-white tracking-tight">Financer</div>
+            <div class="text-[28px] font-extrabold text-base-content tracking-tight">Financer</div>
             <div class="text-sm text-subtle font-medium">Personal Finance</div>
           </div>
         </div>
@@ -44,7 +44,7 @@ async function handleSubmit() {
 
       <div class="card bg-base-200 border border-border shadow-2xl">
         <div class="card-body p-8">
-          <h2 class="card-title text-xl font-bold text-white mb-2">Sign In</h2>
+          <h2 class="card-title text-xl font-bold text-base-content mb-2">Sign In</h2>
           <div v-if="error" class="alert alert-error text-sm py-3 mb-2">
             <span>{{ error }}</span>
           </div>
@@ -62,5 +62,5 @@ async function handleSubmit() {
         </div>
       </div>
     </div>
-  </div>
+  </main>
 </template>

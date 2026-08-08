@@ -25,3 +25,8 @@ func Conflict(format string, a ...any) error {
 func ServerError(format string, a ...any) error {
 	return &APIError{500, fmt.Sprintf(format, a...)}
 }
+
+// BadGateway is returned when an upstream service (e.g. Yahoo quotes) fails.
+func BadGateway(format string, a ...any) error {
+	return &APIError{502, fmt.Sprintf(format, a...)}
+}

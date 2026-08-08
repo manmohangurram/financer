@@ -3,6 +3,7 @@ import { ref, watch, onMounted } from 'vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
 import AccountFilterBar from '@/components/accounts/AccountFilterBar.vue';
 import ExpenseChart from '@/components/accounts/ExpenseChart.vue';
+import TimeRange from '@/components/TimeRange.vue';
 import DatePicker from '@/components/DatePicker.vue';
 import { accounts, categories, analytics, transactions } from '@/lib/api/client';
 import { useAccountsStore } from '@/lib/stores/accounts';
@@ -14,15 +15,7 @@ const accountList = ref<any[]>([]);
 const categoryList = ref<any[]>([]);
 const loading = ref(true);
 
-const ranges = [
-  { id: '7D', label: '7D' },
-  { id: '1M', label: '1M' },
-  { id: '6M', label: '6M' },
-  { id: '1Y', label: '1Y' },
-  { id: 'CUSTOM', label: 'Custom' }
-] as const;
-
-const range = ref<'7D' | '1M' | '6M' | '1Y' | 'CUSTOM'>('6M');
+const range = ref<'7D' | '1M' | '6M' | '1Y' | 'CUSTOM'>('7D');
 const customStart = ref(toLocalDateString(new Date(Date.now() - 29 * 86400000)));
 const customEnd = ref(toLocalDateString(new Date()));
 
@@ -36,11 +29,9 @@ const drillPage = ref(0);
 const drillSort = ref<'debit-desc' | 'debit-asc' | 'credit-desc' | 'credit-asc'>('debit-desc');
 const DRILL_PAGE_SIZE = 10;
 
+// The bar chart always shows the full range; only the drill-down table narrows
+// to the selected bucket (see currentTxnRange).
 function rangeParams(): { from?: string; to?: string } {
-  if (selectedKey.value) {
-    const r = selectedRange();
-    if (r) return { from: r.from, to: r.to };
-  }
   if (range.value === 'CUSTOM') return { from: customStart.value, to: customEnd.value };
   return {};
 }
@@ -119,8 +110,15 @@ async function drillPageChange(p: number) {
 }
 
 watch(range, async () => { selectedKey.value = null; await refresh(); });
-watch(customStart, async () => { if (range.value === 'CUSTOM') { selectedKey.value = null; await refresh(); } });
-watch(customEnd, async () => { if (range.value === 'CUSTOM') { selectedKey.value = null; await refresh(); } });
+// End date always stays toward the future (never before the start).
+watch(customStart, async (v) => {
+  if (v && customEnd.value && v > customEnd.value) customEnd.value = v;
+  if (range.value === 'CUSTOM') { selectedKey.value = null; await refresh(); }
+});
+watch(customEnd, async (v) => {
+  if (v && customStart.value && v < customStart.value) customStart.value = v;
+  if (range.value === 'CUSTOM') { selectedKey.value = null; await refresh(); }
+});
 watch(() => store.state.selectedAccountId, async () => { selectedKey.value = null; await refresh(); });
 watch(drillSort, refresh);
 
@@ -150,21 +148,14 @@ onMounted(loadAll);
     <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
     <div v-else class="card bg-base-200 border border-border">
       <div class="card-body p-6">
-        <div class="flex items-center justify-end gap-2 mb-4">
-          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1" role="group" aria-label="Spending range">
-            <button
-              v-for="r in ranges"
-              :key="r.id"
-              type="button"
-              class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="range === r.id ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
-              @click="range = r.id"
-            >{{ r.label }}</button>
-          </div>
+        <div class="flex flex-wrap items-center justify-end gap-2 mb-4">
+          <TimeRange v-model="range" />
           <template v-if="range === 'CUSTOM'">
-            <DatePicker v-model="customStart" class="input-sm w-36" />
-            <span class="text-[12px] text-subtle">to</span>
-            <DatePicker v-model="customEnd" class="input-sm w-36" />
+            <div class="flex flex-wrap items-center gap-2">
+              <DatePicker v-model="customStart" class="input-sm w-36" />
+              <span class="text-[12px] text-subtle">to</span>
+              <DatePicker v-model="customEnd" class="input-sm w-36" />
+            </div>
           </template>
         </div>
         <ExpenseChart

@@ -26,6 +26,8 @@ Every run against the running backend before a release or after any backend/fron
 
 - Sidebar shows only **Dashboard**, **Accounts** and **Investments** (no Spending/Transactions/Rules/Categories items)
 - User popup (bottom avatar) shows **Settings** and **Logout**
+- **Sidebar collapse:** the Collapse/Expand button (above the user box) narrows the sidebar to an icon rail and back; state persists on reload; auto-collapses below 1024px (resize the window); active nav highlight is a rounded rectangle in both states
+- **Theme toggle:** Settings → Appearance → Light/Dark switches instantly and persists on reload (no flash); both themes pass Lighthouse accessibility 100 on /accounts and /login
 - `/` redirects to `/dashboard`
 - Rules and Categories are **sub-pages under /accounts** (`/accounts/rules`, `/accounts/categories`) reached via the header buttons on the Accounts page
 - Settings opens `/settings` → Profile page
@@ -79,6 +81,8 @@ Every run against the running backend before a release or after any backend/fron
 - Filters popover opens with From/To date, Min/Max amount, Category, Name, match mode
 - Applying a filter narrows the transaction list; clearing restores it
 - Filtering by a category only returns transactions with that category
+- **Account filter:** with many accounts the bar scrolls horizontally (invisible scrollbar); left/right arrows appear on hover and scroll ~55px; arrows hide at the scroll ends
+- **Responsive:** at <1024px the sidebar auto-collapses, the Spending Tracker button and the Categories column hide (below `lg`), and the Accounts sub-heading hides (below `md`); no horizontal overflow at 1280/1920/2560 widths (16:9 and 16:10)
 
 ## Transfers
 
@@ -150,6 +154,22 @@ Every run against the running backend before a release or after any backend/fron
 - Browser DevTools console shows no errors or uncaught exceptions across any flow
 - No net::ERR_FAILED / CORS / access-control-allow-headers errors on any backend request
 - All network requests return 2xx for happy paths; 4xx for intentional invalid input
+
+## Performance (audit)
+
+- Production bundle < 200KB gzip (~80KB total: index + AppLayout)
+- Dashboard LCP < 2.5s and CLS < 0.1 (measured 297ms / 0.00)
+- `/api/dashboard` is one request with server-side math; the transaction list is a single SQL query (window COUNT + GROUP_CONCAT)
+- No N+1 in hot paths; the known per-investment lot query is acceptable at personal scale
+
+## Accessibility (WCAG 2.1 AA)
+
+- Lighthouse accessibility score is 100 on the authenticated pages and /login (color contrast, landmarks, labels)
+- Sidebar/user text uses AA-compliant tokens (`text-muted`, `subtle`, `faint` ≥ 4.5:1 on dark)
+- Primary buttons use `primary`/`primary-600` with white text (≥ 4.5:1)
+- Category badges use the AA-compliant `CATEGORY_PALETTE` (all 16 colors ≥ 4.5:1 on dark)
+- Every page has a `<main>` landmark (Login/Signup are standalone `<main>`; app pages render in the shell's `<main>`)
+- Forms use labeled controls (`AppInput`/`AppSelect`/`AppModal`); interactive elements are keyboard-reachable
 
 ## Backend smoke (curl)
 

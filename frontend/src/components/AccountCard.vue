@@ -32,7 +32,7 @@ const emit = defineEmits<{ (e: 'edit', account: any): void }>();
       </div>
       <div :class="compact ? 'mt-2.5' : 'mt-4'">
         <div class="text-subtle mb-0.5" :class="compact ? 'text-[11px]' : 'text-[12px]'">Balance</div>
-        <div class="font-bold tracking-tight" :class="[isCredit(account.accountType) ? 'text-expense' : 'text-white', compact ? 'text-[17px]' : 'text-[24px]']">
+        <div class="font-bold tracking-tight" :class="[isCredit(account.accountType) ? 'text-expense' : 'text-base-content', compact ? 'text-[17px]' : 'text-[24px]']">
           {{ isCredit(account.accountType) ? '-' : '' }}{{ formatCurrency(Math.abs(account.balance ?? 0)) }}
         </div>
       </div>

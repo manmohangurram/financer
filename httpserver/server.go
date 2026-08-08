@@ -71,6 +71,7 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/rules/{id}/run", false, a.runRule)
 
 	a.route(mux, "GET", "/api/investments", false, a.listInvestments)
+	a.route(mux, "GET", "/api/investments/{id}", false, a.getInvestment)
 	a.route(mux, "POST", "/api/investments", false, a.createInvestment)
 	a.route(mux, "PUT", "/api/investments/{id}", false, a.updateInvestment)
 	a.route(mux, "DELETE", "/api/investments/{id}", false, a.deleteInvestment)
@@ -220,6 +221,8 @@ func statusName(code int) string {
 		return "not_found"
 	case 409:
 		return "already_exists"
+	case 502:
+		return "upstream_unavailable"
 	default:
 		return "internal"
 	}

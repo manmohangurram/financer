@@ -1,22 +1,35 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { investments } from '@/lib/api/client';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency, toLocalDateString } from '@/lib/utils/format';
+import TimeRange from '@/components/TimeRange.vue';
+import DatePicker from '@/components/DatePicker.vue';
 import { RefreshCw } from '@lucide/vue';
 
 const props = defineProps<{ investment: any }>();
 
-const RANGES = [
-  { id: '1d', label: '1D' },
-  { id: '7d', label: '7D' },
-  { id: '1m', label: '1M' },
-  { id: '6m', label: '6M' },
-  { id: '1y', label: '1Y' },
-  { id: '3y', label: '3Y' }
-] as const;
-type RangeId = (typeof RANGES)[number]['id'];
+// Stocks get an intraday 1D range; mutual funds start at 7D (same as Spending).
+// Both share the preset ranges and support Custom dates (up to 5 years).
+const CHART_RANGES = computed(() => {
+  const base = [
+    { id: '7D', label: '7D' },
+    { id: '1M', label: '1M' },
+    { id: '6M', label: '6M' },
+    { id: '1Y', label: '1Y' },
+    { id: '3Y', label: '3Y' },
+    { id: 'CUSTOM', label: 'Custom' }
+  ];
+  if (props.investment?.investmentType === 'INVESTMENT_TYPE_STOCK') {
+    base.unshift({ id: '1D', label: '1D' });
+  }
+  return base;
+});
+type RangeId = '1D' | '7D' | '1M' | '6M' | '1Y' | '3Y' | 'CUSTOM';
 
-const range = ref<RangeId>('6m');
+// Default range is type-based: stocks open on 1D, mutual funds on 7D.
+const range = ref<RangeId>('7D');
+const customStart = ref(toLocalDateString(new Date(Date.now() - 29 * 86400000)));
+const customEnd = ref(toLocalDateString(new Date()));
 const points = ref<{ t: number; close: number }[]>([]);
 const loading = ref(false);
 const refreshing = ref(false);
@@ -74,10 +87,17 @@ function axisPrice(v: number): string {
   return `₹${v.toFixed(1)}`;
 }
 
+const customIsMonth = computed(() => {
+  const a = new Date(customStart.value).getTime();
+  const b = new Date(customEnd.value).getTime();
+  return b - a > 31 * 86400000;
+});
+
 function xLabel(t: number): string {
   const d = new Date(t * 1000);
-  if (range.value === '1d') return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  if (range.value === '6m' || range.value === '1y' || range.value === '3y') {
+  if (range.value === '1D') return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (range.value === 'CUSTOM' && customIsMonth.value) return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  if (range.value === '6M' || range.value === '1Y' || range.value === '3Y') {
     return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
   }
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -135,13 +155,23 @@ function onMove(e: MouseEvent) {
 
 function tickLabel(t: number): string {
   const d = new Date(t * 1000);
-  return range.value === '1d'
-    ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (range.value === '1D') return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 const hoveredPoint = computed(() => (hovered.value === null ? null : points.value[hovered.value]));
 const hoverX = computed(() => (hovered.value === null ? 0 : coords.value[hovered.value]?.x ?? 0));
+
+function chartQuery() {
+  const q: Record<string, string> = { id: props.investment.id };
+  if (range.value === 'CUSTOM') {
+    q.from = customStart.value;
+    q.to = customEnd.value;
+  } else {
+    q.range = range.value.toLowerCase();
+  }
+  return q;
+}
 
 async function load() {
   if (!props.investment?.id || !props.investment?.symbol) return;
@@ -149,7 +179,7 @@ async function load() {
   error.value = '';
   hovered.value = null;
   try {
-    const resp = await investments().getPriceHistory({ id: props.investment.id, range: range.value });
+    const resp = await investments().getPriceHistory(chartQuery());
     points.value = resp.points || [];
   } catch (e: any) {
     points.value = [];
@@ -164,7 +194,7 @@ async function forceRefresh() {
   error.value = '';
   hovered.value = null;
   try {
-    const resp = await investments().getPriceHistory({ id: props.investment.id, range: range.value, refresh: '1' });
+    const resp = await investments().getPriceHistory({ ...chartQuery(), refresh: '1' });
     points.value = resp.points || [];
   } catch (e: any) {
     error.value = e?.message || 'Failed to refresh price history';
@@ -172,7 +202,22 @@ async function forceRefresh() {
   refreshing.value = false;
 }
 
-watch(() => [props.investment?.id, range.value], load, { immediate: true });
+// End date always stays toward the future (never before the start).
+watch(customStart, (v) => {
+  if (v && customEnd.value && v > customEnd.value) customEnd.value = v;
+  if (range.value === 'CUSTOM') load();
+});
+watch(customEnd, (v) => {
+  if (v && customStart.value && v < customStart.value) customStart.value = v;
+  if (range.value === 'CUSTOM') load();
+});
+
+// Set the type-based default range when a new investment loads.
+watch(() => props.investment?.id, () => {
+  range.value = props.investment?.investmentType === 'INVESTMENT_TYPE_STOCK' ? '1D' : '7D';
+  load();
+}, { immediate: true });
+watch(range, load);
 </script>
 
 <template>
@@ -180,16 +225,12 @@ watch(() => [props.investment?.id, range.value], load, { immediate: true });
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-[15px] font-semibold text-text">Price History</h3>
       <div class="flex items-center gap-2">
-        <div class="flex gap-1 rounded-xl bg-surface border border-border p-1" role="group" aria-label="Price history range">
-          <button
-            v-for="r in RANGES"
-            :key="r.id"
-            type="button"
-            class="px-3 py-1 rounded-lg text-[11.5px] font-medium transition-colors"
-            :class="range === r.id ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
-            @click="range = r.id"
-          >{{ r.label }}</button>
-        </div>
+        <TimeRange v-model="range" :options="CHART_RANGES" />
+        <template v-if="range === 'CUSTOM'">
+          <DatePicker v-model="customStart" class="input-sm w-32" />
+          <span class="text-[12px] text-subtle">to</span>
+          <DatePicker v-model="customEnd" class="input-sm w-32" />
+        </template>
         <button
           class="w-7 h-7 rounded-lg border border-border text-subtle hover:text-primary-400 hover:border-primary-500/40 flex items-center justify-center transition-colors"
           :disabled="refreshing || loading"
@@ -228,7 +269,7 @@ watch(() => [props.investment?.id, range.value], load, { immediate: true });
         </g>
 
         <path :d="areaPath" :fill="`url(#area-${props.investment.id})`" />
-        <path :d="linePath" fill="none" :class="strokeCls" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        <path :d="linePath" fill="none" :class="strokeCls" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />
 
         <line
           v-if="hovered !== null"
@@ -238,10 +279,10 @@ watch(() => [props.investment?.id, range.value], load, { immediate: true });
         />
         <circle
           v-if="hovered !== null"
-          :cx="hoverX" :cy="coords[hovered]?.y ?? 0" r="4"
+          :cx="hoverX" :cy="coords[hovered]?.y ?? 0" r="2.5"
           :class="strokeCls"
           class="fill-base-200"
-          stroke-width="2"
+          stroke-width="1"
         />
       </svg>
 

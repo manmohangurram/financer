@@ -79,8 +79,13 @@ func (s *TransactionService) Spending(ctx context.Context, msg *api.SpendingRequ
 		if !to.IsZero() {
 			to = to.Add(24 * time.Hour) // inclusive end-of-day
 		}
-		if !from.IsZero() && !to.IsZero() && int(to.Sub(from).Hours()/24) > 30 {
-			gran = "month"
+		if !from.IsZero() && !to.IsZero() {
+			if to.Sub(from) > 366*24*time.Hour {
+				return nil, BadRequest("custom range must be at most 1 year")
+			}
+			if int(to.Sub(from).Hours()/24) > 30 {
+				gran = "month"
+			}
 		}
 	}
 	f := repository.SpendingFilter{Granularity: gran, From: from, To: to, AccountID: msg.AccountId}

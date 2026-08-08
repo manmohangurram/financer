@@ -4,8 +4,20 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 )
+
+// newTestClient loads the same config/yahoo.json the app uses and points the
+// client at the httptest server (no hardcoded URLs in tests).
+func newTestClient(t *testing.T, srv *httptest.Server) *YahooClient {
+	t.Helper()
+	cfg, err := loadYahooConfigFrom(filepath.Join("..", "config", "yahoo.json"))
+	if err != nil {
+		t.Fatalf("load yahoo config: %v", err)
+	}
+	return &YahooClient{bases: []string{srv.URL}, chart: cfg.Chart, search: cfg.Search, client: srv.Client()}
+}
 
 func TestYahooSearch(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +29,7 @@ func TestYahooSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &YahooClient{baseURL: srv.URL, client: srv.Client()}
+	c := newTestClient(t, srv)
 	res, err := c.Search(context.Background(), "reliance")
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +59,7 @@ func TestYahooGetQuotes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &YahooClient{baseURL: srv.URL, client: srv.Client()}
+	c := newTestClient(t, srv)
 	q, err := c.GetQuotes(context.Background(), []string{"RELIANCE.NS", "TCS.NS", "MISSING.NS"})
 	if err != nil {
 		t.Fatal(err)

@@ -116,7 +116,10 @@ func (s *InvestmentService) UpdateInvestment(ctx context.Context, msg *api.Updat
 		msg.InvestmentType != api.InvestmentType_INVESTMENT_TYPE_MUTUAL_FUND {
 		return nil, BadRequest("INVESTMENT_TYPE must be STOCK or MUTUAL_FUND")
 	}
-	inst, err := s.repo.UpdateInvestment(ctx, msg.Id, msg.Name, msg.InvestmentType, msg.ManualNav)
+	if msg.InvestmentType == api.InvestmentType_INVESTMENT_TYPE_STOCK && msg.Symbol == "" {
+		return nil, BadRequest("symbol is required for STOCK")
+	}
+	inst, err := s.repo.UpdateInvestment(ctx, msg.Id, msg.Symbol, msg.Name, msg.InvestmentType, msg.ManualNav)
 	if err != nil {
 		return nil, ServerError("%v", err)
 	}
@@ -204,7 +207,7 @@ func (s *InvestmentService) SearchSymbols(ctx context.Context, msg *api.SearchSy
 	}
 	results, err := s.yahoo.Search(ctx, msg.Query)
 	if err != nil {
-		return nil, ServerError("%v", err)
+		return nil, BadGateway("symbol search temporarily unavailable: %v", err)
 	}
 	return &api.SearchSymbolsResponse{Results: results}, nil
 }
@@ -225,7 +228,7 @@ func (s *InvestmentService) RefreshPrices(ctx context.Context, _ *api.RefreshPri
 	}
 	quotes, err := s.yahoo.GetQuotes(ctx, symbols)
 	if err != nil {
-		return nil, ServerError("%v", err)
+		return nil, BadGateway("price refresh temporarily unavailable: %v", err)
 	}
 	updated := 0
 	for sym, quote := range quotes {
@@ -287,19 +290,37 @@ func (s *InvestmentService) GetPortfolioSummary(ctx context.Context, _ *api.GetP
 }
 
 type priceRange struct {
-	rng      string
-	interval string
-	limit    int
-	agg      string
+	days     int    // preset range duration, days back from now
+	interval string // Yahoo chart interval (e.g. "1d", "15m")
+	limit    int    // keep the most recent N points
+	agg      string // aggregate to "week" / "month"
 }
 
 var priceHistoryRanges = map[string]priceRange{
-	"1d": {rng: "1d", interval: "15m"},
-	"7d": {rng: "1mo", interval: "1d", limit: 7},
-	"1m": {rng: "1mo", interval: "1d"},
-	"6m": {rng: "6mo", interval: "1d"},
-	"1y": {rng: "1y", interval: "1d", agg: "week"},
-	"3y": {rng: "3y", interval: "1d", agg: "month"},
+	"1d": {days: 1, interval: "15m"},
+	"7d": {days: 7, interval: "1d", limit: 7},
+	"1m": {days: 30, interval: "1d"},
+	"6m": {days: 180, interval: "1d"},
+	"1y": {days: 365, interval: "1d", agg: "week"},
+	"3y": {days: 1095, interval: "1d", agg: "month"},
+}
+
+// presetPeriod converts a preset range to period1/period2 Unix timestamps.
+// The 1d (intraday) range uses Friday's session on weekends, since a trailing
+// 24h window is empty when the market has been closed.
+func presetPeriod(rangeID string, cfg priceRange, now time.Time) (period1, period2 int64) {
+	if rangeID == "1d" {
+		if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
+			daysBack := 1
+			if now.Weekday() == time.Sunday {
+				daysBack = 2
+			}
+			friday := time.Date(now.Year(), now.Month(), now.Day()-daysBack, 0, 0, 0, 0, now.Location())
+			return friday.Unix(), friday.Add(24 * time.Hour).Unix()
+		}
+		return now.Add(-24 * time.Hour).Unix(), now.Unix()
+	}
+	return now.AddDate(0, 0, -cfg.days).Unix(), now.Unix()
 }
 
 func aggregatePricePoints(points []PricePoint, agg string) []PricePoint {
@@ -340,11 +361,37 @@ func aggregatePricePoints(points []PricePoint, agg string) []PricePoint {
 	return out
 }
 
-func (s *InvestmentService) GetPriceHistory(ctx context.Context, investmentID, rangeID string, force bool) ([]PricePoint, error) {
-	cfg, ok := priceHistoryRanges[rangeID]
-	if !ok {
-		return nil, BadRequest("range must be one of 1d,7d,1m,6m,1y,3y")
+func (s *InvestmentService) GetPriceHistory(ctx context.Context, investmentID, rangeID, from, to string, force bool) ([]PricePoint, error) {
+	var cfg priceRange
+	var cacheKey string
+	var period1, period2 int64
+
+	if from != "" || to != "" {
+		// Custom date range: fetch from Yahoo with explicit timestamps.
+		f, err1 := time.Parse("2006-01-02", from)
+		t, err2 := time.Parse("2006-01-02", to)
+		if err1 != nil || err2 != nil {
+			return nil, BadRequest("from and to must be YYYY-MM-DD")
+		}
+		if t.Before(f) || t.Sub(f) > 5*365*24*time.Hour {
+			return nil, BadRequest("custom range must be at most 5 years")
+		}
+		period1 = f.Unix()
+		period2 = t.Add(24 * time.Hour).Unix() // inclusive end-of-day
+		cacheKey = "custom:" + from + ":" + to
+		cfg = priceRange{interval: "1d"}
+	} else {
+		var ok bool
+		cfg, ok = priceHistoryRanges[rangeID]
+		if !ok {
+			return nil, BadRequest("range must be one of 1d,7d,1m,6m,1y,3y or provide from/to")
+		}
+		// Preset ranges are translated to explicit timestamps (period-based),
+		// matching Yahoo's period1/period2 chart requests.
+		period1, period2 = presetPeriod(rangeID, cfg, time.Now())
+		cacheKey = rangeID
 	}
+
 	inst, err := s.repo.GetInvestment(ctx, investmentID)
 	if err != nil {
 		return nil, ServerError("%v", err)
@@ -353,15 +400,19 @@ func (s *InvestmentService) GetPriceHistory(ctx context.Context, investmentID, r
 		return nil, nil
 	}
 	if !force {
-		ts, closes, lastFetched, err := s.repo.GetPriceHistory(ctx, investmentID, rangeID)
+		ts, closes, lastFetched, err := s.repo.GetPriceHistory(ctx, investmentID, cacheKey)
 		if err != nil {
 			return nil, ServerError("%v", err)
 		}
-		if len(ts) > 0 && time.Now().Unix()-lastFetched < int64(priceHistoryFreshness[rangeID].Seconds()) {
+		fresh := 6 * time.Hour
+		if base, ok := priceHistoryFreshness[rangeID]; ok {
+			fresh = base
+		}
+		if len(ts) > 0 && time.Now().Unix()-lastFetched < int64(fresh.Seconds()) {
 			return toPricePoints(ts, closes), nil
 		}
 	}
-	return s.fetchAndCachePriceHistory(ctx, inst.Id, inst.Symbol, rangeID, cfg)
+	return s.fetchAndCachePriceHistory(ctx, inst.Id, inst.Symbol, cacheKey, cfg, period1, period2)
 }
 
 var priceHistoryFreshness = map[string]time.Duration{
@@ -381,10 +432,10 @@ func toPricePoints(ts []int64, closes []float64) []PricePoint {
 	return points
 }
 
-func (s *InvestmentService) fetchAndCachePriceHistory(ctx context.Context, investmentID, symbol, rangeID string, cfg priceRange) ([]PricePoint, error) {
-	raw, err := s.yahoo.GetHistory(ctx, symbol, cfg.rng, cfg.interval, cfg.limit)
+func (s *InvestmentService) fetchAndCachePriceHistory(ctx context.Context, investmentID, symbol, rangeID string, cfg priceRange, period1, period2 int64) ([]PricePoint, error) {
+	raw, err := s.yahoo.GetHistory(ctx, symbol, cfg.interval, cfg.limit, period1, period2)
 	if err != nil {
-		return nil, ServerError("price history: %v", err)
+		return nil, BadGateway("price data temporarily unavailable: %v", err)
 	}
 	points := aggregatePricePoints(raw, cfg.agg)
 	ts := make([]int64, len(points))
@@ -414,7 +465,8 @@ func (s *InvestmentService) RefreshAllPriceHistory(ctx context.Context) error {
 			if len(ts) > 0 && now-lastFetched < int64(priceHistoryFreshness[rangeID].Seconds()) {
 				continue
 			}
-			if _, err := s.fetchAndCachePriceHistory(ctx, inst.Id, inst.Symbol, rangeID, cfg); err != nil {
+			p1, p2 := presetPeriod(rangeID, cfg, time.Now())
+			if _, err := s.fetchAndCachePriceHistory(ctx, inst.Id, inst.Symbol, rangeID, cfg, p1, p2); err != nil {
 				logx.Debug("price history refresh failed", "symbol", inst.Symbol, "range", rangeID, "err", err)
 			}
 		}

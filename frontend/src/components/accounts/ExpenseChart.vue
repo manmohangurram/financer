@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/utils/format';
 import { ChartPie, ReceiptText } from '@lucide/vue';
 import Pagination from '@/components/Pagination.vue';
 import TransactionTable from '@/components/workspace/TransactionTable.vue';
+import HScroll from '@/components/HScroll.vue';
 
 const props = defineProps<{
   buckets: any[];
@@ -23,7 +24,6 @@ const sortDir = ref<'desc' | 'asc'>('desc');
 const activeTab = ref<'transactions' | 'categories'>('transactions');
 const hoveredPie = ref<{ id: string; part: 'debit' | 'credit' } | null>(null);
 const sortedCats = computed(() => (sortDir.value === 'desc' ? props.categories : [...props.categories].reverse()));
-const visiblePies = computed(() => sortedCats.value.slice(0, 6));
 
 const maxAmount = computed(() => Math.max(1, ...props.buckets.map((b) => b.amount)));
 const yTicks = computed(() => [maxAmount.value, maxAmount.value * 0.75, maxAmount.value * 0.5, maxAmount.value * 0.25]);
@@ -84,33 +84,35 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
         <div class="flex flex-col justify-between h-[200px] w-12 shrink-0 text-right text-[10px] text-subtle leading-none pr-1" aria-hidden="true">
           <span v-for="v in yTicks" :key="v" class="translate-y-1/3">{{ axisAmount(v) }}</span>
         </div>
-        <div class="relative flex-1 overflow-x-auto no-scrollbar">
-          <div class="absolute inset-0 flex flex-col justify-between pointer-events-none" aria-hidden="true">
-            <span v-for="v in yTicks" :key="'g' + v" class="w-full h-px bg-border/10"></span>
+        <HScroll class="flex-1" :gap="16" align="start">
+          <div class="relative w-max">
+            <div class="absolute inset-0 flex flex-col justify-between pointer-events-none" aria-hidden="true">
+              <span v-for="v in yTicks" :key="'g' + v" class="w-full h-px bg-border/10"></span>
+            </div>
+            <div v-if="buckets.length" class="relative flex items-end gap-4 h-[200px]" role="group" aria-label="Spending by period">
+              <button
+                v-for="b in buckets"
+                :key="b.key"
+                type="button"
+                class="group relative flex flex-col items-center justify-end gap-1.5 shrink-0 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
+                :aria-label="`${b.label}: ${b.amount ? formatCurrency(b.amount) : 'no spending'}`"
+                :aria-pressed="selectedKey === b.key"
+                @click="emit('select-bucket', b.key)"
+              >
+                <span
+                  class="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-base-200 border border-border text-[11px] font-semibold text-text whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                >{{ formatCurrency(b.amount) }}</span>
+                <span
+                  class="w-12 rounded-md transition-all duration-200 border border-border"
+                  :class="selectedKey === b.key ? 'bg-primary-500' : b.amount ? 'bg-primary-500/25 group-hover:bg-primary-500/45' : 'bg-white/[0.04]'"
+                  :style="{ height: Math.max(b.amount ? 6 : 3, (b.amount / maxAmount) * 180) + 'px' }"
+                ></span>
+                <span class="text-[10px] leading-none text-subtle truncate max-w-12">{{ b.label }}</span>
+              </button>
+            </div>
+            <div v-else class="min-w-[360px] h-[200px] flex items-center justify-center text-[12px] text-subtle">No spending in the selected range</div>
           </div>
-          <div v-if="buckets.length" class="relative flex items-end gap-4 h-[200px] w-max mx-auto" role="group" aria-label="Spending by period">
-            <button
-              v-for="b in buckets"
-              :key="b.key"
-              type="button"
-              class="group relative flex flex-col items-center justify-end gap-1.5 shrink-0 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60"
-              :aria-label="`${b.label}: ${b.amount ? formatCurrency(b.amount) : 'no spending'}`"
-              :aria-pressed="selectedKey === b.key"
-              @click="emit('select-bucket', b.key)"
-            >
-              <span
-                class="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-base-200 border border-border text-[11px] font-semibold text-text whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10"
-              >{{ formatCurrency(b.amount) }}</span>
-              <span
-                class="w-12 rounded-md transition-all duration-200 border border-border"
-                :class="selectedKey === b.key ? 'bg-primary-500' : b.amount ? 'bg-primary-500/25 group-hover:bg-primary-500/45' : 'bg-white/[0.04]'"
-                :style="{ height: Math.max(b.amount ? 6 : 3, (b.amount / maxAmount) * 180) + 'px' }"
-              ></span>
-              <span class="text-[10px] leading-none text-subtle truncate max-w-12">{{ b.label }}</span>
-            </button>
-          </div>
-          <div v-else class="h-[200px] flex items-center justify-center text-[12px] text-subtle">No spending in the selected range</div>
-        </div>
+        </HScroll>
       </div>
     </section>
 
@@ -119,7 +121,7 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="activeTab === 'transactions' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+          :class="activeTab === 'transactions' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
           @click="activeTab = 'transactions'"
         >
           <ReceiptText class="w-4 h-4" stroke-width="1.5" />
@@ -128,7 +130,7 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="activeTab === 'categories' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+          :class="activeTab === 'categories' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
           @click="activeTab = 'categories'"
         >
           <ChartPie class="w-4 h-4" stroke-width="1.5" />
@@ -146,7 +148,7 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
               :key="opt.id"
               type="button"
               class="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
-              :class="drillSort === opt.id ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="drillSort === opt.id ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="emit('sort-change', opt.id)"
             >{{ opt.label }}</button>
           </div>
@@ -162,20 +164,20 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
             <button
               type="button"
               class="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
-              :class="sortDir === 'desc' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="sortDir === 'desc' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="sortDir = 'desc'"
             >Net: High → Low</button>
             <button
               type="button"
               class="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
-              :class="sortDir === 'asc' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="sortDir === 'asc' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="sortDir = 'asc'"
             >Net: Low → High</button>
           </div>
         </div>
 
-        <div class="flex flex-wrap justify-between gap-x-8 gap-y-5" :class="visiblePies.length === 1 ? 'justify-center' : ''">
-          <div v-for="row in visiblePies" :key="row.id" class="flex flex-col items-center min-w-0">
+        <HScroll :gap="32" align="start">
+          <div v-for="row in sortedCats" :key="row.id" class="flex flex-col items-center min-w-0 shrink-0">
             <div
               class="relative w-[166px] h-[166px] shrink-0"
               role="img"
@@ -209,7 +211,7 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
               </div>
             </div>
           </div>
-        </div>
+        </HScroll>
 
         <div class="overflow-x-auto mt-5">
           <table class="w-full">
