@@ -158,7 +158,7 @@ function handleLogout() {
             </template>
           </button>
 
-          <Popover v-if="userMenuOpen" up @close="userMenuOpen = false" :panel-class="collapsed ? 'right-0 w-44' : 'left-0 right-0 min-w-full'">
+          <Popover v-if="userMenuOpen" right @close="userMenuOpen = false" panel-class="w-48">
             <div class="py-1">
               <button
                 @click="router.push('/settings'); userMenuOpen = false"
