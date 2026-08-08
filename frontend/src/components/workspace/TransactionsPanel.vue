@@ -147,8 +147,8 @@ async function confirmDeleteNow() {
             </button>
             <button
               @click="showCheckboxes = !showCheckboxes"
-              class="shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-medium border border-border hover:border-primary-500/40 transition-colors"
-              :class="showCheckboxes ? 'bg-primary-500/10 text-primary-400 border-primary-500/30' : 'text-text-muted'"
+              class="shrink-0 btn btn-ghost btn-sm border border-track gap-1.5 transition-colors"
+              :class="showCheckboxes ? 'bg-primary-500/10 text-primary-400 border-primary-500/30' : 'text-text'"
             >
               <CheckSquare class="w-3.5 h-3.5" />
               {{ showCheckboxes ? 'Done' : 'Select' }}
