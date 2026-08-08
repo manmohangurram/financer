@@ -36,11 +36,9 @@ const drillPage = ref(0);
 const drillSort = ref<'debit-desc' | 'debit-asc' | 'credit-desc' | 'credit-asc'>('debit-desc');
 const DRILL_PAGE_SIZE = 10;
 
+// The bar chart always shows the full range; only the drill-down table narrows
+// to the selected bucket (see currentTxnRange).
 function rangeParams(): { from?: string; to?: string } {
-  if (selectedKey.value) {
-    const r = selectedRange();
-    if (r) return { from: r.from, to: r.to };
-  }
   if (range.value === 'CUSTOM') return { from: customStart.value, to: customEnd.value };
   return {};
 }
@@ -150,7 +148,7 @@ onMounted(loadAll);
     <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
     <div v-else class="card bg-base-200 border border-border">
       <div class="card-body p-6">
-        <div class="flex items-center justify-end gap-2 mb-4">
+        <div class="flex flex-wrap items-center justify-end gap-2 mb-4">
           <div class="flex gap-1 rounded-xl bg-surface border border-border p-1" role="group" aria-label="Spending range">
             <button
               v-for="r in ranges"
@@ -162,9 +160,11 @@ onMounted(loadAll);
             >{{ r.label }}</button>
           </div>
           <template v-if="range === 'CUSTOM'">
-            <DatePicker v-model="customStart" class="input-sm w-36" />
-            <span class="text-[12px] text-subtle">to</span>
-            <DatePicker v-model="customEnd" class="input-sm w-36" />
+            <div class="flex flex-wrap items-center gap-2">
+              <DatePicker v-model="customStart" class="input-sm w-36" />
+              <span class="text-[12px] text-subtle">to</span>
+              <DatePicker v-model="customEnd" class="input-sm w-36" />
+            </div>
           </template>
         </div>
         <ExpenseChart
