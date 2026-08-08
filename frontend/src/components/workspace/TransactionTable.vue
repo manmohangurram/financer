@@ -74,7 +74,7 @@ function counterpart(txn: any) {
           </th>
           <th class="text-left py-3 px-2 w-[20%]">Date</th>
           <th class="text-left py-3 px-2 w-[35%]">Name</th>
-          <th class="text-left py-3 px-2 w-[20%]">Categories</th>
+          <th class="text-left py-3 px-2 w-[20%] hidden lg:table-cell">Categories</th>
           <th class="text-right py-3 px-4 w-[15%]">Amount</th>
         </tr>
       </thead>
@@ -122,7 +122,7 @@ function counterpart(txn: any) {
               </div>
             </div>
           </td>
-          <td class="py-3 px-2">
+          <td class="py-3 px-2 hidden lg:table-cell">
             <span
               v-if="txnCategory(txn)"
               class="badge badge-outline gap-1 text-[11px]"

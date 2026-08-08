@@ -119,7 +119,7 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="activeTab === 'transactions' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+          :class="activeTab === 'transactions' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
           @click="activeTab = 'transactions'"
         >
           <ReceiptText class="w-4 h-4" stroke-width="1.5" />
@@ -128,7 +128,7 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="activeTab === 'categories' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+          :class="activeTab === 'categories' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
           @click="activeTab = 'categories'"
         >
           <ChartPie class="w-4 h-4" stroke-width="1.5" />
@@ -146,7 +146,7 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
               :key="opt.id"
               type="button"
               class="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
-              :class="drillSort === opt.id ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="drillSort === opt.id ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="emit('sort-change', opt.id)"
             >{{ opt.label }}</button>
           </div>
@@ -162,13 +162,13 @@ const txnPages = computed(() => Math.max(1, Math.ceil(props.drillTotal / 10)));
             <button
               type="button"
               class="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
-              :class="sortDir === 'desc' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="sortDir === 'desc' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="sortDir = 'desc'"
             >Net: High → Low</button>
             <button
               type="button"
               class="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors"
-              :class="sortDir === 'asc' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="sortDir === 'asc' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="sortDir = 'asc'"
             >Net: Low → High</button>
           </div>

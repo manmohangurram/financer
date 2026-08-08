@@ -35,7 +35,7 @@ function typeLabel(t: string): string {
         </button>
         <div class="min-w-0">
           <div class="flex items-center gap-3">
-            <h2 class="text-[22px] font-bold text-white tracking-tight truncate">{{ investment.name }}</h2>
+            <h2 class="text-[22px] font-bold text-base-content tracking-tight truncate">{{ investment.name }}</h2>
             <span class="badge badge-outline badge-sm border-border text-subtle shrink-0">{{ typeLabel(investment.investmentType) }}</span>
           </div>
           <div v-if="investment.symbol" class="text-[13px] text-subtle mt-0.5">{{ investment.symbol }}</div>

@@ -120,7 +120,7 @@ function selectDate(d: Date) {
             :class="
               d
                 ? isSelected(d)
-                  ? 'bg-primary-500 text-white font-semibold'
+                  ? 'bg-primary-600 text-white font-semibold'
                   : isToday(d)
                     ? 'text-primary-400 font-semibold'
                     : 'text-text hover:bg-white/5'

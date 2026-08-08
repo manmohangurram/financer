@@ -26,6 +26,8 @@ Every run against the running backend before a release or after any backend/fron
 
 - Sidebar shows only **Dashboard**, **Accounts** and **Investments** (no Spending/Transactions/Rules/Categories items)
 - User popup (bottom avatar) shows **Settings** and **Logout**
+- **Sidebar collapse:** the Collapse/Expand button (above the user box) narrows the sidebar to an icon rail and back; state persists on reload; auto-collapses below 1024px (resize the window); active nav highlight is a rounded rectangle in both states
+- **Theme toggle:** Settings → Appearance → Light/Dark switches instantly and persists on reload (no flash); both themes pass Lighthouse accessibility 100 on /accounts and /login
 - `/` redirects to `/dashboard`
 - Rules and Categories are **sub-pages under /accounts** (`/accounts/rules`, `/accounts/categories`) reached via the header buttons on the Accounts page
 - Settings opens `/settings` → Profile page
@@ -79,6 +81,8 @@ Every run against the running backend before a release or after any backend/fron
 - Filters popover opens with From/To date, Min/Max amount, Category, Name, match mode
 - Applying a filter narrows the transaction list; clearing restores it
 - Filtering by a category only returns transactions with that category
+- **Account filter:** with many accounts the bar scrolls horizontally (invisible scrollbar); left/right arrows appear on hover and scroll ~55px; arrows hide at the scroll ends
+- **Responsive:** at <1024px the sidebar auto-collapses, the Spending Tracker button and the Categories column hide (below `lg`), and the Accounts sub-heading hides (below `md`); no horizontal overflow at 1280/1920/2560 widths (16:9 and 16:10)
 
 ## Transfers
 

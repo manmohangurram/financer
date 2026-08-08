@@ -36,7 +36,7 @@ async function handleSubmit() {
             <Layers class="w-6 h-6 text-white" stroke-width="2" />
           </div>
           <div class="text-left">
-            <div class="text-[28px] font-extrabold text-white tracking-tight">Financer</div>
+            <div class="text-[28px] font-extrabold text-base-content tracking-tight">Financer</div>
             <div class="text-sm text-subtle font-medium">Personal Finance</div>
           </div>
         </div>
@@ -45,7 +45,7 @@ async function handleSubmit() {
 
       <div class="card bg-base-200 border border-border shadow-2xl">
         <div class="card-body p-8">
-          <h2 class="card-title text-xl font-bold text-white mb-2">Create Account</h2>
+          <h2 class="card-title text-xl font-bold text-base-content mb-2">Create Account</h2>
           <div v-if="error" class="alert alert-error text-sm py-3 mb-2">
             <span>{{ error }}</span>
           </div>

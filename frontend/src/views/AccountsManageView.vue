@@ -73,7 +73,7 @@ onMounted(loadAll);
               <div class="text-[14px] text-text font-medium truncate">{{ acc.accountNickname || acc.bankName }}</div>
               <div class="text-[12px] text-subtle">{{ acc.bankName }}</div>
             </div>
-            <span class="text-[15px] font-semibold shrink-0" :class="isCredit(acc.accountType) ? 'text-expense' : 'text-white'">
+            <span class="text-[15px] font-semibold shrink-0" :class="isCredit(acc.accountType) ? 'text-expense' : 'text-base-content'">
               {{ isCredit(acc.accountType) ? '-' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
             </span>
             <div class="flex gap-1 shrink-0">

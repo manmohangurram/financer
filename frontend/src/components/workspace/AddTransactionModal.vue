@@ -163,7 +163,7 @@ async function runImport() {
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="mode === 'manual' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+          :class="mode === 'manual' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
           @click="switchMode('manual')"
         >
           <PenLine class="w-4 h-4" stroke-width="1.5" />
@@ -172,7 +172,7 @@ async function runImport() {
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="mode === 'csv' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+          :class="mode === 'csv' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
           @click="switchMode('csv')"
         >
           <FileSpreadsheet class="w-4 h-4" stroke-width="1.5" />
@@ -216,13 +216,13 @@ async function runImport() {
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'single' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="formatMode === 'single' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="switchFormat('single')"
             >Single amount column</button>
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'split' ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="formatMode === 'split' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="switchFormat('split')"
             >Debit + Credit columns</button>
           </div>

@@ -62,7 +62,7 @@ function clearFilters() {
         class="badge badge-error badge-outline gap-1 text-[12px]"
       >
         {{ chip.label }}
-        <button class="hover:text-white" @click="removeFilter(chip.key)">✕</button>
+        <button class="hover:text-base-content" @click="removeFilter(chip.key)">✕</button>
       </span>
       <button @click="clearFilters" class="text-[12px] text-subtle hover:text-text self-center ml-1">Clear all</button>
     </div>

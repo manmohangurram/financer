@@ -6,7 +6,8 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { profile } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { getAccessToken, setTokens } from '@/lib/api/transport';
-import { Camera, Save, Loader2, ShieldCheck } from '@lucide/vue';
+import { applyTheme, current as currentTheme } from '@/lib/theme';
+import { Camera, Save, Loader2, ShieldCheck, Sun, Moon } from '@lucide/vue';
 
 const auth = useAuthStore();
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -189,6 +190,35 @@ onMounted(loadProfile);
               <Loader2 v-if="savingPassword" class="w-4 h-4 animate-spin" />
               <Save v-else class="w-4 h-4" />
               Update password
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card bg-base-200 border border-border">
+        <div class="card-body p-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-text">Appearance</h2>
+            <p class="text-[13px] text-subtle">Choose the app theme. Your choice is saved on this device.</p>
+          </div>
+          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1" role="group" aria-label="Theme">
+            <button
+              type="button"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
+              :class="currentTheme === 'light' ? 'bg-primary-600 text-white' : 'text-text-muted hover:text-text'"
+              @click="applyTheme('light')"
+            >
+              <Sun class="w-4 h-4" stroke-width="1.5" />
+              Light
+            </button>
+            <button
+              type="button"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
+              :class="currentTheme === 'dark' ? 'bg-primary-600 text-white' : 'text-text-muted hover:text-text'"
+              @click="applyTheme('dark')"
+            >
+              <Moon class="w-4 h-4" stroke-width="1.5" />
+              Dark
             </button>
           </div>
         </div>

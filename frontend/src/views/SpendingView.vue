@@ -157,7 +157,7 @@ onMounted(loadAll);
               :key="r.id"
               type="button"
               class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="range === r.id ? 'bg-primary-500 text-white' : 'text-subtle hover:text-text'"
+              :class="range === r.id ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
               @click="range = r.id"
             >{{ r.label }}</button>
           </div>

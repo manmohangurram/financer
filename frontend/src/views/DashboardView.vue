@@ -47,7 +47,7 @@ onMounted(loadData);
   </div>
   <div v-else class="w-full space-y-5">
     <div>
-      <h1 class="text-[34px] font-bold text-white tracking-tight">Dashboard</h1>
+      <h1 class="text-[34px] font-bold text-base-content tracking-tight">Dashboard</h1>
       <p class="text-subtle text-base mt-1">Your complete financial overview at a glance</p>
     </div>
 
