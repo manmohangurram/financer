@@ -34,10 +34,13 @@ func spaHandler(dir string) http.Handler {
 		}
 		p := strings.TrimPrefix(r.URL.Path, "/")
 		if p != "" {
-			if f, err := os.Open(filepath.Join(dir, filepath.FromSlash(p))); err == nil {
-				f.Close()
-				fileServer.ServeHTTP(w, r)
-				return
+			clean := filepath.Clean(filepath.Join(dir, filepath.FromSlash(p)))
+			if strings.HasPrefix(clean, dir+string(filepath.Separator)) {
+				if f, err := os.Open(clean); err == nil {
+					f.Close()
+					fileServer.ServeHTTP(w, r)
+					return
+				}
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

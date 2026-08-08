@@ -62,9 +62,6 @@ func main() {
 	authSvc := services.NewAuthService(writeDB, jwtSecret)
 
 	avatarDir := filepath.Join(dataDir, "avatars")
-	if err := os.MkdirAll(avatarDir, 0o755); err != nil {
-		log.Fatalf("Failed to create avatar dir: %v", err)
-	}
 	userSvc := services.NewUserService(writeDB, jwtSecret, avatarDir)
 
 	baseRepo := repository.NewBaseRepository(writeDB, readDB)
