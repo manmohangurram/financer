@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { categoryColorMap } from '@/lib/utils/categoryColor';
-import { ArrowLeftRight } from '@lucide/vue';
+import { ArrowLeftRight, Pencil } from '@lucide/vue';
 
 const props = defineProps<{
   transactions: any[];
@@ -21,6 +21,7 @@ const emit = defineEmits<{
   (e: 'toggle-select', txn: any): void;
   (e: 'toggle-select-all'): void;
   (e: 'edit', txn: any): void;
+  (e: 'transfer', txn: any): void;
 }>();
 
 const revealed = ref<string | null>(null);
@@ -29,7 +30,7 @@ const colors = computed(() => categoryColorMap(props.categories.map((c: any) => 
 
 const allSelected = computed(() => props.transactions.length > 0 && props.transactions.every((t) => props.selectedIds?.includes(t.id)));
 const someSelected = computed(() => !allSelected.value && props.transactions.some((t) => props.selectedIds?.includes(t.id)));
-const colCount = computed(() => 4 + (props.showCheckboxes ? 1 : 0));
+const colCount = computed(() => (props.readonly ? 4 : 5) + (props.showCheckboxes ? 1 : 0));
 const fillRows = computed(() => Array(Math.max(0, (props.minRows || 0) - props.transactions.length)));
 
 function isCredit(t: any) {
@@ -72,17 +73,17 @@ function counterpart(txn: any) {
               />
             </div>
           </th>
-          <th class="text-left py-3 px-2 w-[20%]">Date</th>
-          <th class="text-left py-3 px-2 w-[35%]">Name</th>
-          <th class="text-left py-3 px-2 w-[20%] hidden lg:table-cell">Categories</th>
-          <th class="text-right py-3 px-4 w-[15%]">Amount</th>
+          <th class="text-left py-3 px-2 w-[20%] lg:w-[10%]">Date</th>
+          <th class="text-left py-3 px-2 w-[50%] lg:w-[40%]">Name</th>
+          <th class="text-left py-3 px-2 hidden lg:table-cell lg:w-[30%]">Categories</th>
+          <th class="text-right py-3 px-4" :class="readonly ? 'w-[30%] lg:w-[20%]' : 'w-[20%] lg:w-[15%]'">Amount</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-border/60">
         <tr
           v-for="txn in transactions"
           :key="txn.id"
-          class="transition-colors"
+          class="transition-colors group"
           :class="[
             !readonly && 'cursor-pointer',
             selectedIds?.includes(txn.id) ? 'bg-primary-500/10 hover:bg-primary-500/15' : 'hover:bg-white/[0.015]'
@@ -106,6 +107,16 @@ function counterpart(txn: any) {
               <div class="min-w-0">
                 <div class="flex items-center gap-1.5">
                   <span class="text-[14px] text-text font-medium truncate">{{ txn.name }}</span>
+                  <button
+                    v-if="!readonly && txn.type === 0 && !txn.linkedTransferId"
+                    type="button"
+                    class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 shrink-0 transition-opacity"
+                    aria-label="Transfer this transaction"
+                    title="Transfer to another account"
+                    @click.stop="emit('transfer', txn)"
+                  >
+                    <ArrowLeftRight class="w-3.5 h-3.5" />
+                  </button>
                   <button
                     v-if="txn.linkedTransferId"
                     type="button"
@@ -131,6 +142,17 @@ function counterpart(txn: any) {
           </td>
           <td class="py-3 px-4 text-right text-[14px] font-semibold whitespace-nowrap" :class="isCredit(txn) ? 'text-income' : 'text-text'">
             {{ formatCurrency(txn.amount) }}
+          </td>
+          <td v-if="!readonly" class="py-3 pl-1 pr-3 text-right">
+            <button
+              type="button"
+              class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 shrink-0 transition-opacity"
+              aria-label="Edit transaction"
+              title="Edit"
+              @click.stop="emit('edit', txn)"
+            >
+              <Pencil class="w-3.5 h-3.5" />
+            </button>
           </td>
         </tr>
       </tbody>

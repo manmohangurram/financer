@@ -13,7 +13,7 @@ const props = defineProps<{
   accounts?: any[];
 }>();
 
-const emit = defineEmits<{ (e: 'edit', txn: any): void; (e: 'bulk-delete', ids: string[]): void }>();
+const emit = defineEmits<{ (e: 'edit', txn: any): void; (e: 'bulk-delete', ids: string[]): void; (e: 'transfer', txn: any): void }>();
 
 const showCheckboxes = defineModel<boolean>('showCheckboxes', { default: false });
 const filters = defineModel<TransactionFilters>('filters', { default: emptyFilters });
@@ -86,6 +86,7 @@ function clearFilters() {
       @toggle-select="toggleSelect"
       @toggle-select-all="toggleSelectAll"
       @edit="emit('edit', $event)"
+      @transfer="emit('transfer', $event)"
     />
     <Pagination v-if="totalPages > 1" :page="page" :total-pages="totalPages" :label="`${filteredCount} transactions`" @page-change="page = $event" />
   </div>
