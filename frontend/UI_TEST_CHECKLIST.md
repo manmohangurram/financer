@@ -141,6 +141,8 @@ Every run against the running backend before a release or after any backend/fron
 
 - Login returns accessToken + refreshToken
 - Authed `GET /api/dashboard` returns `totalBalance`, `totalIncome`, `totalExpenses`, `portfolioValue`, `accounts`, `investments` in one request (no client math)
+- Dashboard income/expense come from the cached per-account `total_credit`/`total_debit` and stay consistent with the transaction list (create/edit/delete a transaction, then reload dashboard)
+- Transfer counterpart creation moves the target account's balance and totals (regression: was skipped)
 - Authed `GET /api/me/profile` returns userId/name/email/avatarUrl
 - Authed `GET /api/accounts` returns accounts with balances
 - Authed `GET /api/transactions` returns clean cent amounts (19.99, not 19.98999977…) with `categoryIds`, `linkedTransferId`, `totalCount`

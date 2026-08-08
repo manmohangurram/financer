@@ -119,3 +119,24 @@ func (r *AccountRepository) SumBalance(ctx context.Context, userID string) (floa
 	}
 	return total, nil
 }
+
+// ApplyTotals applies signed deltas to an account's cached credit/debit totals.
+func (r *AccountRepository) ApplyTotals(ctx context.Context, accountID string, credit, debit float32) error {
+	_, err := r.ExecContext(ctx,
+		`UPDATE accounts SET
+			total_credit = ROUND(COALESCE(total_credit, 0) + ?, 2),
+			total_debit  = ROUND(COALESCE(total_debit, 0) + ?, 2)
+		 WHERE id = ?`,
+		credit, debit, accountID,
+	)
+	return err
+}
+
+// SumTotals returns the cached total credits and debits across a user's
+// accounts (no transactions scan).
+func (r *AccountRepository) SumTotals(ctx context.Context, userID string) (credit, debit float32, err error) {
+	err = r.readDB.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(total_credit), 0), COALESCE(SUM(total_debit), 0) FROM accounts WHERE user_id = ?`, userID,
+	).Scan(&credit, &debit)
+	return credit, debit, err
+}

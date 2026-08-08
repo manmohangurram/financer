@@ -29,6 +29,15 @@ func txnDelta(txn *api.TransactionResponse) float32 {
 	return -txn.Amount
 }
 
+// txnTotals splits a transaction into its credit/debit contribution for the
+// cached per-account totals (credit txn → credit, debit txn → debit).
+func txnTotals(txn *api.TransactionResponse) (credit, debit float32) {
+	if txn.Type == api.TransactionType_CREDIT {
+		return txn.Amount, 0
+	}
+	return 0, txn.Amount
+}
+
 // Dashboard returns the user's balance and income/expense sums. Portfolio and
 // account/investment lists are assembled by the handler from their services.
 func (s *TransactionService) Dashboard(ctx context.Context) (*api.DashboardResponse, error) {
@@ -37,11 +46,11 @@ func (s *TransactionService) Dashboard(ctx context.Context) (*api.DashboardRespo
 	if err != nil {
 		return nil, ServerError("%v", err)
 	}
-	income, expenses, err := s.txnRepo.SumByType(ctx, userID)
+	credit, debit, err := s.accRepo.SumTotals(ctx, userID)
 	if err != nil {
 		return nil, ServerError("%v", err)
 	}
-	return &api.DashboardResponse{TotalBalance: balance, TotalIncome: income, TotalExpenses: expenses}, nil
+	return &api.DashboardResponse{TotalBalance: balance, TotalIncome: credit, TotalExpenses: debit}, nil
 }
 
 func (s *TransactionService) ListTransactions(ctx context.Context, msg *api.ListTransactionsRequest) (*api.ListTransactionsResponse, error) {
@@ -103,6 +112,8 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 
 	for _, txn := range txns {
 		s.accRepo.UpdateBalance(ctx, txn.AccountId, txnDelta(txn))
+		credit, debit := txnTotals(txn)
+		s.accRepo.ApplyTotals(ctx, txn.AccountId, credit, debit)
 	}
 
 	if s.transferRule != nil {
@@ -161,38 +172,41 @@ func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.Up
 	}
 	errs := s.txnRepo.Update(ctx, inputs)
 
-	// reverse old, apply new per account
-	type acctDelta struct{ old, new float32 }
-	deltas := make(map[string]*acctDelta)
+	// reverse old, apply new per account (balance + cached credit/debit totals)
+	type acctDeltas struct{ balance, credit, debit float32 }
+	deltas := make(map[string]*acctDeltas)
+	accDelta := func(id string, d float32, c float32, dd float32) {
+		a := deltas[id]
+		if a == nil {
+			a = &acctDeltas{}
+			deltas[id] = a
+		}
+		a.balance += d
+		a.credit += c
+		a.debit += dd
+	}
 
 	for _, txn := range txns {
 		old := oldMap[txn.Id]
 		if old == nil {
 			continue
 		}
-		d := deltas[old.AccountId]
-		if d == nil {
-			d = &acctDelta{}
-			deltas[old.AccountId] = d
-		}
-		d.old += txnDelta(old)
-
 		accID := txn.AccountId
 		if accID == "" {
 			accID = old.AccountId
 		}
-		d2 := deltas[accID]
-		if d2 == nil {
-			d2 = &acctDelta{}
-			deltas[accID] = d2
-		}
-		d2.new += txnDelta(txn)
+		oc, od := txnTotals(old)
+		accDelta(old.AccountId, -txnDelta(old), -oc, -od)
+		nc, nd := txnTotals(txn)
+		accDelta(accID, txnDelta(txn), nc, nd)
 	}
 
-	for accID, d := range deltas {
-		delta := d.new - d.old
-		if delta != 0 {
-			s.accRepo.UpdateBalance(ctx, accID, delta)
+	for accID, a := range deltas {
+		if a.balance != 0 {
+			s.accRepo.UpdateBalance(ctx, accID, a.balance)
+		}
+		if a.credit != 0 || a.debit != 0 {
+			s.accRepo.ApplyTotals(ctx, accID, a.credit, a.debit)
 		}
 	}
 
@@ -221,11 +235,27 @@ func (s *TransactionService) DeleteTransactions(ctx context.Context, msg *api.De
 	}
 	errs := s.txnRepo.Delete(ctx, ids)
 
-	seen := make(map[string]bool)
+	// Reverse balance + cached credit/debit totals per account (all txns in
+	// the batch, not just the first per account).
+	type acctDeltas struct{ balance, credit, debit float32 }
+	deltas := make(map[string]*acctDeltas)
 	for _, txn := range oldTxns {
-		if !seen[txn.AccountId] {
-			s.accRepo.UpdateBalance(ctx, txn.AccountId, -txnDelta(txn))
-			seen[txn.AccountId] = true
+		a := deltas[txn.AccountId]
+		if a == nil {
+			a = &acctDeltas{}
+			deltas[txn.AccountId] = a
+		}
+		c, d := txnTotals(txn)
+		a.balance -= txnDelta(txn)
+		a.credit -= c
+		a.debit -= d
+	}
+	for accID, a := range deltas {
+		if a.balance != 0 {
+			s.accRepo.UpdateBalance(ctx, accID, a.balance)
+		}
+		if a.credit != 0 || a.debit != 0 {
+			s.accRepo.ApplyTotals(ctx, accID, a.credit, a.debit)
 		}
 	}
 
