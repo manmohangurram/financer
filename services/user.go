@@ -19,6 +19,8 @@ type UserService struct {
 	avatarDir string
 }
 
+const maxAvatarBytes = 5 << 20
+
 func NewUserService(db *sql.DB, jwtSecret, avatarDir string) *UserService {
 	return &UserService{db: db, jwtSecret: jwtSecret, avatarDir: avatarDir}
 }
@@ -120,11 +122,11 @@ func (s *UserService) LogoutAll(ctx context.Context, userID string) (*api.Operat
 // SaveAvatar stores an uploaded image (sniffed content type, 5MB cap) and
 // updates avatar_url to the served path.
 func (s *UserService) SaveAvatar(ctx context.Context, userID string, r io.Reader) (*api.ProfileResponse, error) {
-	data, err := io.ReadAll(io.LimitReader(r, 5<<20+1))
+	data, err := io.ReadAll(io.LimitReader(r, maxAvatarBytes+1))
 	if err != nil {
 		return nil, BadRequest("failed to read avatar")
 	}
-	if len(data) > 5<<20 {
+	if len(data) > maxAvatarBytes {
 		return nil, BadRequest("avatar must be 5MB or smaller")
 	}
 	sniffed := http.DetectContentType(data)
