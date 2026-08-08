@@ -82,14 +82,26 @@ How this project is built from the ground up, in development order, with how eac
 - Frontend spending tracker: bar chart (7D/1M/6M/1Y/custom), donut pies with hover, Transactions/Categories tabs, server-sorted drill-down.
 - **Done when:** buckets/categories match a hand-checked SQL query for the same data.
 
-## Phase 11 — Cross-Cutting Quality
+## Phase 11 — Transaction Search & Filters
+`feat/transaction-filters` → `main`
+- No schema change — reuses the existing server-side filter pipeline already shipped in Phase 3 (`GET /api/transactions`: `name`, `nameMatch`, `dateFrom`/`dateTo`, `minAmount`/`maxAmount`, `categoryId`, `type`).
+- Restore the missing filter UI in the transactions panel: a **Filter** button (beside Add / Transfer / Select) opening a `Popover` with:
+  - Name search (`contains` / `exact`)
+  - Date range (`dateFrom` / `dateTo`)
+  - Min / max amount
+  - Category select
+  - Debit / credit type
+- Active filters render as removable chips above the table; each chip removes its filter, **Clear all** resets, page resets on change.
+- **Done when:** every backend filter param is settable from the UI, chips reflect and clear them, and filtered results round-trip correctly.
+
+## Phase 12 — Cross-Cutting Quality
 `feat/quality` → `main`
 - Test coverage pass: repository integration tests (in-memory DB harness), service unit tests, frontend vitest for pure helpers.
 - Accessibility pass (WCAG 2.1 AA): keyboard nav, labels, focus, reduced motion, contrast — verified in both themes.
 - Performance pass: server-side logic audit, bundle review, avoid N+1 in new code.
 - **Done when:** full test suite green; ponytail-review and performance-optimization audits have no open high-severity findings.
 
-## Phase 12 — Deployment
+## Phase 13 — Deployment
 `feat/deploy` → `main`
 - Multi-stage Docker build (frontend: node build → nginx static; backend: Go binary), nginx reverse proxy for `/api`.
 - Production env: `FINANCER_JWT_SECRET` required, optional TLS for HTTP/3.
