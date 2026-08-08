@@ -454,3 +454,118 @@ type RunRuleResponse struct {
 	Linked  int32
 	Created int32
 }
+
+// --- investments ---
+
+type InvestmentType int32
+
+const (
+	InvestmentType_INVESTMENT_TYPE_UNSPECIFIED InvestmentType = 0
+	InvestmentType_INVESTMENT_TYPE_STOCK       InvestmentType = 1
+	InvestmentType_INVESTMENT_TYPE_MUTUAL_FUND InvestmentType = 2
+)
+
+var InvestmentType_value = map[string]int32{
+	"INVESTMENT_TYPE_UNSPECIFIED": 0,
+	"INVESTMENT_TYPE_STOCK":       1,
+	"INVESTMENT_TYPE_MUTUAL_FUND": 2,
+}
+
+func (x InvestmentType) String() string {
+	switch x {
+	case InvestmentType_INVESTMENT_TYPE_STOCK:
+		return "INVESTMENT_TYPE_STOCK"
+	case InvestmentType_INVESTMENT_TYPE_MUTUAL_FUND:
+		return "INVESTMENT_TYPE_MUTUAL_FUND"
+	default:
+		return "INVESTMENT_TYPE_UNSPECIFIED"
+	}
+}
+
+type InvestmentResponse struct {
+	Id             string
+	Symbol         string
+	Name           string
+	InvestmentType InvestmentType
+	CurrentPrice   float32
+	PrevClose      float32
+	ManualNav      float32
+	LastQuoteAt    time.Time
+	CreatedAt      time.Time
+	Quantity       float32
+	AvgCost        float32
+	CurrentValue   float32
+	UnrealizedPnl  float32
+	RealizedPnl    float32
+}
+
+type LotResponse struct {
+	Id           string
+	InvestmentId string
+	Side         int32
+	Quantity     float32
+	Price        float32
+	OccurredAt   time.Time
+	CreatedAt    time.Time
+}
+
+type CreateInvestmentRequest struct {
+	Symbol         string
+	Name           string
+	InvestmentType InvestmentType
+	ManualNav      float32
+}
+
+type UpdateInvestmentRequest struct {
+	Id             string
+	Name           string
+	InvestmentType InvestmentType
+	ManualNav      float32
+}
+
+type DeleteInvestmentRequest struct{ Id string }
+
+type GetInvestmentRequest struct{ Id string }
+
+type ListInvestmentsRequest struct{}
+
+type ListInvestmentsResponse struct {
+	Investments []*InvestmentResponse
+}
+
+type AddLotRequest struct {
+	InvestmentId string
+	Side         int32
+	Quantity     float32
+	Price        float32
+	OccurredAt   time.Time
+}
+
+type DeleteLotRequest struct{ Id string }
+
+type RefreshPricesRequest struct{}
+
+type RefreshPricesResponse struct {
+	Updated int32
+}
+
+type SearchSymbolsRequest struct{ Query string }
+
+type SymbolResult struct {
+	Symbol         string
+	Name           string
+	InvestmentType InvestmentType
+}
+
+type SearchSymbolsResponse struct {
+	Results []*SymbolResult
+}
+
+type GetPortfolioSummaryRequest struct{}
+
+type PortfolioSummaryResponse struct {
+	TotalInvested      float32
+	TotalCurrentValue  float32
+	TotalUnrealizedPnl float32
+	TotalRealizedPnl   float32
+}

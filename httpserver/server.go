@@ -21,11 +21,12 @@ type API struct {
 	transfer     *services.TransferService
 	rule         *services.RuleService
 	transferRule *services.TransferRuleService
+	invest       *services.InvestmentService
 	secret       string
 }
 
-func NewAPI(authSvc *services.AuthService, userSvc *services.UserService, account *services.AccountService, category *services.CategoryService, txn *services.TransactionService, transfer *services.TransferService, rule *services.RuleService, transferRule *services.TransferRuleService, jwtSecret string) *API {
-	return &API{authSvc: authSvc, userSvc: userSvc, account: account, category: category, txn: txn, transfer: transfer, rule: rule, transferRule: transferRule, secret: jwtSecret}
+func NewAPI(authSvc *services.AuthService, userSvc *services.UserService, account *services.AccountService, category *services.CategoryService, txn *services.TransactionService, transfer *services.TransferService, rule *services.RuleService, transferRule *services.TransferRuleService, invest *services.InvestmentService, jwtSecret string) *API {
+	return &API{authSvc: authSvc, userSvc: userSvc, account: account, category: category, txn: txn, transfer: transfer, rule: rule, transferRule: transferRule, invest: invest, secret: jwtSecret}
 }
 
 func (a *API) Handler() http.Handler {
@@ -66,6 +67,18 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "DELETE", "/api/rules/{id}", false, a.deleteRule)
 	a.route(mux, "POST", "/api/rules/preview", false, a.previewRule)
 	a.route(mux, "POST", "/api/rules/{id}/run", false, a.runRule)
+
+	a.route(mux, "GET", "/api/investments", false, a.listInvestments)
+	a.route(mux, "POST", "/api/investments", false, a.createInvestment)
+	a.route(mux, "PUT", "/api/investments/{id}", false, a.updateInvestment)
+	a.route(mux, "DELETE", "/api/investments/{id}", false, a.deleteInvestment)
+	a.route(mux, "GET", "/api/investments/{id}/lots", false, a.listLots)
+	a.route(mux, "POST", "/api/investments/{id}/lots", false, a.addLot)
+	a.route(mux, "GET", "/api/investments/{id}/price-history", false, a.priceHistory)
+	a.route(mux, "DELETE", "/api/lots/{id}", false, a.deleteLot)
+	a.route(mux, "GET", "/api/investments/search", false, a.searchSymbols)
+	a.route(mux, "POST", "/api/investments/refresh-prices", false, a.refreshPrices)
+	a.route(mux, "GET", "/api/portfolio/summary", false, a.getPortfolioSummary)
 
 	return cors(a.auth(mux))
 }

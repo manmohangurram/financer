@@ -192,3 +192,110 @@ func toConditions(in []struct {
 	}
 	return out, nil
 }
+
+// --- investments ---
+
+type wireInvestment struct {
+	Id             string  `json:"id"`
+	Symbol         string  `json:"symbol"`
+	Name           string  `json:"name"`
+	InvestmentType string  `json:"investmentType"`
+	Quantity       float64 `json:"quantity"`
+	AvgCost        float64 `json:"avgCost"`
+	CurrentPrice   float64 `json:"currentPrice"`
+	CurrentValue   float64 `json:"currentValue"`
+	UnrealizedPnl  float64 `json:"unrealizedPnl"`
+	RealizedPnl    float64 `json:"realizedPnl"`
+	ManualNav      float64 `json:"manualNav"`
+	LastQuoteAt    string  `json:"lastQuoteAt"`
+	CreatedAt      string  `json:"createdAt"`
+}
+
+func investmentWire(i *api.InvestmentResponse) wireInvestment {
+	return wireInvestment{
+		Id:             i.Id,
+		Symbol:         i.Symbol,
+		Name:           i.Name,
+		InvestmentType: i.InvestmentType.String(),
+		Quantity:       cents(i.Quantity),
+		AvgCost:        cents(i.AvgCost),
+		CurrentPrice:   cents(i.CurrentPrice),
+		CurrentValue:   cents(i.CurrentValue),
+		UnrealizedPnl:  cents(i.UnrealizedPnl),
+		RealizedPnl:    cents(i.RealizedPnl),
+		ManualNav:      cents(i.ManualNav),
+		LastQuoteAt:    tsRFC3339(i.LastQuoteAt),
+		CreatedAt:      tsRFC3339(i.CreatedAt),
+	}
+}
+
+type wireLot struct {
+	Id           string  `json:"id"`
+	InvestmentId string  `json:"investmentId"`
+	Side         int32   `json:"side"`
+	Quantity     float64 `json:"quantity"`
+	Price        float64 `json:"price"`
+	OccurredAt   string  `json:"occurredAt"`
+	CreatedAt    string  `json:"createdAt"`
+}
+
+func lotWire(l *api.LotResponse) wireLot {
+	return wireLot{
+		Id:           l.Id,
+		InvestmentId: l.InvestmentId,
+		Side:         l.Side,
+		Quantity:     cents(l.Quantity),
+		Price:        cents(l.Price),
+		OccurredAt:   tsRFC3339(l.OccurredAt),
+		CreatedAt:    tsRFC3339(l.CreatedAt),
+	}
+}
+
+type wirePortfolioSummary struct {
+	TotalInvested      float64 `json:"totalInvested"`
+	TotalCurrentValue  float64 `json:"totalCurrentValue"`
+	TotalUnrealizedPnl float64 `json:"totalUnrealizedPnl"`
+	TotalRealizedPnl   float64 `json:"totalRealizedPnl"`
+}
+
+// investmentTypeValue maps "INVESTMENT_TYPE_STOCK"/"INVESTMENT_TYPE_MUTUAL_FUND"
+// or a numeric value onto the enum.
+func investmentTypeValue(v any) (api.InvestmentType, error) {
+	switch x := v.(type) {
+	case nil:
+		return 0, nil
+	case string:
+		if n, ok := api.InvestmentType_value[x]; ok {
+			return api.InvestmentType(n), nil
+		}
+		return 0, fmt.Errorf("unknown investment type %q", x)
+	case float64:
+		return api.InvestmentType(x), nil
+	default:
+		return 0, fmt.Errorf("invalid investment type %v", v)
+	}
+}
+
+// lotSideValue accepts 1/-1 or "buy"/"sell".
+func lotSideValue(v any) (int32, error) {
+	switch x := v.(type) {
+	case nil:
+		return 0, fmt.Errorf("side is required")
+	case float64:
+		s := int32(x)
+		if s != 1 && s != -1 {
+			return 0, fmt.Errorf("side must be 1 or -1")
+		}
+		return s, nil
+	case string:
+		switch x {
+		case "buy":
+			return 1, nil
+		case "sell":
+			return -1, nil
+		}
+		return 0, fmt.Errorf("side must be buy or sell")
+	default:
+		return 0, fmt.Errorf("invalid side %v", v)
+	}
+}
