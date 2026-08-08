@@ -1,3 +1,5 @@
+import { formatCurrency } from './format';
+
 export interface TransactionFilters {
   dateFrom: string;
   dateTo: string;
@@ -6,14 +8,15 @@ export interface TransactionFilters {
   categoryId: string;
   name: string;
   nameMatch: 'contains' | 'exact';
+  type: '' | 'CREDIT' | 'DEBIT';
 }
 
 export function emptyFilters(): TransactionFilters {
-  return { dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', name: '', nameMatch: 'contains' };
+  return { dateFrom: '', dateTo: '', minAmount: '', maxAmount: '', categoryId: '', name: '', nameMatch: 'contains', type: '' };
 }
 
 export function hasActiveFilters(filters: TransactionFilters): boolean {
-  return !!(filters.dateFrom || filters.dateTo || filters.minAmount || filters.maxAmount || filters.categoryId || filters.name);
+  return !!(filters.dateFrom || filters.dateTo || filters.minAmount || filters.maxAmount || filters.categoryId || filters.name || filters.type);
 }
 
 export interface FilterChip {
@@ -25,13 +28,14 @@ export function buildActiveFilterChips(filters: TransactionFilters, categoryList
   const chips: FilterChip[] = [];
   if (filters.dateFrom) chips.push({ key: 'dateFrom', label: `From: ${filters.dateFrom}` });
   if (filters.dateTo) chips.push({ key: 'dateTo', label: `To: ${filters.dateTo}` });
-  if (filters.minAmount) chips.push({ key: 'minAmount', label: `Min: $${filters.minAmount}` });
-  if (filters.maxAmount) chips.push({ key: 'maxAmount', label: `Max: $${filters.maxAmount}` });
+  if (filters.minAmount) chips.push({ key: 'minAmount', label: `Min: ${formatCurrency(Number(filters.minAmount))}` });
+  if (filters.maxAmount) chips.push({ key: 'maxAmount', label: `Max: ${formatCurrency(Number(filters.maxAmount))}` });
   if (filters.categoryId) {
     const cat = categoryList.find((c: any) => c.id === filters.categoryId);
     chips.push({ key: 'categoryId', label: `Category: ${cat?.name || filters.categoryId}` });
   }
   if (filters.name) chips.push({ key: 'name', label: `Name: "${filters.name}"` });
+  if (filters.type) chips.push({ key: 'type', label: `Type: ${filters.type === 'CREDIT' ? 'Credit' : 'Debit'}` });
   return chips;
 }
 
