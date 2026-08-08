@@ -215,7 +215,7 @@ watch(customEnd, (v) => {
 watch(() => props.investment?.id, () => {
   if (!CHART_RANGES.value.some((r) => r.id === range.value)) range.value = '3Y';
   load();
-});
+}, { immediate: true });
 watch(range, load);
 </script>
 
