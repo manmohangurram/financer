@@ -73,36 +73,48 @@ func (c *YahooClient) Search(ctx context.Context, query string) ([]*api.SymbolRe
 func (c *YahooClient) GetQuotes(ctx context.Context, symbols []string) (map[string]YahooQuote, error) {
 	out := make(map[string]YahooQuote, len(symbols))
 	for _, sym := range symbols {
-		u := fmt.Sprintf("%s/v8/finance/chart/%s?interval=1d&range=1d", c.baseURL, url.PathEscape(sym))
-		resp, err := c.get(ctx, u)
-		if err != nil {
-			logx.Debug("quote fetch failed", "symbol", sym, "err", err)
-			continue
+		q, ok := c.fetchQuote(ctx, sym)
+		if !ok && !strings.HasSuffix(sym, ".NS") {
+			logx.Debug("quote fallback to .NS", "symbol", sym)
+			q, ok = c.fetchQuote(ctx, sym+".NS")
 		}
-		var payload struct {
-			Chart struct {
-				Result []struct {
-					Meta struct {
-						RegularMarketPrice         float64 `json:"regularMarketPrice"`
-						ChartPreviousClose         float64 `json:"chartPreviousClose"`
-						RegularMarketPreviousClose float64 `json:"regularMarketPreviousClose"`
-					} `json:"meta"`
-				} `json:"result"`
-			} `json:"chart"`
+		if ok {
+			out[sym] = q
+		} else {
+			logx.Debug("quote skipped: no valid price data", "symbol", sym)
 		}
-		decodeErr := json.NewDecoder(resp.Body).Decode(&payload)
-		resp.Body.Close()
-		if decodeErr != nil || len(payload.Chart.Result) == 0 || payload.Chart.Result[0].Meta.RegularMarketPrice == 0 {
-			logx.Debug("quote skipped: no valid price data", "symbol", sym, "err", decodeErr)
-			continue
-		}
-		prev := payload.Chart.Result[0].Meta.RegularMarketPreviousClose
-		if prev == 0 {
-			prev = payload.Chart.Result[0].Meta.ChartPreviousClose
-		}
-		out[sym] = YahooQuote{Price: payload.Chart.Result[0].Meta.RegularMarketPrice, PrevClose: prev}
 	}
 	return out, nil
+}
+
+func (c *YahooClient) fetchQuote(ctx context.Context, sym string) (YahooQuote, bool) {
+	u := fmt.Sprintf("%s/v8/finance/chart/%s?interval=1d&range=1d", c.baseURL, url.PathEscape(sym))
+	resp, err := c.get(ctx, u)
+	if err != nil {
+		logx.Debug("quote fetch failed", "symbol", sym, "err", err)
+		return YahooQuote{}, false
+	}
+	var payload struct {
+		Chart struct {
+			Result []struct {
+				Meta struct {
+					RegularMarketPrice         float64 `json:"regularMarketPrice"`
+					ChartPreviousClose         float64 `json:"chartPreviousClose"`
+					RegularMarketPreviousClose float64 `json:"regularMarketPreviousClose"`
+				} `json:"meta"`
+			} `json:"result"`
+		} `json:"chart"`
+	}
+	decodeErr := json.NewDecoder(resp.Body).Decode(&payload)
+	resp.Body.Close()
+	if decodeErr != nil || len(payload.Chart.Result) == 0 || payload.Chart.Result[0].Meta.RegularMarketPrice == 0 {
+		return YahooQuote{}, false
+	}
+	prev := payload.Chart.Result[0].Meta.RegularMarketPreviousClose
+	if prev == 0 {
+		prev = payload.Chart.Result[0].Meta.ChartPreviousClose
+	}
+	return YahooQuote{Price: payload.Chart.Result[0].Meta.RegularMarketPrice, PrevClose: prev}, true
 }
 
 func yahooQuoteType(qt string) api.InvestmentType {
@@ -118,15 +130,32 @@ type PricePoint struct {
 	Close float64 `json:"close"`
 }
 
-func (c *YahooClient) GetHistory(ctx context.Context, symbol, rng, interval string, limit int) ([]PricePoint, error) {
-	u := fmt.Sprintf("%s/v8/finance/chart/%s?range=%s&interval=%s", c.baseURL, url.PathEscape(symbol), rng, interval)
+// GetHistory fetches daily/intraday chart data. When period1/period2 are set
+// (Unix seconds) a custom date range is used; otherwise the preset `rng`
+// (e.g. "1mo") is requested. Yahoo needs the exchange suffix for most
+// non-US symbols, so a bare symbol is retried with ".NS" on empty/error.
+func (c *YahooClient) GetHistory(ctx context.Context, symbol, rng, interval string, limit int, period1, period2 int64) ([]PricePoint, error) {
+	points, err := c.fetchHistory(ctx, symbol, rng, interval, limit, period1, period2)
+	if (len(points) == 0 || err != nil) && !strings.HasSuffix(symbol, ".NS") {
+		return c.fetchHistory(ctx, symbol+".NS", rng, interval, limit, period1, period2)
+	}
+	return points, err
+}
+
+func (c *YahooClient) fetchHistory(ctx context.Context, symbol, rng, interval string, limit int, period1, period2 int64) ([]PricePoint, error) {
+	u := fmt.Sprintf("%s/v8/finance/chart/%s?interval=%s", c.baseURL, url.PathEscape(symbol), interval)
+	if period1 > 0 {
+		u += fmt.Sprintf("&period1=%d&period2=%d", period1, period2)
+	} else {
+		u += "&range=" + rng
+	}
 	resp, err := c.get(ctx, u)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("yahoo chart status %d", resp.StatusCode)
+		return nil, fmt.Errorf("yahoo chart %s status %d", symbol, resp.StatusCode)
 	}
 	var payload struct {
 		Chart struct {

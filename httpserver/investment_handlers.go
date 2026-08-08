@@ -139,7 +139,8 @@ func (a *API) listLots(ctx context.Context, _ string, r *http.Request) (any, err
 }
 
 func (a *API) priceHistory(ctx context.Context, _ string, r *http.Request) (any, error) {
-	points, err := a.invest.GetPriceHistory(ctx, r.PathValue("id"), r.URL.Query().Get("range"), r.URL.Query().Get("refresh") == "1")
+	q := r.URL.Query()
+	points, err := a.invest.GetPriceHistory(ctx, r.PathValue("id"), q.Get("range"), q.Get("from"), q.Get("to"), q.Get("refresh") == "1")
 	if err != nil {
 		return nil, err
 	}
