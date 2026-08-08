@@ -99,16 +99,29 @@ func noContent() statusBody {
 // handler decodes the body and writes a JSON result/error.
 type handler func(ctx context.Context, userID string, r *http.Request) (any, error)
 
+// statusRecorder captures the response status so the outcome of every request
+// can be logged.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
 func (a *API) route(mux *http.ServeMux, method, path string, public bool, h handler) {
 	mux.HandleFunc(method+" "+path, func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("http request", "method", method, "path", path)
+		rec := &statusRecorder{ResponseWriter: w}
 		uid := ""
 		if v, ok := r.Context().Value(auth.UserIDKey).(string); ok {
 			uid = v
 		}
 		out, err := h(r.Context(), uid, r)
 		if err != nil {
-			writeError(w, err)
+			writeError(rec, err)
+			slog.Debug("request done", "method", method, "path", path, "status", rec.status)
 			return
 		}
 		status := http.StatusOK
@@ -116,7 +129,8 @@ func (a *API) route(mux *http.ServeMux, method, path string, public bool, h hand
 			status = sb.status
 			out = sb.body
 		}
-		writeJSON(w, status, out)
+		writeJSON(rec, status, out)
+		slog.Debug("request done", "method", method, "path", path, "status", status)
 	})
 }
 
@@ -183,6 +197,7 @@ func writeError(w http.ResponseWriter, err error) {
 	if apiErr, ok := err.(*services.APIError); ok {
 		code = apiErr.Status
 		name = statusName(code)
+		slog.Debug("api error", "status", code, "code", name, "message", err.Error())
 	} else {
 		slog.Error("handler error", "err", err)
 	}
