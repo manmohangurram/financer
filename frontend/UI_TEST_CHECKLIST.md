@@ -40,6 +40,15 @@ Every run against the running backend before a release or after any backend/fron
 - "View all" links to /investments
 - Net Worth = account balance sum + portfolio current value
 
+## Spending (`/accounts/spending`)
+
+- Reached via the "Spending Tracker" button on /accounts; "Back to accounts" returns
+- Range buttons 7D/1M/6M/1Y/Custom switch the bar chart; custom from/to opens a date picker
+- Account filter narrows to one account
+- Bar chart buckets match the backend; values are transfer-excluded (non-debt transfers don't count; debt-account transfers do)
+- Categories tab: donut pies + table of DEBITED / CREDITED / NET SPENT per category, values match a hand-checked SQL query
+- Transactions tab: drill-down list of transactions in range with debit/credit sort + pagination
+
 ## Accounts (`/accounts`)
 
 - Header buttons: Rules, Categories, Manage accounts — each navigates to the right sub-page
@@ -146,6 +155,7 @@ Every run against the running backend before a release or after any backend/fron
 
 - Login returns accessToken + refreshToken
 - Authed `GET /api/dashboard` returns `totalBalance`, `totalIncome`, `totalExpenses`, `portfolioValue`, `accounts`, `investments` in one request (no client math)
+- Authed `GET /api/spending?range=1M` returns `buckets` and `categories`; linking a non-debt transfer removes both sides from the aggregates
 - Dashboard income/expense come from the cached per-account `total_credit`/`total_debit` and stay consistent with the transaction list (create/edit/delete a transaction, then reload dashboard)
 - Transfer counterpart creation moves the target account's balance and totals (regression: was skipped)
 - Authed `GET /api/me/profile` returns userId/name/email/avatarUrl

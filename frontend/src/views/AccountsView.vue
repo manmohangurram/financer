@@ -8,7 +8,7 @@ import TransactionsPanel from '@/components/workspace/TransactionsPanel.vue';
 import { accounts } from '@/lib/api/client';
 import { formatCurrency } from '@/lib/utils/format';
 import { isCredit } from '@/lib/utils/accountType';
-import { SlidersHorizontal, Tag, Settings2, Landmark, Plus } from '@lucide/vue';
+import { BarChart3, SlidersHorizontal, Tag, Settings2, ChevronRight, Landmark, Plus } from '@lucide/vue';
 
 const router = useRouter();
 
@@ -92,6 +92,19 @@ onMounted(loadAll);
         <div class="flex-1 min-w-0">
           <AccountFilterBar :accounts="accountList" />
         </div>
+        <button
+          @click="router.push('/accounts/spending')"
+          class="h-[60px] px-4 shrink-0 flex items-center gap-3 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white border border-primary-400/40 shadow-card hover:shadow-card-hover hover:brightness-110 active:scale-[0.98] transition-all"
+        >
+          <span class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+            <BarChart3 class="w-5 h-5" stroke-width="2" />
+          </span>
+          <span class="text-left leading-tight">
+            <span class="block text-[13.5px] font-semibold">Spending Tracker</span>
+            <span class="block text-[11px] text-white/70 font-normal">Analyze spending</span>
+          </span>
+          <ChevronRight class="w-4 h-4 text-white/70 shrink-0" stroke-width="2" />
+        </button>
       </div>
 
       <TransactionsPanel @updated="loadAll" />

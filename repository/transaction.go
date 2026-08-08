@@ -505,6 +505,101 @@ func nullableTime(t time.Time) *time.Time {
 	return &t
 }
 
+type SpendingFilter struct {
+	Granularity string // "day" | "month"
+	From        time.Time
+	To          time.Time
+	AccountID   string
+}
+
+type SpendingBucketRow struct {
+	Key    string
+	Amount float32
+}
+
+// spendingWhere is the LEFT JOIN chain used by both bucket and category queries:
+// it exposes the transfer counterpart account (a_other) so a transfer is
+// excluded unless one side is a debt account (account_type 3=CREDIT_CARD, 4=LOAN).
+func spendingWhere() string {
+	return `LEFT JOIN transfer_links tl ON tl.debit_transaction_id = t.id OR tl.credit_transaction_id = t.id
+		LEFT JOIN accounts a_self ON a_self.id = t.account_id
+		LEFT JOIN accounts a_other ON a_other.id = CASE WHEN tl.debit_transaction_id = t.id THEN tl.credit_transaction_id ELSE tl.debit_transaction_id END`
+}
+
+func spendingRangeClause(f SpendingFilter) string {
+	var s strings.Builder
+	if !f.From.IsZero() {
+		s.WriteString(" AND t.occurred_at >= ?")
+	}
+	if !f.To.IsZero() {
+		s.WriteString(" AND t.occurred_at < ?")
+	}
+	if f.AccountID != "" {
+		s.WriteString(" AND t.account_id = ?")
+	}
+	return s.String()
+}
+
+// SpendingBuckets sums debit spending per day/month, excluding non-debt
+// transfers. occurred_at is stored as "YYYY-MM-DD HH:MM:SS +0000 UTC" (driver
+// format); substr extracts the day/month prefix without relying on date().
+func (r *TransactionRepository) SpendingBuckets(ctx context.Context, userID string, f SpendingFilter) ([]*SpendingBucketRow, error) {
+	keyExpr := "substr(t.occurred_at, 1, 10)"
+	if f.Granularity == "month" {
+		keyExpr = "substr(t.occurred_at, 1, 7)"
+	}
+	query := fmt.Sprintf(`SELECT %s AS key, COALESCE(SUM(t.amount), 0) AS amount
+		FROM transactions t
+		%s
+		WHERE t.user_id = ? AND t.type = 0
+		  AND (tl.id IS NULL OR a_self.account_type IN (3,4) OR a_other.account_type IN (3,4))
+		%s
+		GROUP BY key ORDER BY key`, keyExpr, spendingWhere(), spendingRangeClause(f))
+	args := []any{userID}
+	if !f.From.IsZero() {
+		args = append(args, f.From)
+	}
+	if !f.To.IsZero() {
+		args = append(args, f.To)
+	}
+	if f.AccountID != "" {
+		args = append(args, f.AccountID)
+	}
+	return QueryAll(ctx, r.readDB, query, func(row scannable) (*SpendingBucketRow, error) {
+		var b SpendingBucketRow
+		return &b, row.Scan(&b.Key, &b.Amount)
+	}, args...)
+}
+
+// SpendingCategories sums debit/credit per category, with the same transfer
+// exclusion (non-debt transfers excluded; debt-account transfers included).
+func (r *TransactionRepository) SpendingCategories(ctx context.Context, userID string, f SpendingFilter) ([]*api.SpendingCategory, error) {
+	query := fmt.Sprintf(`SELECT COALESCE(c.id, '__uncategorized__'), COALESCE(c.name, 'Uncategorized'),
+		COALESCE(SUM(CASE WHEN t.type = 0 THEN t.amount ELSE 0 END), 0) AS debit,
+		COALESCE(SUM(CASE WHEN t.type = 1 THEN t.amount ELSE 0 END), 0) AS credit
+		FROM transactions t
+		LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
+		LEFT JOIN categories c ON c.id = tc.category_id
+		%s
+		WHERE t.user_id = ? AND (tl.id IS NULL OR a_self.account_type IN (3,4) OR a_other.account_type IN (3,4))
+		%s
+		GROUP BY COALESCE(c.id, '__uncategorized__') ORDER BY debit DESC`, spendingWhere(), spendingRangeClause(f))
+	args := []any{userID}
+	if !f.From.IsZero() {
+		args = append(args, f.From)
+	}
+	if !f.To.IsZero() {
+		args = append(args, f.To)
+	}
+	if f.AccountID != "" {
+		args = append(args, f.AccountID)
+	}
+	return QueryAll(ctx, r.readDB, query, func(row scannable) (*api.SpendingCategory, error) {
+		var c api.SpendingCategory
+		return &c, row.Scan(&c.Id, &c.Name, &c.Debit, &c.Credit)
+	}, args...)
+}
+
 // SearchByRule runs a rule's conditions as a SQL query against the user's
 // transactions, returning matching rows (newest first) up to limit.
 func (r *TransactionRepository) SearchByRule(ctx context.Context, userID string, logic string, conds []RuleCondData, limit int32) ([]*api.TransactionResponse, error) {
