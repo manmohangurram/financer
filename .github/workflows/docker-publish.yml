@@ -48,9 +48,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          # arm/v7 covers 32-bit Raspberry Pi OS; arm64 for 64-bit Pi OS and
-          # amd64 for x86 hosts.
-          platforms: linux/arm/v7,linux/arm64,linux/amd64
+          # arm64 for 64-bit Raspberry Pi OS / Apple Silicon, amd64 for x86 hosts.
+          platforms: linux/arm64,linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
