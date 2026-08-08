@@ -6,6 +6,7 @@
 # Editors / tooling config
 .claude/
 .zed/
+.vscode/
 
 # Data / runtime
 data/

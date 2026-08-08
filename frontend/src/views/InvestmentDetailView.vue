@@ -1,0 +1,138 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import InvestmentDetail from '@/components/investments/InvestmentDetail.vue';
+import InvestmentModal from '@/components/investments/InvestmentModal.vue';
+import LotModal from '@/components/investments/LotModal.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import { investments } from '@/lib/api/client';
+
+const route = useRoute();
+const router = useRouter();
+
+const loading = ref(true);
+const error = ref('');
+const investmentList = ref<any[]>([]);
+const lots = ref<any[]>([]);
+const showInvestmentModal = ref(false);
+const showLotModal = ref(false);
+const lotSide = ref<'buy' | 'sell'>('buy');
+const confirmDelete = ref<{ kind: 'investment' | 'lot'; item: any } | null>(null);
+
+const investment = computed(() => investmentList.value.find((i: any) => i.id === route.params.id) || null);
+
+async function loadAll() {
+  loading.value = true;
+  error.value = '';
+  try {
+    const resp = await investments().listInvestments({});
+    investmentList.value = resp.investments || [];
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to load investment';
+  }
+  loading.value = false;
+}
+
+async function loadLots(id: string) {
+  try {
+    const resp = await investments().listLots({ id });
+    lots.value = resp.lots || [];
+  } catch (e) {
+    lots.value = [];
+  }
+}
+
+async function load() {
+  await loadAll();
+  if (investment.value?.id) await loadLots(investment.value.id);
+}
+
+function openEdit() {
+  showInvestmentModal.value = true;
+}
+function addLot(side: 'buy' | 'sell') {
+  lotSide.value = side;
+  showLotModal.value = true;
+}
+
+async function handleInvestmentSubmit(payload: any) {
+  try {
+    await investments().updateInvestment(payload);
+    showInvestmentModal.value = false;
+    await loadAll();
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to save investment';
+  }
+}
+
+async function handleLotSubmit(payload: any) {
+  try {
+    await investments().addLot(payload);
+    showLotModal.value = false;
+    await load();
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to add lot';
+  }
+}
+
+function requestDelete(kind: 'investment' | 'lot', item: any) {
+  confirmDelete.value = { kind, item };
+}
+
+async function confirmDeleteNow() {
+  if (!confirmDelete.value) return;
+  const { kind, item } = confirmDelete.value;
+  try {
+    if (kind === 'investment') {
+      await investments().deleteInvestment({ id: item.id });
+      router.push('/investments');
+    } else {
+      await investments().deleteLot({ id: investment.value?.id, lotId: item.id });
+      await load();
+    }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to delete';
+  }
+  confirmDelete.value = null;
+}
+
+onMounted(load);
+</script>
+
+<template>
+  <div class="w-full space-y-5">
+    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+
+    <div v-if="loading" class="text-center py-16 text-subtle">Loading…</div>
+    <div v-else-if="!investment" class="text-center py-16">
+      <p class="text-subtle text-[14px]">Investment not found.</p>
+      <button class="btn btn-ghost btn-sm text-primary-400 mt-3" @click="router.push('/investments')">Back to investments</button>
+    </div>
+    <InvestmentDetail
+      v-else
+      :investment="investment"
+      :lots="lots"
+      @close="router.push('/investments')"
+      @edit="openEdit"
+      @add-buy="addLot('buy')"
+      @add-sell="addLot('sell')"
+      @delete-lot="(lot) => requestDelete('lot', lot)"
+      @delete-investment="() => requestDelete('investment', investment)"
+    />
+
+    <InvestmentModal v-if="showInvestmentModal" :investment="investment" @close="showInvestmentModal = false" @submit="handleInvestmentSubmit" />
+    <LotModal v-if="showLotModal && investment" :investment="investment" :side="lotSide" @close="showLotModal = false" @submit="handleLotSubmit" />
+
+    <ConfirmDialog
+      v-if="confirmDelete"
+      :title="confirmDelete.kind === 'investment' ? 'Delete investment' : 'Delete lot'"
+      :message="
+        confirmDelete.kind === 'investment'
+          ? `Delete &quot;${confirmDelete.item.name}&quot; and all its lots? This can't be undone.`
+          : `Delete this ${confirmDelete.item.side === 1 ? 'buy' : 'sell'} lot? This can't be undone.`
+      "
+      @confirm="confirmDeleteNow"
+      @cancel="confirmDelete = null"
+    />
+  </div>
+</template>
