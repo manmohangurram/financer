@@ -57,8 +57,8 @@ Frontend API URL: `VITE_API_URL` (default `http://localhost:8080`, see `frontend
 main.go                    # wiring: DB, migrations, services, HTTP server
 auth/                      # JWT creation/validation
 db/                        # SQLite open (read/write pools) + embedded migrations
-repository/                # SQL data access (accounts, transactions, aliases, transfers, investments)
-services/                  # business logic (auth, accounts, transactions, aliases, transfers, spending, investments)
+repository/                # SQL data access (accounts, transactions, rules, transfers, investments)
+services/                  # business logic (auth, accounts, transactions, rules, transfers, spending, investments)
 httpserver/                # REST handlers + JSON wire mapping
 gen/financer/v1/           # hand-written API wire types
 cmd/seed/                  # demo data seeder
@@ -72,7 +72,7 @@ frontend/src/
 
 ## API
 
-REST JSON under `/api/...`. `POST /api/auth/{signup,login,refresh}` are public; everything else requires `Authorization: Bearer <token>`. Notable endpoints: `GET /api/dashboard`, `GET /api/spending`, `GET/POST/PUT /api/transactions`, `/api/transfers/*`, `/api/aliases/*`, `/api/instruments/*`.
+REST JSON under `/api/...`. `POST /api/auth/{signup,login,refresh}` are public; everything else requires `Authorization: Bearer <token>`. Notable endpoints: `GET /api/dashboard`, `GET /api/spending`, `GET/POST/PUT /api/transactions`, `/api/transfers/*`, `/api/rules/*`, `/api/instruments/*`.
 
 ## Tests
 
