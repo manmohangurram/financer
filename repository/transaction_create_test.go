@@ -57,8 +57,8 @@ func TestCreateDistinctExternalIdsBothInsert(t *testing.T) {
 
 	// two identical rows in the same file have distinct indices -> both insert
 	inputs := []CreateTransactionInput{
-		{Txn: &api.TransactionResponse{Name: "Coffee", Amount: 99, Type: api.TransactionType_DEBIT, AccountId: "a1", OccurredAt: time.Now().UTC(), CreatedAt: time.Now().UTC(), ExternalId: "f:0"}},
-		{Txn: &api.TransactionResponse{Name: "Coffee", Amount: 99, Type: api.TransactionType_DEBIT, AccountId: "a1", OccurredAt: time.Now().UTC(), CreatedAt: time.Now().UTC(), ExternalId: "f:1"}},
+		{Txn: &api.TransactionResponse{Id: "x1", Name: "Coffee", Amount: 99, Type: api.TransactionType_DEBIT, AccountId: "a1", OccurredAt: time.Now().UTC(), CreatedAt: time.Now().UTC(), ExternalId: "f:0"}},
+		{Txn: &api.TransactionResponse{Id: "x2", Name: "Coffee", Amount: 99, Type: api.TransactionType_DEBIT, AccountId: "a1", OccurredAt: time.Now().UTC(), CreatedAt: time.Now().UTC(), ExternalId: "f:1"}},
 	}
 	inserted, errs := tdb.txnRepo.Create(ctx, "u1", inputs)
 	if len(errs) > 0 {
