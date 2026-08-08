@@ -15,7 +15,7 @@ const accountList = ref<any[]>([]);
 const categoryList = ref<any[]>([]);
 const loading = ref(true);
 
-const range = ref<'7D' | '1M' | '6M' | '1Y' | 'CUSTOM'>('6M');
+const range = ref<'7D' | '1M' | '6M' | '1Y' | 'CUSTOM'>('7D');
 const customStart = ref(toLocalDateString(new Date(Date.now() - 29 * 86400000)));
 const customEnd = ref(toLocalDateString(new Date()));
 
