@@ -140,6 +140,9 @@ func (s *TransactionService) CreateTransactions(ctx context.Context, msg *api.Cr
 }
 
 func (s *TransactionService) UpdateTransactions(ctx context.Context, msg *api.UpdateTransactionsRequest) (*api.BulkOperationResponse, error) {
+	if len(msg.Transactions) > 1000 {
+		return nil, BadRequest("too many transactions in one request (max 1000)")
+	}
 	var txns []*api.TransactionResponse
 	for _, t := range msg.Transactions {
 		txn := &api.TransactionResponse{
