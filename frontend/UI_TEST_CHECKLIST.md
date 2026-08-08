@@ -151,6 +151,13 @@ Every run against the running backend before a release or after any backend/fron
 - No net::ERR_FAILED / CORS / access-control-allow-headers errors on any backend request
 - All network requests return 2xx for happy paths; 4xx for intentional invalid input
 
+## Performance (audit)
+
+- Production bundle < 200KB gzip (~80KB total: index + AppLayout)
+- Dashboard LCP < 2.5s and CLS < 0.1 (measured 297ms / 0.00)
+- `/api/dashboard` is one request with server-side math; the transaction list is a single SQL query (window COUNT + GROUP_CONCAT)
+- No N+1 in hot paths; the known per-investment lot query is acceptable at personal scale
+
 ## Accessibility (WCAG 2.1 AA)
 
 - Lighthouse accessibility score is 100 on the authenticated pages and /login (color contrast, landmarks, labels)
