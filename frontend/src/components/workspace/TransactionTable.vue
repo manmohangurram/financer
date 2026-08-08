@@ -2,12 +2,11 @@
 import { computed, ref } from 'vue';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { categoryColorMap } from '@/lib/utils/categoryColor';
-import { ArrowLeftRight } from '@lucide/vue';
+import { ArrowLeftRight, Pencil } from '@lucide/vue';
 
 const props = defineProps<{
   transactions: any[];
   categories: any[];
-  showCheckboxes?: boolean;
   selectedIds?: string[];
   readonly?: boolean;
   scrollable?: boolean;
@@ -21,6 +20,7 @@ const emit = defineEmits<{
   (e: 'toggle-select', txn: any): void;
   (e: 'toggle-select-all'): void;
   (e: 'edit', txn: any): void;
+  (e: 'transfer', txn: any): void;
 }>();
 
 const revealed = ref<string | null>(null);
@@ -29,7 +29,8 @@ const colors = computed(() => categoryColorMap(props.categories.map((c: any) => 
 
 const allSelected = computed(() => props.transactions.length > 0 && props.transactions.every((t) => props.selectedIds?.includes(t.id)));
 const someSelected = computed(() => !allSelected.value && props.transactions.some((t) => props.selectedIds?.includes(t.id)));
-const colCount = computed(() => 4 + (props.showCheckboxes ? 1 : 0));
+const hasSelection = computed(() => (props.selectedIds?.length ?? 0) > 0);
+const colCount = computed(() => (props.readonly ? 4 : 6));
 const fillRows = computed(() => Array(Math.max(0, (props.minRows || 0) - props.transactions.length)));
 
 function isCredit(t: any) {
@@ -42,7 +43,7 @@ function txnCategory(txn: any) {
 
 function openRow(txn: any) {
   if (props.readonly) return;
-  if (!props.showCheckboxes || !props.selectedIds?.length) emit('edit', txn);
+  emit('edit', txn);
 }
 
 function counterpart(txn: any) {
@@ -60,44 +61,44 @@ function counterpart(txn: any) {
   <div class="w-full" :class="scrollable ? 'max-h-56 overflow-auto' : 'overflow-x-auto'">
     <table class="w-full">
       <thead>
-        <tr class="text-[12px] text-subtle font-medium border-b border-border" :class="scrollable && 'sticky top-0 bg-surface z-10'">
-          <th v-if="showCheckboxes" class="py-3 pl-4 w-10">
-            <div class="flex items-center">
-              <input
-                type="checkbox"
-                class="checkbox checkbox-sm"
-                :checked="allSelected"
-                :indeterminate="someSelected"
-                @change="emit('toggle-select-all')"
-              />
-            </div>
+        <tr class="text-[12px] text-subtle font-medium border-b border-border group" :class="scrollable && 'sticky top-0 bg-surface z-10'">
+          <th v-if="!readonly" class="py-3 pl-4 w-8">
+            <input
+              type="checkbox"
+              class="checkbox checkbox-sm transition-opacity"
+              :class="hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+              :checked="allSelected"
+              :indeterminate="someSelected"
+              @change="emit('toggle-select-all')"
+              aria-label="Select all"
+            />
           </th>
-          <th class="text-left py-3 px-2 w-[20%]">Date</th>
-          <th class="text-left py-3 px-2 w-[35%]">Name</th>
-          <th class="text-left py-3 px-2 w-[20%] hidden lg:table-cell">Categories</th>
-          <th class="text-right py-3 px-4 w-[15%]">Amount</th>
+          <th class="text-left py-3 px-2 w-[20%] lg:w-[10%]">Date</th>
+          <th class="text-left py-3 px-2 w-[50%] lg:w-[40%]">Name</th>
+          <th class="text-left py-3 px-2 hidden lg:table-cell lg:w-[30%]">Categories</th>
+          <th class="text-right py-3 px-4" :class="readonly ? 'w-[30%] lg:w-[20%]' : 'w-[20%] lg:w-[15%]'">Amount</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-border/60">
         <tr
           v-for="txn in transactions"
           :key="txn.id"
-          class="transition-colors"
+          class="transition-colors group"
           :class="[
             !readonly && 'cursor-pointer',
             selectedIds?.includes(txn.id) ? 'bg-primary-500/10 hover:bg-primary-500/15' : 'hover:bg-white/[0.015]'
           ]"
           @click="openRow(txn)"
         >
-          <td v-if="showCheckboxes" class="py-3 pl-4" @click.stop>
-            <div class="flex items-center">
-              <input
-                type="checkbox"
-                class="checkbox checkbox-sm"
-                :checked="selectedIds?.includes(txn.id)"
-                @change="emit('toggle-select', txn)"
-              />
-            </div>
+          <td v-if="!readonly" class="py-3 pl-4 w-8" @click.stop>
+            <input
+              type="checkbox"
+              class="checkbox checkbox-sm transition-opacity"
+              :class="hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+              :checked="selectedIds?.includes(txn.id)"
+              @change="emit('toggle-select', txn)"
+              aria-label="Select row"
+            />
           </td>
           <td class="py-3 px-2 text-[13px] text-subtle whitespace-nowrap">{{ formatDate(txn.occurredAt || '') }}</td>
           <td class="py-3 px-2">
@@ -106,6 +107,16 @@ function counterpart(txn: any) {
               <div class="min-w-0">
                 <div class="flex items-center gap-1.5">
                   <span class="text-[14px] text-text font-medium truncate">{{ txn.name }}</span>
+                  <button
+                    v-if="!readonly && txn.type === 0 && !txn.linkedTransferId"
+                    type="button"
+                    class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 shrink-0 transition-opacity"
+                    aria-label="Transfer this transaction"
+                    title="Transfer to another account"
+                    @click.stop="emit('transfer', txn)"
+                  >
+                    <ArrowLeftRight class="w-3.5 h-3.5" />
+                  </button>
                   <button
                     v-if="txn.linkedTransferId"
                     type="button"
@@ -131,6 +142,17 @@ function counterpart(txn: any) {
           </td>
           <td class="py-3 px-4 text-right text-[14px] font-semibold whitespace-nowrap" :class="isCredit(txn) ? 'text-income' : 'text-text'">
             {{ formatCurrency(txn.amount) }}
+          </td>
+          <td v-if="!readonly" class="py-3 pl-1 pr-3 text-right">
+            <button
+              type="button"
+              class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 shrink-0 transition-opacity"
+              aria-label="Edit transaction"
+              title="Edit"
+              @click.stop="emit('edit', txn)"
+            >
+              <Pencil class="w-3.5 h-3.5" />
+            </button>
           </td>
         </tr>
       </tbody>

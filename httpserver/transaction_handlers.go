@@ -18,6 +18,7 @@ type reqTxn struct {
 	PageToken    string      `json:"pageToken"`
 	AccountId    string      `json:"accountId"`
 	CategoryId   []string    `json:"categoryId"`
+	Names        []string    `json:"names"`
 	Type         any         `json:"type"`
 	Ids          []string    `json:"ids"`
 }
@@ -107,6 +108,9 @@ func (a *API) listTransactions(ctx context.Context, _ string, r *http.Request) (
 	if v := q.Get("categoryId"); v != "" {
 		in.CategoryId = strings.Split(v, ",")
 	}
+	if v := q.Get("names"); v != "" {
+		in.Names = strings.Split(v, ",")
+	}
 	t, err := txnTypeValue(in.Type)
 	if err != nil {
 		return nil, bad("%v", err)
@@ -118,7 +122,7 @@ func (a *API) listTransactions(ctx context.Context, _ string, r *http.Request) (
 	out, err := a.txn.ListTransactions(ctx, &api.ListTransactionsRequest{
 		PageSize: in.PageSize, PageToken: in.PageToken, AccountId: in.AccountId, CategoryId: in.CategoryId, Type: t,
 		DateFrom: dateFrom, DateTo: dateTo, MinAmount: minAmount, MaxAmount: maxAmount,
-		Name: q.Get("name"), NameMatch: q.Get("nameMatch"),
+		Names: in.Names,
 		SortBy: q.Get("sortBy"), SortDir: q.Get("sortDir"), Offset: queryInt(q, "offset"),
 	})
 	if err != nil {

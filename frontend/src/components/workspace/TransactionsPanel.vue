@@ -4,11 +4,12 @@ import TransactionsTab from '@/components/workspace/TransactionsTab.vue';
 import AddTransactionModal from '@/components/workspace/AddTransactionModal.vue';
 import EditItemModal from '@/components/workspace/EditItemModal.vue';
 import TransferModal from '@/components/workspace/TransferModal.vue';
+import TransactionFilterInput from '@/components/workspace/TransactionFilterInput.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { accounts, transactions, categories, transfers } from '@/lib/api/client';
 import { emptyFilters, type TransactionFilters } from '@/lib/utils/transactionFilters';
 import { useAccountsStore } from '@/lib/stores/accounts';
-import { Plus, CheckSquare, ReceiptText, ArrowLeftRight } from '@lucide/vue';
+import { Plus, ReceiptText } from '@lucide/vue';
 
 const store = useAccountsStore();
 
@@ -29,7 +30,7 @@ const showAddModal = ref(false);
 const showItemModal = ref(false);
 const editingItem = ref<any>(null);
 const showTransfer = ref(false);
-const showCheckboxes = ref(false);
+const transferPrefill = ref<{ sourceId: string; fromId: string } | null>(null);
 const confirmDelete = ref<{ ids: string[]; label: string } | null>(null);
 
 const pagedTxns = computed(() => txnList.value);
@@ -46,8 +47,8 @@ async function loadPage() {
       minAmount: filters.value.minAmount || undefined,
       maxAmount: filters.value.maxAmount || undefined,
       categoryId: filters.value.categoryId || undefined,
-      name: filters.value.name || undefined,
-      nameMatch: filters.value.nameMatch || undefined,
+      names: filters.value.names,
+      type: filters.value.type || undefined,
       ...(page.value > 0 && pageToken.value ? { pageToken: pageToken.value } : {})
     });
     txnList.value = (resp.transactions || []).map((t: any) => ({ ...t, type: t.type === 'CREDIT' ? 1 : 0 }));
@@ -79,6 +80,10 @@ function openAdd() {
 }
 function openEditItem(item: any) {
   editingItem.value = item; showItemModal.value = true;
+}
+function openTransfer(txn: any) {
+  transferPrefill.value = { sourceId: txn.id, fromId: txn.accountId };
+  showTransfer.value = true;
 }
 async function unlinkTransfer() {
   const linkId = editingItem.value?.linkedTransferId;
@@ -134,26 +139,13 @@ async function confirmDeleteNow() {
     </div>
     <div v-else class="card bg-base-200 border border-border">
       <div class="card-body p-6">
-        <div class="flex items-center justify-between gap-2 mb-4">
-          <h2 class="text-lg font-semibold text-text">Transactions</h2>
-          <div class="flex items-center gap-2">
-            <button @click="openAdd" class="btn btn-primary btn-sm gap-1.5">
-              <Plus class="w-4 h-4" />
-              Add
-            </button>
-            <button @click="showTransfer = true" class="btn btn-ghost btn-sm border border-track gap-1.5" title="Transfer">
-              <ArrowLeftRight class="w-3.5 h-3.5" />
-              Transfer
-            </button>
-            <button
-              @click="showCheckboxes = !showCheckboxes"
-              class="shrink-0 btn btn-ghost btn-sm border border-track gap-1.5 transition-colors"
-              :class="showCheckboxes ? 'bg-primary-500/10 text-primary-400 border-primary-500/30' : 'text-text'"
-            >
-              <CheckSquare class="w-3.5 h-3.5" />
-              {{ showCheckboxes ? 'Done' : 'Select' }}
-            </button>
-          </div>
+        <div class="flex items-center gap-3 mb-4">
+          <h2 class="text-lg font-semibold text-text shrink-0">Transactions</h2>
+          <TransactionFilterInput v-model:filters="filters" :categories="categoryList" />
+          <button @click="openAdd" class="btn btn-primary btn-sm gap-1.5 shrink-0">
+            <Plus class="w-4 h-4" />
+            Add
+          </button>
         </div>
 
         <TransactionsTab
@@ -165,9 +157,9 @@ async function confirmDeleteNow() {
           :categories="categoryList"
           :all-txns="txnList"
           :accounts="accountList"
-          v-model:show-checkboxes="showCheckboxes"
           @edit="openEditItem"
           @bulk-delete="requestBulkDelete"
+          @transfer="openTransfer"
         />
       </div>
     </div>
@@ -195,7 +187,7 @@ async function confirmDeleteNow() {
       @unlink="unlinkTransfer"
     />
 
-    <TransferModal v-if="showTransfer" :txns="txnList" :accounts="accountList" @close="showTransfer = false" @done="loadPage(); emit('updated')" />
+    <TransferModal v-if="showTransfer" :txns="txnList" :accounts="accountList" :prefill="transferPrefill || undefined" @close="showTransfer = false" @done="loadPage(); emit('updated')" />
 
     <ConfirmDialog
       v-if="confirmDelete"

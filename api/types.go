@@ -185,8 +185,7 @@ type ListTransactionsRequest struct {
 	DateTo     time.Time
 	MinAmount  float32
 	MaxAmount  float32
-	Name       string
-	NameMatch  string
+	Names      []string
 	SortBy     string
 	SortDir    string
 	Offset     int32

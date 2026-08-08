@@ -98,8 +98,7 @@ type TxnListFilter struct {
 	DateTo       time.Time
 	MinAmount    float32
 	MaxAmount    float32
-	Name         string
-	NameMatch    string
+	Names        []string
 	PageSize     int32
 	PageToken    string
 	SortBy       string // "debit" | "credit" (primary type first)
@@ -143,14 +142,13 @@ func buildTxnWhere(f TxnListFilter) (string, []any) {
 		query += " AND t.amount <= ?"
 		args = append(args, f.MaxAmount)
 	}
-	if f.Name != "" {
-		if f.NameMatch == "exact" {
-			query += " AND LOWER(t.name) = LOWER(?)"
-			args = append(args, f.Name)
-		} else {
-			query += " AND LOWER(t.name) LIKE '%' || LOWER(?) || '%'"
-			args = append(args, likeEscape(f.Name))
+	if len(f.Names) > 0 {
+		clauses := make([]string, len(f.Names))
+		for i, n := range f.Names {
+			clauses[i] = "LOWER(t.name) LIKE '%' || LOWER(?) || '%' ESCAPE '\\'"
+			args = append(args, likeEscape(n))
 		}
+		query += " AND (" + strings.Join(clauses, " OR ") + ")"
 	}
 	return query, args
 }

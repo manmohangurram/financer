@@ -7,12 +7,12 @@ import { transfers } from '@/lib/api/client';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { Search, Link2, Plus, ArrowLeftRight } from '@lucide/vue';
 
-const props = defineProps<{ txns: any[]; accounts: any[] }>();
+const props = defineProps<{ txns: any[]; accounts: any[]; prefill?: { sourceId: string; fromId: string } }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'done'): void }>();
 
-const fromId = ref('');
+const fromId = ref(props.prefill?.fromId || '');
 const toId = ref('');
-const sourceId = ref('');
+const sourceId = ref(props.prefill?.sourceId || '');
 const search = ref('');
 const error = ref('');
 const submitting = ref('');
@@ -24,10 +24,9 @@ const DAY = 86400000;
 watch(
   () => props.accounts,
   (accs) => {
-    if (accs.length && !fromId.value) {
-      fromId.value = accs[0].id;
-      toId.value = accs[1]?.id || accs[0].id;
-    }
+    if (!accs.length) return;
+    if (!fromId.value) fromId.value = accs[0].id;
+    if (!toId.value) toId.value = accs.find((a) => a.id !== fromId.value)?.id || accs[0].id;
   },
   { immediate: true }
 );
@@ -104,11 +103,12 @@ async function createCounterpart() {
         <ArrowLeftRight class="w-4 h-4 text-primary-400" />
       </div>
 
-      <AppInput v-model="search" label="Transaction" placeholder="Search unlinked debit transactions…">
-        <template #icon>
-          <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle" stroke-width="2" />
-        </template>
-      </AppInput>
+      <div v-if="!prefill?.sourceId">
+        <AppInput v-model="search" label="Transaction" placeholder="Search unlinked debit transactions…">
+          <template #icon>
+            <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle" stroke-width="2" />
+          </template>
+        </AppInput>
         <div class="mt-1 max-h-44 overflow-y-auto rounded-lg border border-border">
           <button
             v-for="t in sourceOptions"
@@ -123,6 +123,12 @@ async function createCounterpart() {
           </button>
           <div v-if="!sourceOptions.length" class="px-3 py-3 text-[12px] text-subtle">No unlinked debit transactions in {{ accName(fromId) }}</div>
         </div>
+      </div>
+      <div v-else-if="source" class="rounded-lg border border-border px-3 py-2.5">
+        <div class="text-[12px] text-text-muted mb-0.5">Source</div>
+        <div class="text-[13px] text-text font-medium">{{ source.name }}</div>
+        <div class="text-[12px] text-subtle">{{ formatCurrency(source.amount) }} · {{ formatDate(source.occurredAt) }} · {{ accName(fromId) }}</div>
+      </div>
 
       <div v-if="source && fromId !== toId">
         <label class="block text-[12px] text-text-muted mb-1">Matches in {{ accName(toId) }}</label>
