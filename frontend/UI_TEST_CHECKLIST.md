@@ -137,13 +137,15 @@ Every run against the running backend before a release or after any backend/fron
 - Invalid investment type is rejected client-side
 - Edit Investment opens a pre-filled modal and saves
 - Delete Investment removes it (with confirmation)
-- **Lots:** add buy lots → quantity / avg cost update in the table
-- **Sell lots:** add a sell lot → FIFO realized P&L appears; selling more than held is rejected
+- **Lots:** add buy lots → quantity / invested amount update in the table
+- **Sell lots:** add a sell lot → FIFO P&L updates; selling more than held is rejected
 - Manual NAV mutual fund shows the NAV as its current price
-- Portfolio summary cards (invested, current value, unrealized, realized P&L) match the table
+- Portfolio summary cards (invested, current value, P&L) match the table
 - Price refresh button calls `/api/investments/refresh-prices` and updates prices (offline: error shown, cached prices kept)
-- Investment detail page lists lots with buy/sell side; delete lot removes it and updates P&L
+- Investment detail page lists lots with buy/sell side; the hover edit icon opens an Edit Lot modal (quantity/price/date + Delete inside)
 - Price history chart loads (range selector); no data shows an empty state
+- **Bulk import:** Add Investment → Import → upload a broker CSV/XLSX (junk rows above/below the table OK — the parser auto-locates it) → columns auto-map (symbol/name/type/side/quantity/price/date) → Import creates investments + lots; existing symbols merge (lots added, not duplicated); re-importing the same file reports skipped; sell-beyond-holdings rows are skipped
+- Transactions import accepts .xlsx in addition to CSV (same mapping/preview flow)
 
 ## Settings (`/settings`, user popup)
 
