@@ -5,5 +5,9 @@ data/
 frontend/node_modules/
 frontend/.vite/
 frontend/*.tsbuildinfo
+# Never let a local .env (e.g. VITE_API_URL=http://localhost:8080) leak into
+# the image — the frontend must call the API same-origin.
+frontend/.env
+frontend/.env.*
 # dist is produced inside the image by the frontend build stage.
 frontend/dist/
