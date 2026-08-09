@@ -246,6 +246,52 @@ func (s *InvestmentService) ListLots(ctx context.Context, msg *api.GetInvestment
 	return lots, nil
 }
 
+func (s *InvestmentService) ImportInvestments(ctx context.Context, msg *api.ImportInvestmentsRequest) (*api.ImportInvestmentsResponse, error) {
+	userID := ctx.Value(auth.UserIDKey).(string)
+	var created, skipped int32
+	for _, row := range msg.Rows {
+		// Row-level validation; bad rows are skipped, never fatal.
+		if row.Symbol == "" || row.Quantity <= 0 || row.Price < 0 {
+			skipped++
+			continue
+		}
+		typ := row.InvestmentType
+		if typ != api.InvestmentType_INVESTMENT_TYPE_STOCK && typ != api.InvestmentType_INVESTMENT_TYPE_MUTUAL_FUND {
+			typ = api.InvestmentType_INVESTMENT_TYPE_STOCK
+		}
+		inst, err := s.repo.GetBySymbol(ctx, userID, row.Symbol)
+		if err != nil {
+			return nil, ServerError("%v", err)
+		}
+		if inst == nil {
+			inst, err = s.repo.CreateInvestment(ctx, userID, row.Symbol, row.Name, typ, 0)
+			if err != nil {
+				return nil, ServerError("%v", err)
+			}
+		}
+		if row.Side == -1 {
+			pos, _, _, err := s.positionFor(ctx, inst)
+			if err != nil {
+				return nil, ServerError("%v", err)
+			}
+			if row.Quantity > pos.Quantity {
+				skipped++
+				continue
+			}
+		}
+		inserted, err := s.repo.InsertLot(ctx, userID, inst.Id, row.Side, round2f(row.Quantity), round2f(row.Price), row.OccurredAt, row.ExternalId)
+		if err != nil {
+			return nil, ServerError("%v", err)
+		}
+		if inserted {
+			created++
+		} else {
+			skipped++
+		}
+	}
+	return &api.ImportInvestmentsResponse{Created: created, Skipped: skipped}, nil
+}
+
 func (s *InvestmentService) SearchSymbols(ctx context.Context, msg *api.SearchSymbolsRequest) (*api.SearchSymbolsResponse, error) {
 	if msg.Query == "" {
 		return &api.SearchSymbolsResponse{}, nil

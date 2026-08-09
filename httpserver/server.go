@@ -79,6 +79,7 @@ func (a *API) Handler() http.Handler {
 	a.route(mux, "POST", "/api/investments/{id}/lots", false, a.addLot)
 	a.route(mux, "PUT", "/api/investments/{id}/lots/{lotId}", false, a.updateLot)
 	a.route(mux, "DELETE", "/api/investments/{id}/lots/{lotId}", false, a.deleteLot)
+	a.route(mux, "POST", "/api/investments/import", false, a.importInvestments)
 	a.route(mux, "GET", "/api/investments/{id}/price-history", false, a.priceHistory)
 	a.route(mux, "GET", "/api/investments/search", false, a.searchSymbols)
 	a.route(mux, "POST", "/api/investments/refresh-prices", false, a.refreshPrices)

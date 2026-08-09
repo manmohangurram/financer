@@ -66,6 +66,16 @@ func (r *InvestmentRepository) GetInvestment(ctx context.Context, id string) (*a
 	)
 }
 
+func (r *InvestmentRepository) GetBySymbol(ctx context.Context, userID, symbol string) (*api.InvestmentResponse, error) {
+	if symbol == "" {
+		return nil, nil
+	}
+	return QueryOne(ctx, r.readDB,
+		`SELECT `+investmentCols+` FROM investments WHERE user_id = ? AND symbol = ?`,
+		scanInvestment, userID, symbol,
+	)
+}
+
 func (r *InvestmentRepository) ListInvestments(ctx context.Context, userID string) ([]*api.InvestmentResponse, error) {
 	return QueryAll(ctx, r.readDB,
 		`SELECT `+investmentCols+` FROM investments WHERE user_id = ? ORDER BY created_at DESC`,
@@ -158,6 +168,27 @@ func (r *InvestmentRepository) DeleteLot(ctx context.Context, id string) (bool, 
 	result, err := r.ExecContext(ctx, `DELETE FROM investment_lots WHERE id = ?`, id)
 	if err != nil {
 		return false, fmt.Errorf("deleting lot: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
+}
+
+// InsertLot inserts a lot idempotently: a second insert with the same
+// (user, external_id) is skipped (INSERT OR IGNORE). Returns whether the row
+// was actually inserted.
+func (r *InvestmentRepository) InsertLot(ctx context.Context, userID, investmentID string, side int32, quantity, price float32, occurredAt time.Time, externalID string) (bool, error) {
+	id := uuid.New().String()
+	var ext sql.NullString
+	if externalID != "" {
+		ext = sql.NullString{String: externalID, Valid: true}
+	}
+	result, err := r.ExecContext(ctx,
+		`INSERT OR IGNORE INTO investment_lots (id, user_id, investment_id, side, quantity, price, occurred_at, created_at, external_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, userID, investmentID, side, quantity, price, occurredAt, time.Now().UTC(), ext,
+	)
+	if err != nil {
+		return false, fmt.Errorf("inserting lot: %w", err)
 	}
 	rows, _ := result.RowsAffected()
 	return rows > 0, nil

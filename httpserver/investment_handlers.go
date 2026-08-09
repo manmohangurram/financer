@@ -165,6 +165,54 @@ func (a *API) listLots(ctx context.Context, _ string, r *http.Request) (any, err
 	}{Lots: items}, nil
 }
 
+type reqImportInvestmentRow struct {
+	Symbol         string  `json:"symbol"`
+	Name           string  `json:"name"`
+	InvestmentType any     `json:"investmentType"`
+	Side           any     `json:"side"`
+	Quantity       float64 `json:"quantity"`
+	Price          float64 `json:"price"`
+	OccurredAt     any     `json:"occurredAt"`
+	ExternalId     string  `json:"externalId"`
+}
+
+func (a *API) importInvestments(ctx context.Context, _ string, r *http.Request) (any, error) {
+	var in struct {
+		Rows []reqImportInvestmentRow `json:"rows"`
+	}
+	if err := decodeBody(r.Body, &in); err != nil {
+		return nil, err
+	}
+	rows := make([]*api.ImportInvestmentRow, 0, len(in.Rows))
+	for _, row := range in.Rows {
+		typ, err := investmentTypeValue(row.InvestmentType)
+		if err != nil {
+			typ = api.InvestmentType_INVESTMENT_TYPE_STOCK
+		}
+		side, err := lotSideValue(row.Side)
+		if err != nil {
+			side = 1
+		}
+		occ, err := txnOccurredAt(row.OccurredAt)
+		if err != nil {
+			continue
+		}
+		rows = append(rows, &api.ImportInvestmentRow{
+			Symbol: row.Symbol, Name: row.Name, InvestmentType: typ, Side: side,
+			Quantity: float32(row.Quantity), Price: float32(row.Price),
+			OccurredAt: occ, ExternalId: row.ExternalId,
+		})
+	}
+	out, err := a.invest.ImportInvestments(ctx, &api.ImportInvestmentsRequest{Rows: rows})
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		Created int32 `json:"created"`
+		Skipped int32 `json:"skipped"`
+	}{Created: out.Created, Skipped: out.Skipped}, nil
+}
+
 func (a *API) priceHistory(ctx context.Context, _ string, r *http.Request) (any, error) {
 	q := r.URL.Query()
 	points, err := a.invest.GetPriceHistory(ctx, r.PathValue("id"), q.Get("range"), q.Get("from"), q.Get("to"), q.Get("refresh") == "1")
