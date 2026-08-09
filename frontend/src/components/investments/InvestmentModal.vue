@@ -6,7 +6,7 @@ import { investments } from '@/lib/api/client';
 import { roundMoney } from '@/lib/utils/money';
 
 const props = withDefaults(defineProps<{ investment?: any | null }>(), { investment: null });
-const emit = defineEmits<{ (e: 'close'): void; (e: 'submit', payload: any): void }>();
+const emit = defineEmits<{ (e: 'close'): void; (e: 'submit', payload: any): void; (e: 'delete'): void }>();
 
 const isStock = computed(() => form.value.investmentType === 'INVESTMENT_TYPE_STOCK');
 
@@ -118,9 +118,13 @@ function handleSubmit() {
 
       <AppInput v-if="!isStock" v-model.number="form.manualNav" label="Manual NAV (₹) — overrides live quote" type="number" step="0.01" min="0" />
 
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button type="button" @click="emit('close')" class="btn btn-ghost btn-sm border border-track">Cancel</button>
-        <button type="submit" class="btn btn-success btn-sm">{{ props.investment ? 'Update' : 'Create' }}</button>
+      <div class="flex items-center justify-between pt-2">
+        <button v-if="investment" type="button" class="btn btn-outline btn-error btn-sm" @click="emit('delete')">Delete</button>
+        <span v-else></span>
+        <div class="flex items-center gap-3">
+          <button type="button" @click="emit('close')" class="btn btn-ghost btn-sm border border-track">Cancel</button>
+          <button type="submit" class="btn btn-success btn-sm">{{ props.investment ? 'Update' : 'Create' }}</button>
+        </div>
       </div>
     </form>
   </AppModal>

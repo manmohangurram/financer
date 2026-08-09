@@ -17,6 +17,7 @@ const lots = ref<any[]>([]);
 const showInvestmentModal = ref(false);
 const showLotModal = ref(false);
 const lotSide = ref<'buy' | 'sell'>('buy');
+const editingLot = ref<any | null>(null);
 const confirmDelete = ref<{ kind: 'investment' | 'lot'; item: any } | null>(null);
 
 async function loadInvestment() {
@@ -48,7 +49,13 @@ function openEdit() {
   showInvestmentModal.value = true;
 }
 function addLot(side: 'buy' | 'sell') {
+  editingLot.value = null;
   lotSide.value = side;
+  showLotModal.value = true;
+}
+function editLot(lot: any) {
+  editingLot.value = lot;
+  lotSide.value = lot.side === 1 ? 'buy' : 'sell';
   showLotModal.value = true;
 }
 
@@ -72,6 +79,16 @@ async function handleLotSubmit(payload: any) {
   }
 }
 
+async function handleLotUpdate(payload: any) {
+  try {
+    await investments().updateLot({ id: investment.value?.id, lotId: payload.lotId, quantity: payload.quantity, price: payload.price, occurredAt: payload.occurredAt });
+    showLotModal.value = false;
+    await load();
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to update lot';
+  }
+}
+
 function requestDelete(kind: 'investment' | 'lot', item: any) {
   confirmDelete.value = { kind, item };
 }
@@ -85,6 +102,8 @@ async function confirmDeleteNow() {
       router.push('/investments');
     } else {
       await investments().deleteLot({ id: investment.value?.id, lotId: item.id });
+      showLotModal.value = false;
+      editingLot.value = null;
       await load();
     }
   } catch (e: any) {
@@ -113,12 +132,26 @@ onMounted(load);
       @edit="openEdit"
       @add-buy="addLot('buy')"
       @add-sell="addLot('sell')"
-      @delete-lot="(lot) => requestDelete('lot', lot)"
-      @delete-investment="() => requestDelete('investment', investment)"
+      @edit-lot="editLot"
     />
 
-    <InvestmentModal v-if="showInvestmentModal" :investment="investment" @close="showInvestmentModal = false" @submit="handleInvestmentSubmit" />
-    <LotModal v-if="showLotModal && investment" :investment="investment" :side="lotSide" @close="showLotModal = false" @submit="handleLotSubmit" />
+    <InvestmentModal
+      v-if="showInvestmentModal"
+      :investment="investment"
+      @close="showInvestmentModal = false"
+      @submit="handleInvestmentSubmit"
+      @delete="requestDelete('investment', investment)"
+    />
+    <LotModal
+      v-if="showLotModal && investment"
+      :investment="investment"
+      :side="lotSide"
+      :lot="editingLot"
+      @close="showLotModal = false"
+      @submit="handleLotSubmit"
+      @update="handleLotUpdate"
+      @delete="requestDelete('lot', editingLot)"
+    />
 
     <ConfirmDialog
       v-if="confirmDelete"

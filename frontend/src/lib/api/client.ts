@@ -51,6 +51,7 @@ export interface InvestmentServiceClient {
   updateInvestment: (req: unknown) => Promise<any>;
   deleteInvestment: (req: unknown) => Promise<any>;
   addLot: (req: unknown) => Promise<any>;
+  updateLot: (req: unknown) => Promise<any>;
   deleteLot: (req: unknown) => Promise<any>;
   listLots: (req: unknown) => Promise<any>;
   searchSymbols: (req: unknown) => Promise<any>;
@@ -183,6 +184,7 @@ export function investments(): InvestmentServiceClient {
       updateInvestment: api('PUT', '/api/investments/{id}'),
       deleteInvestment: api('DELETE', '/api/investments/{id}'),
       addLot: api('POST', '/api/investments/{investmentId}/lots'),
+      updateLot: api('PUT', '/api/investments/{id}/lots/{lotId}'),
       deleteLot: api('DELETE', '/api/investments/{id}/lots/{lotId}'),
       listLots: api('GET', '/api/investments/{id}/lots'),
       searchSymbols: api('GET', '/api/investments/search'),
