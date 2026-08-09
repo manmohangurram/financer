@@ -12,10 +12,6 @@ const KEYWORD_GROUPS: [InvestmentField, string[]][] = [
   ['date', ['date', 'trade date', 'transaction date']]
 ];
 
-function isBlankRow(row: string[]): boolean {
-  return row.every((c) => c.trim() === '');
-}
-
 // locateInvestmentTable finds the holdings/transactions table inside a broker
 // export. Broker sheets often carry junk above and below; the table starts at
 // the header row (≥2 keyword groups in one row) and ends at the first blank row.
@@ -30,7 +26,9 @@ export function locateInvestmentTable(rows: string[][]): { headers: string[]; da
     const data: string[][] = [];
     for (let j = i + 1; j < rows.length; j++) {
       const r = rows[j];
-      if (isBlankRow(r)) break;
+      // A data row has ≥2 populated cells. Stops at blank rows (0 cells) and
+      // single-cell footers/junk that the CSV parser may have kept.
+      if (r.filter((c) => c.trim() !== '').length < 2) break;
       data.push(r);
     }
     if (data.length === 0) continue;
