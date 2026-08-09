@@ -33,6 +33,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Read app version
+        id: version
+        run: echo "app_version=$(node -p "require('./frontend/package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -43,6 +47,8 @@ jobs:
             type=ref,event=tag
             type=sha
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.version.outputs.app_version }}
+            type=raw,value=${{ steps.version.outputs.app_version }}-alpha
 
       - name: Build and push image
         uses: docker/build-push-action@v6
