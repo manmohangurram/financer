@@ -1,7 +1,6 @@
 import { reactive } from 'vue';
+import { API_BASE } from '@/lib/api/client';
 import { setTokens, clearTokens, loadTokens, getAccessToken } from '@/lib/api/transport';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 interface User {
   userId: string;
