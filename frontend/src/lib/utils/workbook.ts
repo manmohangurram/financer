@@ -24,7 +24,7 @@ export async function readWorkbook(file: File): Promise<WorkbookRows | null> {
   if (name.endsWith('.csv')) return parseWorkbookText(await file.text());
   if (name.endsWith('.xlsx')) {
     const readXlsxFile = (await import('read-excel-file/browser')).default;
-    const raw = (await readXlsxFile(file)) as unknown[][];
+    const raw = (await readXlsxFile(file)) as unknown as unknown[][];
     if (!raw || raw.length < 2) return null;
     return { headers: raw[0].map(cellToText), rows: raw.slice(1).map((r) => r.map(cellToText)) };
   }

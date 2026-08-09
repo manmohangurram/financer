@@ -6,7 +6,8 @@ import TransactionForm from '@/components/workspace/TransactionForm.vue';
 import { transactions } from '@/lib/api/client';
 import { dateToUnixSeconds, toLocalDateString } from '@/lib/utils/format';
 import { roundMoney } from '@/lib/utils/money';
-import { guessMapping, mapCsvRowsToTransactions, parseCsvText, csvFileKey, type CsvField } from '@/lib/utils/csv';
+import { guessMapping, mapCsvRowsToTransactions, csvFileKey, type CsvField } from '@/lib/utils/csv';
+import { readWorkbook } from '@/lib/utils/workbook';
 import { Upload, PenLine, FileSpreadsheet } from '@lucide/vue';
 
 const props = defineProps<{ accounts: any[]; categories: any[]; defaultAccountId: string }>();
@@ -94,17 +95,19 @@ function switchMode(m: Mode) {
   error.value = '';
 }
 
-function processFile(file: File | undefined | null) {
+async function processFile(file: File | undefined | null) {
   if (!file) return;
-  file.text().then((text) => {
-    const parsed = parseCsvText(text);
-    if (!parsed) { error.value = 'Need header + at least 1 data row.'; return; }
+  try {
+    const parsed = await readWorkbook(file);
+    if (!parsed) { error.value = 'Need a header row and at least one data row.'; return; }
     headers.value = parsed.headers;
     rows.value = parsed.rows;
-    fileKey.value = csvFileKey(text);
+    fileKey.value = file.name.toLowerCase().endsWith('.csv') ? csvFileKey(await file.text()) : `xlsx:${file.name}:${file.lastModified}`;
     guessFields();
     step.value = 2;
-  });
+  } catch {
+    error.value = 'Could not read that file.';
+  }
 }
 
 async function handleFile(e: Event) {
@@ -203,10 +206,10 @@ async function runImport() {
             @drop.prevent="handleDrop"
           >
             <Upload class="w-10 h-10 mx-auto mb-3 text-faint" stroke-width="1.5" />
-            <p class="text-[14px] text-text-muted mb-2">Drop a CSV file or click to browse</p>
+            <p class="text-[14px] text-text-muted mb-2">Drop a CSV or Excel (.xlsx) file or click to browse</p>
             <label class="cursor-pointer text-[13px] text-primary-400 hover:underline">
               Choose file
-              <input type="file" accept=".csv" class="hidden" @change="handleFile" />
+              <input type="file" accept=".csv,.xlsx" class="hidden" @change="handleFile" />
             </label>
           </div>
           <p v-if="error" class="text-[13px] text-expense mt-2">{{ error }}</p>
