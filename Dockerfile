@@ -9,7 +9,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
-RUN npm run build
+# Force same-origin API calls (''): never bake a host/port into the frontend.
+RUN VITE_API_URL= npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend
 # Declare the buildx automatic platform args so GOARCH/GOOS resolve to the

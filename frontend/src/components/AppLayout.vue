@@ -3,10 +3,12 @@ import { ref, computed, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/lib/stores/auth';
 import Popover from '@/components/Popover.vue';
+import pkg from '../../package.json';
 import { Menu, Layers, LayoutDashboard, CreditCard, BarChart3, Settings2, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen } from '@lucide/vue';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const APP_VERSION = pkg.version;
 const sidebarOpen = ref(false);
 const userMenuOpen = ref(false);
 
@@ -78,7 +80,7 @@ function handleLogout() {
           </div>
           <div v-if="!collapsed">
             <div class="text-[21px] font-bold text-base-content tracking-tight">Financer</div>
-            <div class="text-[13px] text-subtle font-medium">Personal Finance</div>
+            <div class="text-[13px] text-subtle font-medium">Personal Finance <span class="text-faint">v{{ APP_VERSION }}</span></div>
           </div>
         </div>
       </div>

@@ -1,5 +1,7 @@
 # Financer — Personal Finance Tracker
 
+> **⚠️ Under active development — not ready for production.** The app (v0.0.1, alpha) is a work in progress: expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
+
 A self-hosted personal finance tracker with a Go backend and a Vue 3 single-page app. Track accounts, transactions, transfers, spending, rules (auto-categorization), and investments — all in one place, with a dark, dense dashboard UI.
 
 ## Features
