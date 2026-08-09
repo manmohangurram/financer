@@ -4,13 +4,13 @@ import SectionHeader from '@/components/accounts/SectionHeader.vue';
 import AppInput from '@/components/AppInput.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { profile } from '@/lib/api/client';
+import { API_BASE } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { getAccessToken, setTokens } from '@/lib/api/transport';
 import { applyTheme, current as currentTheme } from '@/lib/theme';
 import { Camera, Save, Loader2, ShieldCheck, Sun, Moon, Monitor } from '@lucide/vue';
 
 const auth = useAuthStore();
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 const loading = ref(true);
 const error = ref('');

@@ -101,10 +101,14 @@ func main() {
 		staticDir = "frontend/dist"
 	}
 
+	// Optional external domain the app is served at (e.g. https://financer.local).
+	// When set, the served index.html tells the frontend to call the API there.
+	domainURL := os.Getenv("FINANCER_DOMAIN_URL")
+
 	mux := http.NewServeMux()
 	mux.Handle("/avatars/", http.StripPrefix("/avatars/", http.FileServer(http.Dir(avatarDir))))
 	mux.Handle("/api/", api.Handler())
-	if h := spaHandler(staticDir); h != nil {
+	if h := spaHandler(staticDir, domainURL); h != nil {
 		mux.Handle("/", h)
 	} else {
 		mux.Handle("/", api.Handler())

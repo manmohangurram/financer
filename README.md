@@ -45,6 +45,7 @@ Open `http://localhost:5173` and sign in.
 | Variable | Default | Purpose |
 |---|---|---|
 | `FINANCER_DATA_DIR` | `data` | Root for all runtime data: `db/`, `config/`, `certs/`, `avatars/` subfolders |
+| `FINANCER_DOMAIN_URL` | — | External domain the app is served at (e.g. `https://financer.local`); injected into the frontend as the API base — empty/omitted → same-origin |
 | `FINANCER_DB_PATH` | `<DATA_DIR>/db/financer.db` | SQLite database path |
 | `FINANCER_JWT_SECRET` | — | JWT signing secret (set in production) |
 | `FINANCER_ADDR` | `:8080` | API listen address |

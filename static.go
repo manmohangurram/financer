@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -21,10 +23,18 @@ func writeDefaultYahooConfig(path string) error {
 // that does not resolve to a real file returns index.html so client-side
 // routes (/accounts/rules, /settings, …) work on refresh. Returns nil when
 // dist is absent so the server keeps serving only the API (dev mode).
-func spaHandler(dir string) http.Handler {
+//
+// domainURL (FINANCER_DOMAIN_URL env) is injected into index.html as
+// window.__API_BASE__ so the frontend can call an absolute API base at runtime
+// (empty → same-origin).
+func spaHandler(dir, domainURL string) http.Handler {
 	index, err := os.ReadFile(filepath.Join(dir, "index.html"))
 	if err != nil {
 		return nil
+	}
+	if domainURL != "" {
+		script := `<script>window.__API_BASE__=` + strconv.Quote(domainURL) + `;</script>`
+		index = bytes.Replace(index, []byte("</head>"), []byte(script+"</head>"), 1)
 	}
 	fileServer := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
