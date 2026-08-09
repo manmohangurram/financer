@@ -9,7 +9,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
-# Force same-origin API calls (''): never bake a host/port into the frontend.
+# Same-origin by default; an absolute API base can be injected at runtime via
+# the FINANCER_DOMAIN_URL env (read by the Go server, not baked at build).
 RUN VITE_API_URL= npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS backend
@@ -29,7 +30,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY --from=backend /out/financer ./financer
-ENV FINANCER_ADDR=:8080 FINANCER_DATA_DIR=/data
+ENV FINANCER_ADDR=:8080 FINANCER_DATA_DIR=/data FINANCER_DOMAIN_URL=
 EXPOSE 8080
 VOLUME ["/data"]
 ENTRYPOINT ["/app/financer"]
