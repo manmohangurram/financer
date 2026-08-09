@@ -128,6 +128,25 @@ func (a *API) deleteLot(ctx context.Context, _ string, r *http.Request) (any, er
 	return noContent(), nil
 }
 
+func (a *API) updateLot(ctx context.Context, _ string, r *http.Request) (any, error) {
+	var in reqInvestment
+	if err := decodeBody(r.Body, &in); err != nil {
+		return nil, err
+	}
+	occ, err := txnOccurredAt(in.OccurredAt)
+	if err != nil {
+		return nil, bad("%v", err)
+	}
+	out, err := a.invest.UpdateLot(ctx, &api.UpdateLotRequest{
+		Id: r.PathValue("lotId"), InvestmentId: r.PathValue("id"),
+		Quantity: float32(in.Quantity), Price: float32(in.Price), OccurredAt: occ,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return lotWire(out), nil
+}
+
 func (a *API) listLots(ctx context.Context, _ string, r *http.Request) (any, error) {
 	var in reqInvestment
 	if err := decodeBody(r.Body, &in); err != nil {

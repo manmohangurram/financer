@@ -163,6 +163,18 @@ func (r *InvestmentRepository) DeleteLot(ctx context.Context, id string) (bool, 
 	return rows > 0, nil
 }
 
+func (r *InvestmentRepository) UpdateLot(ctx context.Context, id string, quantity, price float32, occurredAt time.Time) (bool, error) {
+	result, err := r.ExecContext(ctx,
+		`UPDATE investment_lots SET quantity = ?, price = ?, occurred_at = ? WHERE id = ?`,
+		quantity, price, occurredAt, id,
+	)
+	if err != nil {
+		return false, fmt.Errorf("updating lot: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
+}
+
 func (r *InvestmentRepository) UpdateQuote(ctx context.Context, id string, currentPrice, prevClose float32) error {
 	_, err := r.ExecContext(ctx,
 		`UPDATE investments SET current_price = ?, prev_close = ?, last_quote_at = ? WHERE id = ?`,
