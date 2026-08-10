@@ -1,5 +1,7 @@
 //! Users repository — auth + profile SQL, mirroring the Go backend's queries.
 
+pub mod account;
+
 use sqlx::SqlitePool;
 
 use crate::error::Result;
