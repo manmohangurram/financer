@@ -35,7 +35,7 @@ impl RuleService {
         if conditions.is_empty() {
             return Err(ApiError::bad_request("at least one condition is required"));
         }
-        self.rules.create(user_id, name, priority, logic, conditions, actions).await.map_err(|_| ApiError::conflict("email already exists"))
+        self.rules.create(user_id, name, priority, logic, conditions, actions).await
     }
 
     pub async fn update(&self, id: &str, name: &str, priority: i64, logic: RuleLogic, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<Rule> {
