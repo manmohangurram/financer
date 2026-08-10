@@ -29,7 +29,6 @@ impl ApiError {
         Self { status: 500, message: msg.into() }
     }
 
-    #[allow(dead_code)]
     pub fn status(&self) -> StatusCode {
         StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
     }
