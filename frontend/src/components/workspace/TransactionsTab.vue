@@ -48,8 +48,8 @@ function bulkDelete() {
     <div v-if="selectedIds.length > 0" class="flex items-center justify-between mb-3 px-4 py-2.5 rounded-xl bg-primary-500/10 border border-primary-500/30">
       <span class="text-[13px] text-primary-400 font-medium">{{ selectedIds.length }} selected</span>
       <div class="flex gap-2">
-        <button @click="selectedIds = []" class="px-3 py-1.5 rounded-lg text-[12px] font-medium text-text-muted border border-border hover:border-primary-500/40 transition-colors">Cancel</button>
-        <button @click="bulkDelete" class="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-expense text-white hover:bg-expense/85 transition-colors">Delete selected</button>
+        <button @click="selectedIds = []" class="btn btn-ghost btn-sm border border-track">Cancel</button>
+        <button @click="bulkDelete" class="btn btn-error btn-sm">Delete selected</button>
       </div>
     </div>
 

@@ -16,7 +16,9 @@ const userMenuOpen = ref(false);
 // (below lg). The persisted preference applies when wide.
 const mq = window.matchMedia('(max-width: 1023px)');
 const collapsed = ref(mq.matches ? true : localStorage.getItem('financer-sidebar-collapsed') === '1');
+const isSmall = ref(mq.matches);
 const onMqChange = (e: MediaQueryListEvent) => {
+  isSmall.value = e.matches;
   if (e.matches) collapsed.value = true;
 };
 mq.addEventListener('change', onMqChange);
@@ -54,6 +56,7 @@ function handleLogout() {
     <button
       class="btn btn-ghost btn-sm md:hidden fixed top-4 left-4 z-[60] text-base-content"
       aria-label="Toggle menu"
+      :aria-expanded="sidebarOpen"
       @click="sidebarOpen = !sidebarOpen"
     >
       <Menu class="w-6 h-6" />
@@ -63,11 +66,12 @@ function handleLogout() {
       v-if="sidebarOpen"
       class="fixed inset-0 z-[55] bg-black/50 md:hidden"
       @click="sidebarOpen = false"
-      aria-label="Close sidebar"
+      aria-hidden="true"
     ></div>
 
     <aside
       class="fixed md:static z-[58] h-full bg-base-200 border-r border-border flex flex-col flex-shrink-0 transition-[width,transform] duration-300"
+      :inert="isSmall && !sidebarOpen"
       :class="[
         sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         collapsed ? 'w-[76px] min-w-[76px]' : 'w-[300px] min-w-[300px]'
@@ -79,7 +83,7 @@ function handleLogout() {
             <Layers class="w-5 h-5 text-white" stroke-width="2" />
           </div>
           <div v-if="!collapsed">
-            <div class="text-[21px] font-bold text-base-content tracking-tight">Financer</div>
+            <div class="text-xl font-bold text-base-content tracking-tight">Financer</div>
             <div class="text-[13px] text-subtle font-medium">Personal Finance <span class="text-faint">v{{ APP_VERSION }}</span></div>
           </div>
         </div>
@@ -91,7 +95,7 @@ function handleLogout() {
         <router-link
           to="/dashboard"
           title="Dashboard"
-          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-[16.5px] font-medium transition-colors"
+          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-base font-medium transition-colors"
           :class="[
             isActive('/dashboard') ? 'bg-primary-500/[0.13] text-primary-700 dark:text-primary-200' : 'text-text-muted hover:bg-white/5 hover:text-base-content',
             collapsed ? 'justify-center px-0' : 'px-4'
@@ -104,7 +108,7 @@ function handleLogout() {
         <router-link
           to="/accounts"
           title="Accounts"
-          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-[16.5px] font-medium transition-colors"
+          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-base font-medium transition-colors"
           :class="[
             isActive('/accounts') ? 'bg-primary-500/[0.13] text-primary-700 dark:text-primary-200' : 'text-text-muted hover:bg-white/5 hover:text-base-content',
             collapsed ? 'justify-center px-0' : 'px-4'
@@ -117,7 +121,7 @@ function handleLogout() {
         <router-link
           to="/investments"
           title="Investments"
-          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-[16.5px] font-medium transition-colors"
+          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-base font-medium transition-colors"
           :class="[
             isActive('/investments') ? 'bg-primary-500/[0.13] text-primary-700 dark:text-primary-200' : 'text-text-muted hover:bg-white/5 hover:text-base-content',
             collapsed ? 'justify-center px-0' : 'px-4'
@@ -131,7 +135,7 @@ function handleLogout() {
       <div :class="collapsed ? 'px-2 pb-4' : 'px-4 pb-4'">
         <button
           type="button"
-          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-[16.5px] font-medium text-text-muted hover:text-base-content hover:bg-white/5 transition-colors"
+          class="w-full flex items-center gap-3.5 py-3.5 rounded-[11px] text-base font-medium text-text-muted hover:text-base-content hover:bg-white/5 transition-colors"
           :class="collapsed ? 'justify-center' : 'px-4'"
           :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
           @click="toggleCollapsed"

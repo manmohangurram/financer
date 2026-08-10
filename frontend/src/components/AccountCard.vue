@@ -13,9 +13,9 @@ const emit = defineEmits<{ (e: 'edit', account: any): void }>();
       <div class="flex items-center gap-4">
         <div
           class="rounded-xl flex items-center justify-center shrink-0"
-          :class="[isCredit(account.type) ? 'bg-expense/12' : 'bg-income/12', compact ? 'w-9 h-9 text-lg' : 'w-12 h-12 text-2xl']"
+          :class="[isCredit(account.type) ? 'bg-expense/12' : 'bg-income/12', compact ? 'w-9 h-9' : 'w-12 h-12']"
         >
-          {{ accountTypeIcon(account.type) }}
+          <component :is="accountTypeIcon(account.type)" :class="compact ? 'w-5 h-5' : 'w-6 h-6'" stroke-width="2" />
         </div>
         <div class="flex-1 min-w-0">
           <div class="font-semibold text-text truncate" :class="compact ? 'text-[13.5px]' : 'text-[15px]'">{{ account.nickname || account.bankName }}</div>
@@ -24,7 +24,7 @@ const emit = defineEmits<{ (e: 'edit', account: any): void }>();
         <button
           v-if="!compact"
           @click="emit('edit', account)"
-          class="w-9 h-9 rounded-lg flex items-center justify-center text-subtle hover:text-primary-400 hover:bg-primary-500/10 transition-all opacity-0 group-hover:opacity-100"
+          class="w-9 h-9 rounded-lg flex items-center justify-center text-subtle hover:text-primary-400 hover:bg-primary-500/10 transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           aria-label="Edit account"
         >
           <Pencil class="w-[18px] h-[18px]" />

@@ -7,6 +7,7 @@ defineProps<{
   placeholder?: string;
   hint?: string;
   error?: string;
+  invalid?: boolean;
   step?: string;
   min?: string;
   minlength?: string;
@@ -32,8 +33,9 @@ const slots = useSlots();
         :minlength="minlength"
         :autocomplete="autocomplete"
         :required="required"
+        :aria-invalid="!!error || invalid"
         class="input w-full bg-surface border-border text-text text-[13px]"
-        :class="[slots.icon ? 'pl-9' : '', error ? 'border-expense/60' : '']"
+        :class="[slots.icon ? 'pl-9' : '', error || invalid ? 'border-expense/60' : '']"
       />
       <slot name="dropdown" />
     </div>

@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { categoryColorMap } from '@/lib/utils/categoryColor';
+import { resolved } from '@/lib/theme';
 import AppInput from '@/components/AppInput.vue';
 import AppSelect from '@/components/AppSelect.vue';
 import DatePicker from '@/components/DatePicker.vue';
 
 const props = defineProps<{ accounts: any[]; categories: any[] }>();
 const colors = computed(() => categoryColorMap(props.categories.map((c: any) => c.name)));
+// On dark theme badges are light hues (dark text passes AA); on light theme
+// they're dark hues (white text passes AA).
+const badgeText = computed(() => (resolved.value === 'light' ? '#ffffff' : '#0f172a'));
 const form = defineModel<{ name: string; amount: number; type: 'DEBIT' | 'CREDIT'; accountId: string; occurredAt: string; categoryIds: string[] }>({ required: true });
 
 function toggleCategory(id: string) {
@@ -42,7 +46,7 @@ function toggleCategory(id: string) {
             @click="toggleCategory(cat.id)"
             class="badge gap-1.5 px-3 py-2.5 h-auto text-[12px] transition-colors"
             :class="form.categoryIds.includes(cat.id) ? 'badge-primary' : 'badge-outline text-text-muted hover:text-text'"
-            :style="form.categoryIds.includes(cat.id) ? { backgroundColor: colors[cat.name], borderColor: colors[cat.name], color: '#fff' } : {}"
+            :style="form.categoryIds.includes(cat.id) ? { backgroundColor: colors[cat.name], borderColor: colors[cat.name], color: badgeText } : {}"
           >
             <span class="w-2 h-2 rounded-full" :style="{ background: colors[cat.name] }"></span>
             {{ cat.name }}

@@ -121,6 +121,9 @@ body {
   --color-bg-auth: #eef2f7;
   --color-income: #047857;
   --color-expense: #dc2626;
+  /* #60a5fa (the dark primary-400) is 2.3:1 on white; darken so primary
+     text links (sign up, view all) pass AA on the light theme. */
+  --color-primary-400: #1d4ed8;
 }
 
 button:not(:disabled),

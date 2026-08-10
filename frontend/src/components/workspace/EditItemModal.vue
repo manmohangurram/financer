@@ -37,11 +37,11 @@ const ruleForm = ref(
     ? {
         name: props.editingItem.name,
         priority: props.editingItem.priority || 0,
-        logic: props.editingItem.logic || 1,
-        conditions: props.editingItem.conditions?.length ? props.editingItem.conditions : [{ matchField: 1, operator: 1, pattern: '' }],
+        logic: props.editingItem.logic || 'OR',
+        conditions: props.editingItem.conditions?.length ? props.editingItem.conditions : [{ matchField: 'NAME', operator: 'CONTAINS', pattern: '' }],
         outputs: (props.editingItem.actions || []).map(fromRuleAction).filter(Boolean) as RuleOutput[]
       }
-    : { name: '', priority: 0, logic: 1, conditions: [{ matchField: 1, operator: 1, pattern: '' }], outputs: [emptyOutput()] }
+    : { name: '', priority: 0, logic: 'OR', conditions: [{ matchField: 'NAME', operator: 'CONTAINS', pattern: '' }], outputs: [emptyOutput()] }
 );
 
 const catForm = ref({ name: props.type === 'category' && props.editingItem ? props.editingItem.name : '' });

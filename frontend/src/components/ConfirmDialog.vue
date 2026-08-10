@@ -16,14 +16,14 @@ const emit = defineEmits<{ (e: 'confirm'): void; (e: 'cancel'): void }>();
         <button
           type="button"
           @click="emit('cancel')"
-          class="px-4 py-2 rounded-lg text-[13px] font-medium text-text-muted border border-border hover:border-primary-500/40 transition-colors"
+          class="btn btn-ghost btn-sm border border-track"
         >
           Cancel
         </button>
         <button
           type="button"
           @click="emit('confirm')"
-          class="px-4 py-2 rounded-lg text-[13px] font-medium bg-expense text-white hover:bg-expense/80 transition-colors"
+          class="btn btn-error btn-sm"
         >
           {{ confirmText }}
         </button>

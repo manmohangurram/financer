@@ -19,6 +19,7 @@ const accountList = ref<any[]>([]);
 const txnList = ref<any[]>([]);
 const categoryList = ref<any[]>([]);
 const loading = ref(true);
+const error = ref('');
 
 const filters = ref<TransactionFilters>(emptyFilters());
 const page = ref(0);
@@ -38,6 +39,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_
 
 async function loadPage() {
   loading.value = true;
+  error.value = '';
   try {
     const resp = await transactions().listTransactions({
       pageSize: PAGE_SIZE,
@@ -54,7 +56,11 @@ async function loadPage() {
     txnList.value = (resp.transactions || []);
     totalCount.value = resp.totalCount || txnList.value.length;
     pageToken.value = resp.nextPageToken || '';
-  } catch (e) { console.error(e); }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to load transactions';
+    txnList.value = [];
+    totalCount.value = 0;
+  }
   loading.value = false;
 }
 
@@ -124,6 +130,10 @@ async function confirmDeleteNow() {
 <template>
   <div class="space-y-5">
     <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
+    <div v-else-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense flex items-center justify-between gap-3">
+      <span>{{ error }}</span>
+      <button @click="loadPage" class="btn btn-outline btn-sm shrink-0">Retry</button>
+    </div>
     <div v-else-if="txnList.length === 0" class="flex items-center justify-center min-h-[40vh]">
       <div class="rounded-2xl border border-border bg-base-200 px-10 py-12 text-center max-w-md w-full">
         <div class="w-14 h-14 mx-auto rounded-2xl bg-primary-500/12 text-primary-400 flex items-center justify-center">
