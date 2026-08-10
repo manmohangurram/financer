@@ -7,7 +7,7 @@ use crate::error::{ApiError, Result};
 use crate::repo::account::AccountRepo;
 use crate::repo::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, TransactionRepo, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
 use crate::service::transfer_rule::TransferRuleService;
-use crate::timex::go_ts;
+use crate::timex::{go_ts, round2};
 
 #[derive(Clone)]
 pub struct TransactionService {
@@ -208,6 +208,4 @@ impl TransactionService {
     }
 }
 
-fn round2(v: f64) -> f64 {
-    (v * 100.0).round() / 100.0
-}
+

@@ -7,7 +7,7 @@ use crate::error::{ApiError, Result};
 use crate::repo::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRepo, InvestmentRow, InvestmentType, Lot, LotInput};
 use crate::service::fifo::{compute_fifo, FifoLot, Position};
 use crate::service::yahoo::{PricePoint, YahooClient};
-use crate::timex::go_ts;
+use crate::timex::{go_ts, round2};
 use chrono::Datelike;
 
 #[derive(Clone)]
@@ -372,9 +372,7 @@ fn aggregate_price_points(points: &[PricePoint], agg: &str) -> Vec<PricePoint> {
     buckets.into_iter().map(|(_, sum, n, last_t)| PricePoint { t: last_t, close: sum / n as f64 }).collect()
 }
 
-pub fn round2(v: f64) -> f64 {
-    (v * 100.0).round() / 100.0
-}
+
 
 /// Parse an `occurredAt` value: RFC3339, date, or `{seconds,nanos}` → Go format.
 pub fn occurred_at(v: &serde_json::Value) -> Result<String> {
