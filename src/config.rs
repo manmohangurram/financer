@@ -8,7 +8,6 @@ pub struct Config {
     pub data_dir: PathBuf,
     pub db_path: PathBuf,
     pub jwt_secret: String,
-    pub go_backend_url: String,
     #[allow(dead_code)]
     pub rust_routes: Vec<String>,
     pub static_dir: PathBuf,
@@ -28,14 +27,16 @@ impl Config {
             .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
             .unwrap_or_default();
 
+        // An empty host (":8080") fails getaddrinfo on musl; bind all interfaces.
+        let raw_addr = env("FINANCER_ADDR").unwrap_or_else(|| "0.0.0.0:8080".to_string());
+        let addr = if raw_addr.starts_with(':') { format!("0.0.0.0{raw_addr}") } else { raw_addr };
+
         Config {
-            addr: env("FINANCER_ADDR").unwrap_or_else(|| ":8080".to_string()),
+            addr,
             data_dir,
             db_path,
             jwt_secret: env("FINANCER_JWT_SECRET")
                 .unwrap_or_else(|| "dev-secret-change-in-production".to_string()),
-            go_backend_url: env("FINANCER_GO_BACKEND_URL")
-                .unwrap_or_else(|| "http://127.0.0.1:8081".to_string()),
             rust_routes,
             static_dir: env("FINANCER_STATIC_DIR")
                 .map_or_else(|| PathBuf::from("frontend/dist"), PathBuf::from),

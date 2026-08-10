@@ -2,12 +2,12 @@
 
 > **⚠️ Under active development — not ready for production.** The app (v0.0.1, alpha) is a work in progress: expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
 
-A self-hosted personal finance tracker with a Go backend and a Vue 3 single-page app. Track accounts, transactions, transfers, spending, rules (auto-categorization), and investments — all in one place, with a dark, dense dashboard UI.
+A self-hosted personal finance tracker with a Rust backend and a Vue 3 single-page app. Track accounts, transactions, transfers, spending, rules (auto-categorization), and investments — all in one place, with a dark, dense dashboard UI.
 
 ## Features
 
 - **Auth** — signup, login, JWT bearer tokens with refresh.
-- **Accounts & Categories** — full CRUD; account types (Checking, Savings, Credit Card, Loan, Crypto Wallet); balances kept in sync as transactions change.
+- **Accounts & Categories** — full CRUD; account types (Current, Savings, Credit Card, Loan); balances kept in sync as transactions change.
 - **Transactions** — create (single + bulk), edit, delete, CSV import, server-side filters (date range, amount, name, category) and pagination.
 - **Transfers** — link two transactions as a transfer, unlink, or create the missing counterpart; unified transfer modal with candidate matching (±5 days, ±10% amount) and fee-tolerant amounts.
 - **Rules** — conditions (name/amount/type/category/account with contains/starts-with/ends-with/equals/gt/lt/regex, AND/OR) that auto-categorize at read time (non-destructive). Outputs: rename, set category, or "transfer to account" with a run-now action.
@@ -17,7 +17,7 @@ A self-hosted personal finance tracker with a Go backend and a Vue 3 single-page
 
 ## Tech Stack
 
-**Backend** — Go, plain `net/http` (HTTP/1.1 + HTTP/2 over h2c, optional HTTP/3 QUIC), SQLite (WAL, separate write/read pools, `_txlock=immediate` single-writer), JWT (`golang-jwt`), embedded SQL migrations.
+**Backend** — Rust (axum on tokio, HTTP/1.1 + HTTP/2), SQLite (WAL, separate write/read pools, single-writer) via `sqlx`, JWT (`jsonwebtoken`), SQL migrations applied at boot.
 
 **Frontend** — Vue 3 + Vite + TypeScript, Tailwind CSS v4 + daisyUI v5 (dark `financer` theme), `@lucide/vue` icons, hand-rolled fetch API client.
 
@@ -27,8 +27,7 @@ All finance math (aggregation, filtering, transfer resolution, FIFO) lives in th
 
 ```bash
 # Backend (from repo root)
-go run main.go            # starts API on :8080, auto-runs DB migrations
-go run ./cmd/seed         # optional: seed a demo user (demo@financer.app / password123)
+cargo run                 # starts API on :8080, auto-runs DB migrations
 
 # Frontend
 cd frontend
@@ -83,13 +82,13 @@ REST JSON under `/api/...`. `POST /api/auth/{signup,login,refresh}` are public; 
 ## Tests
 
 ```bash
-go test ./...   # backend unit + repository integration tests
+cargo test      # backend unit + repository integration tests
 npm test        # frontend vitest
 ```
 
 ## Deployment (self-host on a Raspberry Pi)
 
-The GitHub Action (`.github/workflows/docker-publish.yml`) builds the image for `linux/arm64` (64-bit Raspberry Pi OS / Apple Silicon) and `linux/amd64` (x86 hosts) and pushes it to **GHCR** whenever a commit lands on `main`. The image is a single container — the Go binary serves both the API and the built frontend (no nginx). In production builds the frontend calls the API on the same origin, so it works from any device, not just localhost.
+The GitHub Action (`.github/workflows/docker-publish.yml`) builds the image for `linux/arm64` (64-bit Raspberry Pi OS / Apple Silicon) and `linux/amd64` (x86 hosts) and pushes it to **GHCR** whenever a commit lands on `main`. The image is a single container — the Rust binary serves both the API and the built frontend (no nginx). In production builds the frontend calls the API on the same origin, so it works from any device, not just localhost.
 
 **Public repo:** the GHCR package is public too, so pull with no login.
 

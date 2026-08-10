@@ -28,3 +28,4 @@ frontend/vite.config.js
 graphify-out/
 .superpowers/
 docs/superpowers/
+*.deb
