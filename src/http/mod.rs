@@ -2,6 +2,8 @@
 //! else under `/api/*` is proxied to the Go backend; everything else is served
 //! as the SPA.
 
+mod account;
+
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, Request, StatusCode, Uri};
@@ -11,7 +13,9 @@ use axum::{Json, Router};
 
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
+use crate::http::account::routes as account_routes;
 use crate::proxy;
+use crate::service::account::AccountService;
 use crate::service::auth::{AuthService, LoginRequest, RefreshTokenRequest, SignupRequest};
 use crate::service::user::UserService;
 
@@ -19,6 +23,7 @@ use crate::service::user::UserService;
 pub struct AppState {
     pub auth: AuthService,
     pub user: UserService,
+    pub account: AccountService,
     pub jwt: Jwt,
     pub go_backend_url: String,
     pub static_dir: String,
@@ -31,6 +36,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/login", post(login))
         .route("/api/auth/refresh", post(refresh))
         .route("/api/me/profile", get(me))
+        .merge(account_routes())
         .route("/api/{*rest}", axum::routing::any(proxy_route))
         .fallback(spa)
         .with_state(state)

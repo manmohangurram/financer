@@ -17,7 +17,9 @@ use tracing_subscriber::EnvFilter;
 
 use crate::auth::Jwt;
 use crate::config::Config;
+use crate::repo::account::AccountRepo;
 use crate::repo::UserRepo;
+use crate::service::account::AccountService;
 use crate::service::auth::AuthService;
 use crate::service::user::UserService;
 
@@ -36,12 +38,15 @@ async fn main() -> anyhow::Result<()> {
 
     let jwt = Jwt::new(cfg.jwt_secret.clone());
     let repo = UserRepo::new(db.write.clone());
+    let account_repo = AccountRepo::new(db.write.clone());
     let auth_svc = AuthService::new(repo.clone(), jwt.clone());
     let user_svc = UserService::new(repo);
+    let account_svc = AccountService::new(account_repo);
 
     let state = http::AppState {
         auth: auth_svc,
         user: user_svc,
+        account: account_svc,
         jwt,
         go_backend_url: cfg.go_backend_url.clone(),
         static_dir: cfg.static_dir.to_string_lossy().into_owned(),
