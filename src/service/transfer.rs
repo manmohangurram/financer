@@ -38,7 +38,7 @@ impl TransferService {
 
         match resolve_transfer(user_id, &src, to_account_id, &self.transaction_repo, &self.account_repo).await? {
             ResolveOutcome::Noop => Err(ApiError::bad_request("source transaction is already linked")),
-            ResolveOutcome::Linked(counterpart_id) => {
+            ResolveOutcome::Linked { counterpart_id, created: _ } => {
                 if src.transaction_type == TransactionType::Debit {
                     Ok(CreateTransferResp { debit_transaction_id: src.id, credit_transaction_id: counterpart_id })
                 } else {
@@ -112,14 +112,14 @@ impl TransferService {
     }
 }
 
-enum ResolveOutcome {
+pub enum ResolveOutcome {
     Noop,
-    Linked(String),
+    Linked { counterpart_id: String, created: bool },
 }
 
 /// Find or create the counterpart of `src` in `target_account_id` and link
 /// them. Same-account and already-linked transactions are no-ops.
-async fn resolve_transfer(
+pub async fn resolve_transfer(
     user_id: &str,
     src: &Transaction,
     target_account_id: &str,
@@ -144,7 +144,7 @@ async fn resolve_transfer(
         if let Some(e) = errs.first() {
             return Err(ApiError::internal(e.clone()));
         }
-        return Ok(ResolveOutcome::Linked(cand.id));
+        return Ok(ResolveOutcome::Linked { counterpart_id: cand.id, created: false });
     }
 
     // No unlinked counterpart found. The other side may have just been linked
@@ -186,7 +186,7 @@ async fn resolve_transfer(
     if let Some(e) = errs.first() {
         return Err(ApiError::internal(e.clone()));
     }
-    Ok(ResolveOutcome::Linked(counter_txn.id))
+    Ok(ResolveOutcome::Linked { counterpart_id: counter_txn.id, created: true })
 }
 
 async fn account_display(account_id: &str, account_repo: &AccountRepo) -> String {

@@ -19,9 +19,14 @@ use tracing_subscriber::EnvFilter;
 use crate::auth::Jwt;
 use crate::config::Config;
 use crate::repo::account::AccountRepo;
+use crate::repo::category::CategoryRepo;
+use crate::repo::rule::RuleRepo;
 use crate::repo::transaction::TransactionRepo;
 use crate::repo::UserRepo;
 use crate::service::account::AccountService;
+use crate::service::category::CategoryService;
+use crate::service::rule::RuleService;
+use crate::service::transfer_rule::TransferRuleService;
 use crate::service::auth::AuthService;
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
@@ -43,17 +48,28 @@ async fn main() -> anyhow::Result<()> {
     let jwt = Jwt::new(cfg.jwt_secret.clone());
     let repo = UserRepo::new(db.write.clone());
     let account_repo = AccountRepo::new(db.write.clone());
+    let category_repo = CategoryRepo::new(db.write.clone());
+    let rule_repo = RuleRepo::new(db.write.clone());
     let transaction_repo = TransactionRepo::new(db.write.clone());
+    let transaction_repo_clone = transaction_repo.clone();
+    let account_repo_clone = account_repo.clone();
     let auth_svc = AuthService::new(repo.clone(), jwt.clone());
     let user_svc = UserService::new(repo);
     let account_svc = AccountService::new(account_repo.clone());
-    let transaction_svc = TransactionService::new(transaction_repo.clone(), account_repo.clone());
+    let category_svc = CategoryService::new(category_repo.clone());
+    let rule_svc = RuleService::new(rule_repo.clone(), category_repo.clone(), transaction_repo.clone());
+    let transfer_rule_svc = TransferRuleService::new(rule_repo, transaction_repo_clone, account_repo_clone);
+    let transaction_svc = TransactionService::new(transaction_repo.clone(), account_repo.clone())
+        .with_transfer_rule(transfer_rule_svc.clone());
     let transfer_svc = TransferService::new(transaction_repo, account_repo);
 
     let state = http::AppState {
         auth: auth_svc,
         user: user_svc,
         account: account_svc,
+        category: category_svc,
+        rule: rule_svc,
+        transfer_rule: transfer_rule_svc,
         transaction: transaction_svc,
         transfer: transfer_svc,
         jwt,

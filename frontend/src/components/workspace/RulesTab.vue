@@ -6,8 +6,8 @@ import { rules } from '@/lib/api/client';
 const props = defineProps<{ rules: any[]; categories: any[]; accounts?: any[] }>();
 const emit = defineEmits<{ (e: 'edit', rule: any): void; (e: 'refresh'): void }>();
 
-const matchFields: Record<number, string> = { 1: 'Name', 2: 'Amount', 3: 'Type', 4: 'Category', 5: 'Account' };
-const operators: Record<number, string> = { 1: 'contains', 2: 'starts with', 3: 'ends with', 4: 'equals', 5: 'is >', 6: 'is <', 7: 'matches' };
+const matchFields: Record<string, string> = { NAME: 'Name', AMOUNT: 'Amount', TYPE: 'Type', CATEGORY: 'Category', ACCOUNT: 'Account' };
+const operators: Record<string, string> = { CONTAINS: 'contains', STARTS_WITH: 'starts with', ENDS_WITH: 'ends with', EQUALS: 'equals', GREATER_THAN: 'is >', LESS_THAN: 'is <', REGEX: 'matches' };
 const running = ref<string | null>(null);
 
 const sorted = computed(() => [...props.rules].sort((a, b) => (a.priority || 0) - (b.priority || 0)));
@@ -32,7 +32,7 @@ function actionLines(rule: any) {
   const lines: string[] = [];
   for (const a of rule.actions || []) {
     if (a.setName) {
-      const op = a.setNameOp === 2 ? 'Add prefix' : a.setNameOp === 3 ? 'Add suffix' : 'Rename';
+      const op = a.setNameOp === 'ADD_PREFIX' ? 'Add prefix' : a.setNameOp === 'ADD_SUFFIX' ? 'Add suffix' : 'Rename';
       lines.push(`${op} "${a.setName}"`);
     }
     if (a.setCategoryId) {
@@ -77,7 +77,7 @@ async function runNow(rule: any) {
         </span>
 
         <span class="flex-1 min-w-0">
-          <span class="badge badge-outline text-[9.5px] text-subtle">{{ rule.logic === 2 ? 'AND' : 'OR' }}</span>
+          <span class="badge badge-outline text-[9.5px] text-subtle">{{ rule.logic === 'AND' ? 'AND' : 'OR' }}</span>
         </span>
 
         <span class="flex-1 min-w-0 space-y-0.5">

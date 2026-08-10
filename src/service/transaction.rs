@@ -6,12 +6,14 @@ use std::collections::HashMap;
 use crate::error::{ApiError, Result};
 use crate::repo::account::AccountRepo;
 use crate::repo::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, TransactionRepo, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
+use crate::service::transfer_rule::TransferRuleService;
 use crate::timex::go_ts;
 
 #[derive(Clone)]
 pub struct TransactionService {
     transaction_repo: TransactionRepo,
     account_repo: AccountRepo,
+    transfer_rule: Option<TransferRuleService>,
 }
 
 /// A transaction ready for create/update, mirroring Go's `TransactionResponse`.
@@ -35,7 +37,12 @@ pub struct BulkResult {
 
 impl TransactionService {
     pub fn new(transaction_repo: TransactionRepo, account_repo: AccountRepo) -> Self {
-        Self { transaction_repo, account_repo }
+        Self { transaction_repo, account_repo, transfer_rule: None }
+    }
+
+    pub fn with_transfer_rule(mut self, transfer_rule: TransferRuleService) -> Self {
+        self.transfer_rule = Some(transfer_rule);
+        self
     }
 
     fn delta(transaction_type: TransactionType, amount: f64) -> f64 {
@@ -100,7 +107,10 @@ impl TransactionService {
             self.account_repo.apply_totals(&t.account_id, c, d).await?;
         }
 
-        let _ = inserted_txns; // transfer-rule application is Phase 4
+        if let Some(tr) = &self.transfer_rule {
+            let uid_owned = user_id.to_string();
+            let _ = tr.apply_to_transactions(&uid_owned, &inserted_txns).await;
+        }
 
         let failed_ids: Vec<String> = outcome.errors.clone();
         if !failed_ids.is_empty() {

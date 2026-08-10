@@ -64,21 +64,6 @@ struct WireTxn {
     category_ids: Option<Vec<String>>,
 }
 
-fn wire(r: &crate::repo::transaction::ListRow) -> WireTxn {
-    WireTxn {
-        id: r.txn.id.clone(),
-        name: r.txn.name.clone(),
-        amount: round2(r.txn.amount),
-        transaction_type: r.txn.transaction_type.to_string(),
-        occurred_at: ts_rfc3339(&r.txn.occurred_at),
-        account_id: r.txn.account_id.clone(),
-        created_at: ts_rfc3339(&r.txn.created_at),
-        linked_transfer_id: r.link_id.clone(),
-        // Go emits null for an empty category set; mirror that.
-        category_ids: if r.category_ids.is_empty() { None } else { Some(r.category_ids.clone()) },
-    }
-}
-
 fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
@@ -189,7 +174,37 @@ async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<Li
     };
     match st.transaction.list(&uid, f).await {
         Ok(res) => {
-            let items: Vec<WireTxn> = res.rows.iter().map(wire).collect();
+            // Build overlay views (rules may rename / re-categorize at read time).
+            let mut views: Vec<crate::service::rule::TransactionView> = res
+                .rows
+                .iter()
+                .map(|r| crate::service::rule::TransactionView {
+                    name: r.txn.name.clone(),
+                    amount: r.txn.amount,
+                    transaction_type: r.txn.transaction_type,
+                    account_id: r.txn.account_id.clone(),
+                    category_ids: r.category_ids.clone(),
+                })
+                .collect();
+            if let Err(e) = st.rule.overlay(&uid, &mut views).await {
+                return e.into_response();
+            }
+            let items: Vec<WireTxn> = views
+                .iter()
+                .zip(res.rows.iter())
+                .map(|(v, r)| WireTxn {
+                    id: r.txn.id.clone(),
+                    name: v.name.clone(),
+                    amount: round2(v.amount),
+                    transaction_type: v.transaction_type.to_string(),
+                    occurred_at: ts_rfc3339(&r.txn.occurred_at),
+                    account_id: v.account_id.clone(),
+                    created_at: ts_rfc3339(&r.txn.created_at),
+                    linked_transfer_id: r.link_id.clone(),
+                    // Go emits null for an empty category set; mirror that.
+                    category_ids: if v.category_ids.is_empty() { None } else { Some(v.category_ids.clone()) },
+                })
+                .collect();
             Json(serde_json::json!({
                 "transactions": items,
                 "nextPageToken": res.next_page_token,

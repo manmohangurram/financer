@@ -3,6 +3,8 @@
 //! as the SPA.
 
 mod account;
+mod category;
+mod rule;
 mod transaction;
 mod transfer;
 
@@ -16,10 +18,15 @@ use axum::{Json, Router};
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
 use crate::http::account::routes as account_routes;
+use crate::http::category::routes as category_routes;
+use crate::http::rule::routes as rule_routes;
 use crate::http::transaction::routes as transaction_routes;
 use crate::http::transfer::routes as transfer_routes;
 use crate::proxy;
 use crate::service::account::AccountService;
+use crate::service::category::CategoryService;
+use crate::service::rule::RuleService;
+use crate::service::transfer_rule::TransferRuleService;
 use crate::service::auth::{AuthService, LoginRequest, RefreshTokenRequest, SignupRequest};
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
@@ -30,6 +37,9 @@ pub struct AppState {
     pub auth: AuthService,
     pub user: UserService,
     pub account: AccountService,
+    pub category: CategoryService,
+    pub rule: RuleService,
+    pub transfer_rule: TransferRuleService,
     pub transaction: TransactionService,
     pub transfer: TransferService,
     pub jwt: Jwt,
@@ -45,6 +55,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/refresh", post(refresh))
         .route("/api/me/profile", get(me))
         .merge(account_routes())
+        .merge(category_routes())
+        .merge(rule_routes())
         .merge(transaction_routes())
         .merge(transfer_routes())
         .route("/api/{*rest}", axum::routing::any(proxy_route))
