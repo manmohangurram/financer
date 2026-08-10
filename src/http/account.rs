@@ -5,8 +5,9 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 
+use crate::error::json_error;
 use crate::http::{require_user, AppState};
-use crate::service::account::type_value;
+use crate::repo::account::AccountType;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -24,37 +25,49 @@ struct ReqAccount {
     #[serde(default)]
     bank_name: String,
     #[serde(default)]
-    account_nickname: String,
-    #[serde(default)]
-    account_type: serde_json::Value,
+    nickname: String,
+    /// Strict: missing/unknown value → serde rejection → 400.
+    #[serde(rename = "type")]
+    account_type: AccountType,
 }
 
-async fn create(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<ReqAccount>) -> Response {
+type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
+
+async fn create(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqAccount>,
+) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let t = match type_value(&req.account_type) {
-        Ok(t) => t,
-        Err(e) => return e.into_response(),
-    };
-    match st.account.create(&uid, &req.bank_name, &req.account_nickname, t).await {
+    match st.account.create(&uid, &req.bank_name, &req.nickname, req.account_type).await {
         Ok(a) => (StatusCode::CREATED, Json(a)).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
-async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(req): Json<ReqAccount>) -> Response {
+async fn update(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    req: JsonResult<ReqAccount>,
+) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let t = match type_value(&req.account_type) {
-        Ok(t) => t,
-        Err(e) => return e.into_response(),
-    };
     let _ = uid;
-    match st.account.update(&id, &req.bank_name, &req.account_nickname, t).await {
+    match st.account.update(&id, &req.bank_name, &req.nickname, req.account_type).await {
         Ok(a) => (StatusCode::CREATED, Json(a)).into_response(),
         Err(e) => e.into_response(),
     }

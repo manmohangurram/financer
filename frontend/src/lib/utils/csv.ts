@@ -40,7 +40,7 @@ export function guessMapping(header: string): CsvField {
 export interface ImportedTransaction {
   name: string;
   amount: number;
-  type: number;
+  type: 'CREDIT' | 'DEBIT';
   accountId: string;
   occurredAt: { seconds: number; nanos: number };
   categoryIds: string[];
@@ -63,10 +63,10 @@ export function csvFileKey(text: string): string {
   return fnv1a(text);
 }
 
-function parseTypeValue(v: string): number | null {
+function parseTypeValue(v: string): 'CREDIT' | 'DEBIT' | null {
   const s = v.toLowerCase();
-  if (/(credit|cr|deposit|received|income|refund|\+)/.test(s)) return 1;
-  if (/(debit|dr|withdraw|payment|expense|fee|-)/.test(s)) return 0;
+  if (/(credit|cr|deposit|received|income|refund|\+)/.test(s)) return 'CREDIT';
+  if (/(debit|dr|withdraw|payment|expense|fee|-)/.test(s)) return 'DEBIT';
   return null;
 }
 
@@ -78,20 +78,20 @@ function resolveAmountAndType(row: string[], idx: { type: number; debit: number;
   let amt = 0;
   if (debitV || creditV) {
     if (debitV && creditV) {
-      const isCredit = typeHint === null ? creditV >= debitV : typeHint === 1;
+      const isCredit = typeHint === null ? creditV >= debitV : typeHint === 'CREDIT';
       amt = isCredit ? creditV : debitV;
-      typeHint = isCredit ? 1 : 0;
+      typeHint = isCredit ? 'CREDIT' : 'DEBIT';
     } else if (creditV) {
       amt = creditV;
-      typeHint = 1;
+      typeHint = 'CREDIT';
     } else {
       amt = debitV;
-      typeHint = 0;
+      typeHint = 'DEBIT';
     }
   } else if (idx.amount >= 0) {
     amt = parseFloat(row[idx.amount]) || 0;
   }
-  if (typeHint === null) typeHint = amt < 0 ? 0 : 1;
+  if (typeHint === null) typeHint = amt < 0 ? 'DEBIT' : 'CREDIT';
   return { amount: Math.abs(amt), type: typeHint };
 }
 

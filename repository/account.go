@@ -38,7 +38,7 @@ func (r *AccountRepository) Create(ctx context.Context, userID, bankName string,
 	}
 
 	_, err := r.ExecContext(ctx,
-		`INSERT INTO accounts (id, user_id, bank_name, account_nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO accounts (id, user_id, bank_name, nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, userID, bankName, nickname, 0.0, int(accountType), now,
 	)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *AccountRepository) Create(ctx context.Context, userID, bankName string,
 
 func (r *AccountRepository) GetByID(ctx context.Context, id string) (*api.AccountResponse, error) {
 	return QueryOne(ctx, r.readDB,
-		`SELECT id, bank_name, account_nickname, balance, type, created_at FROM accounts WHERE id = ?`,
+		`SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE id = ?`,
 		scanAccount, id,
 	)
 }
@@ -66,7 +66,7 @@ func (r *AccountRepository) Update(ctx context.Context, id, bankName string, nic
 	result, err := r.ExecContext(ctx,
 		`UPDATE accounts SET
 			bank_name = COALESCE(NULLIF(?, ''), bank_name),
-			account_nickname = COALESCE(NULLIF(?, ''), account_nickname),
+			nickname = COALESCE(NULLIF(?, ''), nickname),
 			type = CASE WHEN ? != 0 THEN ? ELSE type END
 		 WHERE id = ?`,
 		bankName, nickname, int(accountType), int(accountType), id,
@@ -95,7 +95,7 @@ func (r *AccountRepository) Delete(ctx context.Context, id string) (bool, error)
 
 func (r *AccountRepository) List(ctx context.Context, userID string) ([]*api.AccountResponse, error) {
 	return QueryAll(ctx, r.readDB,
-		`SELECT id, bank_name, account_nickname, balance, type, created_at FROM accounts WHERE user_id = ? ORDER BY created_at DESC`,
+		`SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE user_id = ? ORDER BY created_at DESC`,
 		scanAccount, userID,
 	)
 }

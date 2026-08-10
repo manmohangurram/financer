@@ -16,10 +16,10 @@ const accountList = ref<any[]>([]);
 const showAccountModal = ref(false);
 
 const totalCash = computed(() =>
-  accountList.value.filter((a: any) => !isCredit(a.accountType)).reduce((s: number, a: any) => s + (a.balance ?? 0), 0)
+  accountList.value.filter((a: any) => !isCredit(a.type)).reduce((s: number, a: any) => s + (a.balance ?? 0), 0)
 );
 const creditOwed = computed(() =>
-  accountList.value.filter((a: any) => isCredit(a.accountType)).reduce((s: number, a: any) => s + Math.abs(a.balance ?? 0), 0)
+  accountList.value.filter((a: any) => isCredit(a.type)).reduce((s: number, a: any) => s + Math.abs(a.balance ?? 0), 0)
 );
 
 async function loadAll() {

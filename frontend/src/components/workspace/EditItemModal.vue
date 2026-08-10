@@ -29,7 +29,7 @@ const txnForm = ref(
         occurredAt: toLocalDateString(new Date(props.editingItem.occurredAt || Date.now())),
         categoryIds: props.editingItem.categoryIds || []
       }
-    : { name: '', amount: 0, type: 0, accountId: props.defaultAccountId, occurredAt: toLocalDateString(new Date()), categoryIds: [] as string[] }
+    : { name: '', amount: 0, type: 'DEBIT', accountId: props.defaultAccountId, occurredAt: toLocalDateString(new Date()), categoryIds: [] as string[] }
 );
 
 const ruleForm = ref(

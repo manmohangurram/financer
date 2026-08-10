@@ -6,16 +6,18 @@ use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
-use crate::error::ApiError;
+use crate::error::{json_error, ApiError};
 use crate::http::{require_user, AppState};
 use crate::repo::transaction::{TransactionListFilter, TransactionType};
-use crate::service::transaction::{TxnReq, TransactionService};
+use crate::service::transaction::{TransactionReq, TransactionService};
 use crate::timex::ts_rfc3339;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/transactions", axum::routing::get(list).post(create).put(update).delete(delete))
 }
+
+type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
 #[derive(Deserialize)]
 struct ReqTxn {
@@ -34,8 +36,9 @@ struct JsonListTxn {
     name: String,
     #[serde(default)]
     amount: f64,
-    #[serde(default)]
-    r#type: serde_json::Value,
+    /// Strict: missing/unknown value → serde rejection → 400.
+    #[serde(rename = "type")]
+    transaction_type: TransactionType,
     #[serde(default)]
     occurred_at: serde_json::Value,
     #[serde(default)]
@@ -52,7 +55,8 @@ struct WireTxn {
     id: String,
     name: String,
     amount: f64,
-    r#type: String,
+    #[serde(rename = "type")]
+    transaction_type: String,
     occurred_at: String,
     account_id: String,
     created_at: String,
@@ -65,7 +69,7 @@ fn wire(r: &crate::repo::transaction::ListRow) -> WireTxn {
         id: r.txn.id.clone(),
         name: r.txn.name.clone(),
         amount: round2(r.txn.amount),
-        r#type: if r.txn.r#type == TransactionType::Credit { "CREDIT" } else { "DEBIT" }.to_string(),
+        transaction_type: r.txn.transaction_type.to_string(),
         occurred_at: ts_rfc3339(&r.txn.occurred_at),
         account_id: r.txn.account_id.clone(),
         created_at: ts_rfc3339(&r.txn.created_at),
@@ -77,20 +81,6 @@ fn wire(r: &crate::repo::transaction::ListRow) -> WireTxn {
 
 fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
-}
-
-/// Parse `type`: enum name string (`"DEBIT"`/`"CREDIT"`) or numeric. Anything
-/// else is a 400 — no implicit default.
-fn type_value(v: &serde_json::Value) -> std::result::Result<TransactionType, ApiError> {
-    match v {
-        serde_json::Value::Number(n) => n
-            .as_i64()
-            .and_then(|n| TransactionType::try_from(n).ok())
-            .ok_or_else(|| ApiError::bad_request("invalid transaction type")),
-        serde_json::Value::String(s) => TransactionType::from_wire(s)
-            .ok_or_else(|| ApiError::bad_request(format!("unknown transaction type {s:?}"))),
-        _ => Err(ApiError::bad_request("invalid transaction type")),
-    }
 }
 
 /// Parse `occurredAt`: {seconds,nanos}, RFC3339, or date string → Go-driver format.
@@ -148,8 +138,8 @@ struct ListQuery {
     page_token: Option<String>,
     #[serde(default)]
     account_id: Option<String>,
-    #[serde(default)]
-    r#type: Option<String>,
+    #[serde(default, rename = "type")]
+    transaction_type: Option<String>,
     #[serde(default)]
     category_id: Option<String>,
     #[serde(default)]
@@ -175,17 +165,17 @@ async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<Li
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let r#type = match q.r#type.as_deref() {
+    let transaction_type = match q.transaction_type.as_deref() {
         None | Some("") => None,
-        Some(s) => match TransactionType::from_wire(s) {
-            Some(t) => Some(t),
-            None => return ApiError::bad_request(format!("unknown transaction type {s:?}")).into_response(),
+        Some(s) => match s.parse::<TransactionType>() {
+            Ok(t) => Some(t),
+            Err(_) => return ApiError::bad_request(format!("unknown transaction type {s:?}")).into_response(),
         },
     };
     let f = TransactionListFilter {
         account_id: q.account_id.unwrap_or_default(),
         category_ids: q.category_id.as_deref().map(|s| s.split(',').map(str::to_string).collect()).unwrap_or_default(),
-        r#type,
+        transaction_type,
         date_from: q.date_from.unwrap_or_default(),
         date_to: q.date_to.unwrap_or_default(),
         min_amount: q.min_amount.unwrap_or(0.0),
@@ -211,26 +201,30 @@ async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<Li
     }
 }
 
-async fn create(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<ReqTxn>) -> Response {
+async fn create(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqTxn>,
+) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let mut txns: Vec<TxnReq> = Vec::new();
+    let mut txns: Vec<TransactionReq> = Vec::new();
     for t in &req.transactions {
-        let ty = match type_value(&t.r#type) {
-            Ok(v) => v,
-            Err(e) => return e.into_response(),
-        };
         let occ = match txn_occurred_at(&t.occurred_at) {
             Ok(v) => v,
             Err(e) => return e.into_response(),
         };
-        txns.push(TxnReq {
+        txns.push(TransactionReq {
             id: if t.id.is_empty() { uuid::Uuid::new_v4().to_string() } else { t.id.clone() },
             name: t.name.clone(),
             amount: t.amount,
-            r#type: ty,
+            transaction_type: t.transaction_type,
             occurred_at: occ,
             account_id: t.account_id.clone(),
             category_ids: t.category_ids.clone(),
@@ -243,26 +237,30 @@ async fn create(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<
     }
 }
 
-async fn update(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<ReqTxn>) -> Response {
+async fn update(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqTxn>,
+) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     let _uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let mut txns: Vec<TxnReq> = Vec::new();
+    let mut txns: Vec<TransactionReq> = Vec::new();
     for t in &req.transactions {
-        let ty = match type_value(&t.r#type) {
-            Ok(v) => v,
-            Err(e) => return e.into_response(),
-        };
         let occ = match txn_occurred_at(&t.occurred_at) {
             Ok(v) => v,
             Err(e) => return e.into_response(),
         };
-        txns.push(TxnReq {
+        txns.push(TransactionReq {
             id: t.id.clone(),
             name: t.name.clone(),
             amount: t.amount,
-            r#type: ty,
+            transaction_type: t.transaction_type,
             occurred_at: occ,
             account_id: t.account_id.clone(),
             category_ids: t.category_ids.clone(),
@@ -275,7 +273,15 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<
     }
 }
 
-async fn delete(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<ReqTxn>) -> Response {
+async fn delete(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqTxn>,
+) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     let _uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),

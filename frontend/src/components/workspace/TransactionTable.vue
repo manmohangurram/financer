@@ -34,7 +34,7 @@ const colCount = computed(() => (props.readonly ? 4 : 6));
 const fillRows = computed(() => Array(Math.max(0, (props.minRows || 0) - props.transactions.length)));
 
 function isCredit(t: any) {
-  return t.type === 1 || t.type === 'CREDIT';
+  return t.type === 'CREDIT';
 }
 
 function txnCategory(txn: any) {
@@ -53,7 +53,7 @@ function counterpart(txn: any) {
   );
   if (!other) return null;
   const acc = (props.accounts || []).find((a) => a.id === other.accountId);
-  return { name: other.name, account: acc ? acc.accountNickname || acc.bankName : '' };
+  return { name: other.name, account: acc ? acc.nickname || acc.bankName : '' };
 }
 </script>
 
@@ -108,7 +108,7 @@ function counterpart(txn: any) {
                 <div class="flex items-center gap-1.5">
                   <span class="text-[14px] text-text font-medium truncate">{{ txn.name }}</span>
                   <button
-                    v-if="!readonly && txn.type === 0 && !txn.linkedTransferId"
+                    v-if="!readonly && txn.type === 'DEBIT' && !txn.linkedTransferId"
                     type="button"
                     class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 shrink-0 transition-opacity"
                     aria-label="Transfer this transaction"

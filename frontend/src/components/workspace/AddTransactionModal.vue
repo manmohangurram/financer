@@ -18,11 +18,14 @@ const mode = ref<Mode>('manual');
 
 const selectCls = 'select w-full bg-surface border-border text-text text-[13px]';
 
-const txnForm = ref({
-  name: '', amount: 0, type: 0,
+const txnForm = ref<{
+  name: string; amount: number; type: 'DEBIT' | 'CREDIT';
+  accountId: string; occurredAt: string; categoryIds: string[];
+}>({
+  name: '', amount: 0, type: 'DEBIT',
   accountId: props.defaultAccountId,
   occurredAt: toLocalDateString(new Date()),
-  categoryIds: [] as string[]
+  categoryIds: []
 });
 
 const step = ref(1);
@@ -196,7 +199,7 @@ async function runImport() {
       <div v-else>
         <template v-if="step === 1">
           <AppSelect v-model="accountId" label="Account">
-            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.accountNickname || a.bankName }}</option>
+            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
           </AppSelect>
           <div
             class="mt-4 border-2 border-dashed rounded-xl p-8 text-center transition-colors"

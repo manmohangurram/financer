@@ -12,7 +12,7 @@ const spend = computed(() => {
   const map = new Map<string, number>();
   const count = new Map<string, number>();
   for (const t of props.txns) {
-    if (t.type === 1) continue;
+    if (t.type === 'CREDIT') continue;
     for (const id of t.categoryIds || []) {
       map.set(id, (map.get(id) || 0) + (t.amount || 0));
       count.set(id, (count.get(id) || 0) + 1);

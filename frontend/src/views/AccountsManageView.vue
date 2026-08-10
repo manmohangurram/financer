@@ -67,14 +67,14 @@ onMounted(loadAll);
           >
             <div
               class="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-              :class="isCredit(acc.accountType) ? 'bg-expense/12 text-expense' : 'bg-income/12 text-income'"
-            >{{ accountTypeIcon(acc.accountType) }}</div>
+              :class="isCredit(acc.type) ? 'bg-expense/12 text-expense' : 'bg-income/12 text-income'"
+            >{{ accountTypeIcon(acc.type) }}</div>
             <div class="flex-1 min-w-0">
-              <div class="text-[14px] text-text font-medium truncate">{{ acc.accountNickname || acc.bankName }}</div>
+              <div class="text-[14px] text-text font-medium truncate">{{ acc.nickname || acc.bankName }}</div>
               <div class="text-[12px] text-subtle">{{ acc.bankName }}</div>
             </div>
-            <span class="text-[15px] font-semibold shrink-0" :class="isCredit(acc.accountType) ? 'text-expense' : 'text-base-content'">
-              {{ isCredit(acc.accountType) ? '-' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
+            <span class="text-[15px] font-semibold shrink-0" :class="isCredit(acc.type) ? 'text-expense' : 'text-base-content'">
+              {{ isCredit(acc.type) ? '-' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
             </span>
             <div class="flex gap-1 shrink-0">
               <button aria-label="Edit" @click="openEditAccount(acc)" class="p-2 rounded-lg text-subtle hover:text-primary-400 hover:bg-primary-500/10">
@@ -100,7 +100,7 @@ onMounted(loadAll);
     <ConfirmDialog
       v-if="confirmDelete"
       title="Delete account"
-      :message="`Delete &quot;${confirmDelete.accountNickname || confirmDelete.bankName}&quot;? This can't be undone.`"
+      :message="`Delete &quot;${confirmDelete.nickname || confirmDelete.bankName}&quot;? This can't be undone.`"
       @confirm="confirmDeleteNow"
       @cancel="confirmDelete = null"
     />

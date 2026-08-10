@@ -17,7 +17,7 @@ const search = ref('');
 const error = ref('');
 const submitting = ref('');
 
-const accName = (id: string) => props.accounts.find((a) => a.id === id)?.accountNickname || props.accounts.find((a) => a.id === id)?.bankName || '';
+const accName = (id: string) => props.accounts.find((a) => a.id === id)?.nickname || props.accounts.find((a) => a.id === id)?.bankName || '';
 const ms = (t: any) => (typeof t.occurredAt === 'number' ? t.occurredAt * 1000 : new Date(t.occurredAt || 0).getTime());
 const DAY = 86400000;
 
@@ -33,7 +33,7 @@ watch(
 
 const sourceOptions = computed(() =>
   (props.txns || [])
-    .filter((t) => t.accountId === fromId.value && t.type === 0 && !t.linkedTransferId)
+    .filter((t) => t.accountId === fromId.value && t.type === 'DEBIT' && !t.linkedTransferId)
     .filter((t) => t.name.toLowerCase().includes(search.value.toLowerCase()))
     .sort((a, b) => ms(b) - ms(a))
 );
@@ -45,7 +45,7 @@ const candidates = computed(() => {
   return (props.txns || [])
     .filter(
       (t) =>
-        t.accountId === toId.value && t.type === 1 && !t.linkedTransferId &&
+        t.accountId === toId.value && t.type === 'CREDIT' && !t.linkedTransferId &&
         Math.abs(ms(t) - ms(source.value)) <= 5 * DAY &&
         Math.abs(t.amount - source.value.amount) <= source.value.amount * 0.1
     )

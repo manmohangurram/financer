@@ -39,7 +39,7 @@ impl TransferService {
         match resolve_transfer(user_id, &src, to_account_id, &self.transaction_repo, &self.account_repo).await? {
             ResolveOutcome::Noop => Err(ApiError::bad_request("source transaction is already linked")),
             ResolveOutcome::Linked(counterpart_id) => {
-                if src.r#type == TransactionType::Debit {
+                if src.transaction_type == TransactionType::Debit {
                     Ok(CreateTransferResp { debit_transaction_id: src.id, credit_transaction_id: counterpart_id })
                 } else {
                     Ok(CreateTransferResp { debit_transaction_id: counterpart_id, credit_transaction_id: src.id })
@@ -129,13 +129,13 @@ async fn resolve_transfer(
     if src.account_id == target_account_id || src.transfer_linked {
         return Ok(ResolveOutcome::Noop);
     }
-    let opposite = if src.r#type == TransactionType::Credit { TransactionType::Debit } else { TransactionType::Credit };
+    let opposite = if src.transaction_type == TransactionType::Credit { TransactionType::Debit } else { TransactionType::Credit };
 
     if let Some(cand) = transaction_repo
         .find_transfer_counterpart(user_id, target_account_id, opposite, src.amount, &src.occurred_at)
         .await?
     {
-        let (debit_id, credit_id) = if src.r#type == TransactionType::Debit {
+        let (debit_id, credit_id) = if src.transaction_type == TransactionType::Debit {
             (src.id.clone(), cand.id.clone())
         } else {
             (cand.id.clone(), src.id.clone())
@@ -157,7 +157,7 @@ async fn resolve_transfer(
         id: Uuid::new_v4().to_string(),
         name: format!("Transfer from {}", account_display(&src.account_id, account_repo).await),
         amount: src.amount,
-        r#type: opposite,
+        transaction_type: opposite,
         account_id: target_account_id.to_string(),
         occurred_at: src.occurred_at.clone(),
         created_at: go_ts(chrono::Utc::now()),
@@ -177,7 +177,7 @@ async fn resolve_transfer(
     let (c, d) = if opposite == TransactionType::Credit { (src.amount, 0.0) } else { (0.0, src.amount) };
     account_repo.apply_totals(&counter_txn.account_id, c, d).await?;
 
-    let (debit_id, credit_id) = if src.r#type == TransactionType::Debit {
+    let (debit_id, credit_id) = if src.transaction_type == TransactionType::Debit {
         (src.id.clone(), counter_txn.id.clone())
     } else {
         (counter_txn.id.clone(), src.id.clone())
@@ -191,7 +191,7 @@ async fn resolve_transfer(
 
 async fn account_display(account_id: &str, account_repo: &AccountRepo) -> String {
     match account_repo.get_by_id(account_id).await {
-        Ok(Some(a)) if !a.account_nickname.is_empty() => a.account_nickname,
+        Ok(Some(a)) if !a.nickname.is_empty() => a.nickname,
         Ok(Some(a)) => a.bank_name,
         _ => account_id.to_string(),
     }

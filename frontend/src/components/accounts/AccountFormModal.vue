@@ -12,8 +12,8 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 
 const form = ref({
   bankName: props.account?.bankName || '',
-  accountNickname: props.account?.accountNickname || '',
-  accountType: props.account?.accountType || 'ACCOUNT_TYPE_CHECKING'
+  nickname: props.account?.nickname || '',
+  type: props.account?.type || 'CURRENT'
 });
 const saving = ref(false);
 const confirmDelete = ref(false);
@@ -44,8 +44,8 @@ async function remove() {
   <AppModal :title="account ? 'Edit Account' : 'New Account'" @close="emit('close')">
     <form @submit.prevent="submit" class="px-6 py-5 space-y-3">
       <AppInput v-model="form.bankName" label="Bank Name" placeholder="e.g. Chase" />
-      <AppInput v-model="form.accountNickname" label="Nickname" placeholder="e.g. Main Checking" />
-      <AppSelect v-model="form.accountType" label="Account Type">
+      <AppInput v-model="form.nickname" label="Nickname" placeholder="e.g. Main Checking" />
+      <AppSelect v-model="form.type" label="Account Type">
         <option v-for="opt in ACCOUNT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.name }}</option>
       </AppSelect>
       <div class="flex items-center justify-between pt-6">
@@ -58,7 +58,7 @@ async function remove() {
   <ConfirmDialog
     v-if="confirmDelete"
     title="Delete account"
-    :message="`Delete &quot;${form.accountNickname || form.bankName}&quot;? This can't be undone.`"
+    :message="`Delete &quot;${form.nickname || form.bankName}&quot;? This can't be undone.`"
     @confirm="remove"
     @cancel="confirmDelete = false"
   />

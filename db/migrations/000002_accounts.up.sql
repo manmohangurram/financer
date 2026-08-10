@@ -3,9 +3,9 @@ CREATE TABLE IF NOT EXISTS accounts (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   bank_name TEXT NOT NULL,
-  account_nickname TEXT,
+  nickname TEXT,
   balance REAL NOT NULL DEFAULT 0,
-  type INTEGER NOT NULL DEFAULT 1,
+  type TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

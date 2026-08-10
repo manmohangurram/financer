@@ -53,7 +53,7 @@ func (tdb *testDB) insertUser(t *testing.T, id, email string) {
 func (tdb *testDB) insertAccount(t *testing.T, userID, id string, accountType api.AccountType, balance float32) {
 	t.Helper()
 	if _, err := tdb.accRepo.writeDB.Exec(
-		"INSERT INTO accounts (id, user_id, bank_name, account_nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO accounts (id, user_id, bank_name, nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		id, userID, "Bank", id, balance, int(accountType), time.Now().UTC(),
 	); err != nil {
 		t.Fatalf("insert account: %v", err)

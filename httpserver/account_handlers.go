@@ -13,14 +13,14 @@ import (
 type reqAccount struct {
 	Id              string `json:"id"`
 	BankName        string `json:"bankName"`
-	AccountNickname string `json:"accountNickname"`
+	AccountNickname string `json:"nickname"`
 	AccountType     any    `json:"accountType"`
 }
 
 type wireAccount struct {
 	Id              string  `json:"id"`
 	BankName        string  `json:"bankName"`
-	AccountNickname string  `json:"accountNickname"`
+	AccountNickname string  `json:"nickname"`
 	AccountType     string  `json:"accountType"`
 	Balance         float64 `json:"balance"`
 	CreatedAt       string  `json:"createdAt"`

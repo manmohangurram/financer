@@ -75,7 +75,7 @@ wire, so these should be clean, stable **strings**.
 
 7. **Go** — no changes to type handling. Unowned Go routes (dashboard,
    spending, rules `run`, investments) degrade on these columns until rebuilt
-   in Rust. `migration.md` updated to note the contract change.
+   in Rust. No separate `migration.md` — the UI migrates alongside the backend.
 
 ## Out of scope
 
@@ -103,4 +103,4 @@ wire, so these should be clean, stable **strings**.
 - `src/error.rs` (JsonRejection handler)
 - `frontend/src/lib/utils/accountType.ts`,
   `frontend/src/components/workspace/TransactionForm.vue` (+ filters)
-- `migration.md`, `AGENTS.md` (if naming rules need updating)
+- `AGENTS.md` (if naming rules need updating)

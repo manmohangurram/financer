@@ -2,52 +2,28 @@
 //! `repository/transaction.go` and `repository/transfer.go`.
 
 use base64::{engine::general_purpose::URL_SAFE as B64URL, Engine as _};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{Row, SqlitePool};
 use std::fmt::Write as _;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::error::Result;
 use crate::timex::go_ts;
 
-/// Transaction type. Stored as its integer discriminant; the wire name is
-/// `"DEBIT"`/`"CREDIT"` via `#[serde(rename)]`. No sentinel — strict 400 at
-/// the boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[repr(i64)]
+/// Transaction type. Single source of truth: serde emits the uppercase wire
+/// value, sqlx stores the same string in the `type` TEXT column. No sentinel —
+/// strict 400 at the boundary.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, strum::Display, strum::EnumString,
+)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum TransactionType {
-    #[serde(rename = "DEBIT")]
-    Debit = 0,
-    #[serde(rename = "CREDIT")]
-    Credit = 1,
-}
-
-impl TryFrom<i64> for TransactionType {
-    type Error = ();
-    fn try_from(v: i64) -> std::result::Result<Self, Self::Error> {
-        match v {
-            0 => Ok(Self::Debit),
-            1 => Ok(Self::Credit),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TransactionType {
-    /// Look up a type by its wire name (`"CREDIT"`/`"DEBIT"`).
-    pub fn from_wire(s: &str) -> Option<Self> {
-        match s {
-            "DEBIT" => Some(Self::Debit),
-            "CREDIT" => Some(Self::Credit),
-            _ => None,
-        }
-    }
-
-    /// Integer stored in the `type` column.
-    pub fn db_value(self) -> i64 {
-        self as i64
-    }
+    Debit,
+    Credit,
 }
 
 #[derive(Clone)]
@@ -61,7 +37,9 @@ pub struct Transaction {
     pub id: String,
     pub name: String,
     pub amount: f64,
-    pub r#type: TransactionType,
+    // Field name is `transaction_type` per code-standard, wire/DB key is `type`.
+    #[allow(clippy::struct_field_names)]
+    pub transaction_type: TransactionType,
     pub occurred_at: String,
     pub account_id: String,
     pub created_at: String,
@@ -86,7 +64,7 @@ pub struct UpdateTransactionInput {
 pub struct TransactionListFilter {
     pub account_id: String,
     pub category_ids: Vec<String>,
-    pub r#type: Option<TransactionType>,
+    pub transaction_type: Option<TransactionType>,
     pub date_from: String,
     pub date_to: String,
     pub min_amount: f64,
@@ -150,7 +128,7 @@ impl TransactionRepo {
         &self,
         user_id: &str,
         account_id: &str,
-        r#type: TransactionType,
+        transaction_type: TransactionType,
         amount: f64,
         around: &str,
     ) -> Result<Option<Transaction>> {
@@ -168,7 +146,7 @@ impl TransactionRepo {
         )
         .bind(user_id)
         .bind(account_id)
-        .bind(r#type.db_value())
+        .bind(transaction_type)
         .bind(amount)
         .bind(around_str)
         .bind(around_str)
@@ -209,7 +187,7 @@ impl TransactionRepo {
             .bind(user_id)
             .bind(&t.name)
             .bind(t.amount)
-            .bind(t.r#type.db_value())
+            .bind(t.transaction_type)
             .bind(&t.occurred_at)
             .bind(&t.account_id)
             .bind(&t.created_at)
@@ -261,8 +239,8 @@ impl TransactionRepo {
             .bind(&t.name)
             .bind(t.amount)
             .bind(t.amount)
-            .bind(t.r#type.db_value())
-            .bind(t.r#type.db_value())
+            .bind(t.transaction_type)
+            .bind(t.transaction_type)
             .bind(&t.occurred_at)
             .bind(&t.account_id)
             .bind(&t.id)
@@ -374,12 +352,14 @@ impl TransactionRepo {
                 let _ = write!(query, " LIMIT {}", f.page_size + 1);
             }
         } else {
-            let primary = i32::from(f.sort_by == "credit");
+            // `type` column is TEXT; the sort picks a primary type ("debit" by
+            // default) whose amounts sort first in the chosen direction.
+            let primary = if f.sort_by == "credit" { "CREDIT" } else { "DEBIT" };
             let dir = if f.sort_dir == "asc" { "ASC" } else { "DESC" };
             let _ = write!(
                 query,
-                " ORDER BY CASE WHEN t.type = {primary} THEN 0 ELSE 1 END,
-                    CASE WHEN t.type = {primary} THEN t.amount ELSE -t.amount END {dir}, t.id ASC"
+                " ORDER BY CASE WHEN t.type = '{primary}' THEN 0 ELSE 1 END,
+                    CASE WHEN t.type = '{primary}' THEN t.amount ELSE -t.amount END {dir}, t.id ASC"
             );
             if f.page_size > 0 {
                 let _ = write!(query, " LIMIT {} OFFSET {}", f.page_size, f.offset);
@@ -439,9 +419,9 @@ fn build_txn_where(f: &TransactionListFilter) -> (String, Vec<String>) {
             args.push(id.clone());
         }
     }
-    if let Some(t) = f.r#type {
+    if let Some(t) = f.transaction_type {
         query.push_str(" AND t.type = ?");
-        args.push(t.db_value().to_string());
+        args.push(t.to_string());
     }
     if !f.date_from.is_empty() {
         query.push_str(" AND t.occurred_at >= ?");
@@ -488,7 +468,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for RawListTxn {
             id: row.try_get(0)?,
             name: row.try_get(1)?,
             amount: row.try_get(2)?,
-            r#type: row.try_get(3)?,
+            transaction_type: row.try_get(3)?,
             occurred_at: row.try_get(4)?,
             account_id: row.try_get(5)?,
             created_at: row.try_get(6)?,
@@ -508,7 +488,7 @@ struct RawTransaction {
     name: String,
     amount: f64,
     #[sqlx(rename = "type")]
-    r#type: i64,
+    transaction_type: String,
     occurred_at: String,
     account_id: String,
     created_at: String,
@@ -521,7 +501,7 @@ impl From<RawTransaction> for Transaction {
             id: r.id,
             name: r.name,
             amount: r.amount,
-            r#type: TransactionType::try_from(r.r#type).unwrap_or(TransactionType::Debit),
+            transaction_type: TransactionType::from_str(&r.transaction_type).unwrap_or(TransactionType::Debit),
             occurred_at: r.occurred_at,
             account_id: r.account_id,
             created_at: r.created_at,
@@ -632,6 +612,13 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn rejects_unknown_type() {
+        assert!(TransactionType::from_str("bogus").is_err());
+        assert_eq!(TransactionType::from_str("DEBIT"), Ok(TransactionType::Debit));
+        assert_eq!(TransactionType::from_str("CREDIT"), Ok(TransactionType::Credit));
+    }
+
     async fn test_pool() -> SqlitePool {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.db");
@@ -675,12 +662,12 @@ mod tests {
         }
     }
 
-    fn txn(id: &str, name: &str, amount: f64, r#type: TransactionType, account: &str, ext: Option<&str>) -> Transaction {
+    fn txn(id: &str, name: &str, amount: f64, transaction_type: TransactionType, account: &str, ext: Option<&str>) -> Transaction {
         Transaction {
             id: id.to_string(),
             name: name.to_string(),
             amount,
-            r#type,
+            transaction_type,
             occurred_at: "2024-01-02 03:04:05 +0000 UTC".to_string(),
             account_id: account.to_string(),
             created_at: "2024-01-02 03:04:06 +0000 UTC".to_string(),
@@ -747,7 +734,7 @@ mod tests {
 
         // filter by type (credit)
         let res3 = repo
-            .list("u1", &TransactionListFilter { r#type: Some(TransactionType::Credit), ..Default::default() })
+            .list("u1", &TransactionListFilter { transaction_type: Some(TransactionType::Credit), ..Default::default() })
             .await
             .unwrap();
         assert_eq!(res3.rows.len(), 2);
@@ -780,13 +767,13 @@ mod tests {
         let errs = repo.update(&[UpdateTransactionInput { txn: updated, category_ids: vec!["c2".to_string()] }]).await.unwrap();
         assert!(errs.is_empty());
 
-        let row: (String, f64, i64, String) = sqlx::query_as("SELECT name, amount, type, occurred_at FROM transactions WHERE id = 't1'")
+        let row: (String, f64, String, String) = sqlx::query_as("SELECT name, amount, type, occurred_at FROM transactions WHERE id = 't1'")
             .fetch_one(&pool)
             .await
             .unwrap();
         assert_eq!(row.0, "New Name");
         assert_eq!(row.1, 9.0);
-        assert_eq!(row.2, 1);
+        assert_eq!(row.2, "CREDIT");
         assert!(row.3.starts_with("2024-02-02"));
 
         let cats: Vec<String> =

@@ -23,7 +23,7 @@ async function loadAll() {
       transactions().listTransactions({ pageSize: 10000 })
     ]);
     categoryList.value = catResp.categories || [];
-    txnList.value = (txnResp.transactions || []).map((t: any) => ({ ...t, type: t.type === 'CREDIT' ? 1 : 0 }));
+    txnList.value = (txnResp.transactions || []);
   } catch (e) { console.error(e); }
   loading.value = false;
 }

@@ -13,12 +13,12 @@ const emit = defineEmits<{ (e: 'edit', account: any): void }>();
       <div class="flex items-center gap-4">
         <div
           class="rounded-xl flex items-center justify-center shrink-0"
-          :class="[isCredit(account.accountType) ? 'bg-expense/12' : 'bg-income/12', compact ? 'w-9 h-9 text-lg' : 'w-12 h-12 text-2xl']"
+          :class="[isCredit(account.type) ? 'bg-expense/12' : 'bg-income/12', compact ? 'w-9 h-9 text-lg' : 'w-12 h-12 text-2xl']"
         >
-          {{ accountTypeIcon(account.accountType) }}
+          {{ accountTypeIcon(account.type) }}
         </div>
         <div class="flex-1 min-w-0">
-          <div class="font-semibold text-text truncate" :class="compact ? 'text-[13.5px]' : 'text-[15px]'">{{ account.accountNickname || account.bankName }}</div>
+          <div class="font-semibold text-text truncate" :class="compact ? 'text-[13.5px]' : 'text-[15px]'">{{ account.nickname || account.bankName }}</div>
           <div class="text-subtle truncate" :class="compact ? 'text-[11.5px]' : 'text-[13px]'">{{ account.bankName }}</div>
         </div>
         <button
@@ -32,8 +32,8 @@ const emit = defineEmits<{ (e: 'edit', account: any): void }>();
       </div>
       <div :class="compact ? 'mt-2.5' : 'mt-4'">
         <div class="text-subtle mb-0.5" :class="compact ? 'text-[11px]' : 'text-[12px]'">Balance</div>
-        <div class="font-bold tracking-tight" :class="[isCredit(account.accountType) ? 'text-expense' : 'text-base-content', compact ? 'text-[17px]' : 'text-[24px]']">
-          {{ isCredit(account.accountType) ? '-' : '' }}{{ formatCurrency(Math.abs(account.balance ?? 0)) }}
+        <div class="font-bold tracking-tight" :class="[isCredit(account.type) ? 'text-expense' : 'text-base-content', compact ? 'text-[17px]' : 'text-[24px]']">
+          {{ isCredit(account.type) ? '-' : '' }}{{ formatCurrency(Math.abs(account.balance ?? 0)) }}
         </div>
       </div>
     </div>

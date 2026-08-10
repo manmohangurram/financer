@@ -102,7 +102,7 @@ async function runPreview() {
         </AppSelect>
         <AppSelect v-else v-model="out.transferAccountId">
           <option value="">Pick an account</option>
-          <option v-for="a in props.accounts || []" :key="a.id" :value="a.id">{{ a.accountNickname || a.bankName }}</option>
+          <option v-for="a in props.accounts || []" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
         </AppSelect>
         <button type="button" aria-label="Remove output" @click="removeOutput(i)" class="p-2 rounded-lg text-subtle hover:text-expense hover:bg-expense/10">
           <X class="w-4 h-4" />
