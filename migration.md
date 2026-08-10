@@ -27,22 +27,22 @@ for a migration phase unless this file says the contract changed.
 - JSON keys are **camelCase** unless noted (`accountType`, `occurredAt`,
   `linkedTransferId`, `categoryIds`, `nextPageToken`, `totalCount`).
 
-### Strict enum validation (behavioral note)
+### Strict enum validation — lowercase string enums
 
-`accountType` and transaction `type` are **strict**: a missing, unknown, or
-out-of-range value is a `400 invalid_argument`. There is **no** "unspecified"
-sentinel and no implicit default.
+`accountType` and transaction `type` are **strict lowercase string enums** on
+the wire and in the DB. A missing, unknown, or out-of-range value is a
+`400 invalid_argument`. There is no "unspecified" sentinel and no implicit
+default, and no positional ints (`0`/`1`) are ever sent or stored — values are
+stable strings so enum reordering can't corrupt stored data.
 
-- `accountType` accepts the wire names `ACCOUNT_TYPE_CHECKING` /
-  `ACCOUNT_TYPE_SAVINGS` / `ACCOUNT_TYPE_CREDIT_CARD` / `ACCOUNT_TYPE_LOAN`,
-  or the matching number (1–4). Anything else → 400.
-- Transaction `type` accepts `"DEBIT"` / `"CREDIT"` or `0` / `1`. Anything else
-  → 400.
+- `accountType` accepts `checking` / `savings` / `credit_card` / `loan`
+  (or their numeric DB-era equivalents during transition). Anything else → 400.
+- Transaction `type` accepts `"debit"` / `"credit"`. Anything else → 400.
 
 ### Enum responses
 
-Responses still use the full wire enum names (`"ACCOUNT_TYPE_CHECKING"`,
-`"CREDIT"`, `"DEBIT"`). The frontend's existing enum maps are unchanged.
+Responses use the same lowercase strings (`"checking"`, `"credit"`, `"debit"`).
+The frontend's enum maps are keyed by these lowercase values.
 
 ## Endpoints owned by Rust
 
