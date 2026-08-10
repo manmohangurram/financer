@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
     let transaction_repo_clone = transaction_repo.clone();
     let account_repo_clone = account_repo.clone();
     let auth_svc = AuthService::new(repo.clone(), jwt.clone());
-    let user_svc = UserService::new(repo);
+    let user_svc = UserService::new(repo, jwt.clone(), cfg.data_dir.join("avatars"));
     let account_svc = AccountService::new(account_repo.clone());
     let category_svc = CategoryService::new(category_repo.clone());
     let rule_svc = RuleService::new(rule_repo.clone(), category_repo.clone(), transaction_repo.clone());
@@ -75,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
         jwt,
         go_backend_url: cfg.go_backend_url.clone(),
         static_dir: cfg.static_dir.to_string_lossy().into_owned(),
+        avatar_dir: cfg.data_dir.join("avatars").to_string_lossy().into_owned(),
         domain_url: cfg.domain_url.clone(),
     };
 

@@ -5,6 +5,7 @@
 mod account;
 mod category;
 mod rule;
+mod settings;
 mod transaction;
 mod transfer;
 
@@ -12,7 +13,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, Request, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::{Json, Router};
 
 use crate::auth::Jwt;
@@ -20,6 +21,7 @@ use crate::error::{ApiError, Result};
 use crate::http::account::routes as account_routes;
 use crate::http::category::routes as category_routes;
 use crate::http::rule::routes as rule_routes;
+use crate::http::settings::routes as settings_routes;
 use crate::http::transaction::routes as transaction_routes;
 use crate::http::transfer::routes as transfer_routes;
 use crate::proxy;
@@ -45,23 +47,46 @@ pub struct AppState {
     pub jwt: Jwt,
     pub go_backend_url: String,
     pub static_dir: String,
+    pub avatar_dir: String,
     pub domain_url: String,
 }
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/api/auth/signup", post(signup))
-        .route("/api/auth/login", post(login))
-        .route("/api/auth/refresh", post(refresh))
-        .route("/api/me/profile", get(me))
+        .route("/api/auth/signup", axum::routing::post(signup))
+        .route("/api/auth/login", axum::routing::post(login))
+        .route("/api/auth/refresh", axum::routing::post(refresh))
         .merge(account_routes())
         .merge(category_routes())
         .merge(rule_routes())
         .merge(transaction_routes())
         .merge(transfer_routes())
+        .merge(settings_routes())
+        .route("/avatars/{name}", get(avatar_file))
         .route("/api/{*rest}", axum::routing::any(proxy_route))
         .fallback(spa)
         .with_state(state)
+}
+
+/// Serve an uploaded avatar from the avatar dir.
+async fn avatar_file(State(s): State<AppState>, uri: Uri) -> Response {
+    let name = uri.path().rsplit('/').next().unwrap_or("");
+    if name.is_empty() || name.contains("..") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let candidate = std::path::Path::new(&s.avatar_dir).join(name);
+    match std::fs::read(&candidate) {
+        Ok(content) => {
+            let mime = match name.rsplit('.').next().unwrap_or("") {
+                "png" => "image/png",
+                "jpg" | "jpeg" => "image/jpeg",
+                "webp" => "image/webp",
+                _ => "application/octet-stream",
+            };
+            (StatusCode::OK, [(header::CONTENT_TYPE, mime)], axum::body::Body::from(content)).into_response()
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn proxy_route(
@@ -150,17 +175,6 @@ async fn login(State(st): State<AppState>, Json(req): Json<LoginRequest>) -> Res
 
 async fn refresh(State(st): State<AppState>, Json(req): Json<RefreshTokenRequest>) -> Response {
     match st.auth.refresh_token(req).await {
-        Ok(r) => Json(r).into_response(),
-        Err(e) => e.into_response(),
-    }
-}
-
-async fn me(State(st): State<AppState>, headers: HeaderMap) -> Response {
-    let uid = match require_user(&headers, &st.jwt) {
-        Ok(u) => u,
-        Err(e) => return e.into_response(),
-    };
-    match st.user.profile(&uid).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }

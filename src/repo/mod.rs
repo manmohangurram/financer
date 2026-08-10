@@ -60,6 +60,47 @@ impl UserRepo {
         .await?;
         Ok(row.map(Into::into))
     }
+
+    /// Update `name`/`email`/`avatar_url` (`COALESCE NULLIF` — empty means unchanged).
+    pub async fn update_profile(&self, id: &str, name: &str, email: &str, avatar_url: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE users SET
+                name = COALESCE(NULLIF(?, ''), name),
+                email = COALESCE(NULLIF(?, ''), email),
+                avatar_url = COALESCE(NULLIF(?, ''), avatar_url)
+             WHERE id = ?",
+        )
+        .bind(name)
+        .bind(email)
+        .bind(avatar_url)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Update the password hash and bump `token_version` (revokes other sessions).
+    pub async fn change_password(&self, id: &str, password_hash: &str) -> Result<i64> {
+        sqlx::query("UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?")
+            .bind(password_hash)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        let ver: i64 = sqlx::query_scalar("SELECT token_version FROM users WHERE id = ?")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(ver)
+    }
+
+    /// Bump `token_version` to revoke every refresh token.
+    pub async fn logout_all(&self, id: &str) -> Result<()> {
+        sqlx::query("UPDATE users SET token_version = token_version + 1 WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 // sqlx sqlite maps NULLable columns to Option<String>; name/password_hash/avatar_url
