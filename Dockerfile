@@ -1,11 +1,10 @@
 # syntax=docker/dockerfile:1.4
 # Single container: the Rust server serves both the API and the built Vue app
-# (no nginx). No CGO (sqlx's bundled SQLite + rustls TLS are pure Rust), so
-# build stages run on BUILDPLATFORM (native speed, no QEMU) and cross-compile
-# to TARGETARCH via rustup target. cargo-chef caches the dependency build:
-# only the app crate recompiles when source changes. The prebuilt
-# lukemathwalker/cargo-chef image (Rust + cargo-chef) avoids the per-build
-# `cargo install`.
+# (no nginx). Build stages run on BUILDPLATFORM (native speed, no QEMU) and
+# cross-compile to TARGETARCH via rustup target + a cross-gcc from apt.
+# cargo-chef caches the dependency build: only the app crate recompiles when
+# source changes. Runtime is Debian (glibc), matching the cross-gcc toolchain.
+
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
@@ -15,7 +14,10 @@ COPY frontend/ ./
 # the FINANCER_DOMAIN_URL env (read by the Rust server, not baked at build).
 RUN VITE_API_URL= npm run build
 
-FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-1.88-alpine3.21 AS chef
+# We only pay the cargo-chef install cost once (cached from the second build).
+# Pinned to the same Rust as local dev (rustc 1.97.1).
+FROM --platform=$BUILDPLATFORM rust:1.97.1 AS chef
+RUN cargo install --locked cargo-chef
 WORKDIR /app
 
 # Planner: snapshot manifests + full source → recipe (cache key = Cargo.toml/lock).
@@ -26,35 +28,35 @@ RUN cargo chef prepare --recipe-path recipe.json
 # Builder: build dependencies once (cached layer), then the app crate.
 FROM --platform=$BUILDPLATFORM chef AS builder
 ARG TARGETARCH
-# rust:*-alpine targets musl natively, so amd64 needs no --target. Only
-# cross-compiles (e.g. arm64) add the target triple (Docker arch → rustc)
-# and a musl cross-C toolchain: sqlx's bundled libsqlite3-sys compiles the
-# SQLite amalgamation with `cc`, so a cross `aarch64-linux-musl-gcc` is
-# required for the final binary (Alpine ships no musl cross-gcc; musl.cc does).
-RUN case ${TARGETARCH} in arm64) rustup target add aarch64-unknown-linux-musl && \
-        wget -qO /tmp/cross.tgz https://musl.cc/aarch64-linux-musl-cross.tgz && \
-        tar xzf /tmp/cross.tgz -C /opt && \
-        ln -s /opt/aarch64-linux-musl-cross/bin/* /usr/local/bin/;; esac
+# amd64 builds natively (glibc). Cross-compiles (e.g. arm64) add the target
+# triple and a cross-gcc: sqlx's bundled libsqlite3-sys compiles the SQLite
+# amalgamation with `cc`, so a real C cross-compiler/linker is required.
+RUN case ${TARGETARCH} in \
+        arm64) rustup target add aarch64-unknown-linux-gnu && \
+               apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross && \
+               rm -rf /var/lib/apt/lists/*;; \
+    esac
 COPY --from=planner /app/recipe.json recipe.json
 RUN case ${TARGETARCH} in \
-        arm64) CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc \
-               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc \
-               cargo chef cook --release --target aarch64-unknown-linux-musl --recipe-path recipe.json;; \
+        arm64) CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+               cargo chef cook --release --target aarch64-unknown-linux-gnu --recipe-path recipe.json;; \
         *)     cargo chef cook --release --recipe-path recipe.json;; \
     esac
 COPY . .
 RUN mkdir -p /out && \
     case ${TARGETARCH} in \
-        arm64) CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc \
-               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc \
-               cargo build --release --locked -p financer --target aarch64-unknown-linux-musl && \
-               cp target/aarch64-unknown-linux-musl/release/financer /out/financer;; \
+        arm64) CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+               cargo build --release --locked -p financer --target aarch64-unknown-linux-gnu && \
+               cp target/aarch64-unknown-linux-gnu/release/financer /out/financer;; \
         *)     cargo build --release --locked -p financer && \
                cp target/release/financer /out/financer;; \
     esac
 
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates tzdata
+FROM debian:trixie-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata && \
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY --from=builder /out/financer ./financer
