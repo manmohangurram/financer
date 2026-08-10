@@ -1,119 +1,92 @@
-# Roadmap — Financer (Personal Finance Tracker)
+# Roadmap — Financer (Go → Rust Backend Migration)
 
-How this project is built from the ground up, in development order, with how each piece lands and merges. **All backend/DB work ships first (Phases 1–6); the frontend shell ships together in Phase 7** (shell + UI for everything built in Phases 1–6), and later phases add their own UI. If a missing feature is discovered during development, it is documented here (added to the relevant phase or a new phase) before or alongside the work.
+How the Go backend is replaced by a Rust backend, following the **strangler pattern**: the Rust server becomes the entry point early and takes over routes feature by feature, until the Go backend is idle and removed. **The Vue frontend is untouched** — it only talks JSON over HTTP, so the migration is backend-only, keeping the **exact wire contract** (`/api/...` request/response shapes, error envelope `{code, message}`, status codes). The frontend must keep working at every merge.
+
+**Data migration is free:** both backends use the **same SQLite file and schema** (WAL). The Rust side reuses the existing `migrations/*.sql` and the same `data/` layout, so there is no data copy — the file is the contract. Any future schema change follows expand/contract (additive first, drop/rename in their own deploy), never in place.
+
+## Migration strategy
+
+1. **Build the replacement behind a gateway.** From Phase 1 the Rust server serves the static frontend and owns the routes it has implemented; everything else under `/api/*` is **proxied to the Go backend** running alongside. Both processes share the SQLite file (WAL, `busy_timeout`; low-traffic personal scale).
+2. **Feature-flag route ownership.** Each phase flips its endpoint group to Rust-owned (a hardcoded owned-route set, overridable via `FINANCER_RUST_ROUTES` for canary). Go still serves the routes Rust doesn't own yet.
+3. **Parity is the gate.** Every migrated route is verified **wire-identical** to the Go reference: recorded fixtures from the current Go backend diffed byte-for-byte (JSON + status), re-run in CI. No frontend change unless the contract forces it (it shouldn't — we own the consumer, so the Churn Rule means *we* absorb migration cost, not the frontend).
+4. **Remove Go last.** Only when Rust owns 100% of routes and the Go process has been idle for the parity suite is Go removed (code, tests, docs, container).
 
 ## Conventions (apply to every phase)
 
-- **Commit style:** [Conventional Commits](https://www.conventionalcommits.org) — `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `perf:`. One logical change per commit; imperative subject line.
-- **Branching:** every phase ships on a feature branch (`feat/<phase>`) merged to `main` via a pull request after tests pass. No direct commits to `main`.
-- **Merge gate:** `go build ./...`, `go vet ./...`, `go test ./...`, `npm run build`, `npm test` all green, plus a manual browser smoke test.
-- **Review before merge:** before opening a PR, run `ponytail-review`, `code-simplification`, `code-review-and-quality`, `performance-optimization`, and `finishing-a-development-branch`; fold any fixes into the branch.
-- **PR template:** every pull request uses `.github/PULL_REQUEST_TEMPLATE.md`.
-- **Schema per phase:** each phase that touches the database ships its own migration (`NNNNNN_description.up.sql` / `.down.sql`), applied in filename order. The schema builds incrementally in the same order as the features below.
-- **Per-feature files:** each feature owns its handler, service, and repository files (e.g. `httpserver/account_handlers.go`, `services/account.go`, `repository/account.go`) rather than one shared `handlers.go` — this keeps features separable so a phase ships only its own files.
+- **Commit style:** [Conventional Commits](https://www.conventionalcommits.org) — `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `perf:`, `chore:`. One logical change per commit.
+- **Branching:** every phase ships on a feature branch (`feat/rust-<phase>`) merged to `main` via PR after tests pass.
+- **Merge gate:** `cargo build`, `cargo clippy -- -D warnings`, `cargo test`, `go test ./...` (still green until Go is removed), `npm run build`/`npm test` (frontend unchanged), plus a browser smoke test.
+- **Review before merge:** `ponytail-review`, `code-simplification`, `code-review-and-quality`, `performance-optimization`, `finishing-a-development-branch`; fold fixes into the branch.
+- **PR template:** `.github/PULL_REQUEST_TEMPLATE.md`.
+- **Per-feature files:** each feature owns its handler, service, and repository files (`src/http/<feature>.rs`, `src/service/<feature>.rs`, `src/repo/<feature>.rs`).
+
+## Target stack
+
+| Concern | Choice | Notes |
+|---|---|---|
+| HTTP | `axum` on `tokio` | HTTP/1.1 + HTTP/2 (h2c); optional HTTP/3 behind TLS |
+| Router / extractors | axum (`Router`, `Path`, `Query`, `Json`, `State`) | mirrors Go `http.ServeMux` + `PathValue` |
+| Reverse proxy (strangler) | `axum`/`hyper` forward to the Go backend | routes Rust doesn't own yet |
+| DB | `sqlx` (async, `SQLite`) | same file as Go; WAL, write pool (1 conn) + read pool, `busy_timeout` |
+| Migrations | `sqlx::migrate!` reusing the existing `migrations/*.sql` | same filename-ordered, tracked schema as Go |
+| JWT | `jsonwebtoken` | HS256, same claims + bearer middleware |
+| HTTP client (Yahoo) | `reqwest` | base retry + `.NS` fallback, JSON config |
+| Logging | `tracing` + `tracing-subscriber` | replaces `logx` |
+| Config | env vars, same names | `FINANCER_*` unchanged |
+| Static frontend | `axum` serving `frontend/dist` (embedded via `rust-embed`) | SPA fallback + `FINANCER_DOMAIN_URL` injection |
+| Testing | `#[tokio::test]` + in-process SQLite | unit + integration mirrors of Go's `repository`/`services` tests |
 
 ---
 
-## Phase 1 — Foundation
-`feat/foundation` → `main`
-- Go module + `net/http` server skeleton on `FINANCER_ADDR`, graceful shutdown.
-- SQLite integration: WAL mode, separate write pool (1 conn, `_txlock=immediate`) and read pool, `FINANCER_DB_PATH`, `FINANCER_JWT_SECRET` env config.
-- Embedded migrations (`db/migrations/*.sql`) auto-applied at boot, tracked in `schema_migrations`.
-- JWT auth: signup/login/refresh, `GET /api/me`, bearer-token middleware injecting `user_id` into request context.
-- **Done when:** server boots, migrations run, auth round-trip works, all future endpoints are user-scoped.
+## Phase 1 — Foundation + strangler gateway
+`feat/rust-foundation` → `main`
+- Cargo workspace + `axum`/`tokio` server on `FINANCER_ADDR`, graceful shutdown, `tracing`.
+- SQLite via `sqlx`: same file as Go, WAL, write/read pools, `FINANCER_DATA_DIR` path resolution, embedded `migrations/*.sql` auto-applied.
+- **Strangler gateway:** Rust serves the built `frontend/dist` (SPA fallback, `FINANCER_DOMAIN_URL` injection) and proxies every `/api/*` route it doesn't own to the Go backend (which still runs). Owned-route set + `FINANCER_RUST_ROUTES` env override.
+- JWT auth: `POST /api/auth/{signup,login,refresh}`, `GET /api/me`, bearer middleware — served from Rust from the start.
+- **Done when:** both processes run in the container, auth round-trips are **byte-identical** to Go (fixture diff), and all unowned routes still work through the proxy.
 
 ## Phase 2 — Accounts
-`feat/accounts` → `main`
-- Migration `000002_accounts`: `accounts`.
-- Accounts CRUD with account types (Checking, Savings, Credit Card, Loan, Crypto Wallet) and stored balance.
-- **Done when:** create/edit/delete/list accounts end-to-end; balances stored and scoped per user. Backend only — UI lands in Phase 5.
+`feat/rust-accounts` → `main`
+- Accounts CRUD (types: Checking, Savings, Credit Card, Loan, Crypto Wallet) with stored balance, user-scoped. Owned routes flip off the proxy.
+- **Done when:** create/edit/delete/list accounts match Go's responses exactly (fixture diff passes).
 
 ## Phase 3 — Transactions & Transfers
-`feat/transactions-transfers` → `main`
-- Migration `000003_transactions_transfers`: `transactions`, `transfer_links`.
-- Transactions CRUD: create (single + bulk), list with server-side filters (date range, amount, name, category) and pagination, update, delete; account balance recalc.
-- Transfers: link (debit ↔ credit), unlink, create missing counterpart (candidate matching ±5 days / ±10% amount, fee-tolerant).
-- **Done when:** transaction lifecycle works, balances stay correct, transfers link/unlink/create-counterpart work. Backend only — UI lands in Phase 5.
+`feat/rust-transactions` → `main`
+- Transactions CRUD: create (single + bulk), list with server-side filters (`names` OR-match, date range, amount, category, type) and pagination, update, delete; account balance recalc.
+- Transfers: link (debit ↔ credit), unlink, create missing counterpart (±5 days / ±10% amount).
+- **Done when:** transaction lifecycle + transfers are wire-identical; balances stay correct.
 
 ## Phase 4 — Categories & Rules
-`feat/categories-rules` → `main`
-- Migration `000004_categories_rules`: `categories`, `transaction_categories`, `rules`, `rule_conditions`, `rule_actions`.
+`feat/rust-rules` → `main`
 - Categories CRUD (bulk); transaction → category mapping.
-- Rules: conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR), outputs (rename / set category / transfer-to-account), read-time non-destructive overlay, SQL preview, run-now.
-- **Done when:** a rule auto-categorizes on next load and deletes cleanly (no persisted mutation). Backend only — UI lands in Phase 5.
+- Rules: conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR), outputs (rename / set category / transfer-to-account), read-time non-destructive overlay, preview, run-now.
+- **Done when:** rule overlay output matches Go byte-for-byte for the same data.
 
-## Phase 5 — User Settings (Backend)
-`feat/user-settings` → `main`
-- Migration `000005_user_settings`: adds `avatar_url` to `users`.
-- Profile page: view/edit display name, email, and profile picture (avatar upload); change password (current + new, re-auth on change); logout-all-sessions.
-- Backend: `GET`/`PUT /api/me/profile`, `POST /api/me/password`, avatar upload endpoint.
-- **Done when:** name, avatar, and password updates persist and the updated profile shows across the app.
+## Phase 5 — User Settings
+`feat/rust-settings` → `main`
+- Profile: view/edit name/email, avatar upload (`multipart`), change password, logout-all-sessions.
+- **Done when:** profile + avatar + password flows match Go.
 
-## Phase 6 — Investments (Backend)
-`feat/investments-backend` → `main`
-- Migration `000006_investments`: `instruments`, `instrument_lots`, `instrument_price_history`.
-- Instruments (stock/mutual fund), buy/sell lots, FIFO cost basis and realized P&L, symbol search, Yahoo quote fetch + cache, price-history chart, portfolio summary.
-- **Done when:** add lots, refresh prices, and see portfolio P&L match a manual FIFO calculation.
+## Phase 6 — Investments
+`feat/rust-investments` → `main`
+- Instruments (stock/mutual fund), buy/sell lots, FIFO cost basis + P&L, symbol search, Yahoo quote/history fetch (`reqwest`, base retry, `.NS` fallback) + cache, price-history chart, portfolio summary, quote-on-add, bulk import (`POST /api/investments/import`, merge by symbol, idempotent `external_id`).
+- **Done when:** FIFO math + Yahoo flows match Go; import/update/lot-edit endpoints identical.
 
-## Phase 7 — Frontend Shell & Design System
-`feat/shell` → `main`
-- App layout (sidebar nav, responsive), routing, and the `financer` theme (Tailwind v4 + daisyUI v5 tokens).
-- **Light + dark theme support:** token-driven per-theme mapping (`color-scheme` toggles), contrast verified independently in both themes, persisted theme toggle.
-- Reusable components: `AppModal`, `AppInput`, `AppSelect`, `Pagination`, `ConfirmDialog`, `Popover`, `StatCard`, `AccountCard`.
-- **UI for phases 1–6 ships here:** login/signup pages, token store, accounts list/cards + filter bar, transactions table + add/edit modals, unified transfer modal, rules builder/preview/run-now, categories management, profile/settings page.
-- `UI_STANDARDS.md` — tokens, spacing, typography, button variants, accessibility baseline.
-- **Done when:** every phase 1–6 feature is usable in the shared shell with consistent components, contrast passes in both themes.
+## Phase 7 — Spending & Dashboard
+`feat/rust-analytics` → `main`
+- SQL aggregation: `GET /api/spending` (day/month buckets, per-category debit/credit/net, transfer exclusion) and `GET /api/dashboard` (balance/income/expense, portfolio).
+- **Done when:** buckets/categories match a hand-checked SQL query (same as Go) and dashboard matches Go.
 
-## Phase 8 — Dashboard
-`feat/dashboard` → `main`
-- `GET /api/dashboard` summary: balance/income/expense sums (SQL), accounts, instruments (populated from Phase 6).
-- Frontend dashboard: stat cards, account snapshot, portfolio-by-P&L.
-- **Done when:** the page loads from a single request, zero client-side math.
+## Phase 8 — Cutover: Go idle, then removed
+`feat/rust-cutover` → `main`
+- Full parity sweep: every route owned by Rust; the Go backend is idle (proxy forwards nothing). Run the complete fixture diff — zero mismatches.
+- Replace the Go binary in the Docker image / GHCR workflow with the Rust build (multi-arch `arm64`/`amd64`, no CGO), self-host docs updated.
+- **Remove the Go backend:** `main.go`, `services/`, `repository/`, `httpserver/`, `api/`, `auth/`, `db/`, `cmd/seed`, and the proxy path — code, tests, and docs. Drop the `go test ./...` gate.
+- **Done when:** the container runs only the Rust binary end-to-end, the browser smoke passes, and no Go code or references remain in `main`.
 
-## Phase 9 — CSV Import
-`feat/csv-import` → `main`
-- Client-side CSV parsing + column mapping + preview; bulk create through the transactions API.
-- **Done when:** a bank CSV imports with correct category mapping and balances update.
-
-## Phase 10 — Spending Analysis
-`feat/spending` → `main`
-- No schema change — pure SQL aggregation over `transactions`, `transfer_links`, `accounts`, `categories`.
-- `GET /api/spending`: day/month buckets + per-category debit/credit/net, transfer exclusion (debt accounts count as real spending).
-- Frontend spending tracker: bar chart (7D/1M/6M/1Y/custom), donut pies with hover, Transactions/Categories tabs, server-sorted drill-down.
-- **Done when:** buckets/categories match a hand-checked SQL query for the same data.
-
-## Phase 11 — Transaction Search & Filters
-`feat/transaction-filters` → `main`
-- No schema change — reuses the existing server-side filter pipeline already shipped in Phase 3 (`GET /api/transactions`: `name`, `nameMatch`, `dateFrom`/`dateTo`, `minAmount`/`maxAmount`, `categoryId`, `type`).
-- Restore the missing filter UI in the transactions panel: a **Filter** button (beside Add / Transfer / Select) opening a `Popover` with:
-  - Name search (`contains` / `exact`)
-  - Date range (`dateFrom` / `dateTo`)
-  - Min / max amount
-  - Category select
-  - Debit / credit type
-- Active filters render as removable chips above the table; each chip removes its filter, **Clear all** resets, page resets on change.
-- **Done when:** every backend filter param is settable from the UI, chips reflect and clear them, and filtered results round-trip correctly.
-
-## Phase 12 — Cross-Cutting Quality
-`feat/quality` → `main`
-- Test coverage pass: repository integration tests (in-memory DB harness), service unit tests, frontend vitest for pure helpers.
-- Accessibility pass (WCAG 2.1 AA): keyboard nav, labels, focus, reduced motion, contrast — verified in both themes.
-- Performance pass: server-side logic audit, bundle review, avoid N+1 in new code.
-- **Done when:** full test suite green; ponytail-review and performance-optimization audits have no open high-severity findings.
-
-## Phase 13 — Deployment
-`feat/deploy` → `main`
-- Single container: the Go server serves both the API and the built Vue frontend (embedded/`frontend/dist`, SPA fallback) — no nginx.
-- Multi-stage Docker build (node → frontend dist; Go `CGO_ENABLED=0` static binary for `arm64`/`amd64` via buildx `TARGETARCH`).
-- GitHub Action (`docker-publish.yml`) builds and pushes to GHCR (`ghcr.io/manmohangurram/financer`) on push to `main` / tags; Pi runs `docker compose up -d`.
-- Runtime data lives under one root (`FINANCER_DATA_DIR`, default `data`, `/data` in container) with `db/`, `certs/`, `config/`, `avatars/` subfolders — a single volume mount persists everything; the bundled Yahoo config is copied to `config/` on first run.
-- **Done when:** `docker compose up -d` serves the app and API on a clean Raspberry Pi.
-
----
-
-## Future / Post-1.0 (not blocking merge)
-
-- Rule "run now" result feedback UI (linked/created counts surfaced).
-- Budget targets, month-over-month deltas.
-- Investments: dividend/interest tracking.
-- Reports: export (CSV/PDF), net-worth history chart.
+## Phase 9 — Cross-cutting quality
+`feat/rust-quality` → `main`
+- Full Rust test pass (unit + integration), `cargo clippy -D warnings` clean, `cargo audit`.
+- Performance pass: `axum`/`sqlx` hot paths, batch queries, no N+1.
+- **Done when:** all tests green and the audit has no open high-severity findings.
