@@ -64,7 +64,7 @@ func main() {
 		id := uuid.New().String()
 		accountIDs[i] = id
 		_, err := writeDB.ExecContext(ctx,
-			`INSERT OR IGNORE INTO accounts (id, user_id, bank_name, balance, account_nickname, account_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO accounts (id, user_id, bank_name, balance, account_nickname, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			id, userID, a.bankName, a.amount, a.nickname, a.accountType, now,
 		)
 		if err != nil {

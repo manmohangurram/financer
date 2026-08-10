@@ -517,7 +517,7 @@ type SpendingBucketRow struct {
 
 // spendingWhere is the LEFT JOIN chain used by both bucket and category queries:
 // it exposes the transfer counterpart account (a_other) so a transfer is
-// excluded unless one side is a debt account (account_type 3=CREDIT_CARD, 4=LOAN).
+// excluded unless one side is a debt account (type 3=CREDIT_CARD, 4=LOAN).
 func spendingWhere() string {
 	return `LEFT JOIN transfer_links tl ON tl.debit_transaction_id = t.id OR tl.credit_transaction_id = t.id
 		LEFT JOIN accounts a_self ON a_self.id = t.account_id
@@ -550,7 +550,7 @@ func (r *TransactionRepository) SpendingBuckets(ctx context.Context, userID stri
 		FROM transactions t
 		%s
 		WHERE t.user_id = ? AND t.type = 0
-		  AND (tl.id IS NULL OR a_self.account_type IN (3,4) OR a_other.account_type IN (3,4))
+		  AND (tl.id IS NULL OR a_self.type IN (3,4) OR a_other.type IN (3,4))
 		%s
 		GROUP BY key ORDER BY key`, keyExpr, spendingWhere(), spendingRangeClause(f))
 	args := []any{userID}
@@ -579,7 +579,7 @@ func (r *TransactionRepository) SpendingCategories(ctx context.Context, userID s
 		LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
 		LEFT JOIN categories c ON c.id = tc.category_id
 		%s
-		WHERE t.user_id = ? AND (tl.id IS NULL OR a_self.account_type IN (3,4) OR a_other.account_type IN (3,4))
+		WHERE t.user_id = ? AND (tl.id IS NULL OR a_self.type IN (3,4) OR a_other.type IN (3,4))
 		%s
 		GROUP BY COALESCE(c.id, '__uncategorized__') ORDER BY debit DESC`, spendingWhere(), spendingRangeClause(f))
 	args := []any{userID}

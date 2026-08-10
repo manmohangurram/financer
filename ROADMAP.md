@@ -1,15 +1,19 @@
 # Roadmap — Financer (Go → Rust Backend Migration)
 
-How the Go backend is replaced by a Rust backend, following the **strangler pattern**: the Rust server becomes the entry point early and takes over routes feature by feature, until the Go backend is idle and removed. **The Vue frontend is untouched** — it only talks JSON over HTTP, so the migration is backend-only, keeping the **exact wire contract** (`/api/...` request/response shapes, error envelope `{code, message}`, status codes). The frontend must keep working at every merge.
+How the Go backend is replaced by a Rust backend, following the **strangler pattern**: the Rust server becomes the entry point early and takes over routes feature by feature, until the Go backend is idle and removed. The **Vue frontend is untouched** except where the contract deliberately changes — it only talks JSON over HTTP, so the migration is backend-only.
 
-**Data migration is free:** both backends use the **same SQLite file and schema** (WAL). The Rust side reuses the existing `migrations/*.sql` and the same `data/` layout, so there is no data copy — the file is the contract. Any future schema change follows expand/contract (additive first, drop/rename in their own deploy), never in place.
+**Wire-compat is relaxed, not strict.** The migration does **not** need to be byte-for-byte identical to the Go wire. As long as the same query/filter semantics and functionality are maintained, field and enum values may be **renamed to match code standards** (e.g. `accountType`/`type` become lowercase strings `checking`/`debit` instead of proto-style `ACCOUNT_TYPE_CHECKING` and ints `0`/`1`). The error envelope (`{code, message}`) and status codes stay. The frontend is updated alongside any renamed values; UI behavior is preserved.
+
+**Enum values are strings, not ints.** Enums travel and are stored as stable lowercase strings (`"debit"`, `"credit"`, `"checking"`, …) — never positional ints (`0`/`1`). Storing the string decouples stored data from enum ordering: reordering/inserting a variant later cannot corrupt existing rows. Request bodies deserialize directly into the Rust enum so invalid values are rejected with `400`. Old int data is converted by a DB migration.
+
+**Data migration is free:** both backends use the **same SQLite file and schema** (WAL). The Rust side reuses the existing `migrations/*.sql` and the same `data/` layout, so there is no data copy — the file is the contract. Not production: schema edits (column type changes, renames) may update a migration in place and reset the dev DB; where real data exists, a conversion migration maps old values to new.
 
 ## Migration strategy
 
 1. **Build the replacement behind a gateway.** From Phase 1 the Rust server serves the static frontend and owns the routes it has implemented; everything else under `/api/*` is **proxied to the Go backend** running alongside. Both processes share the SQLite file (WAL, `busy_timeout`; low-traffic personal scale).
 2. **Feature-flag route ownership.** Each phase flips its endpoint group to Rust-owned (a hardcoded owned-route set, overridable via `FINANCER_RUST_ROUTES` for canary). Go still serves the routes Rust doesn't own yet.
-3. **Parity is the gate.** Every migrated route is verified **wire-identical** to the Go reference: recorded fixtures from the current Go backend diffed byte-for-byte (JSON + status), re-run in CI. No frontend change unless the contract forces it (it shouldn't — we own the consumer, so the Churn Rule means *we* absorb migration cost, not the frontend).
-4. **Remove Go last.** Only when Rust owns 100% of routes and the Go process has been idle for the parity suite is Go removed (code, tests, docs, container).
+3. **Parity is the gate — relaxed.** Every migrated route must preserve **query/filter semantics and functionality** (same fields, same filtering behavior, same status codes, same error envelope). Wire values may be renamed to standards (e.g. lowercase string enums) as long as the frontend is updated in the same merge. Fixture diffing is a tool, not a hard byte-for-byte gate.
+4. **Remove Go last.** Only when Rust owns 100% of routes and the Go process has been idle for the parity suite is Go removed (code, tests, docs, container). Until then Go may degrade silently on columns the Rust migration renames (its int queries match nothing); that is accepted and unowned routes are rebuilt in Rust phases.
 
 ## Conventions (apply to every phase)
 
@@ -55,7 +59,14 @@ How the Go backend is replaced by a Rust backend, following the **strangler patt
 `feat/rust-transactions` → `main`
 - Transactions CRUD: create (single + bulk), list with server-side filters (`names` OR-match, date range, amount, category, type) and pagination, update, delete; account balance recalc.
 - Transfers: link (debit ↔ credit), unlink, create missing counterpart (±5 days / ±10% amount).
-- **Done when:** transaction lifecycle + transfers are wire-identical; balances stay correct.
+- **Done when:** transaction lifecycle + transfers match Go's query/filter behavior; balances stay correct.
+
+## Phase 3.5 — String-based enums
+`feat/rust-type-strings` → `main`
+- Transaction `type` and account `accountType` become **lowercase string enums** on the wire and in the DB: `"debit"`/`"credit"`, `"checking"`/`"savings"`/`"credit_card"`/`"loan"`. DB columns `type TEXT`; a conversion migration maps any old ints to strings (dev DB reset acceptable).
+- Request bodies deserialize directly into the Rust enum; unknown values → `400 invalid_argument`. Frontend sends/receives the lowercase values (drop unsupported Crypto Wallet).
+- Go not updated for renamed columns (being replaced); its unowned-route int queries degrade silently.
+- **Done when:** wire + DB carry strings only, enums validate strictly, balances/query behavior unchanged, frontend functional.
 
 ## Phase 4 — Categories & Rules
 `feat/rust-rules` → `main`

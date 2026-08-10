@@ -1,6 +1,7 @@
 //! Users repository — auth + profile SQL, mirroring the Go backend's queries.
 
 pub mod account;
+pub mod transaction;
 
 use sqlx::SqlitePool;
 
