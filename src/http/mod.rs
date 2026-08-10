@@ -4,6 +4,7 @@
 
 mod account;
 mod category;
+mod investment;
 mod rule;
 mod settings;
 mod transaction;
@@ -20,12 +21,14 @@ use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
 use crate::http::account::routes as account_routes;
 use crate::http::category::routes as category_routes;
+use crate::http::investment::routes as investment_routes;
 use crate::http::rule::routes as rule_routes;
 use crate::http::settings::routes as settings_routes;
 use crate::http::transaction::routes as transaction_routes;
 use crate::http::transfer::routes as transfer_routes;
 use crate::proxy;
 use crate::service::account::AccountService;
+use crate::service::investment::InvestmentService;
 use crate::service::category::CategoryService;
 use crate::service::rule::RuleService;
 use crate::service::transfer_rule::TransferRuleService;
@@ -39,6 +42,7 @@ pub struct AppState {
     pub auth: AuthService,
     pub user: UserService,
     pub account: AccountService,
+    pub investment: InvestmentService,
     pub category: CategoryService,
     pub rule: RuleService,
     pub transfer_rule: TransferRuleService,
@@ -58,6 +62,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/refresh", axum::routing::post(refresh))
         .merge(account_routes())
         .merge(category_routes())
+        .merge(investment_routes())
         .merge(rule_routes())
         .merge(transaction_routes())
         .merge(transfer_routes())
