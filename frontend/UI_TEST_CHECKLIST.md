@@ -4,20 +4,19 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Preconditions
 
-- Backend: `go run .` (JSON server on :8080), then `go run ./cmd/seed` for a fresh demo user
+- Backend: `cargo run` (axum JSON server on :8080; migrations auto-applied on boot). No seed binary — seed demo data via the API or a script.
 - Frontend: `npm run dev` (vite on :5173)
 - Sign in at `http://localhost:5173` as `demo@financer.app` / `password123`
-- Baseline demo data: **3 accounts, 16 transactions, 3 rules, 8 categories**
-  - Accounts: Main Checking ₹5,42,050 · Emergency Fund ₹12,30,000 · Credit Card ₹-85,025
-  - Stat cards: Total Cash ₹17,72,050 · Credit Owed ₹85,025 · Net Worth ₹16,87,025
-- Fresh DB before testing (delete `data/financer.db`, restart backend, reseed)
+- Baseline demo data: **3 accounts, 18 transactions, 3+ rules, 8 categories**
+  - Accounts: Main Checking (CURRENT) · Emergency Fund (SAVINGS) · Credit Card (CREDIT_CARD)
+- Fresh DB before testing (delete `data/db/financer.db`, restart backend, reseed via API)
 
 ## Authentication
 
-- Login with valid credentials lands on **/accounts**; sidebar shows Demo User / demo@financer.app
-- Login with a wrong password shows an inline error and stays on /login
+- Login with valid credentials lands on Dashboard; sidebar shows Demo User / demo@financer.app
+- Login with a wrong password shows a **single** inline error banner (colored, not a daisyUI alert) and the invalid fields get red borders; stays on /login
 - Signup with a new email lands on /accounts showing 0 accounts and an empty state
-- Signup with an existing email shows an error
+- Signup with an existing email shows the same single-message error banner
 - Hard-refresh an authenticated page and stay signed in (session reload via stored token)
 - Logout returns to /login
 - `/api/auth/refresh` returns a fresh access token + rotated refresh token
@@ -100,7 +99,7 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Categories (`/accounts/categories`)
 
-- Lists the 8 seeded categories
+- Lists the seeded categories (9 baseline)
 - Add Category appears, count increments
 - Edit Category renames and updates the row
 - Delete Category removes it, count decrements
@@ -108,7 +107,8 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Rules (`/accounts/rules`)
 
-- Lists the 3 seeded rules with priority badge, logic (OR/AND), conditions, and outputs
+- Lists the seeded rules with priority badge, logic (OR/AND), conditions, and outputs
+- RuleForm dropdowns are populated with **string enum values** (`OR`/`AND`, `NAME`, `CONTAINS`, etc.) — regression: previously defaulted to empty/numeric
 - Empty state "No rules yet" shows **only** when there are no rules (regression: it previously showed alongside the list)
 - Add Rule appears, count increments
 - Edit Rule updates it
@@ -158,6 +158,8 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Errors / console
 
+- Backend down on the Transactions panel → the panel shows an error banner + **Retry** button (never the "Add your first transaction" empty state); Retry reloads the list once the backend is back
+- Failed account/rule/category create/update/delete shows an inline `text-expense` error banner in the modal/view (AccountFormModal, Manage Accounts, Rules, Categories) instead of a silent console log
 - Browser DevTools console shows no errors or uncaught exceptions across any flow
 - No net::ERR_FAILED / CORS / access-control-allow-headers errors on any backend request
 - All network requests return 2xx for happy paths; 4xx for intentional invalid input
@@ -169,6 +171,19 @@ Every run against the running backend before a release or after any backend/fron
 - `/api/dashboard` is one request with server-side math; the transaction list is a single SQL query (window COUNT + GROUP_CONCAT)
 - No N+1 in hot paths; the known per-investment lot query is acceptable at personal scale
 
+## Theme sweep — contrast on every screen (light + dark)
+
+Run this for **every** page, popup/modal, dropdown, and component state, in **both** Light and Dark themes. Toggle via Settings → Appearance (persists; no reload needed). Every text/color introduced on the screen must pass WCAG AA (≥ 4.5:1 body/labels, ≥ 3:1 large text/UI):
+
+- **Every page:** Dashboard, Accounts, Transactions (embedded), Accounts Manage, Rules, Categories, Spending, Investments, Investment detail, Settings, Login, Signup
+- **Every popup/modal:** Add/Edit Transaction, Add/Edit Account, Transfer modal, ConfirmDialog, Add Investment, Edit Investment, Buy/Sell/Edit Lot, Add/Edit Rule, Add/Edit Category, Filter popup, CSV/XLSX import mapping, user popup
+- **Every state on each screen:** normal, hover, focus, active, disabled, loading/spinner, empty state, and **error states** (inline error banners, red-bordered invalid inputs, toast/notice messages)
+- **Text classes:** `text-text`, `text-text-secondary`, `text-subtle`, `text-faint`, `text-muted` on both themes (regression: light-theme error messages previously rendered near-black on a light banner → failed AA)
+- **Colored text:** income/expense/p&l values (`text-income`/`text-expense`), category badges (all 16 `CATEGORY_PALETTE` colors), primary/error/success buttons and their text
+- **Systematic method per screen:** toggle theme → screenshot or eyeball every visible text+background pair → repeat for dark. Check each new component the moment it mounts (modal opens, dropdown expands, error banner appears, empty state shows)
+- **Known-good references:** Primary button `primary`/`primary-600` + white text on both themes; error banner = `text-expense` on `bg-expense/10` in both themes; `--color-primary-400` (#1d4ed8) is the AA-safe accent in light
+- Lighthouse a11y 100 on both themes across the sweep pages
+
 ## Accessibility (WCAG 2.1 AA)
 
 - Lighthouse accessibility score is 100 on the authenticated pages and /login (color contrast, landmarks, labels)
@@ -177,6 +192,11 @@ Every run against the running backend before a release or after any backend/fron
 - Category badges use the AA-compliant `CATEGORY_PALETTE` (all 16 colors ≥ 4.5:1 on dark)
 - Every page has a `<main>` landmark (Login/Signup are standalone `<main>`; app pages render in the shell's `<main>`)
 - Forms use labeled controls (`AppInput`/`AppSelect`/`AppModal`); interactive elements are keyboard-reachable
+- Modals (`AppModal`): ESC closes, focus moves into the dialog on open and returns to the trigger on close; the × button has a "Close" label
+- Mobile: when the off-canvas sidebar is closed its links are not focusable (inert); the hamburger has `aria-expanded`; the overlay is `aria-hidden`
+- CSV/XLSX "Choose file" is a real button (keyboard-openable file picker), not a hidden-label trick
+- Investments table rows open via Enter/Space (focusable, `role="link"`); credit amounts are prefixed with `+` (not color-only)
+- Hover-revealed controls (edit icons, HScroll arrows, transfer buttons) stay visible on keyboard focus (`focus-visible:opacity-100`)
 
 ## Backend smoke (curl)
 
@@ -197,5 +217,5 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Data hygiene
 
-- Demo data is back to baseline (3 accounts, 16 transactions, 3 rules, 8 categories) after testing
+- Demo data is back to baseline (3 accounts, 18 transactions, 5 rules, 9 categories) after testing
 - Any account/transaction/rule/category/investment/lot created during testing is deleted before shipping
