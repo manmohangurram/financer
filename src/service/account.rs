@@ -6,20 +6,6 @@ use crate::error::{ApiError, Result};
 use crate::repo::account::{AccountRepo, AccountRow, AccountType};
 use crate::timex::ts_rfc3339;
 
-/// Parse the `accountType` wire value: enum name string or numeric. Anything
-/// else (missing, unknown, out of range) is a 400 — no implicit default.
-pub fn type_value(v: &serde_json::Value) -> std::result::Result<AccountType, ApiError> {
-    match v {
-        serde_json::Value::Number(n) => n
-            .as_i64()
-            .and_then(|n| AccountType::try_from(n).ok())
-            .ok_or_else(|| ApiError::bad_request("invalid account type")),
-        serde_json::Value::String(s) => AccountType::from_wire(s)
-            .ok_or_else(|| ApiError::bad_request(format!("unknown account type {s:?}"))),
-        _ => Err(ApiError::bad_request("invalid account type")),
-    }
-}
-
 #[derive(Clone)]
 pub struct AccountService {
     repo: AccountRepo,
@@ -30,18 +16,18 @@ impl AccountService {
         Self { repo }
     }
 
-    pub async fn create(&self, user_id: &str, bank_name: &str, nickname: &str, r#type: AccountType) -> Result<AccountResponse> {
+    pub async fn create(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountResponse> {
         if bank_name.is_empty() {
             return Err(ApiError::bad_request("bank_name is required"));
         }
-        let row = self.repo.create(user_id, bank_name, nickname, r#type).await?;
+        let row = self.repo.create(user_id, bank_name, nickname, account_type).await?;
         Ok(AccountResponse::from_row(row))
     }
 
-    pub async fn update(&self, id: &str, bank_name: &str, nickname: &str, r#type: AccountType) -> Result<AccountResponse> {
+    pub async fn update(&self, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountResponse> {
         let row = self
             .repo
-            .update(id, bank_name, nickname, r#type)
+            .update(id, bank_name, nickname, account_type)
             .await?
             .ok_or_else(|| ApiError::not_found(format!("account {id} not found")))?;
         Ok(AccountResponse::from_row(row))
@@ -66,8 +52,8 @@ pub struct AccountResponse {
     pub id: String,
     pub bank_name: String,
     pub account_nickname: String,
-    #[serde(rename = "accountType")]
-    pub r#type: AccountType,
+    #[serde(rename = "type")]
+    pub account_type: AccountType,
     #[serde(serialize_with = "round2")]
     pub balance: f64,
     pub created_at: String,
@@ -85,7 +71,7 @@ impl AccountResponse {
             id: r.id,
             bank_name: r.bank_name,
             account_nickname: r.account_nickname,
-            r#type: r.r#type,
+            account_type: r.account_type,
             balance: r.balance,
             created_at: ts_rfc3339(&r.created_at),
         }

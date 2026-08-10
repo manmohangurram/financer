@@ -1,57 +1,27 @@
 //! Accounts repository — CRUD SQL mirroring the Go backend's `repository/account.go`.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::error::Result;
 use crate::timex::go_ts;
 
-/// Account type. Stored as its integer discriminant; the wire name keeps Go's
-/// `ACCOUNT_TYPE_*` shape via `#[serde(rename)]`. No "unspecified" sentinel —
-/// a bad/missing value is rejected with 400 at the boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[repr(i64)]
+/// Account type. Single source of truth: serde emits the uppercase wire value,
+/// sqlx stores the same string in the `type` TEXT column. No "unspecified"
+/// sentinel — a bad/missing value is rejected with 400 at the boundary.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, strum::Display, strum::EnumString,
+)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum AccountType {
-    #[serde(rename = "ACCOUNT_TYPE_CHECKING")]
-    Checking = 1,
-    #[serde(rename = "ACCOUNT_TYPE_SAVINGS")]
-    Savings = 2,
-    #[serde(rename = "ACCOUNT_TYPE_CREDIT_CARD")]
-    CreditCard = 3,
-    #[serde(rename = "ACCOUNT_TYPE_LOAN")]
-    Loan = 4,
-}
-
-impl TryFrom<i64> for AccountType {
-    type Error = ();
-    fn try_from(v: i64) -> std::result::Result<Self, Self::Error> {
-        match v {
-            1 => Ok(Self::Checking),
-            2 => Ok(Self::Savings),
-            3 => Ok(Self::CreditCard),
-            4 => Ok(Self::Loan),
-            _ => Err(()),
-        }
-    }
-}
-
-impl AccountType {
-    /// Look up a type by its wire name (`"ACCOUNT_TYPE_CHECKING"`).
-    pub fn from_wire(s: &str) -> Option<Self> {
-        match s {
-            "ACCOUNT_TYPE_CHECKING" => Some(Self::Checking),
-            "ACCOUNT_TYPE_SAVINGS" => Some(Self::Savings),
-            "ACCOUNT_TYPE_CREDIT_CARD" => Some(Self::CreditCard),
-            "ACCOUNT_TYPE_LOAN" => Some(Self::Loan),
-            _ => None,
-        }
-    }
-
-    /// Integer stored in the `type` column.
-    pub fn db_value(self) -> i64 {
-        self as i64
-    }
+    Checking,
+    Savings,
+    CreditCard,
+    Loan,
 }
 
 #[derive(Clone)]
@@ -64,7 +34,7 @@ pub struct AccountRow {
     pub bank_name: String,
     pub account_nickname: String,
     pub balance: f64,
-    pub r#type: AccountType,
+    pub account_type: AccountType,
     pub created_at: String,
 }
 
@@ -80,7 +50,7 @@ impl AccountRepo {
         user_id: &str,
         bank_name: &str,
         nickname: &str,
-        r#type: AccountType,
+        account_type: AccountType,
     ) -> Result<AccountRow> {
         let id = Uuid::new_v4().to_string();
         let now = go_ts(chrono::Utc::now());
@@ -93,7 +63,7 @@ impl AccountRepo {
         .bind(bank_name)
         .bind(nickname)
         .bind(0.0f64)
-        .bind(r#type.db_value())
+        .bind(account_type)
         .bind(&now)
         .execute(&self.pool)
         .await?;
@@ -103,7 +73,7 @@ impl AccountRepo {
             bank_name: bank_name.to_string(),
             account_nickname: nickname.to_string(),
             balance: 0.0,
-            r#type,
+            account_type,
             created_at: now,
         })
     }
@@ -123,20 +93,19 @@ impl AccountRepo {
         id: &str,
         bank_name: &str,
         nickname: &str,
-        r#type: AccountType,
+        account_type: AccountType,
     ) -> Result<Option<AccountRow>> {
-        let v = r#type.db_value();
+        let v = account_type.to_string();
         let result = sqlx::query(
             "UPDATE accounts SET
                 bank_name = COALESCE(NULLIF(?, ''), bank_name),
                 account_nickname = COALESCE(NULLIF(?, ''), account_nickname),
-                type = CASE WHEN ? != 0 THEN ? ELSE type END
+                type = ?
              WHERE id = ?",
         )
         .bind(bank_name)
         .bind(nickname)
-        .bind(v)
-        .bind(v)
+        .bind(&v)
         .bind(id)
         .execute(&self.pool)
         .await?;
@@ -201,7 +170,7 @@ struct RawAccount {
     account_nickname: String,
     balance: f64,
     #[sqlx(rename = "type")]
-    r#type: i64,
+    account_type: String,
     created_at: String,
 }
 
@@ -212,7 +181,7 @@ impl From<RawAccount> for AccountRow {
             bank_name: r.bank_name,
             account_nickname: r.account_nickname,
             balance: r.balance,
-            r#type: AccountType::try_from(r.r#type).unwrap_or(AccountType::Checking),
+            account_type: AccountType::from_str(&r.account_type).unwrap_or(AccountType::Checking),
             created_at: r.created_at,
         }
     }
@@ -224,6 +193,13 @@ mod tests {
 
     use super::*;
     use crate::timex::ts_rfc3339;
+
+    #[test]
+    fn rejects_unknown_type() {
+        assert!(AccountType::from_str("bogus").is_err());
+        assert_eq!(AccountType::from_str("CHECKING"), Ok(AccountType::Checking));
+        assert_eq!(AccountType::from_str("CREDIT_CARD"), Ok(AccountType::CreditCard));
+    }
 
     async fn test_pool() -> SqlitePool {
         let dir = tempfile::tempdir().unwrap();
@@ -260,14 +236,14 @@ mod tests {
 
         let list = repo.list("u1").await.unwrap();
         assert_eq!(list.len(), 2, "only u1's accounts");
-        let mut types: Vec<i64> = list.iter().map(|a| a.r#type.db_value()).collect();
+        let mut types: Vec<String> = list.iter().map(|a| a.account_type.to_string()).collect();
         types.sort();
-        assert_eq!(types, vec![1, 3], "both of u1's accounts");
+        assert_eq!(types, vec!["CHECKING", "CREDIT_CARD"], "both of u1's accounts");
 
         let upd = repo.update(&a.id, "Chase Blue", "New", AccountType::Savings).await.unwrap().unwrap();
         assert_eq!(upd.bank_name, "Chase Blue");
         assert_eq!(upd.account_nickname, "New");
-        assert_eq!(upd.r#type, AccountType::Savings);
+        assert_eq!(upd.account_type, AccountType::Savings);
 
         assert!(repo.delete(&a.id).await.unwrap());
         assert!(!repo.delete(&a.id).await.unwrap());

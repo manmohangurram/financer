@@ -58,6 +58,11 @@ impl IntoResponse for ApiError {
     }
 }
 
+/// Map a malformed JSON body / unknown enum value to the standard 400 envelope.
+pub fn json_error(e: &axum::extract::rejection::JsonRejection) -> ApiError {
+    ApiError::bad_request(e.body_text())
+}
+
 pub type Result<T> = std::result::Result<T, ApiError>;
 
 impl From<sqlx::Error> for ApiError {

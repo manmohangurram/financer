@@ -15,11 +15,11 @@ pub struct TransactionService {
 }
 
 /// A transaction ready for create/update, mirroring Go's `TransactionResponse`.
-pub struct TxnReq {
+pub struct TransactionReq {
     pub id: String,
     pub name: String,
     pub amount: f64,
-    pub r#type: TransactionType,
+    pub transaction_type: TransactionType,
     pub occurred_at: String, // empty = now / unchanged
     pub account_id: String,
     pub category_ids: Vec<String>,
@@ -38,16 +38,16 @@ impl TransactionService {
         Self { transaction_repo, account_repo }
     }
 
-    fn delta(r#type: TransactionType, amount: f64) -> f64 {
-        if r#type == TransactionType::Credit {
+    fn delta(transaction_type: TransactionType, amount: f64) -> f64 {
+        if transaction_type == TransactionType::Credit {
             amount
         } else {
             -amount
         }
     }
 
-    fn totals(r#type: TransactionType, amount: f64) -> (f64, f64) {
-        if r#type == TransactionType::Credit {
+    fn totals(transaction_type: TransactionType, amount: f64) -> (f64, f64) {
+        if transaction_type == TransactionType::Credit {
             (amount, 0.0)
         } else {
             (0.0, amount)
@@ -58,7 +58,7 @@ impl TransactionService {
         self.transaction_repo.list(user_id, &f).await
     }
 
-    pub async fn create(&self, user_id: &str, reqs: &[TxnReq]) -> Result<BulkResult> {
+    pub async fn create(&self, user_id: &str, reqs: &[TransactionReq]) -> Result<BulkResult> {
         if reqs.len() > 1000 {
             return Err(ApiError::bad_request("too many transactions in one request (max 1000)"));
         }
@@ -74,7 +74,7 @@ impl TransactionService {
                 id: t.id.clone(),
                 name: t.name.clone(),
                 amount: round2(t.amount),
-                r#type: t.r#type,
+                transaction_type: t.transaction_type,
                 occurred_at,
                 account_id: t.account_id.clone(),
                 created_at: now.clone(),
@@ -95,8 +95,8 @@ impl TransactionService {
                 continue;
             }
             inserted_txns.push(t.clone());
-            self.account_repo.update_balance(&t.account_id, Self::delta(t.r#type, t.amount)).await?;
-            let (c, d) = Self::totals(t.r#type, t.amount);
+            self.account_repo.update_balance(&t.account_id, Self::delta(t.transaction_type, t.amount)).await?;
+            let (c, d) = Self::totals(t.transaction_type, t.amount);
             self.account_repo.apply_totals(&t.account_id, c, d).await?;
         }
 
@@ -109,7 +109,7 @@ impl TransactionService {
         Ok(BulkResult { success: true, message: "transactions created successfully".to_string(), failed_ids: Vec::new(), skipped })
     }
 
-    pub async fn update(&self, reqs: &[TxnReq]) -> Result<BulkResult> {
+    pub async fn update(&self, reqs: &[TransactionReq]) -> Result<BulkResult> {
         if reqs.len() > 1000 {
             return Err(ApiError::bad_request("too many transactions in one request (max 1000)"));
         }
@@ -124,7 +124,7 @@ impl TransactionService {
                     id: t.id.clone(),
                     name: t.name.clone(),
                     amount: round2(t.amount),
-                    r#type: t.r#type,
+                    transaction_type: t.transaction_type,
                     occurred_at: t.occurred_at.clone(),
                     account_id: t.account_id.clone(),
                     created_at: String::new(),
@@ -141,14 +141,14 @@ impl TransactionService {
         for t in reqs {
             let Some(old) = old_map.get(&t.id) else { continue };
             let acc_id = if t.account_id.is_empty() { old.account_id.clone() } else { t.account_id.clone() };
-            let (oc, od) = Self::totals(old.r#type, old.amount);
+            let (oc, od) = Self::totals(old.transaction_type, old.amount);
             let e = deltas.entry(old.account_id.clone()).or_insert((0.0, 0.0, 0.0));
-            e.0 -= Self::delta(old.r#type, old.amount);
+            e.0 -= Self::delta(old.transaction_type, old.amount);
             e.1 -= oc;
             e.2 -= od;
-            let (nc, nd) = Self::totals(t.r#type, t.amount);
+            let (nc, nd) = Self::totals(t.transaction_type, t.amount);
             let e = deltas.entry(acc_id).or_insert((0.0, 0.0, 0.0));
-            e.0 += Self::delta(t.r#type, t.amount);
+            e.0 += Self::delta(t.transaction_type, t.amount);
             e.1 += nc;
             e.2 += nd;
         }
@@ -177,8 +177,8 @@ impl TransactionService {
         let mut deltas: HashMap<String, (f64, f64, f64)> = HashMap::new();
         for t in &old_txns {
             let e = deltas.entry(t.account_id.clone()).or_insert((0.0, 0.0, 0.0));
-            let (c, d) = Self::totals(t.r#type, t.amount);
-            e.0 -= Self::delta(t.r#type, t.amount);
+            let (c, d) = Self::totals(t.transaction_type, t.amount);
+            e.0 -= Self::delta(t.transaction_type, t.amount);
             e.1 -= c;
             e.2 -= d;
         }

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   account_id TEXT NOT NULL,
   name TEXT NOT NULL,
   amount REAL NOT NULL,
-  type INTEGER NOT NULL,
+  type TEXT NOT NULL,
   occurred_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   linked_transfer_id TEXT,

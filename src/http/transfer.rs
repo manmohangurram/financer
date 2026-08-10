@@ -65,10 +65,9 @@ async fn counterpart(State(st): State<AppState>, headers: HeaderMap, Json(req): 
     match st.transfer.create_counterpart(&uid, &req.transaction_id, &req.to_account_id).await {
         Ok(r) => (
             StatusCode::CREATED,
-            // Go's api.CreateTransferResponse has no json tags → PascalCase wire.
             Json(serde_json::json!({
-                "DebitTransactionId": r.debit_transaction_id,
-                "CreditTransactionId": r.credit_transaction_id,
+                "debitTransactionId": r.debit_transaction_id,
+                "creditTransactionId": r.credit_transaction_id,
             })),
         )
             .into_response(),
