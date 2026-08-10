@@ -14,7 +14,8 @@ const KEYWORD_GROUPS: [InvestmentField, string[]][] = [
 
 // locateInvestmentTable finds the holdings/transactions table inside a broker
 // export. Broker sheets often carry junk above and below; the table starts at
-// the header row (≥2 keyword groups in one row) and ends at the first blank row.
+// the header row (≥2 keyword groups in one row) and ends at the first non-data
+// row (blank, or fewer than 2 populated cells — footers the CSV parser keeps).
 export function locateInvestmentTable(rows: string[][]): { headers: string[]; data: string[][] } | null {
   for (let i = 0; i < rows.length; i++) {
     const header = rows[i].map((c) => c.trim());
