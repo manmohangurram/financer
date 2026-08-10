@@ -20,11 +20,14 @@ use crate::auth::Jwt;
 use crate::config::Config;
 use crate::repo::account::AccountRepo;
 use crate::repo::category::CategoryRepo;
+use crate::repo::investment::InvestmentRepo;
 use crate::repo::rule::RuleRepo;
 use crate::repo::transaction::TransactionRepo;
 use crate::repo::UserRepo;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
+use crate::service::investment::InvestmentService;
+use crate::service::yahoo::YahooClient;
 use crate::service::rule::RuleService;
 use crate::service::transfer_rule::TransferRuleService;
 use crate::service::auth::AuthService;
@@ -50,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
     let account_repo = AccountRepo::new(db.write.clone());
     let category_repo = CategoryRepo::new(db.write.clone());
     let rule_repo = RuleRepo::new(db.write.clone());
+    let investment_repo = InvestmentRepo::new(db.write.clone());
     let transaction_repo = TransactionRepo::new(db.write.clone());
     let transaction_repo_clone = transaction_repo.clone();
     let account_repo_clone = account_repo.clone();
@@ -57,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let user_svc = UserService::new(repo, jwt.clone(), cfg.data_dir.join("avatars"));
     let account_svc = AccountService::new(account_repo.clone());
     let category_svc = CategoryService::new(category_repo.clone());
+    let investment_svc = InvestmentService::new(investment_repo, YahooClient::new()?);
     let rule_svc = RuleService::new(rule_repo.clone(), category_repo.clone(), transaction_repo.clone());
     let transfer_rule_svc = TransferRuleService::new(rule_repo, transaction_repo_clone, account_repo_clone);
     let transaction_svc = TransactionService::new(transaction_repo.clone(), account_repo.clone())
@@ -67,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
         auth: auth_svc,
         user: user_svc,
         account: account_svc,
+        investment: investment_svc,
         category: category_svc,
         rule: rule_svc,
         transfer_rule: transfer_rule_svc,

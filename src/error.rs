@@ -28,6 +28,9 @@ impl ApiError {
     pub fn internal(msg: impl Into<String>) -> Self {
         Self { status: 500, message: msg.into() }
     }
+    pub fn bad_gateway(msg: impl Into<String>) -> Self {
+        Self { status: 502, message: msg.into() }
+    }
 
     pub fn status(&self) -> StatusCode {
         StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)

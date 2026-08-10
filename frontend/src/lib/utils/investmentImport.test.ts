@@ -48,7 +48,7 @@ describe('investmentImport', () => {
     expect(rows[0]).toMatchObject({
       symbol: 'NTPC.NS',
       name: 'NTPC Ltd',
-      investmentType: 'INVESTMENT_TYPE_STOCK',
+      investmentType: 'STOCK',
       side: 1,
       quantity: 10,
       price: 342.5,

@@ -17,7 +17,7 @@ function pnlClass(v: number): string {
 }
 
 function typeLabel(t: string): string {
-  return t === 'INVESTMENT_TYPE_MUTUAL_FUND' ? 'MUTUAL FUND' : 'STOCK';
+  return t === 'MUTUAL_FUND' ? 'MUTUAL FUND' : 'STOCK';
 }
 </script>
 

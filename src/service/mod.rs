@@ -6,3 +6,6 @@ pub mod transfer;
 pub mod user;
 pub mod rule;
 pub mod transfer_rule;
+pub mod fifo;
+pub mod investment;
+pub mod yahoo;

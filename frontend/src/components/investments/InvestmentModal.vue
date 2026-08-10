@@ -11,11 +11,11 @@ import { Upload, PenLine, FileSpreadsheet } from '@lucide/vue';
 const props = withDefaults(defineProps<{ investment?: any | null }>(), { investment: null });
 const emit = defineEmits<{ (e: 'close'): void; (e: 'submit', payload: any): void; (e: 'delete'): void; (e: 'imported', result: { created: number; skipped: number }): void }>();
 
-const isStock = computed(() => form.value.investmentType === 'INVESTMENT_TYPE_STOCK');
+const isStock = computed(() => form.value.investmentType === 'STOCK');
 
 const form = ref({
   name: props.investment?.name || '',
-  investmentType: props.investment?.investmentType || 'INVESTMENT_TYPE_STOCK',
+  investmentType: props.investment?.investmentType || 'STOCK',
   symbol: props.investment?.symbol || '',
   manualNav: props.investment?.manualNav || 0
 });
@@ -59,9 +59,9 @@ function handleSubmit() {
   emit('submit', {
     id: props.investment?.id,
     name: form.value.name,
-    symbol: form.value.investmentType === 'INVESTMENT_TYPE_MUTUAL_FUND' && !form.value.symbol ? '' : form.value.symbol,
+    symbol: form.value.investmentType === 'MUTUAL_FUND' && !form.value.symbol ? '' : form.value.symbol,
     investmentType: form.value.investmentType,
-    manualNav: form.value.investmentType === 'INVESTMENT_TYPE_MUTUAL_FUND' ? roundMoney(Number(form.value.manualNav) || 0) : 0
+    manualNav: form.value.investmentType === 'MUTUAL_FUND' ? roundMoney(Number(form.value.manualNav) || 0) : 0
   });
 }
 
@@ -213,16 +213,16 @@ async function runImport() {
           <button
             type="button"
             class="join-item btn btn-sm flex-1"
-            :class="form.investmentType === 'INVESTMENT_TYPE_STOCK' ? 'btn-primary' : 'btn-ghost border border-track'"
-            @click="onTypeChange('INVESTMENT_TYPE_STOCK')"
+            :class="form.investmentType === 'STOCK' ? 'btn-primary' : 'btn-ghost border border-track'"
+            @click="onTypeChange('STOCK')"
           >
             Stock
           </button>
           <button
             type="button"
             class="join-item btn btn-sm flex-1"
-            :class="form.investmentType === 'INVESTMENT_TYPE_MUTUAL_FUND' ? 'btn-primary' : 'btn-ghost border border-track'"
-            @click="onTypeChange('INVESTMENT_TYPE_MUTUAL_FUND')"
+            :class="form.investmentType === 'MUTUAL_FUND' ? 'btn-primary' : 'btn-ghost border border-track'"
+            @click="onTypeChange('MUTUAL_FUND')"
           >
             Mutual Fund
           </button>

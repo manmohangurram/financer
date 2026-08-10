@@ -49,7 +49,7 @@ export function guessInvestmentMapping(header: string): InvestmentField {
 export interface ImportInvestmentRow {
   symbol: string;
   name: string;
-  investmentType: 'INVESTMENT_TYPE_STOCK' | 'INVESTMENT_TYPE_MUTUAL_FUND';
+  investmentType: 'STOCK' | 'MUTUAL_FUND';
   side: number;
   quantity: number;
   price: number;
@@ -59,8 +59,8 @@ export interface ImportInvestmentRow {
 
 function resolveType(cell: string | undefined): ImportInvestmentRow['investmentType'] {
   const s = (cell || '').toLowerCase();
-  if (/(mutual|fund)/.test(s)) return 'INVESTMENT_TYPE_MUTUAL_FUND';
-  return 'INVESTMENT_TYPE_STOCK';
+  if (/(mutual|fund)/.test(s)) return 'MUTUAL_FUND';
+  return 'STOCK';
 }
 
 function resolveSide(cell: string | undefined): number {

@@ -19,7 +19,7 @@ const CHART_RANGES = computed(() => {
     { id: '3Y', label: '3Y' },
     { id: 'CUSTOM', label: 'Custom' }
   ];
-  if (props.investment?.investmentType === 'INVESTMENT_TYPE_STOCK') {
+  if (props.investment?.investmentType === 'STOCK') {
     base.unshift({ id: '1D', label: '1D' });
   }
   return base;
@@ -214,7 +214,7 @@ watch(customEnd, (v) => {
 
 // Set the type-based default range when a new investment loads.
 watch(() => props.investment?.id, () => {
-  range.value = props.investment?.investmentType === 'INVESTMENT_TYPE_STOCK' ? '1D' : '7D';
+  range.value = props.investment?.investmentType === 'STOCK' ? '1D' : '7D';
   load();
 }, { immediate: true });
 watch(range, load);
