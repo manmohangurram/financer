@@ -1,5 +1,8 @@
 pub mod account;
+pub mod category;
 pub mod auth;
 pub mod transaction;
 pub mod transfer;
 pub mod user;
+pub mod rule;
+pub mod transfer_rule;

@@ -8,14 +8,14 @@ import TransactionTable from '@/components/workspace/TransactionTable.vue';
 import { emptyOutput, type RuleOutput } from '@/lib/utils/ruleOutputs';
 
 const props = defineProps<{ categories: any[]; accounts?: any[] }>();
-const form = defineModel<{ name: string; priority: number; logic: number; conditions: { matchField: number; operator: number; pattern: string }[]; outputs: RuleOutput[] }>({ required: true });
+const form = defineModel<{ name: string; priority: number; logic: 'OR' | 'AND'; conditions: { matchField: string; operator: string; pattern: string }[]; outputs: RuleOutput[] }>({ required: true });
 
-const matchFields = [{ value: 1, label: 'Name' }, { value: 2, label: 'Amount' }, { value: 3, label: 'Type' }, { value: 4, label: 'Category' }, { value: 5, label: 'Account' }];
-const operators = [{ value: 1, label: 'Contains' }, { value: 2, label: 'Starts With' }, { value: 3, label: 'Ends With' }, { value: 4, label: 'Equals' }, { value: 5, label: '>' }, { value: 6, label: '<' }, { value: 7, label: 'Regex' }];
+const matchFields = [{ value: 'NAME', label: 'Name' }, { value: 'AMOUNT', label: 'Amount' }, { value: 'TYPE', label: 'Type' }, { value: 'CATEGORY', label: 'Category' }, { value: 'ACCOUNT', label: 'Account' }];
+const operators = [{ value: 'CONTAINS', label: 'Contains' }, { value: 'STARTS_WITH', label: 'Starts With' }, { value: 'ENDS_WITH', label: 'Ends With' }, { value: 'EQUALS', label: 'Equals' }, { value: 'GREATER_THAN', label: '>' }, { value: 'LESS_THAN', label: '<' }, { value: 'REGEX', label: 'Regex' }];
 const nameOps = [
-  { value: 1, label: 'Rename to' },
-  { value: 2, label: 'Add prefix' },
-  { value: 3, label: 'Add suffix' }
+  { value: 'RENAME', label: 'Rename to' },
+  { value: 'ADD_PREFIX', label: 'Add prefix' },
+  { value: 'ADD_SUFFIX', label: 'Add suffix' }
 ];
 
 const preview = ref<{ loading: boolean; error: string; matches: any[] }>({ loading: false, error: '', matches: [] });
@@ -27,7 +27,7 @@ function removeOutput(i: number) {
   form.value.outputs.splice(i, 1);
 }
 function addCondition() {
-  form.value.conditions.push({ matchField: 1, operator: 1, pattern: '' });
+  form.value.conditions.push({ matchField: 'NAME', operator: 'CONTAINS', pattern: '' });
 }
 function removeCondition(i: number) {
   form.value.conditions.splice(i, 1);
@@ -54,9 +54,9 @@ async function runPreview() {
     <div class="grid grid-cols-3 gap-3">
       <AppInput v-model="form.name" label="Name" placeholder="e.g. Food Purchases" />
       <AppInput v-model.number="form.priority" label="Priority" type="number" />
-      <AppSelect v-model.number="form.logic" label="Match logic">
-        <option :value="1">OR (any condition)</option>
-        <option :value="2">AND (all conditions)</option>
+      <AppSelect v-model="form.logic" label="Match logic">
+        <option value="OR">OR (any condition)</option>
+        <option value="AND">AND (all conditions)</option>
       </AppSelect>
     </div>
     <p class="text-[11px] text-subtle -mt-2">Lower priority numbers run first; later rules override earlier ones.</p>
@@ -64,10 +64,10 @@ async function runPreview() {
     <div>
       <span class="block text-[12px] text-text-muted mb-2">Conditions</span>
       <div v-for="(cond, i) in form.conditions" :key="i" class="grid grid-cols-[1fr_1fr_2fr_auto] gap-2 mb-2 items-end">
-        <AppSelect v-model.number="cond.matchField">
+        <AppSelect v-model="cond.matchField">
           <option v-for="f in matchFields" :key="f.value" :value="f.value">{{ f.label }}</option>
         </AppSelect>
-        <AppSelect v-model.number="cond.operator">
+        <AppSelect v-model="cond.operator">
           <option v-for="o in operators" :key="o.value" :value="o.value">{{ o.label }}</option>
         </AppSelect>
         <AppInput v-model="cond.pattern" placeholder="Value" />
@@ -91,7 +91,7 @@ async function runPreview() {
           <option value="category">Set category</option>
           <option value="transfer">Transfer to account</option>
         </AppSelect>
-        <AppSelect v-if="out.type === 'name'" v-model.number="out.nameOp">
+        <AppSelect v-if="out.type === 'name'" v-model="out.nameOp">
           <option v-for="o in nameOps" :key="o.value" :value="o.value">{{ o.label }}</option>
         </AppSelect>
         <span v-else class="text-[11px] text-subtle pb-3">{{ out.type === 'category' ? '→ category' : '→ account' }}</span>
