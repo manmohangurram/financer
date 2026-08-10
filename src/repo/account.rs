@@ -161,6 +161,26 @@ impl AccountRepo {
         .await?;
         Ok(())
     }
+
+    /// Total stored balance across a user's accounts.
+    pub async fn sum_balance(&self, user_id: &str) -> Result<f64> {
+        let total: Option<f64> = sqlx::query_scalar("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ?")
+            .bind(user_id)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(total.unwrap_or(0.0))
+    }
+
+    /// Cached total credits and debits across a user's accounts.
+    pub async fn sum_totals(&self, user_id: &str) -> Result<(f64, f64)> {
+        let row: (f64, f64) = sqlx::query_as(
+            "SELECT COALESCE(SUM(total_credit), 0), COALESCE(SUM(total_debit), 0) FROM accounts WHERE user_id = ?",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row)
+    }
 }
 
 #[derive(sqlx::FromRow)]

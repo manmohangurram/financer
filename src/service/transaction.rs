@@ -3,6 +3,8 @@
 
 use std::collections::HashMap;
 
+use chrono::Datelike;
+
 use crate::error::{ApiError, Result};
 use crate::repo::account::AccountRepo;
 use crate::repo::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, TransactionRepo, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
@@ -206,6 +208,127 @@ impl TransactionService {
         }
         Ok(BulkResult { success: true, message: "transactions deleted successfully".to_string(), failed_ids: Vec::new(), skipped: 0 })
     }
+
+    /// Dashboard: total balance, income, expenses (from cached account totals).
+    pub async fn dashboard(&self, user_id: &str) -> Result<Dashboard> {
+        let balance = self.account_repo.sum_balance(user_id).await?;
+        let (credit, debit) = self.account_repo.sum_totals(user_id).await?;
+        Ok(Dashboard { total_balance: balance, total_income: credit, total_expenses: debit })
+    }
+
+    /// Spending buckets + categories for a range, computed in SQL.
+    pub async fn spending(&self, user_id: &str, range: &str, from: &str, to: &str, account_id: &str) -> Result<SpendingResult> {
+        let now = chrono::Utc::now();
+        let mut gran = "day";
+        let mut from_ts: Option<String> = None;
+        let mut to_ts: Option<String> = None;
+
+        match range {
+            "7D" => {
+                from_ts = Some(go_ts(now - chrono::Duration::days(7)));
+                to_ts = Some(go_ts(now));
+            }
+            "1M" => {
+                from_ts = Some(go_ts(now - chrono::Months::new(1)));
+                to_ts = Some(go_ts(now));
+            }
+            "6M" => {
+                from_ts = Some(go_ts(now - chrono::Months::new(6)));
+                to_ts = Some(go_ts(now));
+                gran = "month";
+            }
+            "1Y" => {
+                from_ts = Some(go_ts(now - chrono::Months::new(12)));
+                to_ts = Some(go_ts(now));
+                gran = "month";
+            }
+            _ => {}
+        }
+        if !from.is_empty() || !to.is_empty() {
+            let f = chrono::NaiveDate::parse_from_str(from, "%Y-%m-%d").ok();
+            let t = chrono::NaiveDate::parse_from_str(to, "%Y-%m-%d").ok();
+            from_ts = f.map(|d| go_ts(d.and_hms_opt(0, 0, 0).unwrap().and_utc()));
+            to_ts = t.map(|d| go_ts((d + chrono::Duration::days(1)).and_hms_opt(0, 0, 0).unwrap().and_utc()));
+            if let (Some(ft), Some(tt)) = (&from_ts, &to_ts) {
+                // compare via date strings
+                let f_day = &ft[..10];
+                let t_day = &tt[..10];
+                let fd = chrono::NaiveDate::parse_from_str(f_day, "%Y-%m-%d").unwrap();
+                let td = chrono::NaiveDate::parse_from_str(t_day, "%Y-%m-%d").unwrap();
+                if (td - fd).num_days() > 366 {
+                    return Err(ApiError::bad_request("custom range must be at most 1 year"));
+                }
+                if (td - fd).num_days() > 30 {
+                    gran = "month";
+                }
+            }
+        }
+
+        let filter = crate::repo::transaction::SpendingFilter {
+            granularity: gran.to_string(),
+            from: from_ts.unwrap_or_default(),
+            to: to_ts.unwrap_or_default(),
+            account_id: account_id.to_string(),
+        };
+        let buckets = self.transaction_repo.spending_buckets(user_id, &filter).await?;
+        let cats = self.transaction_repo.spending_categories(user_id, &filter).await?;
+
+        let bucket_items: Vec<SpendingBucket> = buckets.iter().map(|b| SpendingBucket {
+            key: b.key.clone(),
+            label: bucket_label(&b.key, gran),
+            amount: b.amount,
+        }).collect();
+        let category_items: Vec<SpendingCategory> = cats.iter().map(|c| SpendingCategory {
+            id: c.id.clone(),
+            name: c.name.clone(),
+            debit: c.debit,
+            credit: c.credit,
+            net: c.debit - c.credit,
+        }).collect();
+        Ok(SpendingResult { buckets: bucket_items, categories: category_items })
+    }
 }
+
+// `total_` prefix matches the wire keys (totalBalance, ...).
+#[allow(clippy::struct_field_names)]
+pub struct Dashboard {
+    pub total_balance: f64,
+    pub total_income: f64,
+    pub total_expenses: f64,
+}
+
+pub struct SpendingBucket {
+    pub key: String,
+    pub label: String,
+    pub amount: f64,
+}
+
+pub struct SpendingCategory {
+    pub id: String,
+    pub name: String,
+    pub debit: f64,
+    pub credit: f64,
+    pub net: f64,
+}
+
+pub struct SpendingResult {
+    pub buckets: Vec<SpendingBucket>,
+    pub categories: Vec<SpendingCategory>,
+}
+
+/// Human label for a bucket key (Go's `bucketLabel`).
+fn bucket_label(key: &str, gran: &str) -> String {
+    if gran == "month" {
+        if let Ok(d) = chrono::NaiveDate::parse_from_str(key, "%Y-%m") {
+            return d.format("%b %y").to_string();
+        }
+        return key.to_string();
+    }
+    if let Ok(d) = chrono::NaiveDate::parse_from_str(key, "%Y-%m-%d") {
+        return format!("{} {}", d.day(), d.format("%b"));
+    }
+    key.to_string()
+}
+
 
 

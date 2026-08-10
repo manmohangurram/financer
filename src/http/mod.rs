@@ -3,6 +3,7 @@
 //! as the SPA.
 
 mod account;
+mod analytics;
 mod category;
 mod investment;
 mod rule;
@@ -20,6 +21,7 @@ use axum::{Json, Router};
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
 use crate::http::account::routes as account_routes;
+use crate::http::analytics::routes as analytics_routes;
 use crate::http::category::routes as category_routes;
 use crate::http::investment::routes as investment_routes;
 use crate::http::rule::routes as rule_routes;
@@ -61,6 +63,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/login", axum::routing::post(login))
         .route("/api/auth/refresh", axum::routing::post(refresh))
         .merge(account_routes())
+        .merge(analytics_routes())
         .merge(category_routes())
         .merge(investment_routes())
         .merge(rule_routes())
