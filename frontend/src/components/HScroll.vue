@@ -60,7 +60,7 @@ onUnmounted(() => {
       v-if="canScrollLeft"
       type="button"
       aria-label="Scroll left"
-      class="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-base-200 border border-border text-text-muted shadow-popover opacity-0 group-hover:opacity-100 transition-opacity"
+      class="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-base-200 border border-border text-text-muted shadow-popover opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
       @click="scrollBy(-scrollAmount)"
     >
       <ChevronLeft class="w-4 h-4" stroke-width="2" />
@@ -69,7 +69,7 @@ onUnmounted(() => {
       v-if="canScrollRight"
       type="button"
       aria-label="Scroll right"
-      class="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-base-200 border border-border text-text-muted shadow-popover opacity-0 group-hover:opacity-100 transition-opacity"
+      class="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-base-200 border border-border text-text-muted shadow-popover opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
       @click="scrollBy(scrollAmount)"
     >
       <ChevronRight class="w-4 h-4" stroke-width="2" />

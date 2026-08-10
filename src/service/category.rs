@@ -40,20 +40,20 @@ impl CategoryService {
         }
     }
 
-    pub async fn update(&self, inputs: &[(String, String)]) -> Result<BulkResult> {
+    pub async fn update(&self, user_id: &str, inputs: &[(String, String)]) -> Result<BulkResult> {
         let repo_inputs: Vec<_> = inputs.iter().map(|(id, name)| crate::repo::category::CategoryUpdateInput { id: id.clone(), name: name.clone() }).collect();
-        let errs = self.repo.update(&repo_inputs).await?;
+        let errs = self.repo.update(user_id, &repo_inputs).await?;
         if !errs.is_empty() {
             return Ok(BulkResult { success: false, message: "some updates failed".to_string(), failed_ids: errs, skipped: 0 });
         }
         Ok(BulkResult { success: true, message: "categories updated successfully".to_string(), failed_ids: Vec::new(), skipped: 0 })
     }
 
-    pub async fn delete(&self, ids: &[String]) -> Result<BulkResult> {
+    pub async fn delete(&self, user_id: &str, ids: &[String]) -> Result<BulkResult> {
         if ids.is_empty() {
             return Err(ApiError::bad_request("no ids provided"));
         }
-        let errs = self.repo.delete(ids).await?;
+        let errs = self.repo.delete(user_id, ids).await?;
         if !errs.is_empty() {
             return Ok(BulkResult { success: false, message: "some deletions failed".to_string(), failed_ids: errs, skipped: 0 });
         }

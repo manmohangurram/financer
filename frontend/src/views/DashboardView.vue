@@ -47,18 +47,18 @@ onMounted(loadData);
   </div>
   <div v-else class="w-full space-y-5">
     <div>
-      <h1 class="text-[34px] font-bold text-base-content tracking-tight">Dashboard</h1>
+      <h1 class="text-3xl font-bold text-base-content tracking-tight">Dashboard</h1>
       <p class="text-subtle text-base mt-1">Your complete financial overview at a glance</p>
     </div>
 
-    <div class="grid grid-cols-4 gap-5">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
       <StatCard label="Net Worth" :value="formatCurrency(totalBalance + portfolioValue)" value-class="text-income" desc="Accounts + investments" />
       <StatCard label="Total Income" :value="formatCurrency(totalIncome)" value-class="text-primary-400" desc="All time credits" />
       <StatCard label="Total Expenses" :value="formatCurrency(totalExpenses)" value-class="text-expense" desc="All time debits" />
       <StatCard label="Accounts" :value="String(accountList.length)" value-class="text-warning" desc="Connected accounts" />
     </div>
 
-    <div class="grid grid-cols-[1fr_1.2fr] gap-5">
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-5">
       <div class="card bg-base-200 border border-border">
         <div class="card-body p-6">
           <h2 class="text-lg font-semibold text-text mb-3.5">Portfolio Snapshot</h2>

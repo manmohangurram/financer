@@ -7,17 +7,15 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{json_error, ApiError};
-use crate::http::{require_user, AppState};
+use crate::http::{require_user, AppState, JsonResult};
 use crate::repo::transaction::{TransactionListFilter, TransactionType};
-use crate::service::transaction::{TransactionReq, TransactionService};
-use crate::timex::ts_rfc3339;
+use crate::service::transaction::TransactionReq;
+use crate::timex::{round2, ts_rfc3339};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/transactions", axum::routing::get(list).post(create).put(update).delete(delete))
 }
-
-type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
 #[derive(Deserialize)]
 struct ReqTxn {
@@ -62,10 +60,6 @@ struct WireTxn {
     created_at: String,
     linked_transfer_id: String,
     category_ids: Option<Vec<String>>,
-}
-
-fn round2(v: f64) -> f64 {
-    (v * 100.0).round() / 100.0
 }
 
 /// Parse `occurredAt`: {seconds,nanos}, RFC3339, or date string → Go-driver format.
@@ -116,6 +110,7 @@ pub fn bulk_wire(b: &crate::service::transaction::BulkResult) -> WireBulk {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ListQuery {
     #[serde(default)]
     page_size: Option<i32>,
@@ -261,7 +256,7 @@ async fn update(
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
     };
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
@@ -282,7 +277,7 @@ async fn update(
             external_id: None,
         });
     }
-    match st.transaction.update(&txns).await {
+    match st.transaction.update(&uid, &txns).await {
         Ok(b) => Json(bulk_wire(&b)).into_response(),
         Err(e) => e.into_response(),
     }
@@ -297,15 +292,12 @@ async fn delete(
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
     };
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.transaction.delete(&req.ids).await {
+    match st.transaction.delete(&uid, &req.ids).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
     }
 }
-
-#[allow(dead_code)]
-fn _svc(_s: &TransactionService) {}

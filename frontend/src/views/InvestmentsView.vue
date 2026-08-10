@@ -81,7 +81,7 @@ onMounted(loadAll);
   <div class="w-full space-y-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-[28px] font-bold text-base-content tracking-tight">Investments</h1>
+        <h1 class="text-2xl font-bold text-base-content tracking-tight">Investments</h1>
         <p class="text-[14px] text-subtle mt-0.5">Stocks &amp; mutual funds · INR</p>
       </div>
       <div v-if="investmentList.length > 0" class="flex items-center gap-3">

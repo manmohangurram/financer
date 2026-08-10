@@ -108,9 +108,15 @@ function api(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string) {
       method,
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       ...(body !== undefined ? { body } : {})
-    }).then((r) => {
+    }).then(async (r) => {
       if (r.status === 204) return undefined;
-      return r.json();
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const err = new Error(data?.message || `Request failed with ${r.status}`);
+        (err as any).status = r.status;
+        throw err;
+      }
+      return data;
     });
   };
 }

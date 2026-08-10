@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 
 use crate::error::json_error;
-use crate::http::{require_user, AppState};
+use crate::http::{require_user, AppState, JsonResult};
 use crate::repo::account::AccountType;
 
 pub fn routes() -> Router<AppState> {
@@ -31,7 +31,6 @@ struct ReqAccount {
     account_type: AccountType,
 }
 
-type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
 async fn create(
     State(st): State<AppState>,
@@ -66,9 +65,8 @@ async fn update(
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let _ = uid;
-    match st.account.update(&id, &req.bank_name, &req.nickname, req.account_type).await {
-        Ok(a) => (StatusCode::CREATED, Json(a)).into_response(),
+    match st.account.update(&uid, &id, &req.bank_name, &req.nickname, req.account_type).await {
+        Ok(a) => Json(a).into_response(),
         Err(e) => e.into_response(),
     }
 }
@@ -78,8 +76,7 @@ async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let _ = uid;
-    match st.account.delete(&id).await {
+    match st.account.delete(&uid, &id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
     }

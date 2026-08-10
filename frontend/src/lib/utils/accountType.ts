@@ -1,3 +1,5 @@
+import { Landmark, PiggyBank, BadgePercent, CreditCard, type LucideIcon } from '@lucide/vue';
+
 export interface AccountTypeOption {
   value: string;
   name: string;
@@ -11,19 +13,19 @@ export const ACCOUNT_TYPE_OPTIONS: AccountTypeOption[] = [
 ];
 
 const LABELS: Record<string, string> = Object.fromEntries(ACCOUNT_TYPE_OPTIONS.map((o) => [o.value, o.name]));
-const ICONS: Record<string, string> = {
-  CURRENT: '🏦',
-  SAVINGS: '💰',
-  LOAN: '🏷️',
-  CREDIT_CARD: '💳'
+const ICONS: Record<string, LucideIcon> = {
+  CURRENT: Landmark,
+  SAVINGS: PiggyBank,
+  LOAN: BadgePercent,
+  CREDIT_CARD: CreditCard
 };
 
 export function accountTypeLabel(type: string): string {
   return LABELS[type] || 'Current';
 }
 
-export function accountTypeIcon(type: string): string {
-  return ICONS[type] || '🏦';
+export function accountTypeIcon(type: string): LucideIcon {
+  return ICONS[type] || Landmark;
 }
 
 export function isCredit(type: string): boolean {

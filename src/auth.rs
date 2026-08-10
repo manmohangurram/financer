@@ -13,6 +13,9 @@ pub struct Claims {
     pub email: String,
     #[serde(rename = "ver")]
     pub token_version: i64,
+    /// "access" or "refresh" — which token kind this is.
+    #[serde(rename = "typ")]
+    pub typ: String,
     /// registered claims
     pub exp: u64,
     pub iat: u64,
@@ -36,6 +39,7 @@ impl Jwt {
             user_id: user_id.to_string(),
             email: email.to_string(),
             token_version: ver,
+            typ: "access".to_string(),
             exp: u64::try_from((now + chrono::Duration::hours(24)).timestamp())
                 .unwrap_or(u64::MAX),
             iat: u64::try_from(now.timestamp()).unwrap_or_default(),
@@ -52,6 +56,7 @@ impl Jwt {
             user_id: user_id.to_string(),
             email: String::new(),
             token_version: ver,
+            typ: "refresh".to_string(),
             exp: u64::try_from((now + chrono::Duration::days(30)).timestamp())
                 .unwrap_or(u64::MAX),
             iat: u64::try_from(now.timestamp()).unwrap_or_default(),

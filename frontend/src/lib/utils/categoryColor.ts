@@ -23,9 +23,7 @@ export function categoryColorMap(names: string[]): Record<string, string> {
   const sorted = Array.from(new Set(names)).sort();
   const map: Record<string, string> = {};
   sorted.forEach((n, i) => {
-    const hue = (i * 137.508) % 360;
-    const fixed = hue >= 45 && hue <= 70 ? (hue + 180) % 360 : hue; // skip yellow band
-    map[n] = i < palette.length ? palette[i] : `hsl(${fixed} 80% 70%)`;
+    map[n] = palette[i % palette.length];
   });
   return map;
 }

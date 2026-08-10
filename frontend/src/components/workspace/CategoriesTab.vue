@@ -47,11 +47,11 @@ const totalSpend = computed(() => props.categories.reduce((s, c: any) => s + (sp
           <span class="text-[11px] text-subtle whitespace-nowrap w-12 text-right">{{ spend.count.get(cat.id) || 0 }} txns</span>
         </div>
       </div>
-      <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button aria-label="Edit" @click="emit('edit', cat)" class="p-1.5 rounded-lg text-subtle hover:text-primary-400 hover:bg-primary-500/10">
+      <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0">
+        <button aria-label="Edit" @click="emit('edit', cat)" class="btn btn-ghost btn-xs">
           <Pencil class="w-3.5 h-3.5" />
         </button>
-        <button aria-label="Delete" @click="emit('delete', cat)" class="p-1.5 rounded-lg text-subtle hover:text-expense hover:bg-expense/10">
+        <button aria-label="Delete" @click="emit('delete', cat)" class="btn btn-ghost btn-xs">
           <Trash2 class="w-3.5 h-3.5" />
         </button>
       </div>

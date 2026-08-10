@@ -72,6 +72,7 @@ const step = ref(1);
 const importError = ref('');
 const importing = ref(false);
 const dragOver = ref(false);
+const fileInput = ref<HTMLInputElement | null>(null);
 const headers = ref<string[]>([]);
 const dataRows = ref<string[][]>([]);
 const fileKey = ref('');
@@ -147,8 +148,9 @@ async function runImport() {
     emit('close');
   } catch (e: any) {
     importError.value = e?.message || 'Import failed';
+  } finally {
+    importing.value = false;
   }
-  importing.value = false;
 }
 </script>
 
@@ -251,10 +253,8 @@ async function runImport() {
           >
             <Upload class="w-10 h-10 mx-auto mb-3 text-faint" stroke-width="1.5" />
             <p class="text-[14px] text-text-muted mb-2">Drop a Groww/Kite CSV or Excel (.xlsx) holdings export, or click to browse</p>
-            <label class="cursor-pointer text-[13px] text-primary-400 hover:underline">
-              Choose file
-              <input type="file" accept=".csv,.xlsx" class="hidden" @change="handleFile" />
-            </label>
+            <button type="button" class="btn btn-outline btn-sm" @click="fileInput?.click()">Choose file</button>
+            <input ref="fileInput" type="file" accept=".csv,.xlsx" class="hidden" @change="handleFile" />
           </div>
           <p v-if="importError" class="text-[13px] text-expense mt-2">{{ importError }}</p>
         </template>

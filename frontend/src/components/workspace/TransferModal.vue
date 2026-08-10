@@ -61,8 +61,7 @@ async function link(cand: any) {
   submitting.value = 'link';
   error.value = '';
   try {
-    const resp = await transfers().linkTransfers({ links: [{ debitTransactionId: source.value.id, creditTransactionId: cand.id }] });
-    if (resp?.success === false) { error.value = resp.message || 'Link failed'; return; }
+    await transfers().linkTransfers({ links: [{ debitTransactionId: source.value.id, creditTransactionId: cand.id }] });
     emit('done');
     emit('close');
   } catch (e: any) {

@@ -1,10 +1,11 @@
 name: Docker
 
-# Builds and pushes the image to GHCR only when a commit lands on main
-# (i.e. a PR is merged).
+# Builds and pushes the image to GHCR when a commit lands on main
+# (i.e. a PR is merged), or manually via workflow_dispatch.
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io

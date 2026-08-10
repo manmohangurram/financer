@@ -49,7 +49,7 @@ Use Tailwind's scale (`px`, `0.5`, `1`, `1.5`, `2`, `3`, …). Never off-scale v
 
 ### Typography
 
-- Page titles: `text-lg`–`text-2xl font-semibold text-text`
+- Page titles: `text-lg`–`text-2xl font-semibold text-text` (dashboard hero may use `text-3xl`)
 - Section titles: `text-sm font-medium text-text`
 - Field labels: `text-[12px] text-text-muted` (via `AppInput`/`AppSelect`)
 - Body: `text-[13px] text-text`

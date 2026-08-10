@@ -96,23 +96,25 @@ impl TransactionRepo {
     }
 
     /// Fetch a single transaction (used by transfer counterpart logic).
-    pub async fn get_by_id_for_transfer(&self, id: &str) -> Result<Option<(i64, f64, String)>> {
-        let row = sqlx::query_as::<_, (i64, f64, String)>(
-            "SELECT type, amount, account_id FROM transactions WHERE id = ?",
+    pub async fn get_by_id_for_transfer(&self, user_id: &str, id: &str) -> Result<Option<(String, f64, String)>> {
+        let row = sqlx::query_as::<_, (String, f64, String)>(
+            "SELECT type, amount, account_id FROM transactions WHERE id = ? AND user_id = ?",
         )
         .bind(id)
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;
         Ok(row)
     }
 
     /// Fetch a full transaction row including its transfer-link state.
-    pub async fn get_full(&self, id: &str) -> Result<Option<Transaction>> {
+    pub async fn get_full(&self, user_id: &str, id: &str) -> Result<Option<Transaction>> {
         let row = sqlx::query_as::<_, RawTransaction>(
             "SELECT t.id, t.name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id
-             FROM transactions t WHERE t.id = ?",
+             FROM transactions t WHERE t.id = ? AND t.user_id = ?",
         )
         .bind(id)
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;
         let mut txn: Option<Transaction> = row.map(Into::into);
@@ -206,12 +208,16 @@ impl TransactionRepo {
                         .execute(&mut *tx)
                         .await
                         {
-                            errors.push(format!("failed to link category {cat} to {}: {e}", t.id));
+                            errors.push(format!("failed to link category {cat} to {}", t.id));
+                            tracing::error!("failed to link category {cat} to {}: {e}", t.id);
                         }
                     }
                 }
                 Ok(_) => {} // duplicate external_id — skip silently
-                Err(e) => errors.push(format!("failed to create {}: {e}", t.id)),
+                Err(e) => {
+                    errors.push(format!("failed to create {}", t.id));
+                    tracing::error!("failed to create transaction {}: {e}", t.id);
+                }
             }
         }
         tx.commit().await?;
@@ -219,7 +225,7 @@ impl TransactionRepo {
     }
 
     /// Update transactions, replacing each one's category set. One tx.
-    pub async fn update(&self, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>> {
+    pub async fn update(&self, user_id: &str, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>> {
         let mut errors: Vec<String> = Vec::new();
         if inputs.is_empty() {
             return Ok(errors);
@@ -232,9 +238,9 @@ impl TransactionRepo {
                     name = COALESCE(NULLIF(?, ''), name),
                     amount = CASE WHEN ? != 0 THEN ? ELSE amount END,
                     type = CASE WHEN ? != 0 THEN ? ELSE type END,
-                    occurred_at = COALESCE(?, occurred_at),
+                    occurred_at = COALESCE(NULLIF(?, ''), occurred_at),
                     account_id = COALESCE(NULLIF(?, ''), account_id)
-                 WHERE id = ?",
+                 WHERE id = ? AND user_id = ?",
             )
             .bind(&t.name)
             .bind(t.amount)
@@ -244,6 +250,7 @@ impl TransactionRepo {
             .bind(&t.occurred_at)
             .bind(&t.account_id)
             .bind(&t.id)
+            .bind(user_id)
             .execute(&mut *tx)
             .await;
             match res {
@@ -253,7 +260,8 @@ impl TransactionRepo {
                         .execute(&mut *tx)
                         .await
                     {
-                        errors.push(format!("failed to clear categories for {}: {e}", t.id));
+                        errors.push(format!("failed to clear categories for {}", t.id));
+                        tracing::error!("failed to clear categories for {}: {e}", t.id);
                         continue;
                     }
                     for cat in &input.category_ids {
@@ -265,12 +273,16 @@ impl TransactionRepo {
                         .execute(&mut *tx)
                         .await
                         {
-                            errors.push(format!("failed to link category {cat} to {}: {e}", t.id));
+                            errors.push(format!("failed to link category {cat} to {}", t.id));
+                            tracing::error!("failed to link category {cat} to {}: {e}", t.id);
                         }
                     }
                 }
                 Ok(_) => errors.push(format!("transaction {} not found", t.id)),
-                Err(e) => errors.push(format!("failed to update {}: {e}", t.id)),
+                Err(e) => {
+                    errors.push(format!("failed to update {}", t.id));
+                    tracing::error!("failed to update transaction {}: {e}", t.id);
+                }
             }
         }
         tx.commit().await?;
@@ -278,19 +290,25 @@ impl TransactionRepo {
     }
 
     /// Delete transactions by id. One tx.
-    pub async fn delete(&self, ids: &[String]) -> Result<Vec<String>> {
+    pub async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         let mut errors: Vec<String> = Vec::new();
         if ids.is_empty() {
             return Ok(errors);
         }
         let mut tx = self.pool.begin().await?;
         for id in ids {
-            if let Err(e) = sqlx::query("DELETE FROM transactions WHERE id = ?")
+            let res = sqlx::query("DELETE FROM transactions WHERE id = ? AND user_id = ?")
                 .bind(id)
+                .bind(user_id)
                 .execute(&mut *tx)
-                .await
-            {
-                errors.push(format!("failed to delete {id}: {e}"));
+                .await;
+            match res {
+                Ok(r) if r.rows_affected() > 0 => {}
+                Ok(_) => errors.push(format!("transaction {id} not found")),
+                Err(e) => {
+                    errors.push(format!("failed to delete {id}"));
+                    tracing::error!("failed to delete transaction {id}: {e}");
+                }
             }
         }
         tx.commit().await?;
@@ -298,21 +316,16 @@ impl TransactionRepo {
     }
 
     /// Fetch a batch of transactions by id (used to preload before update/delete).
-    pub async fn get_by_id_batch(&self, ids: &[String]) -> Result<Vec<Transaction>> {
+    pub async fn get_by_id_batch(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
         let mut query = String::from(
-            "SELECT id, name, amount, type, occurred_at, account_id, created_at, external_id FROM transactions WHERE id IN (",
+            "SELECT id, name, amount, type, occurred_at, account_id, created_at, external_id FROM transactions WHERE user_id = ? AND id IN (",
         );
-        for (i, _) in ids.iter().enumerate() {
-            if i > 0 {
-                query.push(',');
-            }
-            query.push('?');
-        }
+        query.push_str("?, ".repeat(ids.len()).trim_end_matches(", "));
         query.push(')');
-        let mut q = sqlx::query_as::<_, RawTransaction>(&query);
+        let mut q = sqlx::query_as::<_, RawTransaction>(&query).bind(user_id);
         for id in ids {
             q = q.bind(id);
         }
@@ -537,7 +550,8 @@ pub async fn create_links(
         .execute(&mut *tx)
         .await
         {
-            errors.push(format!("failed to link transfer {debit}/{credit}: {e}"));
+            errors.push(format!("failed to link transfer {debit}/{credit}"));
+            tracing::error!("failed to create transfer link {debit}/{credit}: {e}");
         }
     }
     tx.commit().await?;
@@ -545,19 +559,25 @@ pub async fn create_links(
 }
 
 /// Delete transfer links by id. Mirrors Go's `TransferRepository.Delete`.
-pub async fn delete_links(pool: &SqlitePool, ids: &[String]) -> Result<Vec<String>> {
+pub async fn delete_links(pool: &SqlitePool, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
     let mut errors: Vec<String> = Vec::new();
     if ids.is_empty() {
         return Ok(errors);
     }
     let mut tx = pool.begin().await?;
     for id in ids {
-        if let Err(e) = sqlx::query("DELETE FROM transfer_links WHERE id = ?")
+        let res = sqlx::query("DELETE FROM transfer_links WHERE id = ? AND user_id = ?")
             .bind(id)
+            .bind(user_id)
             .execute(&mut *tx)
-            .await
-        {
-            errors.push(format!("failed to delete transfer link {id}: {e}"));
+            .await;
+        match res {
+            Ok(r) if r.rows_affected() > 0 => {}
+            Ok(_) => errors.push(format!("transfer link {id} not found")),
+            Err(e) => {
+                errors.push(format!("failed to delete transfer link {id}"));
+                tracing::error!("failed to delete transfer link {id}: {e}");
+            }
         }
     }
     tx.commit().await?;
@@ -766,7 +786,7 @@ mod tests {
 
         let mut updated = txn("t1", "New Name", 9.0, TransactionType::Credit, "a1", None);
         updated.occurred_at = "2024-02-02 03:04:05 +0000 UTC".to_string();
-        let errs = repo.update(&[UpdateTransactionInput { txn: updated, category_ids: vec!["c2".to_string()] }]).await.unwrap();
+        let errs = repo.update("u1", &[UpdateTransactionInput { txn: updated, category_ids: vec!["c2".to_string()] }]).await.unwrap();
         assert!(errs.is_empty());
 
         let row: (String, f64, String, String) = sqlx::query_as("SELECT name, amount, type, occurred_at FROM transactions WHERE id = 't1'")
@@ -797,8 +817,14 @@ mod tests {
         )
         .await
         .unwrap();
-        let errs = repo.delete(&["t1".to_string()]).await.unwrap();
+        let errs = repo.delete("u1", &["t1".to_string()]).await.unwrap();
         assert!(errs.is_empty());
+        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions").fetch_one(&pool).await.unwrap();
+        assert_eq!(n, 1);
+
+        // deleting another user's transaction is scoped out
+        let scoped = repo.delete("u2", &["t2".to_string()]).await.unwrap();
+        assert_eq!(scoped, vec!["transaction t2 not found"]);
         let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions").fetch_one(&pool).await.unwrap();
         assert_eq!(n, 1);
     }

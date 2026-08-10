@@ -10,6 +10,7 @@ import { Plus } from '@lucide/vue';
 const categoryList = ref<any[]>([]);
 const txnList = ref<any[]>([]);
 const loading = ref(true);
+const error = ref('');
 
 const showItemModal = ref(false);
 const editingItem = ref<any>(null);
@@ -17,6 +18,7 @@ const confirmDelete = ref<{ ids: string[]; label: string } | null>(null);
 
 async function loadAll() {
   loading.value = true;
+  error.value = '';
   try {
     const [catResp, txnResp] = await Promise.all([
       categories().listCategories({ pageSize: 10000 }),
@@ -24,7 +26,7 @@ async function loadAll() {
     ]);
     categoryList.value = catResp.categories || [];
     txnList.value = (txnResp.transactions || []);
-  } catch (e) { console.error(e); }
+  } catch (e: any) { error.value = e?.message || 'Failed to load categories'; }
   loading.value = false;
 }
 
@@ -35,23 +37,25 @@ function openEditItem(item: any) {
   editingItem.value = item; showItemModal.value = true;
 }
 async function submitItem(payload: any) {
+  error.value = '';
   try {
     if (editingItem.value) await categories().updateCategories({ categories: [{ id: editingItem.value.id, name: payload.name }] });
     else await categories().createCategories({ categories: [{ name: payload.name }] });
     showItemModal.value = false;
     await loadAll();
-  } catch (e) { console.error(e); }
+  } catch (e: any) { error.value = e?.message || 'Failed to save category'; }
 }
 function requestDeleteItem(item: any) {
   confirmDelete.value = { ids: [item.id], label: item.name };
 }
 async function confirmDeleteNow() {
   if (!confirmDelete.value) return;
+  error.value = '';
   try {
     await categories().deleteCategories({ ids: confirmDelete.value.ids });
     showItemModal.value = false;
     await loadAll();
-  } catch (e) { console.error(e); }
+  } catch (e: any) { error.value = e?.message || 'Failed to delete category'; }
   confirmDelete.value = null;
 }
 
@@ -68,6 +72,8 @@ onMounted(loadAll);
         </button>
       </template>
     </SectionHeader>
+
+    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
 
     <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
     <div v-else class="card bg-base-200 border border-border">

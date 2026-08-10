@@ -32,7 +32,11 @@ function typeLabel(t: string): string {
           v-for="inst in investments"
           :key="inst.id"
           class="cursor-pointer hover:bg-white/[0.03] transition-colors"
+          tabindex="0"
+          role="link"
           @click="emit('select', inst)"
+          @keydown.enter="emit('select', inst)"
+          @keydown.space.prevent="emit('select', inst)"
         >
           <td class="pl-6">
             <div class="font-semibold text-text">{{ inst.name }}</div>

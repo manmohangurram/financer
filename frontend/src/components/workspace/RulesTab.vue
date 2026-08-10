@@ -106,7 +106,7 @@ async function runNow(rule: any) {
 
       <button
         type="button"
-        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-500/12 text-primary-400 text-[11.5px] font-medium shrink-0 transition-colors hover:bg-primary-500/25"
+        class="btn btn-ghost btn-sm gap-1"
         :title="running === rule.id ? 'Running…' : 'Match existing transactions now'"
         :disabled="!!running"
         @click="runNow(rule)"

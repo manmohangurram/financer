@@ -14,6 +14,7 @@ const router = useRouter();
 
 const accountList = ref<any[]>([]);
 const showAccountModal = ref(false);
+const loadError = ref('');
 
 const totalCash = computed(() =>
   accountList.value.filter((a: any) => !isCredit(a.type)).reduce((s: number, a: any) => s + (a.balance ?? 0), 0)
@@ -23,10 +24,11 @@ const creditOwed = computed(() =>
 );
 
 async function loadAll() {
+  loadError.value = '';
   try {
     const accResp = await accounts().listAccounts({});
     accountList.value = accResp.accounts || [];
-  } catch (e) { console.error(e); }
+  } catch (e: any) { loadError.value = e?.message || 'Failed to load accounts'; }
 }
 
 onMounted(loadAll);
@@ -36,7 +38,7 @@ onMounted(loadAll);
   <div class="w-full space-y-5">
     <div class="flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-[28px] font-bold text-base-content tracking-tight">Accounts</h1>
+        <h1 class="text-2xl font-bold text-base-content tracking-tight">Accounts</h1>
         <p class="hidden md:block text-[14px] text-subtle mt-0.5">Track spending & transactions across your accounts</p>
       </div>
       <div v-if="accountList.length > 0" class="flex flex-wrap items-center gap-2 shrink-0">
@@ -66,6 +68,8 @@ onMounted(loadAll);
         </button>
       </div>
     </div>
+
+    <div v-if="loadError" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ loadError }}</div>
 
     <div v-if="accountList.length === 0" class="flex items-center justify-center min-h-[calc(100vh-180px)]">
       <div class="rounded-2xl border border-border bg-base-200 px-10 py-12 text-center max-w-md w-full">

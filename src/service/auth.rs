@@ -55,7 +55,10 @@ impl AuthService {
             return Err(ApiError::bad_request("password must be at least 6 characters"));
         }
 
-        let hash = bcrypt::hash(&req.password, bcrypt::DEFAULT_COST)
+        let req_password = req.password.clone();
+        let hash = tokio::task::spawn_blocking(move || bcrypt::hash(&req_password, bcrypt::DEFAULT_COST))
+            .await
+            .map_err(|_| ApiError::internal("internal error"))?
             .map_err(|_| ApiError::internal("internal error"))?;
         let id = Uuid::new_v4().to_string();
 
@@ -74,7 +77,12 @@ impl AuthService {
         let user = self.repo.by_email(&req.email).await?
             .ok_or_else(|| ApiError::unauthorized("invalid credentials"))?;
         let stored = user.password_hash.unwrap_or_default();
-        if !bcrypt::verify(&req.password, &stored).unwrap_or(false) {
+        let password = req.password.clone();
+        let ok = tokio::task::spawn_blocking(move || bcrypt::verify(&password, &stored))
+            .await
+            .map_err(|_| ApiError::internal("internal error"))?
+            .unwrap_or(false);
+        if !ok {
             return Err(ApiError::unauthorized("invalid credentials"));
         }
 
@@ -86,6 +94,9 @@ impl AuthService {
             return Err(ApiError::bad_request("refresh_token is required"));
         }
         let claims = self.jwt.validate(&req.refresh_token)?;
+        if claims.typ != "refresh" {
+            return Err(ApiError::unauthorized("invalid refresh token"));
+        }
 
         let user = self.repo.by_id(&claims.user_id).await?
             .ok_or_else(|| ApiError::unauthorized("user not found"))?;

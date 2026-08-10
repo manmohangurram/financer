@@ -10,6 +10,7 @@ import { Plus, Pencil, Trash2 } from '@lucide/vue';
 
 const accountList = ref<any[]>([]);
 const loading = ref(true);
+const error = ref('');
 
 const showModal = ref(false);
 const editingAccount = ref<any>(null);
@@ -17,10 +18,11 @@ const confirmDelete = ref<any>(null);
 
 async function loadAll() {
   loading.value = true;
+  error.value = '';
   try {
     const resp = await accounts().listAccounts({});
     accountList.value = resp.accounts || [];
-  } catch (e) { console.error(e); }
+  } catch (e: any) { error.value = e?.message || 'Failed to load accounts'; }
   loading.value = false;
 }
 
@@ -35,10 +37,11 @@ function openEditAccount(acc: any) {
 function requestDeleteAccount(acc: any) { confirmDelete.value = acc; }
 async function confirmDeleteNow() {
   if (!confirmDelete.value) return;
+  error.value = '';
   try {
     await accounts().deleteAccount({ id: confirmDelete.value.id });
     await loadAll();
-  } catch (e) { console.error(e); }
+  } catch (e: any) { error.value = e?.message || 'Failed to delete account'; }
   confirmDelete.value = null;
 }
 
@@ -56,6 +59,8 @@ onMounted(loadAll);
       </template>
     </SectionHeader>
 
+    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+
     <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
     <div v-else class="card bg-base-200 border border-border">
       <div class="card-body p-6">
@@ -66,9 +71,11 @@ onMounted(loadAll);
             class="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border group"
           >
             <div
-              class="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
+              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
               :class="isCredit(acc.type) ? 'bg-expense/12 text-expense' : 'bg-income/12 text-income'"
-            >{{ accountTypeIcon(acc.type) }}</div>
+            >
+              <component :is="accountTypeIcon(acc.type)" class="w-5 h-5" stroke-width="2" />
+            </div>
             <div class="flex-1 min-w-0">
               <div class="text-[14px] text-text font-medium truncate">{{ acc.nickname || acc.bankName }}</div>
               <div class="text-[12px] text-subtle">{{ acc.bankName }}</div>
@@ -77,10 +84,10 @@ onMounted(loadAll);
               {{ isCredit(acc.type) ? '-' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
             </span>
             <div class="flex gap-1 shrink-0">
-              <button aria-label="Edit" @click="openEditAccount(acc)" class="p-2 rounded-lg text-subtle hover:text-primary-400 hover:bg-primary-500/10">
+              <button aria-label="Edit" @click="openEditAccount(acc)" class="btn btn-ghost btn-sm">
                 <Pencil class="w-4 h-4" />
               </button>
-              <button aria-label="Delete" @click="requestDeleteAccount(acc)" class="p-2 rounded-lg text-subtle hover:text-expense hover:bg-expense/10">
+              <button aria-label="Delete" @click="requestDeleteAccount(acc)" class="btn btn-ghost btn-sm">
                 <Trash2 class="w-4 h-4" />
               </button>
             </div>

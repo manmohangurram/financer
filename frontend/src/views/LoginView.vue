@@ -45,12 +45,32 @@ async function handleSubmit() {
       <div class="card bg-base-200 border border-border shadow-2xl">
         <div class="card-body p-8">
           <h2 class="card-title text-xl font-bold text-base-content mb-2">Sign In</h2>
-          <div v-if="error" class="alert alert-error text-sm py-3 mb-2">
-            <span>{{ error }}</span>
+          <div
+            v-if="error"
+            class="text-expense border border-expense/40 bg-expense/10 rounded-lg text-sm py-2.5 px-3 mb-3"
+            role="alert"
+          >
+            {{ error }}
           </div>
           <form @submit.prevent="handleSubmit" class="flex flex-col gap-4">
-            <AppInput v-model="email" label="Email" type="email" placeholder="Enter your email" autocomplete="email" required />
-            <AppInput v-model="password" label="Password" type="password" placeholder="Enter your password" autocomplete="current-password" required />
+            <AppInput
+              v-model="email"
+              label="Email"
+              type="email"
+              placeholder="Enter your email"
+              autocomplete="email"
+              required
+              :invalid="!!error"
+            />
+            <AppInput
+              v-model="password"
+              label="Password"
+              type="password"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+              :invalid="!!error"
+            />
             <button type="submit" class="btn btn-primary w-full mt-2" :disabled="loading">
               {{ loading ? 'Signing in...' : 'Sign In' }}
             </button>

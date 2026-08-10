@@ -16,16 +16,18 @@ const form = ref({
   type: props.account?.type || 'CURRENT'
 });
 const saving = ref(false);
+const error = ref('');
 const confirmDelete = ref(false);
 
 async function submit() {
   saving.value = true;
+  error.value = '';
   try {
     if (props.account) await accounts().updateAccount({ id: props.account.id, ...form.value });
     else await accounts().createAccount(form.value);
     emit('saved');
     emit('close');
-  } catch (e) { console.error(e); }
+  } catch (e: any) { error.value = e?.message || 'Failed to save account'; }
   saving.value = false;
 }
 
@@ -35,7 +37,7 @@ async function remove() {
     await accounts().deleteAccount({ id: props.account.id });
     emit('saved');
     emit('close');
-  } catch (e) { console.error(e); }
+  } catch (e: any) { error.value = e?.message || 'Failed to delete account'; }
   confirmDelete.value = false;
 }
 </script>
@@ -43,6 +45,7 @@ async function remove() {
 <template>
   <AppModal :title="account ? 'Edit Account' : 'New Account'" @close="emit('close')">
     <form @submit.prevent="submit" class="px-6 py-5 space-y-3">
+      <p v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</p>
       <AppInput v-model="form.bankName" label="Bank Name" placeholder="e.g. Chase" />
       <AppInput v-model="form.nickname" label="Nickname" placeholder="e.g. Main Checking" />
       <AppSelect v-model="form.type" label="Account Type">

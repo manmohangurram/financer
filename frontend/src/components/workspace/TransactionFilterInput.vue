@@ -93,8 +93,3 @@ function onApply(f: TransactionFilters) {
   </div>
 </template>
 
-<style scoped>
-input:focus-visible {
-  outline: none;
-}
-</style>

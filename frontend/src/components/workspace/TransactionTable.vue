@@ -110,7 +110,7 @@ function counterpart(txn: any) {
                   <button
                     v-if="!readonly && txn.type === 'DEBIT' && !txn.linkedTransferId"
                     type="button"
-                    class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 shrink-0 transition-opacity"
+                    class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle shrink-0"
                     aria-label="Transfer this transaction"
                     title="Transfer to another account"
                     @click.stop="emit('transfer', txn)"
@@ -118,9 +118,9 @@ function counterpart(txn: any) {
                     <ArrowLeftRight class="w-3.5 h-3.5" />
                   </button>
                   <button
-                    v-if="txn.linkedTransferId"
+                    v-if="txn.linkedTransferId && counterpart(txn)"
                     type="button"
-                    class="text-subtle hover:text-primary-400 shrink-0"
+                    class="btn btn-ghost btn-xs text-subtle shrink-0"
                     aria-label="Show linked transfer"
                     @click="revealed = revealed === txn.id ? null : txn.id"
                   >
@@ -141,12 +141,12 @@ function counterpart(txn: any) {
             >{{ txnCategory(txn).name }}</span>
           </td>
           <td class="py-3 px-4 text-right text-[14px] font-semibold whitespace-nowrap" :class="isCredit(txn) ? 'text-income' : 'text-text'">
-            {{ formatCurrency(txn.amount) }}
+            {{ isCredit(txn) ? '+' : '' }}{{ formatCurrency(txn.amount) }}
           </td>
           <td v-if="!readonly" class="py-3 pl-1 pr-3 text-right">
             <button
               type="button"
-              class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 shrink-0 transition-opacity"
+              class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle"
               aria-label="Edit transaction"
               title="Edit"
               @click.stop="emit('edit', txn)"

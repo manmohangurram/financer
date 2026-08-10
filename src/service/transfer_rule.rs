@@ -28,7 +28,7 @@ impl TransferRuleService {
 
     /// Run one rule against the user's (debit, unlinked) transactions.
     pub async fn run_rule(&self, user_id: &str, rule_id: &str) -> Result<RunRuleResponse> {
-        let rule = self.rules.get_by_id(rule_id).await?.ok_or_else(|| ApiError::not_found(format!("rule {rule_id} not found")))?;
+        let rule = self.rules.get_by_id(user_id, rule_id).await?.ok_or_else(|| ApiError::not_found(format!("rule {rule_id} not found")))?;
 
         let mut transfer_target = String::new();
         for act in &rule.actions {

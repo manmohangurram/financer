@@ -1,12 +1,13 @@
 //! Transactions service — business logic mirroring Go's `services/transaction.go`.
 //! Rule overlay is Phase 4 and intentionally not wired here.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::Datelike;
 
 use crate::error::{ApiError, Result};
 use crate::repo::account::AccountRepo;
+use crate::repo::category::CategoryRepo;
 use crate::repo::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, TransactionRepo, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
 use crate::service::transfer_rule::TransferRuleService;
 use crate::timex::{go_ts, round2};
@@ -15,6 +16,7 @@ use crate::timex::{go_ts, round2};
 pub struct TransactionService {
     transaction_repo: TransactionRepo,
     account_repo: AccountRepo,
+    category_repo: CategoryRepo,
     transfer_rule: Option<TransferRuleService>,
 }
 
@@ -38,8 +40,8 @@ pub struct BulkResult {
 }
 
 impl TransactionService {
-    pub fn new(transaction_repo: TransactionRepo, account_repo: AccountRepo) -> Self {
-        Self { transaction_repo, account_repo, transfer_rule: None }
+    pub fn new(transaction_repo: TransactionRepo, account_repo: AccountRepo, category_repo: CategoryRepo) -> Self {
+        Self { transaction_repo, account_repo, category_repo, transfer_rule: None }
     }
 
     pub fn with_transfer_rule(mut self, transfer_rule: TransferRuleService) -> Self {
@@ -63,6 +65,20 @@ impl TransactionService {
         }
     }
 
+    /// Reject the request with 400 unless the account and every category
+    /// referenced by `t` belong to `user_id`.
+    async fn verify_ownership(&self, user_id: &str, t: &TransactionReq) -> Result<()> {
+        if self.account_repo.get_by_id(user_id, &t.account_id).await?.is_none() {
+            return Err(ApiError::bad_request("account does not belong to user"));
+        }
+        for cat in &t.category_ids {
+            if self.category_repo.get_by_id(user_id, cat).await?.is_none() {
+                return Err(ApiError::bad_request("category does not belong to user"));
+            }
+        }
+        Ok(())
+    }
+
     pub async fn list(&self, user_id: &str, f: TransactionListFilter) -> Result<ListTransactionResult> {
         self.transaction_repo.list(user_id, &f).await
     }
@@ -75,9 +91,16 @@ impl TransactionService {
         let mut txns: Vec<Transaction> = Vec::new();
         let mut inputs: Vec<CreateTransactionInput> = Vec::new();
         for t in reqs {
-            if t.name.is_empty() || t.amount <= 0.0 || t.account_id.is_empty() {
-                continue;
+            if t.name.is_empty() {
+                return Err(ApiError::bad_request("invalid transaction: name is required"));
             }
+            if t.amount <= 0.0 {
+                return Err(ApiError::bad_request("invalid transaction: amount must be greater than zero"));
+            }
+            if t.account_id.is_empty() {
+                return Err(ApiError::bad_request("invalid transaction: account_id is required"));
+            }
+            self.verify_ownership(user_id, t).await?;
             let occurred_at = if t.occurred_at.is_empty() { now.clone() } else { t.occurred_at.clone() };
             let txn = Transaction {
                 id: t.id.clone(),
@@ -121,12 +144,22 @@ impl TransactionService {
         Ok(BulkResult { success: true, message: "transactions created successfully".to_string(), failed_ids: Vec::new(), skipped })
     }
 
-    pub async fn update(&self, reqs: &[TransactionReq]) -> Result<BulkResult> {
+    pub async fn update(&self, user_id: &str, reqs: &[TransactionReq]) -> Result<BulkResult> {
         if reqs.len() > 1000 {
             return Err(ApiError::bad_request("too many transactions in one request (max 1000)"));
         }
+        for t in reqs {
+            if !t.account_id.is_empty() && self.account_repo.get_by_id(user_id, &t.account_id).await?.is_none() {
+                return Err(ApiError::bad_request("account does not belong to user"));
+            }
+            for cat in &t.category_ids {
+                if self.category_repo.get_by_id(user_id, cat).await?.is_none() {
+                    return Err(ApiError::bad_request("category does not belong to user"));
+                }
+            }
+        }
         let ids: Vec<String> = reqs.iter().map(|t| t.id.clone()).collect();
-        let old_txns = self.transaction_repo.get_by_id_batch(&ids).await?;
+        let old_txns = self.transaction_repo.get_by_id_batch(user_id, &ids).await?;
         let old_map: HashMap<String, Transaction> = old_txns.into_iter().map(|t| (t.id.clone(), t)).collect();
 
         let mut inputs: Vec<UpdateTransactionInput> = Vec::new();
@@ -146,11 +179,16 @@ impl TransactionService {
                 category_ids: t.category_ids.clone(),
             });
         }
-        let errs = self.transaction_repo.update(&inputs).await?;
+        let errs = self.transaction_repo.update(user_id, &inputs).await?;
+        let failed: HashSet<String> = failed_ids(&errs);
 
-        // Reverse old, apply new per account (balance + cached totals).
+        // Reverse old, apply new per account (balance + cached totals). Only for
+        // txns the repo actually updated — a failed row must not shift balances.
         let mut deltas: HashMap<String, (f64, f64, f64)> = HashMap::new(); // account -> (balance, credit, debit)
         for t in reqs {
+            if failed.contains(&t.id) {
+                continue;
+            }
             let Some(old) = old_map.get(&t.id) else { continue };
             let acc_id = if t.account_id.is_empty() { old.account_id.clone() } else { t.account_id.clone() };
             let (oc, od) = Self::totals(old.transaction_type, old.amount);
@@ -179,15 +217,20 @@ impl TransactionService {
         Ok(BulkResult { success: true, message: "transactions updated successfully".to_string(), failed_ids: Vec::new(), skipped: 0 })
     }
 
-    pub async fn delete(&self, ids: &[String]) -> Result<BulkResult> {
+    pub async fn delete(&self, user_id: &str, ids: &[String]) -> Result<BulkResult> {
         if ids.is_empty() {
             return Err(ApiError::bad_request("no ids provided"));
         }
-        let old_txns = self.transaction_repo.get_by_id_batch(ids).await?;
-        let errs = self.transaction_repo.delete(ids).await?;
+        let old_txns = self.transaction_repo.get_by_id_batch(user_id, ids).await?;
+        let errs = self.transaction_repo.delete(user_id, ids).await?;
+        let failed: HashSet<String> = failed_ids(&errs);
 
+        // Only reverse balances for txns that were actually deleted.
         let mut deltas: HashMap<String, (f64, f64, f64)> = HashMap::new();
         for t in &old_txns {
+            if failed.contains(&t.id) {
+                continue;
+            }
             let e = deltas.entry(t.account_id.clone()).or_insert((0.0, 0.0, 0.0));
             let (c, d) = Self::totals(t.transaction_type, t.amount);
             e.0 -= Self::delta(t.transaction_type, t.amount);
@@ -287,6 +330,21 @@ impl TransactionService {
         }).collect();
         Ok(SpendingResult { buckets: bucket_items, categories: category_items })
     }
+}
+
+/// Extract the failed transaction ids from the repo's sanitized error messages
+/// (`failed to update {id}`, `failed to delete {id}`, `transaction {id} not found`).
+fn failed_ids(errs: &[String]) -> HashSet<String> {
+    errs.iter()
+        .filter_map(|e| {
+            for prefix in ["failed to update ", "failed to delete ", "failed to create ", "transaction "] {
+                if let Some(rest) = e.strip_prefix(prefix) {
+                    return Some(rest.split(' ').next().unwrap_or("").to_string());
+                }
+            }
+            None
+        })
+        .collect()
 }
 
 // `total_` prefix matches the wire keys (totalBalance, ...).

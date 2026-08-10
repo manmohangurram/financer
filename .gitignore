@@ -16,6 +16,12 @@ data/
 *.log
 *.log.err
 
+# Secrets
+.env
+.env.local
+.env.*
+*.pem
+
 # Node / frontend
 frontend/node_modules/
 frontend/dist/

@@ -7,9 +7,8 @@ use axum::{Json, Router};
 use serde::Deserialize;
 
 use crate::error::json_error;
-use crate::http::{require_user, AppState};
+use crate::http::{require_user, AppState, JsonResult};
 use crate::repo::rule::{ActionOp, MatchField, MatchOperator, RuleAction, RuleCondition, RuleLogic};
-use crate::service::rule::RuleService;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -19,7 +18,6 @@ pub fn routes() -> Router<AppState> {
         .route("/api/rules/{id}/run", axum::routing::post(run))
 }
 
-type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,22 +118,22 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
     };
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.rule.update(&id, &req.name, req.priority, req.logic, &req.conditions(), &req.actions()).await {
+    match st.rule.update(&uid, &id, &req.name, req.priority, req.logic, &req.conditions(), &req.actions()).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
 async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.rule.delete(&id).await {
+    match st.rule.delete(&uid, &id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
     }
@@ -180,6 +178,3 @@ async fn run(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<Stri
         Err(e) => e.into_response(),
     }
 }
-
-#[allow(dead_code)]
-fn _keep_svc(_: &RuleService) {}
