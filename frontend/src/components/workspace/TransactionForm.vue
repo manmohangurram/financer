@@ -52,7 +52,7 @@ function toggleCategory(id: string) {
     </div>
     <div class="space-y-3">
       <AppSelect v-model="form.accountId" label="Account">
-        <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.accountNickname || a.bankName }}</option>
+        <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
       </AppSelect>
       <div>
         <span class="block text-[12px] text-text-muted mb-1.5">Date</span>

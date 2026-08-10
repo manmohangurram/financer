@@ -9,7 +9,7 @@ defineProps<{ accounts: any[] }>();
 const store = useAccountsStore();
 
 function accountLabel(a: any) {
-  return a.accountNickname || a.bankName;
+  return a.nickname || a.bankName;
 }
 </script>
 

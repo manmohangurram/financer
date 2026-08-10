@@ -199,7 +199,7 @@ async function runImport() {
       <div v-else>
         <template v-if="step === 1">
           <AppSelect v-model="accountId" label="Account">
-            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.accountNickname || a.bankName }}</option>
+            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
           </AppSelect>
           <div
             class="mt-4 border-2 border-dashed rounded-xl p-8 text-center transition-colors"

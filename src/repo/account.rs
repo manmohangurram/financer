@@ -18,10 +18,10 @@ use crate::timex::go_ts;
 #[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum AccountType {
-    Checking,
+    Current,
     Savings,
-    CreditCard,
     Loan,
+    CreditCard,
 }
 
 #[derive(Clone)]
@@ -32,7 +32,7 @@ pub struct AccountRepo {
 pub struct AccountRow {
     pub id: String,
     pub bank_name: String,
-    pub account_nickname: String,
+    pub nickname: String,
     pub balance: f64,
     pub account_type: AccountType,
     pub created_at: String,
@@ -56,7 +56,7 @@ impl AccountRepo {
         let now = go_ts(chrono::Utc::now());
 
         sqlx::query(
-            "INSERT INTO accounts (id, user_id, bank_name, account_nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO accounts (id, user_id, bank_name, nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(user_id)
@@ -71,7 +71,7 @@ impl AccountRepo {
         Ok(AccountRow {
             id,
             bank_name: bank_name.to_string(),
-            account_nickname: nickname.to_string(),
+            nickname: nickname.to_string(),
             balance: 0.0,
             account_type,
             created_at: now,
@@ -80,7 +80,7 @@ impl AccountRepo {
 
     pub async fn get_by_id(&self, id: &str) -> Result<Option<AccountRow>> {
         let row = sqlx::query_as::<_, RawAccount>(
-            "SELECT id, bank_name, account_nickname, balance, type, created_at FROM accounts WHERE id = ?",
+            "SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -99,7 +99,7 @@ impl AccountRepo {
         let result = sqlx::query(
             "UPDATE accounts SET
                 bank_name = COALESCE(NULLIF(?, ''), bank_name),
-                account_nickname = COALESCE(NULLIF(?, ''), account_nickname),
+                nickname = COALESCE(NULLIF(?, ''), nickname),
                 type = ?
              WHERE id = ?",
         )
@@ -126,7 +126,7 @@ impl AccountRepo {
 
     pub async fn list(&self, user_id: &str) -> Result<Vec<AccountRow>> {
         let rows = sqlx::query_as::<_, RawAccount>(
-            "SELECT id, bank_name, account_nickname, balance, type, created_at FROM accounts WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE user_id = ? ORDER BY created_at DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -167,7 +167,7 @@ impl AccountRepo {
 struct RawAccount {
     id: String,
     bank_name: String,
-    account_nickname: String,
+    nickname: String,
     balance: f64,
     #[sqlx(rename = "type")]
     account_type: String,
@@ -179,9 +179,9 @@ impl From<RawAccount> for AccountRow {
         Self {
             id: r.id,
             bank_name: r.bank_name,
-            account_nickname: r.account_nickname,
+            nickname: r.nickname,
             balance: r.balance,
-            account_type: AccountType::from_str(&r.account_type).unwrap_or(AccountType::Checking),
+            account_type: AccountType::from_str(&r.account_type).unwrap_or(AccountType::Current),
             created_at: r.created_at,
         }
     }
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn rejects_unknown_type() {
         assert!(AccountType::from_str("bogus").is_err());
-        assert_eq!(AccountType::from_str("CHECKING"), Ok(AccountType::Checking));
+        assert_eq!(AccountType::from_str("CURRENT"), Ok(AccountType::Current));
         assert_eq!(AccountType::from_str("CREDIT_CARD"), Ok(AccountType::CreditCard));
     }
 
@@ -230,7 +230,7 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let a = repo.create("u1", "Chase", "Main", AccountType::Checking).await.unwrap();
+        let a = repo.create("u1", "Chase", "Main", AccountType::Current).await.unwrap();
         repo.create("u1", "Amex", "", AccountType::CreditCard).await.unwrap();
         repo.create("u2", "Other", "", AccountType::Savings).await.unwrap();
 
@@ -238,11 +238,11 @@ mod tests {
         assert_eq!(list.len(), 2, "only u1's accounts");
         let mut types: Vec<String> = list.iter().map(|a| a.account_type.to_string()).collect();
         types.sort();
-        assert_eq!(types, vec!["CHECKING", "CREDIT_CARD"], "both of u1's accounts");
+        assert_eq!(types, vec!["CREDIT_CARD", "CURRENT"], "both of u1's accounts");
 
         let upd = repo.update(&a.id, "Chase Blue", "New", AccountType::Savings).await.unwrap().unwrap();
         assert_eq!(upd.bank_name, "Chase Blue");
-        assert_eq!(upd.account_nickname, "New");
+        assert_eq!(upd.nickname, "New");
         assert_eq!(upd.account_type, AccountType::Savings);
 
         assert!(repo.delete(&a.id).await.unwrap());
@@ -265,7 +265,7 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        let a = repo.create("u1", "Chase", "", AccountType::Checking).await.unwrap();
+        let a = repo.create("u1", "Chase", "", AccountType::Current).await.unwrap();
 
         repo.update_balance(&a.id, -5.5).await.unwrap();
         repo.update_balance(&a.id, 10.0).await.unwrap();

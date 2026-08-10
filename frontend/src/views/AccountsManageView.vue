@@ -70,7 +70,7 @@ onMounted(loadAll);
               :class="isCredit(acc.type) ? 'bg-expense/12 text-expense' : 'bg-income/12 text-income'"
             >{{ accountTypeIcon(acc.type) }}</div>
             <div class="flex-1 min-w-0">
-              <div class="text-[14px] text-text font-medium truncate">{{ acc.accountNickname || acc.bankName }}</div>
+              <div class="text-[14px] text-text font-medium truncate">{{ acc.nickname || acc.bankName }}</div>
               <div class="text-[12px] text-subtle">{{ acc.bankName }}</div>
             </div>
             <span class="text-[15px] font-semibold shrink-0" :class="isCredit(acc.type) ? 'text-expense' : 'text-base-content'">
@@ -100,7 +100,7 @@ onMounted(loadAll);
     <ConfirmDialog
       v-if="confirmDelete"
       title="Delete account"
-      :message="`Delete &quot;${confirmDelete.accountNickname || confirmDelete.bankName}&quot;? This can't be undone.`"
+      :message="`Delete &quot;${confirmDelete.nickname || confirmDelete.bankName}&quot;? This can't be undone.`"
       @confirm="confirmDeleteNow"
       @cancel="confirmDelete = null"
     />

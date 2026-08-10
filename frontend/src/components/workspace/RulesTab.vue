@@ -17,7 +17,7 @@ function catName(id: string) {
 }
 function accountName(id: string) {
   const a = (props.accounts || []).find((x: any) => x.id === id);
-  return a ? (a.accountNickname || a.bankName) : 'account';
+  return a ? (a.nickname || a.bankName) : 'account';
 }
 
 function condLabel(c: any) {

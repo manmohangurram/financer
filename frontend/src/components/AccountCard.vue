@@ -18,7 +18,7 @@ const emit = defineEmits<{ (e: 'edit', account: any): void }>();
           {{ accountTypeIcon(account.type) }}
         </div>
         <div class="flex-1 min-w-0">
-          <div class="font-semibold text-text truncate" :class="compact ? 'text-[13.5px]' : 'text-[15px]'">{{ account.accountNickname || account.bankName }}</div>
+          <div class="font-semibold text-text truncate" :class="compact ? 'text-[13.5px]' : 'text-[15px]'">{{ account.nickname || account.bankName }}</div>
           <div class="text-subtle truncate" :class="compact ? 'text-[11.5px]' : 'text-[13px]'">{{ account.bankName }}</div>
         </div>
         <button

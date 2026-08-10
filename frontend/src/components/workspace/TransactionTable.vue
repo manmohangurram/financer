@@ -53,7 +53,7 @@ function counterpart(txn: any) {
   );
   if (!other) return null;
   const acc = (props.accounts || []).find((a) => a.id === other.accountId);
-  return { name: other.name, account: acc ? acc.accountNickname || acc.bankName : '' };
+  return { name: other.name, account: acc ? acc.nickname || acc.bankName : '' };
 }
 </script>
 

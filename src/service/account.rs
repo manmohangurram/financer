@@ -51,7 +51,7 @@ impl AccountService {
 pub struct AccountResponse {
     pub id: String,
     pub bank_name: String,
-    pub account_nickname: String,
+    pub nickname: String,
     #[serde(rename = "type")]
     pub account_type: AccountType,
     #[serde(serialize_with = "round2")]
@@ -70,7 +70,7 @@ impl AccountResponse {
         Self {
             id: r.id,
             bank_name: r.bank_name,
-            account_nickname: r.account_nickname,
+            nickname: r.nickname,
             account_type: r.account_type,
             balance: r.balance,
             created_at: ts_rfc3339(&r.created_at),

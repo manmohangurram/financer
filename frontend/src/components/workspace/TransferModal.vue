@@ -17,7 +17,7 @@ const search = ref('');
 const error = ref('');
 const submitting = ref('');
 
-const accName = (id: string) => props.accounts.find((a) => a.id === id)?.accountNickname || props.accounts.find((a) => a.id === id)?.bankName || '';
+const accName = (id: string) => props.accounts.find((a) => a.id === id)?.nickname || props.accounts.find((a) => a.id === id)?.bankName || '';
 const ms = (t: any) => (typeof t.occurredAt === 'number' ? t.occurredAt * 1000 : new Date(t.occurredAt || 0).getTime());
 const DAY = 86400000;
 

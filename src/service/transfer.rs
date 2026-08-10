@@ -191,7 +191,7 @@ async fn resolve_transfer(
 
 async fn account_display(account_id: &str, account_repo: &AccountRepo) -> String {
     match account_repo.get_by_id(account_id).await {
-        Ok(Some(a)) if !a.account_nickname.is_empty() => a.account_nickname,
+        Ok(Some(a)) if !a.nickname.is_empty() => a.nickname,
         Ok(Some(a)) => a.bank_name,
         _ => account_id.to_string(),
     }

@@ -327,16 +327,12 @@ git commit -m "feat: frontend sends lowercase account/transaction type values"
 
 ---
 
-### Task 6: Docs + final verification
+### Task 6: Final verification
 
 **Files:**
-- Modify: `migration.md`
+- none (migration.md was removed — UI migrates alongside the backend, no separate contract doc)
 
-- [ ] **Step 1: Update `migration.md`**
-
-Confirm the "Strict enum validation" section already documents lowercase values (done during brainstorming). Add the DB column note (`type TEXT`, lowercase) if not present.
-
-- [ ] **Step 2: Full gate**
+- [ ] **Step 1: Full gate**
 
 Run from repo root: `cargo build && cargo clippy -- -D warnings && cargo test && go build ./... && go test ./...`
 Run from `frontend/`: `npm run build && npm test`
@@ -346,12 +342,6 @@ Expected: all green.
 
 Run Rust server; `POST /api/accounts` with `{"bankName":"X","accountType":"checking"}` → 201 with `"accountType":"checking"`; with `"accountType":"bogus"` → 400 `invalid_argument`. Same for transactions `type`. Confirm `data/financer.db` stores `checking`/`debit` strings.
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add migration.md
-git commit -m "docs: migration notes reflect lowercase string enums"
-```
 
 ---
 
