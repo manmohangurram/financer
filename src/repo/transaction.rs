@@ -855,3 +855,156 @@ mod tests {
     }
 }
 
+
+// --- spending aggregation ---
+
+pub struct SpendingFilter {
+    pub granularity: String, // "day" | "month"
+    pub from: String,        // Go-driver format
+    pub to: String,
+    pub account_id: String,
+}
+
+pub struct SpendingBucketRow {
+    pub key: String,
+    pub amount: f64,
+}
+
+pub struct SpendingCategoryRow {
+    pub id: String,
+    pub name: String,
+    pub debit: f64,
+    pub credit: f64,
+}
+
+/// The LEFT JOIN chain exposing the transfer counterpart account, so a
+/// transfer is excluded unless one side is a debt account.
+fn spending_where() -> &'static str {
+    "LEFT JOIN transfer_links tl ON tl.debit_transaction_id = t.id OR tl.credit_transaction_id = t.id
+     LEFT JOIN accounts a_self ON a_self.id = t.account_id
+     LEFT JOIN accounts a_other ON a_other.id = CASE WHEN tl.debit_transaction_id = t.id THEN tl.credit_transaction_id ELSE tl.debit_transaction_id END"
+}
+
+fn spending_range_clause(f: &SpendingFilter) -> (String, Vec<String>) {
+    let mut s = String::new();
+    let mut args = Vec::new();
+    if !f.from.is_empty() {
+        s.push_str(" AND t.occurred_at >= ?");
+        args.push(f.from.clone());
+    }
+    if !f.to.is_empty() {
+        s.push_str(" AND t.occurred_at < ?");
+        args.push(f.to.clone());
+    }
+    if !f.account_id.is_empty() {
+        s.push_str(" AND t.account_id = ?");
+        args.push(f.account_id.clone());
+    }
+    (s, args)
+}
+
+impl TransactionRepo {
+    /// Sum debit spending per day/month, excluding non-debt transfers.
+    pub async fn spending_buckets(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingBucketRow>> {
+        let key_expr = if f.granularity == "month" { "substr(t.occurred_at, 1, 7)" } else { "substr(t.occurred_at, 1, 10)" };
+        let (range, range_args) = spending_range_clause(f);
+        let query = format!(
+            "SELECT {key_expr} AS key, COALESCE(SUM(t.amount), 0) AS amount
+             FROM transactions t
+             {}
+             WHERE t.user_id = ? AND t.type = 'DEBIT'
+               AND (tl.id IS NULL OR a_self.type IN ('CREDIT_CARD','LOAN') OR a_other.type IN ('CREDIT_CARD','LOAN'))
+             {range}
+             GROUP BY key ORDER BY key",
+            spending_where()
+        );
+        let mut bind_args: Vec<String> = vec![user_id.to_string()];
+        bind_args.extend(range_args);
+        let mut q = sqlx::query_as::<_, (String, f64)>(&query);
+        for a in &bind_args {
+            q = q.bind(a);
+        }
+        let rows = q.fetch_all(&self.pool).await?;
+        Ok(rows.into_iter().map(|(key, amount)| SpendingBucketRow { key, amount }).collect())
+    }
+
+    /// Sum debit/credit per category, with the same transfer exclusion.
+    pub async fn spending_categories(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingCategoryRow>> {
+        let (range, range_args) = spending_range_clause(f);
+        let query = format!(
+            "SELECT COALESCE(c.id, '__uncategorized__'), COALESCE(c.name, 'Uncategorized'),
+                COALESCE(SUM(CASE WHEN t.type = 'DEBIT' THEN t.amount ELSE 0.0 END), 0.0) AS debit,
+                COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE 0.0 END), 0.0) AS credit
+             FROM transactions t
+             LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
+             LEFT JOIN categories c ON c.id = tc.category_id
+             {}
+             WHERE t.user_id = ? AND (tl.id IS NULL OR a_self.type IN ('CREDIT_CARD','LOAN') OR a_other.type IN ('CREDIT_CARD','LOAN'))
+             {range}
+             GROUP BY COALESCE(c.id, '__uncategorized__') ORDER BY debit DESC",
+            spending_where()
+        );
+        let mut bind_args: Vec<String> = vec![user_id.to_string()];
+        bind_args.extend(range_args);
+        let mut q = sqlx::query_as::<_, (String, String, f64, f64)>(&query);
+        for a in &bind_args {
+            q = q.bind(a);
+        }
+        let rows = q.fetch_all(&self.pool).await?;
+        Ok(rows.into_iter().map(|(id, name, debit, credit)| SpendingCategoryRow { id, name, debit, credit }).collect())
+    }
+}
+
+#[cfg(test)]
+mod spending_tests {
+    use super::*;
+
+    async fn test_pool() -> SqlitePool {
+        use std::str::FromStr;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let opt = sqlx::sqlite::SqliteConnectOptions::from_str(path.to_str().unwrap())
+            .unwrap()
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .foreign_keys(true);
+        let pool = SqlitePool::connect_with(opt).await.unwrap();
+        crate::db::run_migrations(&pool, std::path::Path::new("db/migrations")).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn spending_buckets_and_categories() {
+        let pool = test_pool().await;
+        // user + accounts: one current (non-debt), one credit card (debt)
+        sqlx::query("INSERT INTO users (id, email, password_hash, name) VALUES ('u1','u1@x.com','h','u1')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO accounts (id, user_id, bank_name, type) VALUES ('a1','u1','Bank','CURRENT')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO accounts (id, user_id, bank_name, type) VALUES ('a2','u1','CC','CREDIT_CARD')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO categories (id, user_id, name) VALUES ('c1','u1','Food')").execute(&pool).await.unwrap();
+        let repo = TransactionRepo::new(pool.clone());
+        let txn = |id: &str, name: &str, amt: f64, ty: TransactionType, acc: &str| Transaction {
+            id: id.to_string(), name: name.to_string(), amount: amt, transaction_type: ty,
+            occurred_at: "2024-01-02 10:00:00 +0000 UTC".to_string(),
+            account_id: acc.to_string(), created_at: "2024-01-02 10:00:01 +0000 UTC".to_string(),
+            external_id: None, transfer_linked: false,
+        };
+        repo.create("u1", &[
+            CreateTransactionInput { txn: txn("t1", "Groceries", 50.0, TransactionType::Debit, "a1"), category_ids: vec!["c1".to_string()] },
+            CreateTransactionInput { txn: txn("t2", "Salary", 1000.0, TransactionType::Credit, "a1"), category_ids: vec![] },
+        ]).await.unwrap();
+
+        let filter = SpendingFilter { granularity: "day".into(), from: String::new(), to: String::new(), account_id: String::new() };
+        let buckets = repo.spending_buckets("u1", &filter).await.unwrap();
+        assert_eq!(buckets.len(), 1, "one day bucket (only debit counts)");
+        assert_eq!(buckets[0].key, "2024-01-02");
+        assert_eq!(buckets[0].amount, 50.0);
+
+        let cats = repo.spending_categories("u1", &filter).await.unwrap();
+        assert_eq!(cats.len(), 2, "Food + Uncategorized");
+        let food = cats.iter().find(|c| c.name == "Food").unwrap();
+        assert_eq!(food.debit, 50.0);
+        assert_eq!(food.credit, 0.0);
+        let uncat = cats.iter().find(|c| c.name == "Uncategorized").unwrap();
+        assert_eq!(uncat.credit, 1000.0, "salary credit lands in uncategorized");
+    }
+}
