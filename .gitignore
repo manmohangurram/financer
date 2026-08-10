@@ -3,6 +3,9 @@
 *.test
 *.out
 
+# Rust
+target/
+
 # Editors / tooling config
 .claude/
 .zed/
