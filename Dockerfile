@@ -27,17 +27,27 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM --platform=$BUILDPLATFORM chef AS builder
 ARG TARGETARCH
 # rust:*-alpine targets musl natively, so amd64 needs no --target. Only
-# cross-compiles (e.g. arm64) add the target triple (Docker arch → rustc).
-RUN case ${TARGETARCH} in arm64) rustup target add aarch64-unknown-linux-musl;; esac
+# cross-compiles (e.g. arm64) add the target triple (Docker arch → rustc)
+# and a musl cross-C toolchain: sqlx's bundled libsqlite3-sys compiles the
+# SQLite amalgamation with `cc`, so a cross `aarch64-linux-musl-gcc` is
+# required for the final binary (Alpine ships no musl cross-gcc; musl.cc does).
+RUN case ${TARGETARCH} in arm64) rustup target add aarch64-unknown-linux-musl && \
+        wget -qO /tmp/cross.tgz https://musl.cc/aarch64-linux-musl-cross.tgz && \
+        tar xzf /tmp/cross.tgz -C /opt && \
+        ln -s /opt/aarch64-linux-musl-cross/bin/* /usr/local/bin/;; esac
 COPY --from=planner /app/recipe.json recipe.json
 RUN case ${TARGETARCH} in \
-        arm64) cargo chef cook --release --target aarch64-unknown-linux-musl --recipe-path recipe.json;; \
+        arm64) CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc \
+               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc \
+               cargo chef cook --release --target aarch64-unknown-linux-musl --recipe-path recipe.json;; \
         *)     cargo chef cook --release --recipe-path recipe.json;; \
     esac
 COPY . .
 RUN mkdir -p /out && \
     case ${TARGETARCH} in \
-        arm64) cargo build --release --locked -p financer --target aarch64-unknown-linux-musl && \
+        arm64) CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc \
+               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc \
+               cargo build --release --locked -p financer --target aarch64-unknown-linux-musl && \
                cp target/aarch64-unknown-linux-musl/release/financer /out/financer;; \
         *)     cargo build --release --locked -p financer && \
                cp target/release/financer /out/financer;; \
