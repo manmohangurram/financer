@@ -21,11 +21,10 @@ function typeLabel(t: string): string {
           <th class="pl-6">Name</th>
           <th>Type</th>
           <th class="text-right">Quantity</th>
-          <th class="text-right">Avg Cost</th>
           <th class="text-right">Current Price</th>
+          <th class="text-right">Invested</th>
           <th class="text-right">Current Value</th>
-          <th class="text-right">Unrealized P&L</th>
-          <th class="text-right pr-6">Realized P&L</th>
+          <th class="text-right pr-6">P&L</th>
         </tr>
       </thead>
       <tbody>
@@ -41,11 +40,10 @@ function typeLabel(t: string): string {
           </td>
           <td><span class="badge badge-outline badge-sm border-border text-subtle">{{ typeLabel(inst.investmentType) }}</span></td>
           <td class="text-right text-text-secondary">{{ inst.quantity }}</td>
-          <td class="text-right text-text-secondary">{{ formatCurrency(inst.avgCost) }}</td>
           <td class="text-right text-text-secondary">{{ formatCurrency(inst.currentPrice) }}</td>
+          <td class="text-right text-text-secondary">{{ formatCurrency(inst.avgCost * inst.quantity) }}</td>
           <td class="text-right font-semibold text-text">{{ formatCurrency(inst.currentValue) }}</td>
-          <td class="text-right" :class="pnlClass(inst.unrealizedPnl)">{{ formatCurrency(inst.unrealizedPnl) }}</td>
-          <td class="text-right pr-6" :class="pnlClass(inst.realizedPnl)">{{ formatCurrency(inst.realizedPnl) }}</td>
+          <td class="text-right pr-6" :class="pnlClass(inst.unrealizedPnl)">{{ formatCurrency(inst.unrealizedPnl) }}</td>
         </tr>
       </tbody>
     </table>

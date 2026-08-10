@@ -535,7 +535,35 @@ type AddLotRequest struct {
 	OccurredAt   time.Time
 }
 
+type UpdateLotRequest struct {
+	Id           string
+	InvestmentId string
+	Quantity     float32
+	Price        float32
+	OccurredAt   time.Time
+}
+
 type DeleteLotRequest struct{ Id string }
+
+type ImportInvestmentsRequest struct {
+	Rows []*ImportInvestmentRow
+}
+
+type ImportInvestmentRow struct {
+	Symbol         string
+	Name           string
+	InvestmentType InvestmentType
+	Side           int32
+	Quantity       float32
+	Price          float32
+	OccurredAt     time.Time
+	ExternalId     string
+}
+
+type ImportInvestmentsResponse struct {
+	Created int32
+	Skipped int32
+}
 
 type RefreshPricesRequest struct{}
 

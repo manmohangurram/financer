@@ -106,7 +106,7 @@ function parseDMY(cell: string): Date | null {
   return null;
 }
 
-function buildDate(dateCell: string): number {
+export function buildDate(dateCell: string): number {
   const dmy = parseDMY(dateCell);
   if (dmy) return dmy.getTime();
   const iso = (dateCell || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);

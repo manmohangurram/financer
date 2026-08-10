@@ -12,6 +12,7 @@ const router = useRouter();
 const loading = ref(true);
 const refreshing = ref(false);
 const error = ref('');
+const notice = ref('');
 const investmentList = ref<any[]>([]);
 const summary = ref({ totalInvested: 0, totalCurrentValue: 0, totalUnrealizedPnl: 0, totalRealizedPnl: 0 });
 const showInvestmentModal = ref(false);
@@ -68,6 +69,11 @@ async function handleInvestmentSubmit(payload: any) {
   }
 }
 
+async function handleImported(result: { created: number; skipped: number }) {
+  await loadAll();
+  notice.value = `Imported ${result.created} lot(s)${result.skipped ? `, ${result.skipped} skipped` : ''}.`;
+}
+
 onMounted(loadAll);
 </script>
 
@@ -92,6 +98,7 @@ onMounted(loadAll);
     </div>
 
     <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+    <div v-if="notice" class="rounded-xl border border-income/30 bg-income/10 px-4 py-3 text-[13px] text-income">{{ notice }}</div>
 
     <div v-if="loading" class="text-center py-16 text-subtle">Loading…</div>
     <div v-else-if="investmentList.length === 0" class="flex items-center justify-center min-h-[calc(100vh-180px)]">
@@ -118,6 +125,6 @@ onMounted(loadAll);
       <InvestmentTable :investments="investmentList" @select="openDetail" />
     </template>
 
-    <InvestmentModal v-if="showInvestmentModal" @close="showInvestmentModal = false" @submit="handleInvestmentSubmit" />
+    <InvestmentModal v-if="showInvestmentModal" @close="showInvestmentModal = false" @submit="handleInvestmentSubmit" @imported="handleImported" />
   </div>
 </template>

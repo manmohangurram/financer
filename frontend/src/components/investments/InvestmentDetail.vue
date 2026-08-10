@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCurrency } from '@/lib/utils/format';
 import PriceHistoryChart from '@/components/investments/PriceHistoryChart.vue';
-import { ArrowLeft } from '@lucide/vue';
+import { ArrowLeft, Pencil } from '@lucide/vue';
 
 defineProps<{ investment: any; lots: any[] }>();
 const emit = defineEmits<{
@@ -9,8 +9,7 @@ const emit = defineEmits<{
   (e: 'edit'): void;
   (e: 'add-buy'): void;
   (e: 'add-sell'): void;
-  (e: 'delete-lot', lot: any): void;
-  (e: 'delete-investment'): void;
+  (e: 'edit-lot', lot: any): void;
 }>();
 
 function pnlClass(v: number): string {
@@ -43,7 +42,6 @@ function typeLabel(t: string): string {
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <button class="btn btn-outline btn-error btn-sm text-[13px]" @click="emit('delete-investment')">Delete</button>
         <button class="btn btn-ghost btn-sm border border-track" @click="emit('edit')">Edit</button>
       </div>
     </div>
@@ -54,20 +52,20 @@ function typeLabel(t: string): string {
         <div class="text-[18px] font-bold text-text mt-1">{{ investment.quantity }}</div>
       </div>
       <div class="rounded-xl border border-border bg-base-200 p-4">
-        <div class="text-[11px] uppercase tracking-wide text-faint">Avg Cost</div>
-        <div class="text-[18px] font-bold text-text mt-1">{{ formatCurrency(investment.avgCost) }}</div>
-      </div>
-      <div class="rounded-xl border border-border bg-base-200 p-4">
         <div class="text-[11px] uppercase tracking-wide text-faint">Current Price</div>
         <div class="text-[18px] font-bold text-text mt-1">{{ formatCurrency(investment.currentPrice) }}</div>
+      </div>
+      <div class="rounded-xl border border-border bg-base-200 p-4">
+        <div class="text-[11px] uppercase tracking-wide text-faint">Invested</div>
+        <div class="text-[18px] font-bold text-text mt-1">{{ formatCurrency(investment.avgCost * investment.quantity) }}</div>
       </div>
       <div class="rounded-xl border border-border bg-base-200 p-4">
         <div class="text-[11px] uppercase tracking-wide text-faint">Current Value</div>
         <div class="text-[18px] font-bold text-income mt-1">{{ formatCurrency(investment.currentValue) }}</div>
       </div>
       <div class="rounded-xl border border-border bg-base-200 p-4">
-        <div class="text-[11px] uppercase tracking-wide text-faint">Realized P&L</div>
-        <div class="text-[18px] font-bold mt-1" :class="pnlClass(investment.realizedPnl)">{{ formatCurrency(investment.realizedPnl) }}</div>
+        <div class="text-[11px] uppercase tracking-wide text-faint">P&L</div>
+        <div class="text-[18px] font-bold mt-1" :class="pnlClass(investment.unrealizedPnl)">{{ formatCurrency(investment.unrealizedPnl) }}</div>
       </div>
     </div>
 
@@ -93,7 +91,7 @@ function typeLabel(t: string): string {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="lot in lots" :key="lot.id">
+          <tr v-for="lot in lots" :key="lot.id" class="group">
             <td class="pl-6 text-text-secondary">{{ new Date(lot.occurredAt).toLocaleDateString('en-IN') }}</td>
             <td>
               <span class="badge badge-sm" :class="lot.side === 1 ? 'bg-income/15 text-income border-income/30' : 'bg-expense/15 text-expense border-expense/30'">
@@ -103,7 +101,15 @@ function typeLabel(t: string): string {
             <td class="text-right text-text-secondary">{{ lot.quantity }}</td>
             <td class="text-right text-text-secondary">{{ formatCurrency(lot.price) }}</td>
             <td class="text-right pr-6">
-              <button class="btn btn-ghost btn-xs text-expense" @click="emit('delete-lot', lot)">Delete</button>
+              <button
+                type="button"
+                class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-subtle hover:text-primary-400 transition-opacity"
+                aria-label="Edit lot"
+                title="Edit lot"
+                @click="emit('edit-lot', lot)"
+              >
+                <Pencil class="w-3.5 h-3.5" />
+              </button>
             </td>
           </tr>
           <tr v-if="lots.length === 0">

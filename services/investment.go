@@ -64,6 +64,18 @@ func (s *InvestmentService) CreateInvestment(ctx context.Context, msg *api.Creat
 	if err != nil {
 		return nil, ServerError("%v", err)
 	}
+	// Fetch the current quote once so a newly added stock shows a price right
+	// away. Failures are non-fatal — the price stays 0 until a manual refresh.
+	if msg.InvestmentType == api.InvestmentType_INVESTMENT_TYPE_STOCK && msg.Symbol != "" {
+		if quotes, qerr := s.yahoo.GetQuotes(ctx, []string{msg.Symbol}); qerr == nil {
+			if q, ok := quotes[msg.Symbol]; ok {
+				if uerr := s.repo.UpdateQuote(ctx, inst.Id, float32(q.Price), float32(q.PrevClose)); uerr == nil {
+					inst.CurrentPrice = float32(q.Price)
+					inst.PrevClose = float32(q.PrevClose)
+				}
+			}
+		}
+	}
 	return s.withPosition(ctx, inst)
 }
 
@@ -186,6 +198,39 @@ func (s *InvestmentService) DeleteLot(ctx context.Context, msg *api.DeleteLotReq
 	return &api.OperationResponse{Success: true, Message: "lot deleted"}, nil
 }
 
+func (s *InvestmentService) UpdateLot(ctx context.Context, msg *api.UpdateLotRequest) (*api.LotResponse, error) {
+	if msg.Quantity <= 0 {
+		return nil, BadRequest("quantity must be greater than zero")
+	}
+	if msg.Price < 0 {
+		return nil, BadRequest("price must not be negative")
+	}
+	inst, err := s.repo.GetInvestment(ctx, msg.InvestmentId)
+	if err != nil {
+		return nil, ServerError("%v", err)
+	}
+	if inst == nil {
+		return nil, NotFound("investment %s not found", msg.InvestmentId)
+	}
+	updated, err := s.repo.UpdateLot(ctx, msg.Id, round2f(msg.Quantity), round2f(msg.Price), msg.OccurredAt)
+	if err != nil {
+		return nil, ServerError("%v", err)
+	}
+	if !updated {
+		return nil, NotFound("lot %s not found", msg.Id)
+	}
+	lots, err := s.repo.ListLots(ctx, msg.InvestmentId)
+	if err != nil {
+		return nil, ServerError("%v", err)
+	}
+	for _, l := range lots {
+		if l.Id == msg.Id {
+			return l, nil
+		}
+	}
+	return nil, NotFound("lot %s not found", msg.Id)
+}
+
 func (s *InvestmentService) ListLots(ctx context.Context, msg *api.GetInvestmentRequest) ([]*api.LotResponse, error) {
 	inst, err := s.repo.GetInvestment(ctx, msg.Id)
 	if err != nil {
@@ -199,6 +244,52 @@ func (s *InvestmentService) ListLots(ctx context.Context, msg *api.GetInvestment
 		return nil, ServerError("%v", err)
 	}
 	return lots, nil
+}
+
+func (s *InvestmentService) ImportInvestments(ctx context.Context, msg *api.ImportInvestmentsRequest) (*api.ImportInvestmentsResponse, error) {
+	userID := ctx.Value(auth.UserIDKey).(string)
+	var created, skipped int32
+	for _, row := range msg.Rows {
+		// Row-level validation; bad rows are skipped, never fatal.
+		if row.Symbol == "" || row.Quantity <= 0 || row.Price < 0 {
+			skipped++
+			continue
+		}
+		typ := row.InvestmentType
+		if typ != api.InvestmentType_INVESTMENT_TYPE_STOCK && typ != api.InvestmentType_INVESTMENT_TYPE_MUTUAL_FUND {
+			typ = api.InvestmentType_INVESTMENT_TYPE_STOCK
+		}
+		inst, err := s.repo.GetBySymbol(ctx, userID, row.Symbol)
+		if err != nil {
+			return nil, ServerError("%v", err)
+		}
+		if inst == nil {
+			inst, err = s.repo.CreateInvestment(ctx, userID, row.Symbol, row.Name, typ, 0)
+			if err != nil {
+				return nil, ServerError("%v", err)
+			}
+		}
+		if row.Side == -1 {
+			pos, _, _, err := s.positionFor(ctx, inst)
+			if err != nil {
+				return nil, ServerError("%v", err)
+			}
+			if row.Quantity > pos.Quantity {
+				skipped++
+				continue
+			}
+		}
+		inserted, err := s.repo.InsertLot(ctx, userID, inst.Id, row.Side, round2f(row.Quantity), round2f(row.Price), row.OccurredAt, row.ExternalId)
+		if err != nil {
+			return nil, ServerError("%v", err)
+		}
+		if inserted {
+			created++
+		} else {
+			skipped++
+		}
+	}
+	return &api.ImportInvestmentsResponse{Created: created, Skipped: skipped}, nil
 }
 
 func (s *InvestmentService) SearchSymbols(ctx context.Context, msg *api.SearchSymbolsRequest) (*api.SearchSymbolsResponse, error) {

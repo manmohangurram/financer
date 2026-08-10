@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,7 +14,15 @@ import (
 )
  
 func main() {
-	dbPath := "data/financer.db"
+	// Match main.go's data layout: FINANCER_DATA_DIR/db/financer.db.
+	dataDir := os.Getenv("FINANCER_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "data"
+	}
+	dbPath := os.Getenv("FINANCER_DB_PATH")
+	if dbPath == "" {
+		dbPath = filepath.Join(dataDir, "db", "financer.db")
+	}
 	writeDB, _, err := db.OpenDBs(dbPath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
