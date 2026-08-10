@@ -1,6 +1,6 @@
 # Roadmap — Financer (Go → Rust Backend Migration)
 
-How the Go backend is replaced by a Rust backend, following the **strangler pattern**: the Rust server becomes the entry point early and takes over routes feature by feature, until the Go backend is idle and removed. The **Vue frontend is untouched** except where the contract deliberately changes — it only talks JSON over HTTP, so the migration is backend-only.
+How the Go backend was replaced by a Rust backend, following the **strangler pattern**: the Rust server became the entry point early and took over routes feature by feature, until the Go backend was idle and removed. The **Vue frontend is untouched** except where the contract deliberately changed — it only talks JSON over HTTP, so the migration was backend-only.
 
 **Wire-compat is relaxed, not strict.** The migration does **not** need to be byte-for-byte identical to the Go wire. As long as the same query/filter semantics and functionality are maintained, field and enum values may be **renamed to match code standards** (e.g. `accountType`/`type` become lowercase strings `checking`/`debit` instead of proto-style `ACCOUNT_TYPE_CHECKING` and ints `0`/`1`). The error envelope (`{code, message}`) and status codes stay. The frontend is updated alongside any renamed values; UI behavior is preserved.
 
@@ -19,7 +19,7 @@ How the Go backend is replaced by a Rust backend, following the **strangler patt
 
 - **Commit style:** [Conventional Commits](https://www.conventionalcommits.org) — `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `perf:`, `chore:`. One logical change per commit.
 - **Branching:** every phase ships on a feature branch (`feat/rust-<phase>`) merged to `main` via PR after tests pass.
-- **Merge gate:** `cargo build`, `cargo clippy -- -D warnings`, `cargo test`, `go test ./...` (still green until Go is removed), `npm run build`/`npm test` (frontend unchanged), plus a browser smoke test.
+- **Merge gate:** `cargo build --locked`, `cargo clippy -- -D warnings`, `cargo test`, `npm run build`/`npm test`, plus a browser smoke test.
 - **Review before merge:** `ponytail-review`, `code-simplification`, `code-review-and-quality`, `performance-optimization`, `finishing-a-development-branch`; fold fixes into the branch.
 - **PR template:** `.github/PULL_REQUEST_TEMPLATE.md`.
 - **Per-feature files:** each feature owns its handler, service, and repository files (`src/http/<feature>.rs`, `src/service/<feature>.rs`, `src/repo/<feature>.rs`).
@@ -30,7 +30,7 @@ How the Go backend is replaced by a Rust backend, following the **strangler patt
 |---|---|---|
 | HTTP | `axum` on `tokio` | HTTP/1.1 + HTTP/2 (h2c); optional HTTP/3 behind TLS |
 | Router / extractors | axum (`Router`, `Path`, `Query`, `Json`, `State`) | mirrors Go `http.ServeMux` + `PathValue` |
-| Reverse proxy (strangler) | `axum`/`hyper` forward to the Go backend | routes Rust doesn't own yet |
+| Reverse proxy (strangler) | removed in Phase 8 | Go backend fully retired |
 | DB | `sqlx` (async, `SQLite`) | same file as Go; WAL, write pool (1 conn) + read pool, `busy_timeout` |
 | Migrations | `sqlx::migrate!` reusing the existing `migrations/*.sql` | same filename-ordered, tracked schema as Go |
 | JWT | `jsonwebtoken` | HS256, same claims + bearer middleware |

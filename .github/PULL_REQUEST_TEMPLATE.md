@@ -18,10 +18,10 @@
 
 ## Verification
 
-- [ ] `go build ./...` passes
-- [ ] `go vet ./...` passes
-- [ ] `go test ./...` passes
-- [ ] `npm run build` passes
+- [ ] `cargo build --locked` passes
+- [ ] `cargo clippy -- -D warnings` passes
+- [ ] `cargo test` passes
+- [ ] `npm run build` passes (vue-tsc type-check + vite)
 - [ ] `npm test` passes
 - [ ] Browser smoke test done, console clean
 - [ ] UI changes follow `frontend/UI_STANDARDS.md` (tokens, components, accessibility)

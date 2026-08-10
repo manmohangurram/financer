@@ -6,7 +6,6 @@ mod config;
 mod db;
 mod error;
 mod http;
-mod proxy;
 mod repo;
 mod service;
 mod timex;
@@ -79,7 +78,6 @@ async fn main() -> anyhow::Result<()> {
         transaction: transaction_svc,
         transfer: transfer_svc,
         jwt,
-        go_backend_url: cfg.go_backend_url.clone(),
         static_dir: cfg.static_dir.to_string_lossy().into_owned(),
         avatar_dir: cfg.data_dir.join("avatars").to_string_lossy().into_owned(),
         domain_url: cfg.domain_url.clone(),

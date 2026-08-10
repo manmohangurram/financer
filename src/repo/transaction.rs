@@ -621,7 +621,9 @@ mod tests {
 
     async fn test_pool() -> SqlitePool {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("test.db");
+        // Keep the temp dir alive for the pool's lifetime (auto-delete on drop
+        // would unlink the DB file before the lazy pool opens it).
+        let path = dir.into_path().join("test.db");
         let opt = sqlx::sqlite::SqliteConnectOptions::from_str(path.to_str().unwrap())
             .unwrap()
             .create_if_missing(true)
@@ -962,7 +964,9 @@ mod spending_tests {
     async fn test_pool() -> SqlitePool {
         use std::str::FromStr;
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("test.db");
+        // Keep the temp dir alive for the pool's lifetime (auto-delete on drop
+        // would unlink the DB file before the lazy pool opens it).
+        let path = dir.into_path().join("test.db");
         let opt = sqlx::sqlite::SqliteConnectOptions::from_str(path.to_str().unwrap())
             .unwrap()
             .create_if_missing(true)

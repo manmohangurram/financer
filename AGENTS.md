@@ -1,28 +1,27 @@
 # Financer — Project Rules
 
-Financer: a personal finance tracker. Go backend (plain HTTP/JSON over h2c) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SQLite storage. No protobuf — API types are hand-written plain Go structs in `api/types.go`, serialized to JSON by `httpserver`.
+Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SQLite storage. No protobuf — API types are hand-written Rust structs in `src/service/*.rs` / `src/repo/*.rs`, serialized to JSON by serde.
 
 ## Commands
 
 Run verification in this order after backend changes, then frontend changes.
 
-**Backend (Go, from repo root):**
+**Backend (Rust, from repo root):**
 ```bash
-go run main.go            # starts API on :8080, auto-runs DB migrations on boot
-go run ./cmd/seed         # seeds demo user (demo@financer.app / password123)
-go build ./...
-go vet ./...
-go test ./...             # unit + repository integration tests (in-memory DB)
+cargo run            # starts API on :8080, auto-runs DB migrations on boot
+cargo build --locked
+cargo clippy -- -D warnings
+cargo test           # unit + repository integration tests (in-memory SQLite)
 ```
 
 **Frontend (from `frontend/`):**
 ```bash
-npm run dev        # vite dev server on :5173, calls the Go backend directly (CORS, no proxy)
+npm run dev        # vite dev server on :5173, calls the backend directly (CORS, no proxy)
 npm run build       # vue-tsc -b (type check) && vite build → static frontend/dist/
 npm test            # vitest — pure helpers/composables under src/lib
 ```
 
-**Verification checklist:** after any change run `go build ./... && go vet ./... && go test ./...` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
+**Verification checklist:** after any change run `cargo build --locked && cargo clippy -- -D warnings && cargo test` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
 
 **Review before every PR:** before opening a pull request for a branch, run these review skills and fold any fixes into the branch:
 - `ponytail-review` — over-engineering scan (delete/stdlib/native/yagni/shrink).
@@ -67,15 +66,15 @@ Codebase questions: `semble` search to locate symbols, `graphify` query to trace
 
 ## Architecture
 
-**Request flow:** `main.go` opens the DB, runs migrations, constructs repositories → services, then registers HTTP handlers via `httpserver.NewAPI`. REST JSON under `/api/...`; routes in `httpserver/server.go` via `a.route(mux, method, path, public, handler)`; path params via `r.PathValue("id")`. JWT auth wraps handlers; only `/api/auth/{signup,login,refresh}` are public; the user id is injected into `context.Context` under `auth.UserIDKey`.
+**Request flow:** `src/main.rs` opens the DB, runs migrations, constructs repositories → services, then registers HTTP handlers via `src/http/mod.rs` `router()`. REST JSON under `/api/...`; routes per feature in `src/http/<feature>.rs` via axum `Router::route`; path params via `Path`/`Path(String)` extractors. JWT auth via `require_user(headers, &jwt)`; only `/api/auth/{signup,login,refresh}` are public.
 
-**Layering:** `repository/` (SQL) → `services/` (business logic) → `httpserver/` (JSON mapping + handlers). Repositories embed `*repository.BaseRepository`, which holds **separate write and read `*sql.DB` handles** (`db.OpenDBs`) — write pool capped at 1 connection with `_txlock=immediate` (SQLite WAL, single-writer), read pool allows several. Use the generic `QueryAll[T]` / `QueryOne[T]` / `Exec` helpers in `repository/base.go` — never hand-roll scan loops.
+**Layering:** `src/repo/` (SQL) → `src/service/` (business logic) → `src/http/` (JSON mapping + handlers). Repos use `sqlx` against a `Db` holding **separate write (1 conn) and read pools** (`src/db.rs`, `open_pools` — SQLite WAL, single-writer). Migrations are raw SQL in `db/migrations/`, applied by a runner mirroring Go's (`src/db.rs` `run_migrations`, tracked in `schema_migrations`). Use `sqlx::query`/`query_as` with bound params — never string-concatenate values.
 
-**API types** live in `api/types.go` (package `api`, hand-written, no protobuf): request types, response types, enums with `.String()` + `*_value` maps. Field shapes mirror what the frontend's hand-rolled `fetch` clients send/receive. `httpserver/dto.go` maps wire ↔ structs. No getters (fields are exported and accessed directly). Edit `types.go` when the API shape changes.
+**API types** are hand-written Rust structs in the repo/service layer, serialized by serde: `#[serde(rename_all = "camelCase")]` + `#[serde(rename)]` + `serialize_with` map Rust fields ↔ wire. Enums use `strum::Display`/`EnumString` + serde `rename_all` for the wire string (e.g. `TransactionType::Debit` ↔ `"DEBIT"`). No getters — fields are exported and accessed directly.
 
-**Rule engine** (`services/rule.go`): user rules auto-categorize transactions by conditions (field: name/amount/type/category/account; operator: contains/starts_with/ends_with/equals/gt/lt/regex; AND/OR logic). Each rule carries **output actions** — rename, set category, or **transfer-to-account** (`RuleAction`, `repository/rule.go`). Matching is **non-destructive, applied at read time**: `RuleService.Overlay` loads rules once (`ListForOverlay`, priority-ordered) and applies all matching actions per transaction; later/lower-priority rules override earlier setters. `SET_TRANSFER_ACCOUNT` actions are handled at write time by `services/transfer_rule.go` (`TransferRuleService`): it finds-or-creates the counterpart across accounts and links them; `POST /api/rules/{id}/run` runs one rule against existing transactions.
+**Rule engine** (`src/service/rule.rs` + `src/repo/rule.rs`): user rules auto-categorize transactions by conditions (field: name/amount/type/category/account; operator: contains/starts_with/ends_with/equals/gt/lt/regex; AND/OR logic). Each rule carries **output actions** — rename, set category, or **transfer-to-account** (`RuleAction`). Matching is **non-destructive, applied at read time**: `RuleService::overlay` loads rules once (`list_for_overlay`, priority-ordered) and applies all matching actions per transaction; later/lower-priority rules override earlier setters. `SET_TRANSFER_ACCOUNT` actions are handled at write time by `src/service/transfer_rule.rs` (`TransferRuleService`): it finds-or-creates the counterpart across accounts and links them; `POST /api/rules/{id}/run` runs one rule against existing transactions.
 
-**Server-side aggregation:** all finance math lives in the backend. `GET /api/dashboard` returns balance/income/expense sums + portfolio + accounts + instruments; `GET /api/spending?range=…` returns day/month buckets and per-category debit/credit/net computed in SQL (transfer exclusion via `transfer_links` + debt account types). The frontend renders, never aggregates. Transaction filtering/pagination/sorting (`GET /api/transactions`) is server-side.
+**Server-side aggregation:** all finance math lives in the backend. `GET /api/dashboard` returns balance/income/expense sums + portfolio + accounts + investments; `GET /api/spending?range=…` returns day/month buckets and per-category debit/credit/net computed in SQL (transfer exclusion via `transfer_links` + debt account types). The frontend renders, never aggregates. Transaction filtering/pagination/sorting (`GET /api/transactions`) is server-side.
 
 **Frontend client:** the per-service clients in `frontend/src/lib/api/client.ts` (`accounts()`, `transactions()`, `analytics()`, etc.) are hand-written wrappers around raw `fetch` (an `api(method, path)` helper fills `{id}` params and serializes GET query strings), attaching the JWT from `localStorage` via `frontend/src/lib/api/transport.ts` (`setTokens`/`clearTokens`/`loadTokens`/`getAccessToken`). `frontend/src/lib/stores/auth.ts` calls `fetch` directly for auth. Do not assume generated TS clients exist.
 

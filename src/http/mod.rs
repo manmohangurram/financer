@@ -11,9 +11,8 @@ mod settings;
 mod transaction;
 mod transfer;
 
-use axum::body::Body;
 use axum::extract::State;
-use axum::http::{header, HeaderMap, Request, StatusCode, Uri};
+use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -28,7 +27,6 @@ use crate::http::rule::routes as rule_routes;
 use crate::http::settings::routes as settings_routes;
 use crate::http::transaction::routes as transaction_routes;
 use crate::http::transfer::routes as transfer_routes;
-use crate::proxy;
 use crate::service::account::AccountService;
 use crate::service::investment::InvestmentService;
 use crate::service::category::CategoryService;
@@ -51,7 +49,6 @@ pub struct AppState {
     pub transaction: TransactionService,
     pub transfer: TransferService,
     pub jwt: Jwt,
-    pub go_backend_url: String,
     pub static_dir: String,
     pub avatar_dir: String,
     pub domain_url: String,
@@ -71,7 +68,6 @@ pub fn router(state: AppState) -> Router {
         .merge(transfer_routes())
         .merge(settings_routes())
         .route("/avatars/{name}", get(avatar_file))
-        .route("/api/{*rest}", axum::routing::any(proxy_route))
         .fallback(spa)
         .with_state(state)
 }
@@ -95,13 +91,6 @@ async fn avatar_file(State(s): State<AppState>, uri: Uri) -> Response {
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
-}
-
-async fn proxy_route(
-    State(s): State<AppState>,
-    req: Request<Body>,
-) -> Response<Body> {
-    proxy::proxy(req, &s.go_backend_url).await
 }
 
 /// SPA fallback: serve a real file if it exists, else index.html (with
