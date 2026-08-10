@@ -4,24 +4,22 @@ export interface AccountTypeOption {
 }
 
 export const ACCOUNT_TYPE_OPTIONS: AccountTypeOption[] = [
-  { value: 'ACCOUNT_TYPE_CHECKING', name: 'Checking' },
-  { value: 'ACCOUNT_TYPE_SAVINGS', name: 'Savings' },
-  { value: 'ACCOUNT_TYPE_CREDIT_CARD', name: 'Credit Card' },
-  { value: 'ACCOUNT_TYPE_LOAN', name: 'Loan' },
-  { value: 'ACCOUNT_TYPE_CRYPTO_WALLET', name: 'Crypto Wallet' }
+  { value: 'CURRENT', name: 'Current' },
+  { value: 'SAVINGS', name: 'Savings' },
+  { value: 'LOAN', name: 'Loan' },
+  { value: 'CREDIT_CARD', name: 'Credit Card' }
 ];
 
 const LABELS: Record<string, string> = Object.fromEntries(ACCOUNT_TYPE_OPTIONS.map((o) => [o.value, o.name]));
 const ICONS: Record<string, string> = {
-  ACCOUNT_TYPE_CHECKING: '🏦',
-  ACCOUNT_TYPE_SAVINGS: '💰',
-  ACCOUNT_TYPE_CREDIT_CARD: '💳',
-  ACCOUNT_TYPE_LOAN: '🏷️',
-  ACCOUNT_TYPE_CRYPTO_WALLET: '🪙'
+  CURRENT: '🏦',
+  SAVINGS: '💰',
+  LOAN: '🏷️',
+  CREDIT_CARD: '💳'
 };
 
 export function accountTypeLabel(type: string): string {
-  return LABELS[type] || 'Checking';
+  return LABELS[type] || 'Current';
 }
 
 export function accountTypeIcon(type: string): string {
@@ -29,9 +27,9 @@ export function accountTypeIcon(type: string): string {
 }
 
 export function isCredit(type: string): boolean {
-  return type === 'ACCOUNT_TYPE_CREDIT_CARD';
+  return type === 'CREDIT_CARD';
 }
 
 export function isDebt(type: string): boolean {
-  return type === 'ACCOUNT_TYPE_LOAN' || type === 'ACCOUNT_TYPE_CREDIT_CARD';
+  return type === 'LOAN' || type === 'CREDIT_CARD';
 }

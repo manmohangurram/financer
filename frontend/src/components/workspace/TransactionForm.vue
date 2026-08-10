@@ -7,7 +7,7 @@ import DatePicker from '@/components/DatePicker.vue';
 
 const props = defineProps<{ accounts: any[]; categories: any[] }>();
 const colors = computed(() => categoryColorMap(props.categories.map((c: any) => c.name)));
-const form = defineModel<{ name: string; amount: number; type: number; accountId: string; occurredAt: string; categoryIds: string[] }>({ required: true });
+const form = defineModel<{ name: string; amount: number; type: 'DEBIT' | 'CREDIT'; accountId: string; occurredAt: string; categoryIds: string[] }>({ required: true });
 
 function toggleCategory(id: string) {
   const i = form.value.categoryIds.indexOf(id);
@@ -24,7 +24,7 @@ function toggleCategory(id: string) {
       <div>
         <span class="block text-[12px] text-text-muted mb-1.5">Type</span>
         <div class="flex gap-2">
-          <label v-for="t in [{ v: 0, label: 'Debit' }, { v: 1, label: 'Credit' }]" :key="t.v" class="flex-1 cursor-pointer">
+          <label v-for="t in [{ v: 'DEBIT' as const, label: 'Debit' }, { v: 'CREDIT' as const, label: 'Credit' }]" :key="t.v" class="flex-1 cursor-pointer">
             <input type="radio" :value="t.v" :checked="form.type === t.v" @change="form.type = t.v" class="peer sr-only" />
             <span class="block w-full text-center px-3 h-10 leading-10 rounded-lg border cursor-pointer transition-colors text-[13px] border-border text-text-muted hover:text-text peer-checked:border-primary-500 peer-checked:bg-primary-500/10 peer-checked:text-primary-500">
               {{ t.label }}

@@ -18,11 +18,14 @@ const mode = ref<Mode>('manual');
 
 const selectCls = 'select w-full bg-surface border-border text-text text-[13px]';
 
-const txnForm = ref({
-  name: '', amount: 0, type: 0,
+const txnForm = ref<{
+  name: string; amount: number; type: 'DEBIT' | 'CREDIT';
+  accountId: string; occurredAt: string; categoryIds: string[];
+}>({
+  name: '', amount: 0, type: 'DEBIT',
   accountId: props.defaultAccountId,
   occurredAt: toLocalDateString(new Date()),
-  categoryIds: [] as string[]
+  categoryIds: []
 });
 
 const step = ref(1);

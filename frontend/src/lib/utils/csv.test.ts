@@ -64,7 +64,7 @@ describe('mapCsvRowsToTransactions', () => {
 
   it('maps a positive amount to a credit transaction', () => {
     const [txn] = mapCsvRowsToTransactions([['2024-01-01', 'Paycheck', '1500']], mapping, 'acc-1');
-    expect(txn.type).toBe(1);
+    expect(txn.type).toBe('CREDIT');
     expect(txn.amount).toBe(1500);
     expect(txn.name).toBe('Paycheck');
     expect(txn.accountId).toBe('acc-1');
@@ -72,7 +72,7 @@ describe('mapCsvRowsToTransactions', () => {
 
   it('maps a negative amount to a debit transaction with an absolute amount', () => {
     const [txn] = mapCsvRowsToTransactions([['2024-01-01', 'Coffee', '-4.5']], mapping, 'acc-1');
-    expect(txn.type).toBe(0);
+    expect(txn.type).toBe('DEBIT');
     expect(txn.amount).toBe(4.5);
   });
 
@@ -95,35 +95,35 @@ describe('mapCsvRowsToTransactions', () => {
 
   it('uses a dedicated debit column as a debit transaction', () => {
     const [txn] = mapCsvRowsToTransactions([['2024-01-01', 'Rent', '1500']], ['date', 'description', 'debit'], 'acc-1');
-    expect(txn.type).toBe(0);
+    expect(txn.type).toBe('DEBIT');
     expect(txn.amount).toBe(1500);
   });
 
   it('uses a dedicated credit column as a credit transaction', () => {
     const [txn] = mapCsvRowsToTransactions([['2024-01-01', 'Paycheck', '1500']], ['date', 'description', 'credit'], 'acc-1');
-    expect(txn.type).toBe(1);
+    expect(txn.type).toBe('CREDIT');
     expect(txn.amount).toBe(1500);
   });
 
   it('honors a type column with CREDIT/DEBIT values', () => {
     const mapping = ['date', 'description', 'type', 'amount'];
     const [credit] = mapCsvRowsToTransactions([['2024-01-01', 'Paycheck', 'CREDIT', '1500']], mapping, 'acc-1');
-    expect(credit.type).toBe(1);
+    expect(credit.type).toBe('CREDIT');
     expect(credit.amount).toBe(1500);
 
     const [debit] = mapCsvRowsToTransactions([['2024-01-01', 'Coffee', 'DEBIT', '4.5']], mapping, 'acc-1');
-    expect(debit.type).toBe(0);
+    expect(debit.type).toBe('DEBIT');
     expect(debit.amount).toBe(4.5);
   });
 
   it('prefers the populated debit/credit column over a signed amount column', () => {
     const mapping = ['date', 'description', 'debit', 'credit'];
     const [debit] = mapCsvRowsToTransactions([['2024-01-01', 'Rent', '1500', '']], mapping, 'acc-1');
-    expect(debit.type).toBe(0);
+    expect(debit.type).toBe('DEBIT');
     expect(debit.amount).toBe(1500);
 
     const [credit] = mapCsvRowsToTransactions([['2024-01-01', 'Paycheck', '', '1500']], mapping, 'acc-1');
-    expect(credit.type).toBe(1);
+    expect(credit.type).toBe('CREDIT');
     expect(credit.amount).toBe(1500);
   });
 

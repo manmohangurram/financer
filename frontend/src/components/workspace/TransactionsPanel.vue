@@ -51,7 +51,7 @@ async function loadPage() {
       type: filters.value.type || undefined,
       ...(page.value > 0 && pageToken.value ? { pageToken: pageToken.value } : {})
     });
-    txnList.value = (resp.transactions || []).map((t: any) => ({ ...t, type: t.type === 'CREDIT' ? 1 : 0 }));
+    txnList.value = (resp.transactions || []);
     totalCount.value = resp.totalCount || txnList.value.length;
     pageToken.value = resp.nextPageToken || '';
   } catch (e) { console.error(e); }

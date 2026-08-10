@@ -71,7 +71,7 @@ async function loadDrillPage(page: number) {
     dateTo: r.to,
     accountId: store.state.selectedAccountId || undefined
   });
-  drillTxns.value = (resp.transactions || []).map((t: any) => ({ ...t, type: t.type === 'CREDIT' ? 1 : 0 }));
+  drillTxns.value = (resp.transactions || []);
   drillTotal.value = resp.totalCount || drillTxns.value.length;
 }
 
