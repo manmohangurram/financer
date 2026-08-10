@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let investment_svc = InvestmentService::new(investment_repo, YahooClient::new()?);
     let rule_svc = RuleService::new(rule_repo.clone(), category_repo.clone(), transaction_repo.clone());
     let transfer_rule_svc = TransferRuleService::new(rule_repo, transaction_repo_clone, account_repo_clone);
-    let transaction_svc = TransactionService::new(transaction_repo.clone(), account_repo.clone())
+    let transaction_svc = TransactionService::new(transaction_repo.clone(), account_repo.clone(), category_repo.clone())
         .with_transfer_rule(transfer_rule_svc.clone());
     let transfer_svc = TransferService::new(transaction_repo, account_repo);
 

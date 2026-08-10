@@ -38,16 +38,17 @@ impl RuleService {
         self.rules.create(user_id, name, priority, logic, conditions, actions).await
     }
 
-    pub async fn update(&self, id: &str, name: &str, priority: i64, logic: RuleLogic, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<Rule> {
-        let updated = self.rules.update(id, name, priority, logic, conditions, actions).await?;
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update(&self, user_id: &str, id: &str, name: &str, priority: i64, logic: RuleLogic, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<Rule> {
+        let updated = self.rules.update(user_id, id, name, priority, logic, conditions, actions).await?;
         if !updated {
             return Err(ApiError::not_found(format!("rule {id} not found")));
         }
-        self.rules.get_by_id(id).await?.ok_or_else(|| ApiError::internal("fetching updated rule"))
+        self.rules.get_by_id(user_id, id).await?.ok_or_else(|| ApiError::internal("fetching updated rule"))
     }
 
-    pub async fn delete(&self, id: &str) -> Result<()> {
-        if !self.rules.delete(id).await? {
+    pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {
+        if !self.rules.delete(user_id, id).await? {
             return Err(ApiError::not_found(format!("rule {id} not found")));
         }
         Ok(())

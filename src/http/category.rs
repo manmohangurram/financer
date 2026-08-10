@@ -8,14 +8,13 @@ use serde::Deserialize;
 
 use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
-use crate::http::{require_user, AppState};
+use crate::http::{require_user, AppState, JsonResult};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/categories", axum::routing::get(list).post(create).put(update).delete(delete))
 }
 
-type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
 #[derive(Deserialize)]
 struct ReqCategory {
@@ -34,6 +33,7 @@ struct ReqCat {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ListQuery {
     #[serde(default)]
     page_size: Option<i32>,
@@ -75,12 +75,12 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
     };
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
     let pairs: Vec<(String, String)> = req.categories.iter().map(|c| (c.id.clone(), c.name.clone())).collect();
-    match st.category.update(&pairs).await {
+    match st.category.update(&uid, &pairs).await {
         Ok(b) => Json(bulk_wire(&b)).into_response(),
         Err(e) => e.into_response(),
     }
@@ -91,11 +91,11 @@ async fn delete(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
     };
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.category.delete(&req.ids).await {
+    match st.category.delete(&uid, &req.ids).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
     }

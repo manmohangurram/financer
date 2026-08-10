@@ -63,12 +63,20 @@ impl UserService {
 
         let user = self.repo.by_id(user_id).await?
             .ok_or_else(|| ApiError::not_found("user not found"))?;
-        let stored = user.password_hash.unwrap_or_default();
-        if !bcrypt::verify(current_password, &stored).unwrap_or(false) {
+        let stored = user.password_hash.clone().unwrap_or_default();
+        let current = current_password.to_string();
+        let ok = tokio::task::spawn_blocking(move || bcrypt::verify(&current, &stored))
+            .await
+            .map_err(|_| ApiError::internal("internal error"))?
+            .unwrap_or(false);
+        if !ok {
             return Err(ApiError::bad_request("current password is incorrect"));
         }
 
-        let hash = bcrypt::hash(new_password, bcrypt::DEFAULT_COST)
+        let new = new_password.to_string();
+        let hash = tokio::task::spawn_blocking(move || bcrypt::hash(&new, bcrypt::DEFAULT_COST))
+            .await
+            .map_err(|_| ApiError::internal("internal error"))?
             .map_err(|_| ApiError::internal("internal error"))?;
         let ver = self.repo.change_password(user_id, &hash).await.map_err(|_| ApiError::internal("failed to update password"))?;
 

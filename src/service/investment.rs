@@ -22,8 +22,8 @@ impl InvestmentService {
     }
 
     /// Compute FIFO position, current value, and unrealized P&L.
-    async fn position_for(&self, inst: &InvestmentRow) -> Result<(Position, f64, f64)> {
-        let lots = self.repo.list_lots(&inst.id).await?;
+    async fn position_for(&self, user_id: &str, inst: &InvestmentRow) -> Result<(Position, f64, f64)> {
+        let lots = self.repo.list_lots(user_id, &inst.id).await?;
         let fifo: Vec<FifoLot> = lots.iter().map(|l| FifoLot { side: l.side, quantity: l.quantity, price: l.price }).collect();
         let pos = compute_fifo(&fifo);
         let price = effective_price(inst);
@@ -32,8 +32,8 @@ impl InvestmentService {
         Ok((pos, current_value, unrealized))
     }
 
-    async fn with_position(&self, inst: &InvestmentRow) -> Result<Investment> {
-        let (pos, current_value, unrealized) = self.position_for(inst).await?;
+    async fn with_position(&self, user_id: &str, inst: &InvestmentRow) -> Result<Investment> {
+        let (pos, current_value, unrealized) = self.position_for(user_id, inst).await?;
         Ok(investment_wire(inst, pos.quantity, pos.avg_cost, current_value, unrealized, pos.realized_pnl))
     }
 
@@ -57,24 +57,24 @@ impl InvestmentService {
         }
         let mut inst = inst;
         inst.current_price = effective_price(&inst);
-        self.with_position(&inst).await
+        self.with_position(user_id, &inst).await
     }
 
-    pub async fn get(&self, id: &str) -> Result<Investment> {
-        let inst = self.repo.get_investment(id).await?.ok_or_else(|| ApiError::not_found(format!("investment {id} not found")))?;
-        self.with_position(&inst).await
+    pub async fn get(&self, user_id: &str, id: &str) -> Result<Investment> {
+        let inst = self.repo.get_investment(user_id, id).await?.ok_or_else(|| ApiError::not_found(format!("investment {id} not found")))?;
+        self.with_position(user_id, &inst).await
     }
 
     pub async fn list(&self, user_id: &str) -> Result<Vec<Investment>> {
         let instruments = self.repo.list_investments(user_id).await?;
         let mut out = Vec::with_capacity(instruments.len());
         for inst in &instruments {
-            out.push(self.with_position(inst).await?);
+            out.push(self.with_position(user_id, inst).await?);
         }
         Ok(out)
     }
 
-    pub async fn update(&self, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<Investment> {
+    pub async fn update(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<Investment> {
         if name.is_empty() {
             return Err(ApiError::bad_request("name is required"));
         }
@@ -84,19 +84,19 @@ impl InvestmentService {
         if it == InvestmentType::Stock && symbol.is_empty() {
             return Err(ApiError::bad_request("symbol is required for STOCK"));
         }
-        let inst = self.repo.update_investment(id, symbol, name, it, manual_nav).await?;
-        self.with_position(&inst).await
+        let inst = self.repo.update_investment(user_id, id, symbol, name, it, manual_nav).await?;
+        self.with_position(user_id, &inst).await
     }
 
-    pub async fn delete(&self, id: &str) -> Result<()> {
-        if !self.repo.delete_investment(id).await? {
+    pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {
+        if !self.repo.delete_investment(user_id, id).await? {
             return Err(ApiError::not_found(format!("investment {id} not found")));
         }
         Ok(())
     }
 
     pub async fn add_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<Lot> {
-        let inst = self.repo.get_investment(investment_id).await?.ok_or_else(|| ApiError::not_found(format!("investment {investment_id} not found")))?;
+        let inst = self.repo.get_investment(user_id, investment_id).await?.ok_or_else(|| ApiError::not_found(format!("investment {investment_id} not found")))?;
         if side != 1 && side != -1 {
             return Err(ApiError::bad_request("side must be 1 (buy) or -1 (sell)"));
         }
@@ -107,7 +107,7 @@ impl InvestmentService {
             return Err(ApiError::bad_request("price must not be negative"));
         }
         if side == -1 {
-            let (pos, _, _) = self.position_for(&inst).await?;
+            let (pos, _, _) = self.position_for(user_id, &inst).await?;
             if quantity > pos.quantity {
                 return Err(ApiError::bad_request("cannot sell more than held"));
             }
@@ -116,31 +116,31 @@ impl InvestmentService {
         Ok(lot_wire(&lot))
     }
 
-    pub async fn delete_lot(&self, id: &str) -> Result<()> {
-        if !self.repo.delete_lot(id).await? {
+    pub async fn delete_lot(&self, user_id: &str, id: &str) -> Result<()> {
+        if !self.repo.delete_lot(user_id, id).await? {
             return Err(ApiError::not_found(format!("lot {id} not found")));
         }
         Ok(())
     }
 
-    pub async fn update_lot(&self, investment_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<Lot> {
+    pub async fn update_lot(&self, user_id: &str, investment_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<Lot> {
         if quantity <= 0.0 {
             return Err(ApiError::bad_request("quantity must be greater than zero"));
         }
         if price < 0.0 {
             return Err(ApiError::bad_request("price must not be negative"));
         }
-        let _ = self.repo.get_investment(investment_id).await?.ok_or_else(|| ApiError::not_found(format!("investment {investment_id} not found")))?;
-        if !self.repo.update_lot(id, round2(quantity), round2(price), occurred_at).await? {
+        let _ = self.repo.get_investment(user_id, investment_id).await?.ok_or_else(|| ApiError::not_found(format!("investment {investment_id} not found")))?;
+        if !self.repo.update_lot(user_id, id, round2(quantity), round2(price), occurred_at).await? {
             return Err(ApiError::not_found(format!("lot {id} not found")));
         }
-        let lots = self.repo.list_lots(investment_id).await?;
+        let lots = self.repo.list_lots(user_id, investment_id).await?;
         lots.into_iter().find(|l| l.id == id).map(|l| lot_wire(&l)).ok_or_else(|| ApiError::not_found(format!("lot {id} not found")))
     }
 
-    pub async fn list_lots(&self, id: &str) -> Result<Vec<Lot>> {
-        let _ = self.repo.get_investment(id).await?.ok_or_else(|| ApiError::not_found(format!("investment {id} not found")))?;
-        Ok(self.repo.list_lots(id).await?.iter().map(lot_wire).collect())
+    pub async fn list_lots(&self, user_id: &str, id: &str) -> Result<Vec<Lot>> {
+        let _ = self.repo.get_investment(user_id, id).await?.ok_or_else(|| ApiError::not_found(format!("investment {id} not found")))?;
+        Ok(self.repo.list_lots(user_id, id).await?.iter().map(lot_wire).collect())
     }
 
     pub async fn import(&self, user_id: &str, rows: &[ImportRow]) -> Result<(i64, i64)> {
@@ -160,7 +160,7 @@ impl InvestmentService {
                 None => self.repo.create_investment(user_id, &row.symbol, &row.name, typ, 0.0).await?,
             };
             if row.side == -1 {
-                let (pos, _, _) = self.position_for(&inst).await?;
+                let (pos, _, _) = self.position_for(user_id, &inst).await?;
                 if row.quantity > pos.quantity {
                     skipped += 1;
                     continue;
@@ -214,7 +214,7 @@ impl InvestmentService {
         let instruments = self.repo.list_investments(user_id).await?;
         let mut summary = PortfolioSummary::default();
         for inst in &instruments {
-            let (pos, current_value, _) = self.position_for(inst).await?;
+            let (pos, current_value, _) = self.position_for(user_id, inst).await?;
             let price = effective_price(inst);
             summary.total_invested += pos.cost_basis;
             summary.total_current_value += current_value;
@@ -224,14 +224,14 @@ impl InvestmentService {
         Ok(summary)
     }
 
-    pub async fn get_price_history(&self, investment_id: &str, range_id: &str, from: &str, to: &str, force: bool) -> Result<Vec<PricePoint>> {
+    pub async fn get_price_history(&self, user_id: &str, investment_id: &str, range_id: &str, from: &str, to: &str, force: bool) -> Result<Vec<PricePoint>> {
         let (cfg, cache_key, period1, period2) = resolve_range(range_id, from, to)?;
-        let inst = self.repo.get_investment(investment_id).await?.ok_or_else(|| ApiError::not_found(format!("investment {investment_id} not found")))?;
+        let inst = self.repo.get_investment(user_id, investment_id).await?.ok_or_else(|| ApiError::not_found(format!("investment {investment_id} not found")))?;
         if inst.symbol.is_empty() {
             return Ok(Vec::new());
         }
         if !force {
-            let (ts, closes, last_fetched) = self.repo.get_price_history(investment_id, &cache_key).await?;
+            let (ts, closes, last_fetched) = self.repo.get_price_history(user_id, investment_id, &cache_key).await?;
             let fresh_secs = price_history_freshness(range_id);
             if !ts.is_empty() && chrono::Utc::now().timestamp() - last_fetched < fresh_secs {
                 let points: Vec<PricePoint> = ts.iter().zip(closes.iter()).map(|(t, c)| PricePoint { t: *t, close: *c }).collect();

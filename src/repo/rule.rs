@@ -170,8 +170,10 @@ impl RuleRepo {
         Ok(Rule { id, name: name.to_string(), priority, logic, conditions: conditions.to_vec(), actions: actions.to_vec(), created_at: ts_rfc3339(&now) })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
+        user_id: &str,
         id: &str,
         name: &str,
         priority: i64,
@@ -180,11 +182,12 @@ impl RuleRepo {
         actions: &[RuleAction],
     ) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
-        let result = sqlx::query("UPDATE rules SET name = COALESCE(NULLIF(?, ''), name), priority = ?, logic = ? WHERE id = ?")
+        let result = sqlx::query("UPDATE rules SET name = COALESCE(NULLIF(?, ''), name), priority = ?, logic = ? WHERE id = ? AND user_id = ?")
             .bind(name)
             .bind(priority)
             .bind(logic.to_string())
             .bind(id)
+            .bind(user_id)
             .execute(&mut *tx)
             .await?;
         if result.rows_affected() == 0 {
@@ -198,14 +201,19 @@ impl RuleRepo {
         Ok(true)
     }
 
-    pub async fn delete(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM rules WHERE id = ?").bind(id).execute(&self.pool).await?;
+    pub async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
+        let result = sqlx::query("DELETE FROM rules WHERE id = ? AND user_id = ?")
+            .bind(id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn get_by_id(&self, id: &str) -> Result<Option<Rule>> {
-        let row = sqlx::query_as::<_, RawRule>("SELECT id, name, priority, logic, created_at FROM rules WHERE id = ?")
+    pub async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<Rule>> {
+        let row = sqlx::query_as::<_, RawRule>("SELECT id, name, priority, logic, created_at FROM rules WHERE id = ? AND user_id = ?")
             .bind(id)
+            .bind(user_id)
             .fetch_optional(&self.pool)
             .await?;
         let Some(raw) = row else { return Ok(None) };
@@ -426,7 +434,7 @@ mod tests {
         assert_eq!(created.name, "Renamer");
         assert_eq!(created.logic, RuleLogic::And);
 
-        let fetched = repo.get_by_id(&created.id).await.unwrap().unwrap();
+        let fetched = repo.get_by_id("u1", &created.id).await.unwrap().unwrap();
         assert_eq!(fetched.conditions.len(), 1);
         assert_eq!(fetched.conditions[0].match_field, MatchField::Name);
         assert_eq!(fetched.conditions[0].operator, MatchOperator::Contains);
@@ -434,14 +442,18 @@ mod tests {
         assert_eq!(fetched.actions[0].set_name, "Netflix Sub");
         assert_eq!(fetched.actions[0].set_name_op, Some(ActionOp::Rename));
 
-        let updated = repo.update(&created.id, "Renamer2", 9, RuleLogic::Or, &[cond], &[]).await.unwrap();
+        let updated = repo.update("u1", &created.id, "Renamer2", 9, RuleLogic::Or, &[cond.clone()], &[]).await.unwrap();
         assert!(updated);
-        let after = repo.get_by_id(&created.id).await.unwrap().unwrap();
+        let after = repo.get_by_id("u1", &created.id).await.unwrap().unwrap();
         assert_eq!(after.name, "Renamer2");
         assert_eq!(after.logic, RuleLogic::Or);
         assert!(after.actions.is_empty());
 
-        assert!(repo.delete(&created.id).await.unwrap());
-        assert!(repo.get_by_id(&created.id).await.unwrap().is_none());
+        // another user can't see or touch the rule
+        assert!(repo.get_by_id("u2", &created.id).await.unwrap().is_none());
+        assert!(!repo.update("u2", &created.id, "Hacked", 0, RuleLogic::Or, &[cond], &[]).await.unwrap());
+        assert!(!repo.delete("u2", &created.id).await.unwrap());
+        assert!(repo.delete("u1", &created.id).await.unwrap());
+        assert!(repo.get_by_id("u1", &created.id).await.unwrap().is_none());
     }
 }

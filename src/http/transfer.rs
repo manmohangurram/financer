@@ -6,8 +6,10 @@ use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::Deserialize;
 
+use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
-use crate::http::{require_user, AppState};
+use crate::http::{require_user, AppState, JsonResult};
+
 
 #[derive(Deserialize)]
 struct ReqTransfer {
@@ -41,7 +43,11 @@ pub fn routes() -> Router<AppState> {
         .route("/api/transfer-links/counterpart", axum::routing::post(counterpart))
 }
 
-async fn link(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<ReqTransfer>) -> Response {
+async fn link(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqTransfer>) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -57,7 +63,11 @@ async fn link(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<Re
     }
 }
 
-async fn counterpart(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<ReqCreateCounterpart>) -> Response {
+async fn counterpart(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCreateCounterpart>) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -75,12 +85,16 @@ async fn counterpart(State(st): State<AppState>, headers: HeaderMap, Json(req): 
     }
 }
 
-async fn unlink(State(st): State<AppState>, headers: HeaderMap, Json(req): Json<ReqTransfer>) -> Response {
-    let _uid = match require_user(&headers, &st.jwt) {
+async fn unlink(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqTransfer>) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.transfer.unlink_transfers(&req.ids).await {
+    match st.transfer.unlink_transfers(&uid, &req.ids).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
     }

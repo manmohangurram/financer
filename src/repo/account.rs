@@ -78,11 +78,12 @@ impl AccountRepo {
         })
     }
 
-    pub async fn get_by_id(&self, id: &str) -> Result<Option<AccountRow>> {
+    pub async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
         let row = sqlx::query_as::<_, RawAccount>(
-            "SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE id = ?",
+            "SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE id = ? AND user_id = ?",
         )
         .bind(id)
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;
         Ok(row.map(Into::into))
@@ -90,6 +91,7 @@ impl AccountRepo {
 
     pub async fn update(
         &self,
+        user_id: &str,
         id: &str,
         bank_name: &str,
         nickname: &str,
@@ -101,24 +103,26 @@ impl AccountRepo {
                 bank_name = COALESCE(NULLIF(?, ''), bank_name),
                 nickname = COALESCE(NULLIF(?, ''), nickname),
                 type = ?
-             WHERE id = ?",
+             WHERE id = ? AND user_id = ?",
         )
         .bind(bank_name)
         .bind(nickname)
         .bind(&v)
         .bind(id)
+        .bind(user_id)
         .execute(&self.pool)
         .await?;
 
         if result.rows_affected() == 0 {
             return Ok(None);
         }
-        self.get_by_id(id).await
+        self.get_by_id(user_id, id).await
     }
 
-    pub async fn delete(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM accounts WHERE id = ?")
+    pub async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
+        let result = sqlx::query("DELETE FROM accounts WHERE id = ? AND user_id = ?")
             .bind(id)
+            .bind(user_id)
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected() > 0)
@@ -262,13 +266,13 @@ mod tests {
         types.sort();
         assert_eq!(types, vec!["CREDIT_CARD", "CURRENT"], "both of u1's accounts");
 
-        let upd = repo.update(&a.id, "Chase Blue", "New", AccountType::Savings).await.unwrap().unwrap();
+        let upd = repo.update("u1", &a.id, "Chase Blue", "New", AccountType::Savings).await.unwrap().unwrap();
         assert_eq!(upd.bank_name, "Chase Blue");
         assert_eq!(upd.nickname, "New");
         assert_eq!(upd.account_type, AccountType::Savings);
 
-        assert!(repo.delete(&a.id).await.unwrap());
-        assert!(!repo.delete(&a.id).await.unwrap());
+        assert!(repo.delete("u1", &a.id).await.unwrap());
+        assert!(!repo.delete("u1", &a.id).await.unwrap());
         assert_eq!(repo.list("u1").await.unwrap().len(), 1);
     }
 

@@ -18,7 +18,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 
 use crate::auth::Jwt;
-use crate::error::{ApiError, Result};
+use crate::error::{json_error, ApiError, Result};
 use crate::http::account::routes as account_routes;
 use crate::http::analytics::routes as analytics_routes;
 use crate::http::category::routes as category_routes;
@@ -96,16 +96,22 @@ async fn avatar_file(State(s): State<AppState>, uri: Uri) -> Response {
 /// SPA fallback: serve a real file if it exists, else index.html (with
 /// `FINANCER_DOMAIN_URL` injection), mirroring Go's `spaHandler`.
 async fn spa(State(s): State<AppState>, uri: Uri) -> Response {
+    let path = uri.path();
+    // Unknown /api/* routes are API 404s, not SPA assets (mirror Go's apiHandler).
+    if path.starts_with("/api/") {
+        return ApiError::not_found(format!("unknown endpoint {path}")).into_response();
+    }
     let index = read_index(&s);
-    if let Some(p) = uri.path().strip_prefix('/') {
-        if !p.is_empty() {
+    if let Some(p) = path.strip_prefix('/') {
+        if !p.is_empty() && !p.starts_with('/') && !p.split('/').any(|seg| seg == "..") {
             let candidate = std::path::Path::new(&s.static_dir).join(p);
             if candidate.is_file() {
                 if let Ok(content) = std::fs::read(&candidate) {
                     return (
                         StatusCode::OK,
                         [(header::CONTENT_TYPE, mime_for(p))],
-                        axum::body::Body::from(content),                    )
+                        axum::body::Body::from(content),
+                    )
                         .into_response();
                 }
             }
@@ -156,21 +162,35 @@ pub fn require_user(headers: &HeaderMap, jwt: &Jwt) -> Result<String> {
     Ok(claims.user_id)
 }
 
-async fn signup(State(st): State<AppState>, Json(req): Json<SignupRequest>) -> Response {
+pub type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
+
+async fn signup(State(st): State<AppState>, req: JsonResult<SignupRequest>) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     match st.auth.signup(req).await {
         Ok(r) => (StatusCode::CREATED, Json(r)).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
-async fn login(State(st): State<AppState>, Json(req): Json<LoginRequest>) -> Response {
+async fn login(State(st): State<AppState>, req: JsonResult<LoginRequest>) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     match st.auth.login(req).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
-async fn refresh(State(st): State<AppState>, Json(req): Json<RefreshTokenRequest>) -> Response {
+async fn refresh(State(st): State<AppState>, req: JsonResult<RefreshTokenRequest>) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
     match st.auth.refresh_token(req).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),

@@ -24,17 +24,17 @@ impl AccountService {
         Ok(AccountResponse::from_row(row))
     }
 
-    pub async fn update(&self, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountResponse> {
+    pub async fn update(&self, user_id: &str, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountResponse> {
         let row = self
             .repo
-            .update(id, bank_name, nickname, account_type)
+            .update(user_id, id, bank_name, nickname, account_type)
             .await?
             .ok_or_else(|| ApiError::not_found(format!("account {id} not found")))?;
         Ok(AccountResponse::from_row(row))
     }
 
-    pub async fn delete(&self, id: &str) -> Result<()> {
-        if !self.repo.delete(id).await? {
+    pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {
+        if !self.repo.delete(user_id, id).await? {
             return Err(ApiError::not_found(format!("account {id} not found")));
         }
         Ok(())

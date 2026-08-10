@@ -7,9 +7,9 @@ use axum::{Json, Router};
 use serde::Deserialize;
 
 use crate::error::{json_error, ApiError};
-use crate::http::{require_user, AppState};
+use crate::http::{require_user, AppState, JsonResult};
 use crate::repo::investment::InvestmentType;
-use crate::service::investment::{occurred_at, ImportRow, InvestmentService};
+use crate::service::investment::{occurred_at, ImportRow};
 use std::str::FromStr;
 
 pub fn routes() -> Router<AppState> {
@@ -25,7 +25,6 @@ pub fn routes() -> Router<AppState> {
         .route("/api/portfolio/summary", axum::routing::get(portfolio_summary))
 }
 
-type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
 /// Investment create/update body: `investmentType` is required (strict).
 #[derive(Deserialize)]
@@ -98,11 +97,11 @@ async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
 }
 
 async fn get(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.investment.get(&id).await {
+    match st.investment.get(&uid, &id).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
@@ -113,22 +112,22 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
     };
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.investment.update(&id, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
+    match st.investment.update(&uid, &id, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
 async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.investment.delete(&id).await {
+    match st.investment.delete(&uid, &id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
     }
@@ -165,11 +164,11 @@ fn parse_side(v: Option<i64>) -> Result<i64, ApiError> {
 }
 
 async fn delete_lot(State(st): State<AppState>, headers: HeaderMap, Path((_, lot_id)): Path<(String, String)>) -> Response {
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.investment.delete_lot(&lot_id).await {
+    match st.investment.delete_lot(&uid, &lot_id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
     }
@@ -180,7 +179,7 @@ async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path((id, lo
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
     };
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
@@ -188,18 +187,18 @@ async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path((id, lo
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    match st.investment.update_lot(&id, &lot_id, req.quantity, req.price, &occ).await {
+    match st.investment.update_lot(&uid, &id, &lot_id, req.quantity, req.price, &occ).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
 async fn list_lots(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.investment.list_lots(&id).await {
+    match st.investment.list_lots(&uid, &id).await {
         Ok(items) => Json(serde_json::json!({ "lots": items })).into_response(),
         Err(e) => e.into_response(),
     }
@@ -293,12 +292,12 @@ struct HistoryQuery {
 }
 
 async fn price_history(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Query(q): Query<HistoryQuery>) -> Response {
-    let _uid = match require_user(&headers, &st.jwt) {
+    let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
     let force = q.refresh == "1";
-    match st.investment.get_price_history(&id, &q.range, &q.from, &q.to, force).await {
+    match st.investment.get_price_history(&uid, &id, &q.range, &q.from, &q.to, force).await {
         Ok(points) => Json(serde_json::json!({ "points": points })).into_response(),
         Err(e) => e.into_response(),
     }
@@ -349,6 +348,3 @@ async fn portfolio_summary(State(st): State<AppState>, headers: HeaderMap) -> Re
         Err(e) => e.into_response(),
     }
 }
-
-#[allow(dead_code)]
-fn _keep(_: &InvestmentService) {}

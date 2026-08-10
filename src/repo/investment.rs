@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::timex::{go_ts, ts_rfc3339};
+use crate::timex::{go_ts, round2, ts_rfc3339};
 
 /// Investment type. Wire string (`STOCK`/`MUTUAL_FUND`); DB stores the int
 /// discriminant. No sentinel — strict 400 at the boundary.
@@ -140,14 +140,15 @@ impl InvestmentRepo {
         .bind(&now)
         .execute(&self.pool)
         .await?;
-        self.get_investment(&id).await.map(|r| r.unwrap())
+        self.get_investment(user_id, &id).await.map(|r| r.unwrap())
     }
 
-    pub async fn get_investment(&self, id: &str) -> Result<Option<InvestmentRow>> {
+    pub async fn get_investment(&self, user_id: &str, id: &str) -> Result<Option<InvestmentRow>> {
         let row = sqlx::query_as::<_, RawInvestment>(
-            "SELECT id, user_id, symbol, name, investment_type, current_price, prev_close, last_quote_at, manual_nav, created_at FROM investments WHERE id = ?",
+            "SELECT id, user_id, symbol, name, investment_type, current_price, prev_close, last_quote_at, manual_nav, created_at FROM investments WHERE id = ? AND user_id = ?",
         )
         .bind(id)
+        .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;
         Ok(row.map(Into::into))
@@ -177,19 +178,21 @@ impl InvestmentRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    pub async fn update_investment(&self, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
-        let old_sym: Option<String> = sqlx::query_scalar("SELECT symbol FROM investments WHERE id = ?")
+    pub async fn update_investment(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
+        let old_sym: Option<String> = sqlx::query_scalar("SELECT symbol FROM investments WHERE id = ? AND user_id = ?")
             .bind(id)
+            .bind(user_id)
             .fetch_optional(&self.pool)
             .await?;
         let sym: Option<&str> = if symbol.is_empty() { None } else { Some(symbol) };
         let nav: Option<f64> = if manual_nav == 0.0 { None } else { Some(manual_nav) };
-        sqlx::query("UPDATE investments SET symbol = COALESCE(?, symbol), name = ?, investment_type = ?, manual_nav = ? WHERE id = ?")
+        sqlx::query("UPDATE investments SET symbol = COALESCE(?, symbol), name = ?, investment_type = ?, manual_nav = ? WHERE id = ? AND user_id = ?")
             .bind(sym)
             .bind(name)
             .bind(it.db_value())
             .bind(nav)
             .bind(id)
+            .bind(user_id)
             .execute(&self.pool)
             .await?;
         // Drop cached price history when the symbol changed so it refetches.
@@ -199,26 +202,28 @@ impl InvestmentRepo {
                 .execute(&self.pool)
                 .await?;
         }
-        self.get_investment(id).await.map(|r| r.unwrap())
+        self.get_investment(user_id, id).await.map(|r| r.unwrap())
     }
 
-    pub async fn delete_investment(&self, id: &str) -> Result<bool> {
+    pub async fn delete_investment(&self, user_id: &str, id: &str) -> Result<bool> {
         sqlx::query("DELETE FROM investment_price_history WHERE investment_id = ?")
             .bind(id)
             .execute(&self.pool)
             .await?;
-        let result = sqlx::query("DELETE FROM investments WHERE id = ?")
+        let result = sqlx::query("DELETE FROM investments WHERE id = ? AND user_id = ?")
             .bind(id)
+            .bind(user_id)
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn list_lots(&self, investment_id: &str) -> Result<Vec<LotRow>> {
+    pub async fn list_lots(&self, user_id: &str, investment_id: &str) -> Result<Vec<LotRow>> {
         let rows = sqlx::query_as::<_, RawLot>(
-            "SELECT id, investment_id, side, quantity, price, occurred_at, created_at FROM investment_lots WHERE investment_id = ? ORDER BY occurred_at ASC, created_at ASC",
+            "SELECT id, investment_id, side, quantity, price, occurred_at, created_at FROM investment_lots WHERE investment_id = ? AND user_id = ? ORDER BY occurred_at ASC, created_at ASC",
         )
         .bind(investment_id)
+        .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows.into_iter().map(Into::into).collect())
@@ -243,9 +248,10 @@ impl InvestmentRepo {
         Ok(LotRow { id, investment_id: investment_id.to_string(), side, quantity, price, occurred_at: occurred_at.to_string(), created_at: now })
     }
 
-    pub async fn delete_lot(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM investment_lots WHERE id = ?")
+    pub async fn delete_lot(&self, user_id: &str, id: &str) -> Result<bool> {
+        let result = sqlx::query("DELETE FROM investment_lots WHERE id = ? AND user_id = ?")
             .bind(id)
+            .bind(user_id)
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected() > 0)
@@ -274,12 +280,13 @@ impl InvestmentRepo {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn update_lot(&self, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<bool> {
-        let result = sqlx::query("UPDATE investment_lots SET quantity = ?, price = ?, occurred_at = ? WHERE id = ?")
+    pub async fn update_lot(&self, user_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<bool> {
+        let result = sqlx::query("UPDATE investment_lots SET quantity = ?, price = ?, occurred_at = ? WHERE id = ? AND user_id = ?")
             .bind(quantity)
             .bind(price)
             .bind(occurred_at)
             .bind(id)
+            .bind(user_id)
             .execute(&self.pool)
             .await?;
         Ok(result.rows_affected() > 0)
@@ -320,12 +327,15 @@ impl InvestmentRepo {
     }
 
     /// Read cached price history: ts, closes, last fetched timestamp.
-    pub async fn get_price_history(&self, investment_id: &str, range_id: &str) -> Result<(Vec<i64>, Vec<f64>, i64)> {
+    pub async fn get_price_history(&self, user_id: &str, investment_id: &str, range_id: &str) -> Result<(Vec<i64>, Vec<f64>, i64)> {
         let rows: Vec<(i64, f64, i64)> = sqlx::query_as(
-            "SELECT t, close, fetched_at FROM investment_price_history WHERE investment_id = ? AND range_id = ? ORDER BY t",
+            "SELECT t, close, fetched_at FROM investment_price_history
+             WHERE investment_id = ? AND range_id = ? AND investment_id IN (SELECT id FROM investments WHERE user_id = ?)
+             ORDER BY t",
         )
         .bind(investment_id)
         .bind(range_id)
+        .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
         let mut ts = Vec::new();
@@ -438,10 +448,6 @@ pub fn effective_price(r: &InvestmentRow) -> f64 {
     }
 }
 
-pub fn round2(v: f64) -> f64 {
-    (v * 100.0).round() / 100.0
-}
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -481,15 +487,22 @@ mod tests {
 
         let lot = repo.create_lot("u1", &inst.id, 1, 10.0, 100.0, "2024-01-02 10:00:00 +0000 UTC").await.unwrap();
         assert_eq!(lot.side, 1);
-        let lots = repo.list_lots(&inst.id).await.unwrap();
+        let lots = repo.list_lots("u1", &inst.id).await.unwrap();
         assert_eq!(lots.len(), 1);
 
-        let updated = repo.update_lot(&lot.id, 20.0, 110.0, "2024-01-02 10:00:00 +0000 UTC").await.unwrap();
+        let updated = repo.update_lot("u1", &lot.id, 20.0, 110.0, "2024-01-02 10:00:00 +0000 UTC").await.unwrap();
         assert!(updated);
-        assert_eq!(repo.list_lots(&inst.id).await.unwrap()[0].quantity, 20.0);
+        assert_eq!(repo.list_lots("u1", &inst.id).await.unwrap()[0].quantity, 20.0);
 
-        assert!(repo.delete_lot(&lot.id).await.unwrap());
-        assert!(repo.delete_investment(&inst.id).await.unwrap());
-        assert!(repo.get_investment(&inst.id).await.unwrap().is_none());
+        // another user can't see or touch the investment or its lots
+        assert!(repo.get_investment("u2", &inst.id).await.unwrap().is_none());
+        assert!(!repo.update_lot("u2", &lot.id, 1.0, 1.0, "2024-01-02 10:00:00 +0000 UTC").await.unwrap());
+        assert!(repo.list_lots("u2", &inst.id).await.unwrap().is_empty());
+        assert!(!repo.delete_lot("u2", &lot.id).await.unwrap());
+        assert!(!repo.delete_investment("u2", &inst.id).await.unwrap());
+
+        assert!(repo.delete_lot("u1", &lot.id).await.unwrap());
+        assert!(repo.delete_investment("u1", &inst.id).await.unwrap());
+        assert!(repo.get_investment("u1", &inst.id).await.unwrap().is_none());
     }
 }

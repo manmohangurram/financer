@@ -29,11 +29,14 @@ impl TransferService {
     /// Create the missing side of a transfer for an existing transaction and
     /// link it. If a matching counterpart already exists it is linked instead.
     pub async fn create_counterpart(&self, user_id: &str, txn_id: &str, to_account_id: &str) -> Result<CreateTransferResp> {
-        let Some(src) = self.transaction_repo.get_full(txn_id).await? else {
+        let Some(src) = self.transaction_repo.get_full(user_id, txn_id).await? else {
             return Err(ApiError::not_found(format!("transaction {txn_id} not found")));
         };
         if to_account_id.is_empty() || to_account_id == src.account_id {
             return Err(ApiError::bad_request("to account must differ from the source account"));
+        }
+        if self.account_repo.get_by_id(user_id, to_account_id).await?.is_none() {
+            return Err(ApiError::bad_request("account does not belong to user"));
         }
 
         match resolve_transfer(user_id, &src, to_account_id, &self.transaction_repo, &self.account_repo).await? {
@@ -63,19 +66,19 @@ impl TransferService {
                 failed.push(format!("link {i}: debit and credit transactions must be different"));
                 continue;
             }
-            let Some((dt, _, da)) = self.transaction_repo.get_by_id_for_transfer(debit_id).await? else {
+            let Some((dt, _, da)) = self.transaction_repo.get_by_id_for_transfer(user_id, debit_id).await? else {
                 failed.push(format!("debit transaction {debit_id} not found"));
                 continue;
             };
-            let Some((ct, _, ca)) = self.transaction_repo.get_by_id_for_transfer(credit_id).await? else {
+            let Some((ct, _, ca)) = self.transaction_repo.get_by_id_for_transfer(user_id, credit_id).await? else {
                 failed.push(format!("credit transaction {credit_id} not found"));
                 continue;
             };
-            if dt != 0 {
+            if dt != TransactionType::Debit.to_string() {
                 failed.push(format!("transaction {debit_id} is not a DEBIT"));
                 continue;
             }
-            if ct != 1 {
+            if ct != TransactionType::Credit.to_string() {
                 failed.push(format!("transaction {credit_id} is not a CREDIT"));
                 continue;
             }
@@ -100,11 +103,11 @@ impl TransferService {
         Ok(BulkResult { success: true, message: "transfers linked successfully".to_string(), failed_ids: Vec::new(), skipped: 0 })
     }
 
-    pub async fn unlink_transfers(&self, ids: &[String]) -> Result<BulkResult> {
+    pub async fn unlink_transfers(&self, user_id: &str, ids: &[String]) -> Result<BulkResult> {
         if ids.is_empty() {
             return Err(ApiError::bad_request("no ids provided"));
         }
-        let errs = transaction::delete_links(&self.transaction_repo.pool, ids).await?;
+        let errs = transaction::delete_links(&self.transaction_repo.pool, user_id, ids).await?;
         if !errs.is_empty() {
             return Ok(BulkResult { success: false, message: "some unlinks failed".to_string(), failed_ids: errs, skipped: 0 });
         }
@@ -155,7 +158,7 @@ pub async fn resolve_transfer(
 
     let counter_txn = Transaction {
         id: Uuid::new_v4().to_string(),
-        name: format!("Transfer from {}", account_display(&src.account_id, account_repo).await),
+        name: format!("Transfer from {}", account_display(user_id, &src.account_id, account_repo).await),
         amount: src.amount,
         transaction_type: opposite,
         account_id: target_account_id.to_string(),
@@ -189,8 +192,8 @@ pub async fn resolve_transfer(
     Ok(ResolveOutcome::Linked { counterpart_id: counter_txn.id, created: true })
 }
 
-async fn account_display(account_id: &str, account_repo: &AccountRepo) -> String {
-    match account_repo.get_by_id(account_id).await {
+async fn account_display(user_id: &str, account_id: &str, account_repo: &AccountRepo) -> String {
+    match account_repo.get_by_id(user_id, account_id).await {
         Ok(Some(a)) if !a.nickname.is_empty() => a.nickname,
         Ok(Some(a)) => a.bank_name,
         _ => account_id.to_string(),

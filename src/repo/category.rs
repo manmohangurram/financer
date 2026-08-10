@@ -51,16 +51,29 @@ impl CategoryRepo {
         Ok(rows)
     }
 
-    pub async fn update(&self, inputs: &[CategoryUpdateInput]) -> Result<Vec<String>> {
+    /// Fetch one category by id (ownership-scoped).
+    pub async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<CategoryRow>> {
+        let row = sqlx::query_as::<_, RawCategory>(
+            "SELECT id, name, created_at FROM categories WHERE id = ? AND user_id = ?",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(Into::into))
+    }
+
+    pub async fn update(&self, user_id: &str, inputs: &[CategoryUpdateInput]) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         if inputs.is_empty() {
             return Ok(errors);
         }
         let mut tx = self.pool.begin().await?;
         for input in inputs {
-            let result = sqlx::query("UPDATE categories SET name = COALESCE(NULLIF(?, ''), name) WHERE id = ?")
+            let result = sqlx::query("UPDATE categories SET name = COALESCE(NULLIF(?, ''), name) WHERE id = ? AND user_id = ?")
                 .bind(&input.name)
                 .bind(&input.id)
+                .bind(user_id)
                 .execute(&mut *tx)
                 .await?;
             if result.rows_affected() == 0 {
@@ -71,19 +84,20 @@ impl CategoryRepo {
         Ok(errors)
     }
 
-    pub async fn delete(&self, ids: &[String]) -> Result<Vec<String>> {
+    pub async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         if ids.is_empty() {
             return Ok(errors);
         }
         let mut tx = self.pool.begin().await?;
         for id in ids {
-            if let Err(e) = sqlx::query("DELETE FROM categories WHERE id = ?")
+            let result = sqlx::query("DELETE FROM categories WHERE id = ? AND user_id = ?")
                 .bind(id)
+                .bind(user_id)
                 .execute(&mut *tx)
-                .await
-            {
-                errors.push(format!("failed to delete {id}: {e}"));
+                .await?;
+            if result.rows_affected() == 0 {
+                errors.push(format!("category {id} not found"));
             }
         }
         tx.commit().await?;

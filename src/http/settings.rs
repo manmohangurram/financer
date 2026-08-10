@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
-use crate::http::{require_user, AppState};
+use crate::http::{require_user, AppState, JsonResult};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -18,7 +18,6 @@ pub fn routes() -> Router<AppState> {
         .route("/api/me/avatar", axum::routing::post(avatar))
 }
 
-type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

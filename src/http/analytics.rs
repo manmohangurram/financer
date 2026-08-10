@@ -17,6 +17,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SpendingQuery {
     #[serde(default)]
     range: String,

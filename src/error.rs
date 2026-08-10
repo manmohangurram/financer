@@ -70,13 +70,16 @@ pub type Result<T> = std::result::Result<T, ApiError>;
 
 impl From<sqlx::Error> for ApiError {
     fn from(e: sqlx::Error) -> Self {
-        // Map the common SQLite constraint violation (duplicate email) to 409,
-        // matching Go's Conflict on INSERT. Everything else is 500.
+        // Map a UNIQUE constraint violation to 409; anything else is a generic
+        // 500 that never leaks the raw database error to the client.
         match &e {
             sqlx::Error::Database(db) if db.code().as_deref() == Some("1555") || db.is_unique_violation() => {
-                ApiError::conflict("email already exists")
+                ApiError::conflict("resource already exists")
             }
-            _ => ApiError::internal(format!("internal error: {e}")),
+            _ => {
+                tracing::error!("sqlx error: {e}");
+                ApiError::internal("internal error")
+            }
         }
     }
 }
