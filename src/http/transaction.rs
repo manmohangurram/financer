@@ -5,6 +5,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::error::{json_error, ApiError};
 use crate::http::{require_user, AppState, JsonResult};
@@ -17,16 +18,17 @@ pub fn routes() -> Router<AppState> {
         .route("/api/transactions", axum::routing::get(list).post(create).put(update).delete(delete))
 }
 
-#[derive(Deserialize)]
-struct ReqTxn {
+#[derive(Deserialize, ToSchema)]
+pub struct ReqTxn {
     #[serde(default)]
     transactions: Vec<JsonListTxn>,
     #[serde(default)]
     ids: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 struct JsonListTxn {
     #[serde(default)]
     id: String,
@@ -47,8 +49,9 @@ struct JsonListTxn {
     external_id: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 struct WireTxn {
     id: String,
     name: String,
@@ -88,8 +91,9 @@ fn txn_occurred_at(v: &serde_json::Value) -> Result<String, ApiError> {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct WireBulk {
     success: bool,
     message: String,
@@ -109,9 +113,10 @@ pub fn bulk_wire(b: &crate::service::transaction::BulkResult) -> WireBulk {
     WireBulk { success: b.success, message: b.message.clone(), failed_ids: b.failed_ids.clone(), skipped: b.skipped }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema, IntoParams)]
 #[serde(rename_all = "camelCase")]
-struct ListQuery {
+#[schema(rename_all = "camelCase")]
+pub struct ListQuery {
     #[serde(default)]
     page_size: Option<i32>,
     #[serde(default)]
@@ -140,7 +145,18 @@ struct ListQuery {
     offset: Option<i32>,
 }
 
-async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/transactions",
+    params(ListQuery),
+    responses(
+        (status = 200, description = "Transactions list"),
+        (status = 400, description = "Invalid query"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -211,7 +227,18 @@ async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<Li
     }
 }
 
-async fn create(
+#[utoipa::path(
+    post,
+    path = "/api/transactions",
+    request_body = ReqTxn,
+    responses(
+        (status = 201, description = "Transactions created", body = WireBulk),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn create(
     State(st): State<AppState>,
     headers: HeaderMap,
     req: JsonResult<ReqTxn>,
@@ -247,7 +274,18 @@ async fn create(
     }
 }
 
-async fn update(
+#[utoipa::path(
+    put,
+    path = "/api/transactions",
+    request_body = ReqTxn,
+    responses(
+        (status = 200, description = "Transactions updated", body = WireBulk),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn update(
     State(st): State<AppState>,
     headers: HeaderMap,
     req: JsonResult<ReqTxn>,
@@ -283,7 +321,18 @@ async fn update(
     }
 }
 
-async fn delete(
+#[utoipa::path(
+    delete,
+    path = "/api/transactions",
+    request_body = ReqTxn,
+    responses(
+        (status = 204, description = "Transactions deleted"),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn delete(
     State(st): State<AppState>,
     headers: HeaderMap,
     req: JsonResult<ReqTxn>,

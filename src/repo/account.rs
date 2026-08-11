@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::str::FromStr;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -13,10 +14,12 @@ use crate::timex::go_ts;
 /// sentinel — a bad/missing value is rejected with 400 at the boundary.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, strum::Display, strum::EnumString,
+    ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AccountType {
     Current,
     Savings,

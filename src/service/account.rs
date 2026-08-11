@@ -1,6 +1,7 @@
 //! Accounts service — business logic mirroring Go's `services/account.go`.
 
 use serde::Serialize;
+use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
 use crate::repo::account::{AccountRepo, AccountRow, AccountType};
@@ -46,8 +47,9 @@ impl AccountService {
 }
 
 /// Wire response, serialized directly (Rust serde covers Go's wire mapping).
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct AccountResponse {
     pub id: String,
     pub bank_name: String,

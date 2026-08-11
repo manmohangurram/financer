@@ -3,6 +3,7 @@
 
 use serde::Serialize;
 use std::path::PathBuf;
+use utoipa::ToSchema;
 
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
@@ -17,8 +18,9 @@ pub struct UserService {
 }
 
 /// Wire profile (serde covers Go's `wireProfile`).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct ProfileResponse {
     pub user_id: String,
     pub name: String,
