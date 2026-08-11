@@ -1,10 +1,12 @@
 name: Docker
 
-# Builds and pushes the image to GHCR when a commit lands on main
-# (i.e. a PR is merged), or manually via workflow_dispatch.
+# Builds and pushes the image to GHCR on git tag creation (e.g. `v1.0.0`).
+# The image version tag equals the git tag; `latest` is also applied so the
+# most recent release stays pullable without a version.
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 env:
@@ -37,22 +39,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read app version
-        id: version
-        run: echo "app_version=$(node -p "require('./frontend/package.json').version")" >> "$GITHUB_OUTPUT"
-
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
+            # Image version = git tag (e.g. v1.0.0).
             type=ref,event=tag
-            type=sha
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=${{ steps.version.outputs.app_version }}
-            type=raw,value=${{ steps.version.outputs.app_version }}-alpha
+            # Always-tag latest from the newest release.
+            type=raw,value=latest
 
       - name: Build and push image
         uses: docker/build-push-action@v6
