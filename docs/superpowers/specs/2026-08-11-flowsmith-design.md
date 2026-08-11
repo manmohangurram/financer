@@ -1,4 +1,4 @@
-# Financer Pipeline — Workflow Engine + Email Ingestion
+# Flowsmith — Workflow Engine + Email Ingestion
 
 Date: 2026-08-11
 Status: Approved design (pending spec review)
@@ -30,7 +30,7 @@ Decoupled from financer: financer is only a downstream consumer of the submitter
 ## Architecture
 
 ```
-financer-pipeline/
+flowsmith/
 ├── Cargo.toml
 ├── frontend/                # Vue 3 + Vite SPA
 ├── src/
