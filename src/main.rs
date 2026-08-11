@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
 
     std::fs::create_dir_all(cfg.data_dir.join("db"))?;
     let db = db::open_pools(&cfg.db_path).await?;
-    db::run_migrations(&db.write, std::path::Path::new("db/migrations")).await?;
+    db::run_migrations(&db.write).await?;
     tracing::info!("database migrations applied successfully");
 
     let jwt = Jwt::new(cfg.jwt_secret.clone());

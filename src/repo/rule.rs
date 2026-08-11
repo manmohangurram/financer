@@ -408,7 +408,7 @@ mod tests {
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
             .foreign_keys(true);
         let pool = SqlitePool::connect_with(opt).await.unwrap();
-        crate::db::run_migrations(&pool, std::path::Path::new("db/migrations")).await.unwrap();
+        crate::db::run_migrations(&pool).await.unwrap();
         pool
     }
 
