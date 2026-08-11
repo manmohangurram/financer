@@ -5,6 +5,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::Deserialize;
+use utoipa::ToSchema;
 
 use crate::error::json_error;
 use crate::http::{require_user, AppState, JsonResult};
@@ -19,9 +20,10 @@ pub fn routes() -> Router<AppState> {
 }
 
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct ReqRule {
+#[schema(rename_all = "camelCase")]
+pub struct ReqRule {
     #[serde(default)]
     #[allow(dead_code)]
     id: String,
@@ -36,7 +38,7 @@ struct ReqRule {
     actions: Vec<ReqAction>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct ReqCondition {
     #[serde(rename = "matchField")]
     match_field: MatchField,
@@ -46,8 +48,9 @@ struct ReqCondition {
 }
 
 #[allow(clippy::struct_field_names)]
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 struct ReqAction {
     #[serde(default)]
     set_name: String,
@@ -78,8 +81,8 @@ impl ReqRule {
     }
 }
 
-#[derive(Deserialize)]
-struct ReqPreview {
+#[derive(Deserialize, ToSchema)]
+pub struct ReqPreview {
     logic: RuleLogic,
     #[serde(default)]
     conditions: Vec<ReqCondition>,
@@ -87,7 +90,16 @@ struct ReqPreview {
     limit: i64,
 }
 
-async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/rules",
+    responses(
+        (status = 200, description = "Rules list"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -98,7 +110,18 @@ async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     }
 }
 
-async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqRule>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/rules",
+    request_body = ReqRule,
+    responses(
+        (status = 201, description = "Rule created", body = crate::repo::rule::Rule),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqRule>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -113,7 +136,20 @@ async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<
     }
 }
 
-async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqRule>) -> Response {
+#[utoipa::path(
+    put,
+    path = "/api/rules/{id}",
+    params(("id", description = "Rule id")),
+    request_body = ReqRule,
+    responses(
+        (status = 200, description = "Rule updated", body = crate::repo::rule::Rule),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Rule not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqRule>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -128,7 +164,18 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
     }
 }
 
-async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+#[utoipa::path(
+    delete,
+    path = "/api/rules/{id}",
+    params(("id", description = "Rule id")),
+    responses(
+        (status = 204, description = "Rule deleted"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Rule not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -139,7 +186,18 @@ async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
     }
 }
 
-async fn preview(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqPreview>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/rules/preview",
+    request_body = ReqPreview,
+    responses(
+        (status = 200, description = "Preview matching transactions"),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn preview(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqPreview>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -168,7 +226,19 @@ async fn preview(State(st): State<AppState>, headers: HeaderMap, req: JsonResult
     }
 }
 
-async fn run(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/rules/{id}/run",
+    params(("id", description = "Rule id")),
+    responses(
+        (status = 200, description = "Rule run against existing transactions"),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Rule not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn run(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),

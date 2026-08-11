@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -11,10 +12,11 @@ use crate::timex::go_ts;
 
 /// Rule logic: how conditions combine. Wire + DB string.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString, ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum RuleLogic {
     Or,
     And,
@@ -23,10 +25,11 @@ pub enum RuleLogic {
 /// Condition match field. Wire + DB string (Go kept `RULE_MATCH_FIELD_*`;
 /// renamed to clean uppercase).
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString, ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MatchField {
     Name,
     Amount,
@@ -37,10 +40,11 @@ pub enum MatchField {
 
 /// Condition operator. Wire + DB string.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString, ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MatchOperator {
     Contains,
     StartsWith,
@@ -53,10 +57,11 @@ pub enum MatchOperator {
 
 /// Name output operation. Wire + DB string.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString, ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ActionOp {
     Rename,
     AddPrefix,
@@ -67,10 +72,11 @@ pub enum ActionOp {
 /// Go's SET_* names (the wire/db contract).
 #[allow(clippy::enum_variant_names)]
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString, ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ActionType {
     SetName,
     SetCategory,
@@ -78,7 +84,7 @@ pub enum ActionType {
 }
 
 /// One rule condition (wire shape).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RuleCondition {
     #[serde(rename = "matchField")]
     pub match_field: MatchField,
@@ -89,8 +95,9 @@ pub struct RuleCondition {
 /// One rule output action (wire shape). The `set_` prefix matches the wire
 /// keys (`setName`, `setCategoryId`, ...).
 #[allow(clippy::struct_field_names)]
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct RuleAction {
     #[serde(default)]
     pub set_name: String,
@@ -103,8 +110,9 @@ pub struct RuleAction {
 }
 
 /// A rule as returned to the frontend (wire shape).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct Rule {
     pub id: String,
     pub name: String,

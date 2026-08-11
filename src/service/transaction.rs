@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::Datelike;
+use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
 use crate::repo::account::AccountRepo;
@@ -349,18 +350,24 @@ fn failed_ids(errs: &[String]) -> HashSet<String> {
 
 // `total_` prefix matches the wire keys (totalBalance, ...).
 #[allow(clippy::struct_field_names)]
+#[derive(ToSchema)]
+#[schema(rename_all = "camelCase")]
 pub struct Dashboard {
     pub total_balance: f64,
     pub total_income: f64,
     pub total_expenses: f64,
 }
 
+#[derive(ToSchema)]
+#[schema(rename_all = "camelCase")]
 pub struct SpendingBucket {
     pub key: String,
     pub label: String,
     pub amount: f64,
 }
 
+#[derive(ToSchema)]
+#[schema(rename_all = "camelCase")]
 pub struct SpendingCategory {
     pub id: String,
     pub name: String,
@@ -369,6 +376,8 @@ pub struct SpendingCategory {
     pub net: f64,
 }
 
+#[derive(ToSchema)]
+#[schema(rename_all = "camelCase")]
 pub struct SpendingResult {
     pub buckets: Vec<SpendingBucket>,
     pub categories: Vec<SpendingCategory>,

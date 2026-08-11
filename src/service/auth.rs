@@ -1,14 +1,16 @@
 //! Auth service — signup / login / refresh, mirroring Go's `services/auth.go`.
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
 use crate::repo::UserRepo;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,
@@ -17,21 +19,22 @@ pub struct AuthResponse {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SignupRequest {
     pub email: String,
     pub password: String,
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct RefreshTokenRequest {
     pub refresh_token: String,
 }

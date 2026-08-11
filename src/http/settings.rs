@@ -5,6 +5,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::Deserialize;
+use utoipa::ToSchema;
 
 use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
@@ -19,9 +20,10 @@ pub fn routes() -> Router<AppState> {
 }
 
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct ReqProfile {
+#[schema(rename_all = "camelCase")]
+pub struct ReqProfile {
     #[serde(default)]
     name: String,
     #[serde(default)]
@@ -30,16 +32,26 @@ struct ReqProfile {
     avatar_url: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct ReqPassword {
+#[schema(rename_all = "camelCase")]
+pub struct ReqPassword {
     #[serde(default)]
     current_password: String,
     #[serde(default)]
     new_password: String,
 }
 
-async fn get(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/me/profile",
+    responses(
+        (status = 200, description = "User profile", body = crate::service::user::ProfileResponse),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn get(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -50,7 +62,19 @@ async fn get(State(st): State<AppState>, headers: HeaderMap) -> Response {
     }
 }
 
-async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqProfile>) -> Response {
+#[utoipa::path(
+    put,
+    path = "/api/me/profile",
+    request_body = ReqProfile,
+    responses(
+        (status = 200, description = "Profile updated", body = crate::service::user::ProfileResponse),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 409, description = "Email already in use"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqProfile>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -65,7 +89,18 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<
     }
 }
 
-async fn password(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqPassword>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/me/password",
+    request_body = ReqPassword,
+    responses(
+        (status = 200, description = "Password changed", body = crate::service::auth::AuthResponse),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn password(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqPassword>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -80,7 +115,16 @@ async fn password(State(st): State<AppState>, headers: HeaderMap, req: JsonResul
     }
 }
 
-async fn logout_all(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/me/logout-all",
+    responses(
+        (status = 200, description = "All sessions logged out", body = crate::http::transaction::WireBulk),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn logout_all(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -97,7 +141,17 @@ async fn logout_all(State(st): State<AppState>, headers: HeaderMap) -> Response 
     }
 }
 
-async fn avatar(State(st): State<AppState>, headers: HeaderMap, mut mp: Multipart) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/me/avatar",
+    responses(
+        (status = 201, description = "Avatar uploaded", body = crate::service::user::ProfileResponse),
+        (status = 400, description = "Missing or invalid image"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn avatar(State(st): State<AppState>, headers: HeaderMap, mut mp: Multipart) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),

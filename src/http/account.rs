@@ -4,6 +4,7 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
+use utoipa::ToSchema;
 
 use crate::error::json_error;
 use crate::http::{require_user, AppState, JsonResult};
@@ -15,9 +16,10 @@ pub fn routes() -> Router<AppState> {
         .route("/api/accounts/{id}", axum::routing::put(update).delete(delete))
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct ReqAccount {
+#[schema(rename_all = "camelCase")]
+pub struct ReqAccount {
     // Accepted for wire parity (Go carries it, though handlers use the path id).
     #[serde(default)]
     #[allow(dead_code)]
@@ -32,7 +34,18 @@ struct ReqAccount {
 }
 
 
-async fn create(
+#[utoipa::path(
+    post,
+    path = "/api/accounts",
+    request_body = ReqAccount,
+    responses(
+        (status = 201, description = "Account created", body = crate::service::account::AccountResponse),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn create(
     State(st): State<AppState>,
     headers: HeaderMap,
     req: JsonResult<ReqAccount>,
@@ -51,7 +64,20 @@ async fn create(
     }
 }
 
-async fn update(
+#[utoipa::path(
+    put,
+    path = "/api/accounts/{id}",
+    params(("id", description = "Account id")),
+    request_body = ReqAccount,
+    responses(
+        (status = 200, description = "Account updated", body = crate::service::account::AccountResponse),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Account not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn update(
     State(st): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<String>,
@@ -71,7 +97,18 @@ async fn update(
     }
 }
 
-async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+#[utoipa::path(
+    delete,
+    path = "/api/accounts/{id}",
+    params(("id", description = "Account id")),
+    responses(
+        (status = 204, description = "Account deleted"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Account not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -82,7 +119,16 @@ async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
     }
 }
 
-async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/accounts",
+    responses(
+        (status = 200, description = "Accounts list"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
