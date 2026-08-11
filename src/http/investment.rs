@@ -5,6 +5,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::error::{json_error, ApiError};
 use crate::http::{require_user, AppState, JsonResult};
@@ -27,9 +28,10 @@ pub fn routes() -> Router<AppState> {
 
 
 /// Investment create/update body: `investmentType` is required (strict).
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct ReqInvestment {
+#[schema(rename_all = "camelCase")]
+pub struct ReqInvestment {
     #[serde(default)]
     #[allow(dead_code)]
     id: String,
@@ -44,9 +46,10 @@ struct ReqInvestment {
 }
 
 /// Lot body: no type field (Go's addLot/updateLot don't carry one).
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct ReqLot {
+#[schema(rename_all = "camelCase")]
+pub struct ReqLot {
     #[serde(default)]
     side: Option<i64>,
     #[serde(default)]
@@ -70,7 +73,18 @@ fn parse_type(v: &serde_json::Value) -> Result<InvestmentType, ApiError> {
     }
 }
 
-async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqInvestment>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/investments",
+    request_body = ReqInvestment,
+    responses(
+        (status = 201, description = "Investment created", body = crate::repo::investment::Investment),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqInvestment>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -85,7 +99,16 @@ async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<
     }
 }
 
-async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/investments",
+    responses(
+        (status = 200, description = "Investments list"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -96,7 +119,18 @@ async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     }
 }
 
-async fn get(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/investments/{id}",
+    params(("id", description = "Investment id")),
+    responses(
+        (status = 200, description = "Investment", body = crate::repo::investment::Investment),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Investment not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn get(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -107,7 +141,20 @@ async fn get(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<Stri
     }
 }
 
-async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqInvestment>) -> Response {
+#[utoipa::path(
+    put,
+    path = "/api/investments/{id}",
+    params(("id", description = "Investment id")),
+    request_body = ReqInvestment,
+    responses(
+        (status = 200, description = "Investment updated", body = crate::repo::investment::Investment),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Investment not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqInvestment>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -122,7 +169,18 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
     }
 }
 
-async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+#[utoipa::path(
+    delete,
+    path = "/api/investments/{id}",
+    params(("id", description = "Investment id")),
+    responses(
+        (status = 204, description = "Investment deleted"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Investment not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -133,7 +191,20 @@ async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<S
     }
 }
 
-async fn add_lot(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqLot>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/investments/{id}/lots",
+    params(("id", description = "Investment id")),
+    request_body = ReqLot,
+    responses(
+        (status = 201, description = "Lot added", body = crate::repo::investment::Lot),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Investment not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn add_lot(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqLot>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -163,7 +234,22 @@ fn parse_side(v: Option<i64>) -> Result<i64, ApiError> {
     }
 }
 
-async fn delete_lot(State(st): State<AppState>, headers: HeaderMap, Path((_, lot_id)): Path<(String, String)>) -> Response {
+#[utoipa::path(
+    delete,
+    path = "/api/investments/{id}/lots/{lot_id}",
+    params(
+        ("id", description = "Investment id"),
+        ("lot_id", description = "Lot id"),
+    ),
+    responses(
+        (status = 204, description = "Lot deleted"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Lot not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn delete_lot(State(st): State<AppState>, headers: HeaderMap, Path(path): Path<(String, String)>) -> Response {
+    let (_, lot_id) = path;
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -174,7 +260,24 @@ async fn delete_lot(State(st): State<AppState>, headers: HeaderMap, Path((_, lot
     }
 }
 
-async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path((id, lot_id)): Path<(String, String)>, req: JsonResult<ReqLot>) -> Response {
+#[utoipa::path(
+    put,
+    path = "/api/investments/{id}/lots/{lot_id}",
+    params(
+        ("id", description = "Investment id"),
+        ("lot_id", description = "Lot id"),
+    ),
+    request_body = ReqLot,
+    responses(
+        (status = 200, description = "Lot updated", body = crate::repo::investment::Lot),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Lot not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path(path): Path<(String, String)>, req: JsonResult<ReqLot>) -> Response {
+    let (id, lot_id) = path;
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -193,7 +296,18 @@ async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path((id, lo
     }
 }
 
-async fn list_lots(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/investments/{id}/lots",
+    params(("id", description = "Investment id")),
+    responses(
+        (status = 200, description = "Lots list"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Investment not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn list_lots(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -204,14 +318,15 @@ async fn list_lots(State(st): State<AppState>, headers: HeaderMap, Path(id): Pat
     }
 }
 
-#[derive(Deserialize)]
-struct ImportReq {
+#[derive(Deserialize, ToSchema)]
+pub struct ImportReq {
     #[serde(default)]
     rows: Vec<ReqImportRow>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 struct ReqImportRow {
     #[serde(default)]
     symbol: String,
@@ -231,7 +346,18 @@ struct ReqImportRow {
     external_id: String,
 }
 
-async fn import(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ImportReq>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/investments/import",
+    request_body = ImportReq,
+    responses(
+        (status = 200, description = "Import completed"),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ImportReq>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -279,8 +405,8 @@ fn parse_import_side(v: &serde_json::Value) -> Option<i64> {
     }
 }
 
-#[derive(Deserialize)]
-struct HistoryQuery {
+#[derive(Deserialize, ToSchema, IntoParams)]
+pub struct HistoryQuery {
     #[serde(default)]
     range: String,
     #[serde(default)]
@@ -291,7 +417,22 @@ struct HistoryQuery {
     refresh: String,
 }
 
-async fn price_history(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Query(q): Query<HistoryQuery>) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/investments/{id}/price-history",
+    params(
+        ("id", description = "Investment id"),
+        HistoryQuery,
+    ),
+    responses(
+        (status = 200, description = "Price history points"),
+        (status = 400, description = "Invalid query"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Investment not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn price_history(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Query(q): Query<HistoryQuery>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -303,13 +444,24 @@ async fn price_history(State(st): State<AppState>, headers: HeaderMap, Path(id):
     }
 }
 
-#[derive(Deserialize)]
-struct SearchQuery {
+#[derive(Deserialize, ToSchema, IntoParams)]
+pub struct SearchQuery {
     #[serde(default)]
     query: String,
 }
 
-async fn search(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<SearchQuery>) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/investments/search",
+    params(SearchQuery),
+    responses(
+        (status = 200, description = "Symbol search results"),
+        (status = 400, description = "Invalid query"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn search(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<SearchQuery>) -> Response {
     let _uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -327,7 +479,17 @@ async fn search(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<
     }
 }
 
-async fn refresh_prices(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/investments/refresh-prices",
+    responses(
+        (status = 200, description = "Prices refreshed"),
+        (status = 400, description = "Refresh failed"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn refresh_prices(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -338,7 +500,16 @@ async fn refresh_prices(State(st): State<AppState>, headers: HeaderMap) -> Respo
     }
 }
 
-async fn portfolio_summary(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/portfolio/summary",
+    responses(
+        (status = 200, description = "Portfolio summary", body = crate::service::investment::PortfolioSummary),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn portfolio_summary(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),

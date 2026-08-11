@@ -2,18 +2,18 @@
 //! else under `/api/*` is proxied to the Go backend; everything else is served
 //! as the SPA.
 
-mod account;
-mod analytics;
-mod category;
-mod investment;
-mod rule;
-mod settings;
-mod transaction;
-mod transfer;
-
+pub mod account;
+pub mod analytics;
+pub mod category;
+pub mod investment;
+pub mod rule;
+pub mod settings;
+pub mod transaction;
+pub mod transfer;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+use utoipa::OpenApi;
 use axum::routing::get;
 use axum::{Json, Router};
 
@@ -59,6 +59,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/signup", axum::routing::post(signup))
         .route("/api/auth/login", axum::routing::post(login))
         .route("/api/auth/refresh", axum::routing::post(refresh))
+        .merge(utoipa_swagger_ui::SwaggerUi::new("/docs").url("/openapi.json", crate::openapi::ApiDoc::openapi()))
         .merge(account_routes())
         .merge(analytics_routes())
         .merge(category_routes())
@@ -164,7 +165,17 @@ pub fn require_user(headers: &HeaderMap, jwt: &Jwt) -> Result<String> {
 
 pub type JsonResult<T> = std::result::Result<Json<T>, axum::extract::rejection::JsonRejection>;
 
-async fn signup(State(st): State<AppState>, req: JsonResult<SignupRequest>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/auth/signup",
+    request_body = SignupRequest,
+    responses(
+        (status = 201, description = "Account created", body = crate::service::auth::AuthResponse),
+        (status = 400, description = "Invalid input"),
+        (status = 409, description = "Email already registered"),
+    ),
+)]
+pub async fn signup(State(st): State<AppState>, req: JsonResult<SignupRequest>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -175,7 +186,17 @@ async fn signup(State(st): State<AppState>, req: JsonResult<SignupRequest>) -> R
     }
 }
 
-async fn login(State(st): State<AppState>, req: JsonResult<LoginRequest>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/auth/login",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Logged in", body = crate::service::auth::AuthResponse),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Invalid credentials"),
+    ),
+)]
+pub async fn login(State(st): State<AppState>, req: JsonResult<LoginRequest>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -186,7 +207,17 @@ async fn login(State(st): State<AppState>, req: JsonResult<LoginRequest>) -> Res
     }
 }
 
-async fn refresh(State(st): State<AppState>, req: JsonResult<RefreshTokenRequest>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/auth/refresh",
+    request_body = RefreshTokenRequest,
+    responses(
+        (status = 200, description = "Tokens refreshed", body = crate::service::auth::AuthResponse),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Invalid or revoked refresh token"),
+    ),
+)]
+pub async fn refresh(State(st): State<AppState>, req: JsonResult<RefreshTokenRequest>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),

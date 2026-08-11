@@ -6,6 +6,7 @@ use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::http::{require_user, AppState};
 use crate::timex::round2;
@@ -16,9 +17,10 @@ pub fn routes() -> Router<AppState> {
         .route("/api/spending", axum::routing::get(spending))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema, IntoParams)]
 #[serde(rename_all = "camelCase")]
-struct SpendingQuery {
+#[schema(rename_all = "camelCase")]
+pub struct SpendingQuery {
     #[serde(default)]
     range: String,
     #[serde(default)]
@@ -29,7 +31,16 @@ struct SpendingQuery {
     account_id: String,
 }
 
-async fn dashboard(State(st): State<AppState>, headers: HeaderMap) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/dashboard",
+    responses(
+        (status = 200, description = "Dashboard summary", body = crate::service::transaction::Dashboard),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn dashboard(State(st): State<AppState>, headers: HeaderMap) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -62,7 +73,18 @@ async fn dashboard(State(st): State<AppState>, headers: HeaderMap) -> Response {
     .into_response()
 }
 
-async fn spending(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<SpendingQuery>) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/spending",
+    params(SpendingQuery),
+    responses(
+        (status = 200, description = "Spending buckets and categories", body = crate::service::transaction::SpendingResult),
+        (status = 400, description = "Invalid query"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn spending(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<SpendingQuery>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),

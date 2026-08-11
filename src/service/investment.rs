@@ -9,6 +9,7 @@ use crate::service::fifo::{compute_fifo, FifoLot, Position};
 use crate::service::yahoo::{PricePoint, YahooClient};
 use crate::timex::{go_ts, round2};
 use chrono::Datelike;
+use utoipa::ToSchema;
 
 #[derive(Clone)]
 pub struct InvestmentService {
@@ -264,8 +265,9 @@ pub struct ImportRow {
     pub external_id: String,
 }
 
-#[derive(Debug, Default, serde::Serialize)]
+#[derive(Debug, Default, serde::Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 // `total_` prefix matches the wire keys (totalInvested, ...).
 #[allow(clippy::struct_field_names)]
 pub struct PortfolioSummary {

@@ -6,6 +6,7 @@ mod config;
 mod db;
 mod error;
 mod http;
+mod openapi;
 mod repo;
 mod service;
 mod timex;

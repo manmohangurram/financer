@@ -5,6 +5,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
@@ -16,15 +17,15 @@ pub fn routes() -> Router<AppState> {
 }
 
 
-#[derive(Deserialize)]
-struct ReqCategory {
+#[derive(Deserialize, ToSchema)]
+pub struct ReqCategory {
     #[serde(default)]
     ids: Vec<String>,
     #[serde(default)]
     categories: Vec<ReqCat>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct ReqCat {
     #[serde(default)]
     id: String,
@@ -32,16 +33,27 @@ struct ReqCat {
     name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema, IntoParams)]
 #[serde(rename_all = "camelCase")]
-struct ListQuery {
+#[schema(rename_all = "camelCase")]
+pub struct ListQuery {
     #[serde(default)]
     page_size: Option<i32>,
     #[serde(default)]
     page_token: Option<String>,
 }
 
-async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
+#[utoipa::path(
+    get,
+    path = "/api/categories",
+    params(ListQuery),
+    responses(
+        (status = 200, description = "Categories list"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -54,7 +66,18 @@ async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<Li
     }
 }
 
-async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
+#[utoipa::path(
+    post,
+    path = "/api/categories",
+    request_body = ReqCategory,
+    responses(
+        (status = 201, description = "Categories created", body = crate::http::transaction::WireBulk),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -70,7 +93,18 @@ async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<
     }
 }
 
-async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
+#[utoipa::path(
+    put,
+    path = "/api/categories",
+    request_body = ReqCategory,
+    responses(
+        (status = 200, description = "Categories updated", body = crate::http::transaction::WireBulk),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -86,7 +120,18 @@ async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<
     }
 }
 
-async fn delete(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
+#[utoipa::path(
+    delete,
+    path = "/api/categories",
+    request_body = ReqCategory,
+    responses(
+        (status = 204, description = "Categories deleted"),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn delete(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),

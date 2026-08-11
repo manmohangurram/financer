@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -10,10 +11,11 @@ use crate::timex::{go_ts, round2, ts_rfc3339};
 /// Investment type. Wire string (`STOCK`/`MUTUAL_FUND`); DB stores the int
 /// discriminant. No sentinel — strict 400 at the boundary.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString, ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InvestmentType {
     Stock,
     MutualFund,
@@ -79,7 +81,7 @@ pub struct LotRow {
 }
 
 /// Wire investment (serde covers Go's `investmentWire`).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Investment {
     pub id: String,
@@ -102,7 +104,7 @@ pub struct Investment {
 }
 
 /// Wire lot.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Lot {
     pub id: String,
