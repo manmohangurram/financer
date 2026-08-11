@@ -22,8 +22,10 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Build
-        run: cargo build --locked
+      # Fast compile gate — `cargo check` is much quicker than a full build.
+      # `cargo clippy` below full-compiles, so no separate `cargo build` needed.
+      - name: Check
+        run: cargo check --locked
 
       - name: Clippy
         run: cargo clippy -- -D warnings
@@ -47,6 +49,16 @@ jobs:
       - name: Install
         run: npm ci
         working-directory: frontend
+
+      # Cache vite's transform cache + vue-tsc incremental build info so
+      # type-check and build reuse prior work across runs.
+      - name: Cache vite + vue-tsc
+        uses: actions/cache@v4
+        with:
+          path: |
+            frontend/node_modules/.vite
+            frontend/*.tsbuildinfo
+          key: ${{ runner.os }}-vite-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: Type-check
         run: npx vue-tsc -b
