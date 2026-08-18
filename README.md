@@ -88,7 +88,9 @@ npm test        # frontend vitest
 
 ## Deployment (self-host on a Raspberry Pi)
 
-The GitHub Action (`.github/workflows/docker-publish.yml`) builds the image for `linux/arm64` (64-bit Raspberry Pi OS / Apple Silicon) and `linux/amd64` (x86 hosts) and pushes it to **GHCR** whenever a commit lands on `main`. The image is a single container — the Rust binary serves both the API and the built frontend (no nginx). In production builds the frontend calls the API on the same origin, so it works from any device, not just localhost.
+Full build/deploy reference (frontend↔backend linking, multi-arch builds, GitHub Actions release flow, troubleshooting): **[DEPLOY.md](DEPLOY.md)**.
+
+The GitHub Action (`.github/workflows/docker-publish.yml`) builds the image for `linux/arm64` (64-bit Raspberry Pi OS / Apple Silicon) and `linux/amd64` (x86 hosts) and pushes it to **GHCR** on a `v*` tag. The image is a single container — the Rust binary serves both the API and the built frontend (no nginx). In production builds the frontend calls the API on the same origin, so it works from any device, not just localhost.
 
 **Public repo:** the GHCR package is public too, so pull with no login.
 
