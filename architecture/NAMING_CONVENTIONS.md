@@ -1,0 +1,13 @@
+# Naming Conventions (Rust)
+
+- **Full words, no abbreviations.** Types/structs/fns/fields spell out domain nouns: `TransactionType`, `TransactionRepo`, `TransactionService`, `account_repo`, `transaction_repo` — never `TxnType`/`TxnRepo`/`txn_repo`. Short names allowed only for universally-clear locals (`id`, `req`, `row`, `svc`, `repo`).
+- **No entity-prefix on fields.** A field on its own struct doesn't repeat the struct's noun: `Transaction.type` not `Transaction.transaction_type`, `Account.type` not `Account.account_type`. Use a raw identifier (`r#type`) for keyword collisions — never `type_`/`type_enum`.
+- **No entity-prefix on functions.** Within a module, helpers don't repeat the module name: `wire()` not `txn_wire()`, `type_value()` not `account_type_value()`. Cross-module disambiguation lives in the module path (`http::transaction::wire`), not the name.
+- **Enums over ints/string-maps.** Real Rust enums with `#[repr(i64)]` for the DB column, `#[serde(rename = "...")]` for the exact wire name. No protobuf-style `PREFIX_ENUM_NAME` variant names — the Rust variant is `Checking`, wire `"ACCOUNT_TYPE_CHECKING"` is a serde rename.
+- **Strict validation, no sentinel variants.** No `Unspecified`/zero-value default. A missing or unknown enum value is a 400 at the boundary. Valid values are exactly what the enum defines.
+- **One object, no wire structs.** The domain/service struct IS the JSON response — `#[serde(rename_all = "camelCase")]` + `#[serde(rename)]` + `serialize_with` cover Go's wire mapping. No separate `WireXxx` type unless the wire shape genuinely differs (e.g. transactions flatten a join row, null-vs-empty `categoryIds`). Request structs stay (they parse `any`-typed fields).
+- **SQL column and wire names are sacred but standard.** Column and JSON names match the Go contract (`type` for accounts/transactions, `accountType`/`occurredAt` on the wire) and are NOT re-prefixed to look like Rust. `#[serde(rename)]`/`#[sqlx(rename)]` maps Rust field ↔ wire/column. Schema lives in `db/migrations/`; it's not production, so a column rename may update the migration in place and reset the dev DB.
+- **Repo field names short and type-qualified when ambiguous:** a service holding two repos uses `account_repo`/`transaction_repo` (the suffix disambiguates); a field of a single type is `repo`.
+- **Name by role, not by shape:** `repo`/`svc`/`id`/`req`/`row` are fine; `string`/`vec`/`list`/`data`/`value` for a typed thing are not.
+- **Booleans read as predicates** (`is_linked`, `inserted`, `success`); verbs for actions (`create`, `link`, `delete`).
+- **snake_case** for everything in Rust (fields, locals, fns, files). Types/structs PascalCase, consts SCREAMING_SNAKE.
