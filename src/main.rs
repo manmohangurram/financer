@@ -7,6 +7,7 @@ mod db;
 mod error;
 mod http;
 mod openapi;
+mod surreal_db;
 mod repo;
 mod service;
 mod timex;
