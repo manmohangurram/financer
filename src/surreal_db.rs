@@ -1,10 +1,9 @@
 //! `SurrealDB` connection + schema (migration target). Mirrors flowsmith's
 //! `db.rs` exactly: server-mode HTTP-RPC client in PROD, embedded `Mem` in
 //! tests, idempotent `define_tables()` at boot.
-// TODO(surrealdb): consumed by the repo rewrite (migrate/surrealdb-repos).
-#![allow(dead_code)]
 
 use anyhow::Result;
+#[cfg(test)]
 use surrealdb::engine::local::{Db, Mem};
 use surrealdb::engine::remote::http::{Client as HttpClient, Http};
 use surrealdb::{Connection, Surreal};
@@ -31,6 +30,7 @@ pub async fn connect(
 }
 
 /// Embedded in-memory `SurrealDB` for tests.
+#[cfg(test)]
 pub async fn connect_mem() -> Result<Surreal<Db>> {
     let client = Surreal::new::<Mem>(()).await?;
     client.use_ns("financer").use_db("financer").await?;

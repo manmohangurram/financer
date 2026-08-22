@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
@@ -63,11 +62,10 @@ impl AuthService {
             .await
             .map_err(|_| ApiError::internal("internal error"))?
             .map_err(|_| ApiError::internal("internal error"))?;
-        let id = Uuid::new_v4().to_string();
 
         // Go's Signup returns Conflict("email already exists") on the unique
         // email constraint violation (mapped from sqlx::Error via From).
-        self.repo.create(&id, &req.email, &hash, &req.name).await?;
+        let id = self.repo.create(&req.email, &hash, &req.name).await?;
 
         self.issue_tokens(&id, &req.email, &req.name).await
     }

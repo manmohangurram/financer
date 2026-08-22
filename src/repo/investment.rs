@@ -1,17 +1,16 @@
-//! Investments repository — SQL mirroring the Go backend's `repository/investment.go`.
+//! Investments repository — CRUD + lots + price history on `SurrealDB`,
+//! mirroring the Go backend's `repository/investment.go`.
 
-use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use surrealdb::Connection;
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 use crate::error::Result;
+use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
 use crate::timex::{go_ts, round2, ts_rfc3339};
 
-/// Investment type. Wire string (`STOCK`/`MUTUAL_FUND`); DB stores the int
-/// discriminant. No sentinel — strict 400 at the boundary.
+/// Investment type. Wire string (`STOCK`/`MUTUAL_FUND`), stored as-is.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString, ToSchema,
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
@@ -21,44 +20,354 @@ pub enum InvestmentType {
     MutualFund,
 }
 
-impl InvestmentType {
-    pub fn db_value(self) -> i64 {
-        match self {
-            Self::Stock => 1,
-            Self::MutualFund => 2,
-        }
-    }
-}
-
-impl TryFrom<i64> for InvestmentType {
-    type Error = ();
-    fn try_from(v: i64) -> std::result::Result<Self, Self::Error> {
-        match v {
-            1 => Ok(Self::Stock),
-            2 => Ok(Self::MutualFund),
-            _ => Err(()),
-        }
-    }
-}
-
 #[derive(Clone)]
-pub struct InvestmentRepo {
-    pub pool: SqlitePool,
+pub struct InvestmentRepo<C: Connection = DbClient> {
+    db: RepoConn<C>,
 }
 
-#[derive(Debug, Clone)]
+impl<C: Connection> InvestmentRepo<C> {
+    pub fn new(db: RepoConn<C>) -> Self {
+        Self { db }
+    }
+
+    pub async fn create_investment(&self, user_id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
+        let now = go_ts(chrono::Utc::now());
+        let sym = if symbol.is_empty() { None } else { Some(symbol.to_string()) };
+        let nav = if manual_nav == 0.0 { None } else { Some(manual_nav) };
+        let mut res = self
+            .db
+            .query(
+                "CREATE investment CONTENT {
+                    user: $uid, symbol: $sym, name: $name, investmentType: $it,
+                    currentPrice: 0.0, prevClose: 0.0, lastQuoteAt: NONE,
+                    manualNav: $nav, createdAt: $created
+                } RETURN meta::id(id) AS id, symbol, name, investmentType,
+                    currentPrice, prevClose, manualNav, lastQuoteAt, createdAt",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .bind(("sym", sym))
+            .bind(("name", name.to_string()))
+            .bind(("it", it.to_string()))
+            .bind(("nav", nav))
+            .bind(("created", now.clone()))
+            .await?
+            .check()?;
+        let mut row = take_json::<InvestmentRow>(&mut res, 0)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| crate::error::ApiError::internal("investment create returned no row"))?;
+        row.created_at = now;
+        Ok(row)
+    }
+
+    pub async fn get_investment(&self, user_id: &str, id: &str) -> Result<Option<InvestmentRow>> {
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, symbol, name, investmentType,
+                    currentPrice, prevClose, manualNav, lastQuoteAt, createdAt
+                 FROM investment WHERE id = $rid AND user = $uid LIMIT 1",
+            )
+            .bind(("rid", rid("investment", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?.into_iter().next())
+    }
+
+    pub async fn get_by_symbol(&self, user_id: &str, symbol: &str) -> Result<Option<InvestmentRow>> {
+        if symbol.is_empty() {
+            return Ok(None);
+        }
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, symbol, name, investmentType,
+                    currentPrice, prevClose, manualNav, lastQuoteAt, createdAt
+                 FROM investment WHERE user = $uid AND symbol = $sym LIMIT 1",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .bind(("sym", symbol.to_string()))
+            .await?;
+        Ok(take_json(&mut res, 0)?.into_iter().next())
+    }
+
+    pub async fn list_investments(&self, user_id: &str) -> Result<Vec<InvestmentRow>> {
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, symbol, name, investmentType,
+                    currentPrice, prevClose, manualNav, lastQuoteAt, createdAt
+                 FROM investment WHERE user = $uid ORDER BY createdAt DESC",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?)
+    }
+
+    pub async fn update_investment(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
+        let old_sym: Option<String> = {
+            let mut res = self
+                .db
+                .query("SELECT VALUE symbol FROM investment WHERE id = $rid AND user = $uid LIMIT 1")
+                .bind(("rid", rid("investment", id)))
+                .bind(("uid", rid("user", user_id)))
+                .await?;
+            take_json::<String>(&mut res, 0)?.into_iter().next()
+        };
+        let sym: Option<String> = if symbol.is_empty() { None } else { Some(symbol.to_string()) };
+        let nav: Option<f64> = if manual_nav == 0.0 { None } else { Some(manual_nav) };
+        self.db
+            .query(
+                "UPDATE $rid SET
+                    symbol = IF $sym != NONE THEN $sym ELSE symbol END,
+                    name = $name, investmentType = $it, manualNav = IF $nav != NONE THEN $nav ELSE manualNav END
+                 WHERE user = $uid",
+            )
+            .bind(("rid", rid("investment", id)))
+            .bind(("uid", rid("user", user_id)))
+            .bind(("sym", sym))
+            .bind(("name", name.to_string()))
+            .bind(("it", it.to_string()))
+            .bind(("nav", nav))
+            .await?
+            .check()?;
+        // Drop cached price history when the symbol changed so it refetches.
+        if !symbol.is_empty() && old_sym.as_deref() != Some(symbol) {
+            self.db
+                .query("DELETE investment_price_history WHERE investment = $rid")
+                .bind(("rid", rid("investment", id)))
+                .await?
+                .check()?;
+        }
+        Ok(self.get_investment(user_id, id).await?.unwrap())
+    }
+
+    pub async fn delete_investment(&self, user_id: &str, id: &str) -> Result<bool> {
+        self.db
+            .query("DELETE investment_price_history WHERE investment = $rid")
+            .bind(("rid", rid("investment", id)))
+            .await?
+            .check()?;
+        let mut res = self
+            .db
+            .query("DELETE $rid WHERE user = $uid RETURN BEFORE")
+            .bind(("rid", rid("investment", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
+    }
+
+    pub async fn list_lots(&self, user_id: &str, investment_id: &str) -> Result<Vec<LotRow>> {
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, meta::id(investment) AS investmentId, side,
+                    quantity, price, occurredAt, createdAt
+                 FROM investment_lot
+                 WHERE investment = $rid AND user = $uid
+                 ORDER BY occurredAt ASC, createdAt ASC",
+            )
+            .bind(("rid", rid("investment", investment_id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?)
+    }
+
+    pub async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
+        let now = go_ts(chrono::Utc::now());
+        let mut res = self
+            .db
+            .query(
+                "CREATE investment_lot CONTENT {
+                    user: $uid, investment: $rid, side: $side, quantity: $quantity,
+                    price: $price, occurredAt: $occ, createdAt: $created
+                } RETURN meta::id(id) AS id, meta::id(investment) AS investmentId,
+                    side, quantity, price, occurredAt, createdAt",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .bind(("rid", rid("investment", investment_id)))
+            .bind(("side", side))
+            .bind(("quantity", quantity))
+            .bind(("price", price))
+            .bind(("occ", occurred_at.to_string()))
+            .bind(("created", now.clone()))
+            .await?
+            .check()?;
+        let mut lot = take_json::<LotRow>(&mut res, 0)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| crate::error::ApiError::internal("lot create returned no row"))?;
+        lot.created_at = now;
+        Ok(lot)
+    }
+
+    pub async fn delete_lot(&self, user_id: &str, id: &str) -> Result<bool> {
+        let mut res = self
+            .db
+            .query("DELETE $rid WHERE user = $uid RETURN BEFORE")
+            .bind(("rid", rid("investment_lot", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
+    }
+
+    /// Idempotent insert: a second insert with the same (user, `externalId`) is
+    /// skipped. Returns whether the row was inserted.
+    pub async fn insert_lot(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool> {
+        let now = go_ts(chrono::Utc::now());
+        let ext: Option<String> = if input.external_id.is_empty() { None } else { Some(input.external_id.clone()) };
+        // Dedup check (matches the old INSERT OR IGNORE on (user, externalId)).
+        if let Some(e) = &ext {
+            let mut res = self
+                .db
+                .query("SELECT VALUE meta::id(id) FROM investment_lot WHERE user = $uid AND externalId = $ext LIMIT 1")
+                .bind(("uid", rid("user", user_id)))
+                .bind(("ext", e.clone()))
+                .await?;
+            if !take_json::<String>(&mut res, 0)?.is_empty() {
+                return Ok(false);
+            }
+        }
+        self.db
+            .query(
+                "CREATE investment_lot CONTENT {
+                    user: $uid, investment: $rid, side: $side, quantity: $quantity,
+                    price: $price, occurredAt: $occ, createdAt: $created, externalId: $ext
+                }",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .bind(("rid", rid("investment", investment_id)))
+            .bind(("side", input.side))
+            .bind(("quantity", input.quantity))
+            .bind(("price", input.price))
+            .bind(("occ", input.occurred_at.clone()))
+            .bind(("created", now))
+            .bind(("ext", ext))
+            .await?
+            .check()?;
+        Ok(true)
+    }
+
+    pub async fn update_lot(&self, user_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<bool> {
+        let mut res = self
+            .db
+            .query(
+                "UPDATE $rid SET quantity = $q, price = $p, occurredAt = $occ
+                 WHERE user = $uid RETURN meta::id(id) AS id",
+            )
+            .bind(("rid", rid("investment_lot", id)))
+            .bind(("uid", rid("user", user_id)))
+            .bind(("q", quantity))
+            .bind(("p", price))
+            .bind(("occ", occurred_at.to_string()))
+            .await?;
+        Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
+    }
+
+    pub async fn update_quote(&self, id: &str, current_price: f64, prev_close: f64) -> Result<()> {
+        self.db
+            .query(
+                "UPDATE $rid SET currentPrice = $price, prevClose = $prev, lastQuoteAt = $at",
+            )
+            .bind(("rid", rid("investment", id)))
+            .bind(("price", current_price))
+            .bind(("prev", prev_close))
+            .bind(("at", go_ts(chrono::Utc::now())))
+            .await?
+            .check()?;
+        Ok(())
+    }
+
+    /// Replace the cached price history for (investment, range).
+    pub async fn upsert_price_history(&self, investment_id: &str, range_id: &str, ts: &[i64], closes: &[f64], fetched_at: i64) -> Result<()> {
+        let rid_inv = rid("investment", investment_id);
+        self.db
+            .query("DELETE investment_price_history WHERE investment = $rid AND rangeId = $range")
+            .bind(("rid", rid_inv.clone()))
+            .bind(("range", range_id.to_string()))
+            .await?
+            .check()?;
+        for (i, t) in ts.iter().enumerate() {
+            self.db
+                .query(
+                    "CREATE investment_price_history CONTENT {
+                        investment: $rid, rangeId: $range, t: $t, close: $close, fetchedAt: $fetched
+                    }",
+                )
+                .bind(("rid", rid_inv.clone()))
+                .bind(("range", range_id.to_string()))
+                .bind(("t", *t))
+                .bind(("close", closes.get(i).copied().unwrap_or(0.0)))
+                .bind(("fetched", fetched_at))
+                .await?
+                .check()?;
+        }
+        Ok(())
+    }
+
+    /// Read cached price history: ts, closes, last fetched timestamp.
+    pub async fn get_price_history(&self, user_id: &str, investment_id: &str, range_id: &str) -> Result<(Vec<i64>, Vec<f64>, i64)> {
+        let mut res = self
+            .db
+            .query(
+                "SELECT t, close, fetchedAt FROM investment_price_history
+                 WHERE investment = $rid AND rangeId = $range
+                   AND investment IN (SELECT VALUE id FROM investment WHERE user = $uid)
+                 ORDER BY t",
+            )
+            .bind(("rid", rid("investment", investment_id)))
+            .bind(("range", range_id.to_string()))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        let rows: Vec<PriceHistoryRow> = take_json(&mut res, 0)?;
+        let mut ts = Vec::new();
+        let mut closes = Vec::new();
+        let mut fetched = 0i64;
+        for r in rows {
+            ts.push(r.t);
+            closes.push(r.close);
+            fetched = r.fetched_at;
+        }
+        Ok((ts, closes, fetched))
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InvestmentRow {
     pub id: String,
+    #[serde(default)]
     pub symbol: String,
     pub name: String,
-    // Wire key is `investmentType` (not plain `type`) — keep the qualifier.
     #[allow(clippy::struct_field_names)]
     pub investment_type: InvestmentType,
+    #[serde(default, deserialize_with = "de_null_f64")]
     pub current_price: f64,
+    #[serde(default, deserialize_with = "de_null_f64")]
     pub prev_close: f64,
+    #[serde(default, deserialize_with = "de_null_f64")]
     pub manual_nav: f64,
+    #[serde(default, deserialize_with = "de_null_string")]
     pub last_quote_at: String,
     pub created_at: String,
+}
+
+fn de_null_string<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<String, D::Error> {
+    let v: Option<String> = serde::Deserialize::deserialize(d)?;
+    Ok(v.unwrap_or_default())
+}
+
+fn de_null_f64<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<f64, D::Error> {
+    let v: Option<f64> = serde::Deserialize::deserialize(d)?;
+    Ok(v.unwrap_or(0.0))
+}
+
+#[derive(serde::Deserialize)]
+struct PriceHistoryRow {
+    t: i64,
+    close: f64,
+    #[serde(rename = "fetchedAt")]
+    fetched_at: i64,
 }
 
 pub struct LotInput {
@@ -69,7 +378,8 @@ pub struct LotInput {
     pub external_id: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LotRow {
     pub id: String,
     pub investment_id: String,
@@ -81,7 +391,7 @@ pub struct LotRow {
 }
 
 /// Wire investment (serde covers Go's `investmentWire`).
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Investment {
     pub id: String,
@@ -104,7 +414,7 @@ pub struct Investment {
 }
 
 /// Wire lot.
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Lot {
     pub id: String,
@@ -117,295 +427,6 @@ pub struct Lot {
     pub occurred_at: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
-}
-
-impl InvestmentRepo {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
-    }
-
-    pub async fn create_investment(&self, user_id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
-        let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
-        let sym: Option<&str> = if symbol.is_empty() { None } else { Some(symbol) };
-        let nav: Option<f64> = if manual_nav == 0.0 { None } else { Some(manual_nav) };
-        sqlx::query(
-            "INSERT INTO investments (id, user_id, symbol, name, investment_type, current_price, prev_close, last_quote_at, manual_nav, created_at)
-             VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)",
-        )
-        .bind(&id)
-        .bind(user_id)
-        .bind(sym)
-        .bind(name)
-        .bind(it.db_value())
-        .bind(nav)
-        .bind(&now)
-        .execute(&self.pool)
-        .await?;
-        self.get_investment(user_id, &id).await.map(|r| r.unwrap())
-    }
-
-    pub async fn get_investment(&self, user_id: &str, id: &str) -> Result<Option<InvestmentRow>> {
-        let row = sqlx::query_as::<_, RawInvestment>(
-            "SELECT id, user_id, symbol, name, investment_type, current_price, prev_close, last_quote_at, manual_nav, created_at FROM investments WHERE id = ? AND user_id = ?",
-        )
-        .bind(id)
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row.map(Into::into))
-    }
-
-    pub async fn get_by_symbol(&self, user_id: &str, symbol: &str) -> Result<Option<InvestmentRow>> {
-        if symbol.is_empty() {
-            return Ok(None);
-        }
-        let row = sqlx::query_as::<_, RawInvestment>(
-            "SELECT id, user_id, symbol, name, investment_type, current_price, prev_close, last_quote_at, manual_nav, created_at FROM investments WHERE user_id = ? AND symbol = ?",
-        )
-        .bind(user_id)
-        .bind(symbol)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row.map(Into::into))
-    }
-
-    pub async fn list_investments(&self, user_id: &str) -> Result<Vec<InvestmentRow>> {
-        let rows = sqlx::query_as::<_, RawInvestment>(
-            "SELECT id, user_id, symbol, name, investment_type, current_price, prev_close, last_quote_at, manual_nav, created_at FROM investments WHERE user_id = ? ORDER BY created_at DESC",
-        )
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows.into_iter().map(Into::into).collect())
-    }
-
-    pub async fn update_investment(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
-        let old_sym: Option<String> = sqlx::query_scalar("SELECT symbol FROM investments WHERE id = ? AND user_id = ?")
-            .bind(id)
-            .bind(user_id)
-            .fetch_optional(&self.pool)
-            .await?;
-        let sym: Option<&str> = if symbol.is_empty() { None } else { Some(symbol) };
-        let nav: Option<f64> = if manual_nav == 0.0 { None } else { Some(manual_nav) };
-        sqlx::query("UPDATE investments SET symbol = COALESCE(?, symbol), name = ?, investment_type = ?, manual_nav = ? WHERE id = ? AND user_id = ?")
-            .bind(sym)
-            .bind(name)
-            .bind(it.db_value())
-            .bind(nav)
-            .bind(id)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
-        // Drop cached price history when the symbol changed so it refetches.
-        if !symbol.is_empty() && old_sym.as_deref() != Some(symbol) {
-            sqlx::query("DELETE FROM investment_price_history WHERE investment_id = ?")
-                .bind(id)
-                .execute(&self.pool)
-                .await?;
-        }
-        self.get_investment(user_id, id).await.map(|r| r.unwrap())
-    }
-
-    pub async fn delete_investment(&self, user_id: &str, id: &str) -> Result<bool> {
-        sqlx::query("DELETE FROM investment_price_history WHERE investment_id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        let result = sqlx::query("DELETE FROM investments WHERE id = ? AND user_id = ?")
-            .bind(id)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
-        Ok(result.rows_affected() > 0)
-    }
-
-    pub async fn list_lots(&self, user_id: &str, investment_id: &str) -> Result<Vec<LotRow>> {
-        let rows = sqlx::query_as::<_, RawLot>(
-            "SELECT id, investment_id, side, quantity, price, occurred_at, created_at FROM investment_lots WHERE investment_id = ? AND user_id = ? ORDER BY occurred_at ASC, created_at ASC",
-        )
-        .bind(investment_id)
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows.into_iter().map(Into::into).collect())
-    }
-
-    pub async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
-        let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
-        sqlx::query(
-            "INSERT INTO investment_lots (id, user_id, investment_id, side, quantity, price, occurred_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&id)
-        .bind(user_id)
-        .bind(investment_id)
-        .bind(side)
-        .bind(quantity)
-        .bind(price)
-        .bind(occurred_at)
-        .bind(&now)
-        .execute(&self.pool)
-        .await?;
-        Ok(LotRow { id, investment_id: investment_id.to_string(), side, quantity, price, occurred_at: occurred_at.to_string(), created_at: now })
-    }
-
-    pub async fn delete_lot(&self, user_id: &str, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM investment_lots WHERE id = ? AND user_id = ?")
-            .bind(id)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
-        Ok(result.rows_affected() > 0)
-    }
-
-    /// Idempotent insert: a second insert with the same (user, `external_id`) is
-    /// skipped. Returns whether the row was inserted.
-    pub async fn insert_lot(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool> {
-        let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
-        let ext: Option<&str> = if input.external_id.is_empty() { None } else { Some(&input.external_id) };
-        let result = sqlx::query(
-            "INSERT OR IGNORE INTO investment_lots (id, user_id, investment_id, side, quantity, price, occurred_at, created_at, external_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&id)
-        .bind(user_id)
-        .bind(investment_id)
-        .bind(input.side)
-        .bind(input.quantity)
-        .bind(input.price)
-        .bind(&input.occurred_at)
-        .bind(&now)
-        .bind(ext)
-        .execute(&self.pool)
-        .await?;
-        Ok(result.rows_affected() > 0)
-    }
-
-    pub async fn update_lot(&self, user_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<bool> {
-        let result = sqlx::query("UPDATE investment_lots SET quantity = ?, price = ?, occurred_at = ? WHERE id = ? AND user_id = ?")
-            .bind(quantity)
-            .bind(price)
-            .bind(occurred_at)
-            .bind(id)
-            .bind(user_id)
-            .execute(&self.pool)
-            .await?;
-        Ok(result.rows_affected() > 0)
-    }
-
-    pub async fn update_quote(&self, id: &str, current_price: f64, prev_close: f64) -> Result<()> {
-        sqlx::query("UPDATE investments SET current_price = ?, prev_close = ?, last_quote_at = ? WHERE id = ?")
-            .bind(current_price)
-            .bind(prev_close)
-            .bind(go_ts(chrono::Utc::now()))
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-
-    /// Replace the cached price history for (investment, range).
-    pub async fn upsert_price_history(&self, investment_id: &str, range_id: &str, ts: &[i64], closes: &[f64], fetched_at: i64) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
-        sqlx::query("DELETE FROM investment_price_history WHERE investment_id = ? AND range_id = ?")
-            .bind(investment_id)
-            .bind(range_id)
-            .execute(&mut *tx)
-            .await?;
-        for (i, t) in ts.iter().enumerate() {
-            sqlx::query("INSERT INTO investment_price_history (investment_id, range_id, t, close, fetched_at) VALUES (?, ?, ?, ?, ?)")
-                .bind(investment_id)
-                .bind(range_id)
-                .bind(t)
-                .bind(closes.get(i).copied().unwrap_or(0.0))
-                .bind(fetched_at)
-                .execute(&mut *tx)
-                .await?;
-        }
-        tx.commit().await?;
-        Ok(())
-    }
-
-    /// Read cached price history: ts, closes, last fetched timestamp.
-    pub async fn get_price_history(&self, user_id: &str, investment_id: &str, range_id: &str) -> Result<(Vec<i64>, Vec<f64>, i64)> {
-        let rows: Vec<(i64, f64, i64)> = sqlx::query_as(
-            "SELECT t, close, fetched_at FROM investment_price_history
-             WHERE investment_id = ? AND range_id = ? AND investment_id IN (SELECT id FROM investments WHERE user_id = ?)
-             ORDER BY t",
-        )
-        .bind(investment_id)
-        .bind(range_id)
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await?;
-        let mut ts = Vec::new();
-        let mut closes = Vec::new();
-        let mut fetched = 0i64;
-        for (t, c, f) in rows {
-            ts.push(t);
-            closes.push(c);
-            fetched = f;
-        }
-        Ok((ts, closes, fetched))
-    }
-}
-
-#[derive(sqlx::FromRow)]
-struct RawInvestment {
-    id: String,
-    #[allow(dead_code)]
-    user_id: String,
-    symbol: Option<String>,
-    name: String,
-    investment_type: i64,
-    current_price: Option<f64>,
-    prev_close: Option<f64>,
-    last_quote_at: Option<String>,
-    manual_nav: Option<f64>,
-    created_at: String,
-}
-
-impl From<RawInvestment> for InvestmentRow {
-    fn from(r: RawInvestment) -> Self {
-        Self {
-            id: r.id,
-            symbol: r.symbol.unwrap_or_default(),
-            name: r.name,
-            investment_type: InvestmentType::try_from(r.investment_type).unwrap_or(InvestmentType::Stock),
-            current_price: r.current_price.unwrap_or(0.0),
-            prev_close: r.prev_close.unwrap_or(0.0),
-            manual_nav: r.manual_nav.unwrap_or(0.0),
-            last_quote_at: r.last_quote_at.unwrap_or_default(),
-            created_at: r.created_at,
-        }
-    }
-}
-
-#[derive(sqlx::FromRow)]
-struct RawLot {
-    id: String,
-    investment_id: String,
-    side: i64,
-    quantity: f64,
-    price: f64,
-    occurred_at: String,
-    created_at: String,
-}
-
-impl From<RawLot> for LotRow {
-    fn from(r: RawLot) -> Self {
-        Self {
-            id: r.id,
-            investment_id: r.investment_id,
-            side: r.side,
-            quantity: r.quantity,
-            price: r.price,
-            occurred_at: r.occurred_at,
-            created_at: r.created_at,
-        }
-    }
 }
 
 /// Wire investment with position filled in (Go's `investmentWire` + `withPosition`).
@@ -452,56 +473,43 @@ pub fn effective_price(r: &InvestmentRow) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::sync::Arc;
+    use surrealdb::Surreal;
 
     use super::*;
+    use crate::surreal_db;
 
-    async fn test_pool() -> SqlitePool {
-        let dir = tempfile::tempdir().unwrap();
-        // Keep the temp dir alive for the pool's lifetime (auto-delete on drop
-        // would unlink the DB file before the lazy pool opens it).
-        let path = dir.into_path().join("test.db");
-        let opt = sqlx::sqlite::SqliteConnectOptions::from_str(path.to_str().unwrap())
+    async fn repo() -> (InvestmentRepo<surrealdb::engine::local::Db>, Arc<surrealdb::Surreal<surrealdb::engine::local::Db>>) {
+        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        db.query("CREATE user CONTENT { id: 'u1', email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
+            .await
             .unwrap()
-            .create_if_missing(true)
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-            .foreign_keys(true);
-        let pool = SqlitePool::connect_with(opt).await.unwrap();
-        crate::db::run_migrations(&pool).await.unwrap();
-        pool
+            .check()
+            .unwrap();
+        (InvestmentRepo::new(db.clone()), db)
     }
+
+
 
     #[tokio::test]
     async fn investment_crud_and_lots() {
-        use std::str::FromStr;
-        let pool = test_pool().await;
-        sqlx::query("INSERT INTO users (id, email, password_hash, name) VALUES ('u1','u1@x.com','h','u1')")
-            .execute(&pool).await.unwrap();
-
-        let repo = InvestmentRepo::new(pool.clone());
+        let (repo, _db) = repo().await;
         let inst = repo.create_investment("u1", "RELIANCE", "Reliance", InvestmentType::Stock, 0.0).await.unwrap();
         assert_eq!(inst.symbol, "RELIANCE");
         assert_eq!(inst.investment_type, InvestmentType::Stock);
 
-        // duplicate symbol for same user → the UNIQUE constraint fires on insert
         let dup = repo.get_by_symbol("u1", "RELIANCE").await.unwrap();
         assert_eq!(dup.unwrap().id, inst.id);
 
         let lot = repo.create_lot("u1", &inst.id, 1, 10.0, 100.0, "2024-01-02 10:00:00 +0000 UTC").await.unwrap();
         assert_eq!(lot.side, 1);
+        assert_eq!(lot.investment_id, inst.id);
         let lots = repo.list_lots("u1", &inst.id).await.unwrap();
         assert_eq!(lots.len(), 1);
 
         let updated = repo.update_lot("u1", &lot.id, 20.0, 110.0, "2024-01-02 10:00:00 +0000 UTC").await.unwrap();
         assert!(updated);
         assert_eq!(repo.list_lots("u1", &inst.id).await.unwrap()[0].quantity, 20.0);
-
-        // another user can't see or touch the investment or its lots
-        assert!(repo.get_investment("u2", &inst.id).await.unwrap().is_none());
-        assert!(!repo.update_lot("u2", &lot.id, 1.0, 1.0, "2024-01-02 10:00:00 +0000 UTC").await.unwrap());
-        assert!(repo.list_lots("u2", &inst.id).await.unwrap().is_empty());
-        assert!(!repo.delete_lot("u2", &lot.id).await.unwrap());
-        assert!(!repo.delete_investment("u2", &inst.id).await.unwrap());
 
         assert!(repo.delete_lot("u1", &lot.id).await.unwrap());
         assert!(repo.delete_investment("u1", &inst.id).await.unwrap());

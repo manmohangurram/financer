@@ -1,31 +1,23 @@
-//! Runtime configuration from environment variables (FINANCER_*), mirroring the
-//! Go backend's env contract.
+//! Runtime configuration from environment variables (FINANCER_*).
 
 use std::path::PathBuf;
 
 pub struct Config {
     pub addr: String,
     pub data_dir: PathBuf,
-    pub db_path: PathBuf,
     pub jwt_secret: String,
-    #[allow(dead_code)]
-    pub rust_routes: Vec<String>,
     pub static_dir: PathBuf,
     pub domain_url: String,
+    pub surreal_url: String,
+    pub surreal_user: String,
+    pub surreal_pass: String,
+    pub surreal_ns: String,
+    pub surreal_db: String,
 }
 
 impl Config {
     pub fn from_env() -> Self {
         let data_dir = env("FINANCER_DATA_DIR").map_or_else(|| PathBuf::from("data"), PathBuf::from);
-
-        let db_path = env("FINANCER_DB_PATH").map_or_else(
-            || data_dir.join("db").join("financer.db"),
-            PathBuf::from,
-        );
-
-        let rust_routes = env("FINANCER_RUST_ROUTES")
-            .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
-            .unwrap_or_default();
 
         // An empty host (":8080") fails getaddrinfo on musl; bind all interfaces.
         let raw_addr = env("FINANCER_ADDR").unwrap_or_else(|| "0.0.0.0:8080".to_string());
@@ -34,13 +26,16 @@ impl Config {
         Config {
             addr,
             data_dir,
-            db_path,
             jwt_secret: env("FINANCER_JWT_SECRET")
                 .unwrap_or_else(|| "dev-secret-change-in-production".to_string()),
-            rust_routes,
             static_dir: env("FINANCER_STATIC_DIR")
                 .map_or_else(|| PathBuf::from("frontend/dist"), PathBuf::from),
             domain_url: env("FINANCER_DOMAIN_URL").unwrap_or_default(),
+            surreal_url: env("FINANCER_SURREAL_URL").unwrap_or_else(|| "127.0.0.1:8000".into()),
+            surreal_user: env("FINANCER_SURREAL_USER").unwrap_or_else(|| "root".into()),
+            surreal_pass: env("FINANCER_SURREAL_PASS").unwrap_or_else(|| "root".into()),
+            surreal_ns: env("FINANCER_SURREAL_NS").unwrap_or_else(|| "main".into()),
+            surreal_db: env("FINANCER_SURREAL_DB").unwrap_or_else(|| "main".into()),
         }
     }
 }

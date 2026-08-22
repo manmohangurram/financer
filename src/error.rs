@@ -68,18 +68,23 @@ pub fn json_error(e: &axum::extract::rejection::JsonRejection) -> ApiError {
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
-impl From<sqlx::Error> for ApiError {
-    fn from(e: sqlx::Error) -> Self {
-        // Map a UNIQUE constraint violation to 409; anything else is a generic
-        // 500 that never leaks the raw database error to the client.
-        match &e {
-            sqlx::Error::Database(db) if db.code().as_deref() == Some("1555") || db.is_unique_violation() => {
-                ApiError::conflict("resource already exists")
-            }
-            _ => {
-                tracing::error!("sqlx error: {e}");
-                ApiError::internal("internal error")
-            }
+impl From<surrealdb::Error> for ApiError {
+    fn from(e: surrealdb::Error) -> Self {
+        // Map a unique-index violation to 409; anything else is a generic 500
+        // that never leaks the raw database error to the client.
+        let msg = e.to_string();
+        if msg.contains("index") || msg.contains("unique") || msg.contains("already exists") {
+            ApiError::conflict("resource already exists")
+        } else {
+            tracing::error!("surrealdb error: {e}");
+            ApiError::internal("internal error")
         }
+    }
+}
+
+impl From<crate::repo::surreal::RepoError> for ApiError {
+    fn from(e: crate::repo::surreal::RepoError) -> Self {
+        tracing::error!("repo error: {e}");
+        ApiError::internal("internal error")
     }
 }

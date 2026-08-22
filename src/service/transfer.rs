@@ -86,8 +86,8 @@ impl TransferService {
                 failed.push(format!("link {i}: debit and credit must be from different accounts"));
                 continue;
             }
-            let debit_linked = transaction::is_transaction_linked(&self.transaction_repo.pool, debit_id).await?;
-            let credit_linked = transaction::is_transaction_linked(&self.transaction_repo.pool, credit_id).await?;
+            let debit_linked = self.transaction_repo.is_transaction_linked(debit_id).await?;
+            let credit_linked = self.transaction_repo.is_transaction_linked(credit_id).await?;
             if debit_linked || credit_linked {
                 failed.push(format!("one or both transactions in link {i} are already linked"));
                 continue;
@@ -95,7 +95,7 @@ impl TransferService {
             inputs.push((debit_id.clone(), credit_id.clone()));
         }
 
-        let errs = transaction::create_links(&self.transaction_repo.pool, user_id, &inputs).await?;
+        let errs = self.transaction_repo.create_links(user_id, &inputs).await?;
         failed.extend(errs);
         if !failed.is_empty() {
             return Ok(BulkResult { success: false, message: "some transfers failed".to_string(), failed_ids: failed, skipped: 0 });
@@ -107,7 +107,7 @@ impl TransferService {
         if ids.is_empty() {
             return Err(ApiError::bad_request("no ids provided"));
         }
-        let errs = transaction::delete_links(&self.transaction_repo.pool, user_id, ids).await?;
+        let errs = self.transaction_repo.delete_links(user_id, ids).await?;
         if !errs.is_empty() {
             return Ok(BulkResult { success: false, message: "some unlinks failed".to_string(), failed_ids: errs, skipped: 0 });
         }
@@ -143,7 +143,7 @@ pub async fn resolve_transfer(
         } else {
             (cand.id.clone(), src.id.clone())
         };
-        let errs = transaction::create_links(&transaction_repo.pool, user_id, &[(debit_id, credit_id)]).await?;
+        let errs = transaction_repo.create_links(user_id, &[(debit_id, credit_id)]).await?;
         if let Some(e) = errs.first() {
             return Err(ApiError::internal(e.clone()));
         }
@@ -185,7 +185,7 @@ pub async fn resolve_transfer(
     } else {
         (counter_txn.id.clone(), src.id.clone())
     };
-    let errs = transaction::create_links(&transaction_repo.pool, user_id, &[(debit_id, credit_id)]).await?;
+    let errs = transaction_repo.create_links(user_id, &[(debit_id, credit_id)]).await?;
     if let Some(e) = errs.first() {
         return Err(ApiError::internal(e.clone()));
     }

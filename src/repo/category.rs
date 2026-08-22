@@ -1,133 +1,117 @@
-//! Categories repository — SQL mirroring the Go backend's `repository/category.go`.
+//! Categories repository — CRUD on `SurrealDB`, mirroring the Go backend semantics.
 
 use base64::{engine::general_purpose::URL_SAFE as B64URL, Engine as _};
 use serde_json::json;
-use sqlx::SqlitePool;
-use uuid::Uuid;
+use surrealdb::Connection;
 
 use crate::error::Result;
+use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
 use crate::timex::go_ts;
 
 #[derive(Clone)]
-pub struct CategoryRepo {
-    pub pool: SqlitePool,
+pub struct CategoryRepo<C: Connection = DbClient> {
+    db: RepoConn<C>,
 }
 
-pub struct CategoryRow {
-    pub id: String,
-    pub name: String,
-    pub created_at: String,
-}
-
-pub struct ListCategoriesResult {
-    pub categories: Vec<CategoryRow>,
-    pub next_page_token: String,
-}
-
-impl CategoryRepo {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+impl<C: Connection> CategoryRepo<C> {
+    pub fn new(db: RepoConn<C>) -> Self {
+        Self { db }
     }
 
     pub async fn create(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>> {
         let mut rows = Vec::new();
-        if inputs.is_empty() {
-            return Ok(rows);
-        }
-        let mut tx = self.pool.begin().await?;
         for input in inputs {
-            let id = Uuid::new_v4().to_string();
             let now = go_ts(chrono::Utc::now());
-            sqlx::query("INSERT INTO categories (id, name, created_at, user_id) VALUES (?, ?, ?, ?)")
-                .bind(&id)
-                .bind(&input.name)
-                .bind(&now)
-                .bind(user_id)
-                .execute(&mut *tx)
-                .await?;
-            rows.push(CategoryRow { id, name: input.name.clone(), created_at: now });
+            let mut res = self
+                .db
+                .query(
+                    "CREATE category CONTENT { user: $uid, name: $name, createdAt: $created }
+                     RETURN meta::id(id) AS id, name, createdAt",
+                )
+                .bind(("uid", rid("user", user_id)))
+                .bind(("name", input.name.clone()))
+                .bind(("created", now.clone()))
+                .await?
+                .check()?;
+            let row = take_json::<CategoryRow>(&mut res, 0)?
+                .into_iter()
+                .next()
+                .ok_or_else(|| crate::error::ApiError::internal("category create returned no row"))?;
+            rows.push(CategoryRow { created_at: now, ..row });
         }
-        tx.commit().await?;
         Ok(rows)
     }
 
     /// Fetch one category by id (ownership-scoped).
     pub async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<CategoryRow>> {
-        let row = sqlx::query_as::<_, RawCategory>(
-            "SELECT id, name, created_at FROM categories WHERE id = ? AND user_id = ?",
-        )
-        .bind(id)
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row.map(Into::into))
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, name, createdAt FROM category
+                 WHERE id = $rid AND user = $uid LIMIT 1",
+            )
+            .bind(("rid", rid("category", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?.into_iter().next())
     }
 
     pub async fn update(&self, user_id: &str, inputs: &[CategoryUpdateInput]) -> Result<Vec<String>> {
         let mut errors = Vec::new();
-        if inputs.is_empty() {
-            return Ok(errors);
-        }
-        let mut tx = self.pool.begin().await?;
         for input in inputs {
-            let result = sqlx::query("UPDATE categories SET name = COALESCE(NULLIF(?, ''), name) WHERE id = ? AND user_id = ?")
-                .bind(&input.name)
-                .bind(&input.id)
-                .bind(user_id)
-                .execute(&mut *tx)
+            let mut res = self
+                .db
+                .query(
+                    "UPDATE $rid SET name = IF $name != '' THEN $name ELSE name END
+                     WHERE user = $uid RETURN meta::id(id) AS id",
+                )
+                .bind(("rid", rid("category", &input.id)))
+                .bind(("uid", rid("user", user_id)))
+                .bind(("name", input.name.clone()))
                 .await?;
-            if result.rows_affected() == 0 {
+            if take_json::<serde_json::Value>(&mut res, 0)?.is_empty() {
                 errors.push(format!("category {} not found", input.id));
             }
         }
-        tx.commit().await?;
         Ok(errors)
     }
 
     pub async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         let mut errors = Vec::new();
-        if ids.is_empty() {
-            return Ok(errors);
-        }
-        let mut tx = self.pool.begin().await?;
         for id in ids {
-            let result = sqlx::query("DELETE FROM categories WHERE id = ? AND user_id = ?")
-                .bind(id)
-                .bind(user_id)
-                .execute(&mut *tx)
+            let mut res = self
+                .db
+                .query("DELETE $rid WHERE user = $uid RETURN BEFORE")
+                .bind(("rid", rid("category", id)))
+                .bind(("uid", rid("user", user_id)))
                 .await?;
-            if result.rows_affected() == 0 {
+            if take_json::<serde_json::Value>(&mut res, 0)?.is_empty() {
                 errors.push(format!("category {id} not found"));
             }
         }
-        tx.commit().await?;
         Ok(errors)
     }
 
     pub async fn list(&self, user_id: &str, page_size: i64, page_token: &str) -> Result<ListCategoriesResult> {
-        let mut query = String::from("SELECT id, name, created_at FROM categories WHERE user_id = ?");
-        let mut bind_args: Vec<String> = vec![user_id.to_string()];
+        let mut query = String::from(
+            "SELECT meta::id(id) AS id, name, createdAt FROM category WHERE user = $uid",
+        );
+        let cursor = decode_cat_cursor(page_token);
 
-        if !page_token.is_empty() {
-            if let Some(cur) = decode_cat_cursor(page_token) {
-                query.push_str(" AND (name > ? OR (name = ? AND id > ?))");
-                bind_args.push(cur.name.clone());
-                bind_args.push(cur.name.clone());
-                bind_args.push(cur.id.clone());
-            }
+        if let Some(_cur) = &cursor {
+            query.push_str(" AND (name > $name OR (name = $name AND id > $rid))");
         }
-
         query.push_str(" ORDER BY name ASC, id ASC");
         if page_size > 0 {
             let _ = std::fmt::Write::write_fmt(&mut query, format_args!(" LIMIT {}", page_size + 1));
         }
 
-        let mut q = sqlx::query_as::<_, RawCategory>(&query);
-        for a in &bind_args {
-            q = q.bind(a);
+        let mut q = self.db.query(&query).bind(("uid", rid("user", user_id)));
+        if let Some(cur) = &cursor {
+            q = q.bind(("name", cur.name.clone())).bind(("rid", rid("category", &cur.id)));
         }
-        let rows = q.fetch_all(&self.pool).await?;
-        let mut categories: Vec<CategoryRow> = rows.into_iter().map(Into::into).collect();
+        let mut res = q.await?;
+        let mut categories: Vec<CategoryRow> = take_json(&mut res, 0)?;
 
         let mut next_token = String::new();
         let page_size_usize = usize::try_from(page_size).unwrap_or(0);
@@ -141,6 +125,14 @@ impl CategoryRepo {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoryRow {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+}
+
 pub struct CategoryCreateInput {
     pub name: String,
 }
@@ -150,17 +142,9 @@ pub struct CategoryUpdateInput {
     pub name: String,
 }
 
-#[derive(sqlx::FromRow)]
-struct RawCategory {
-    id: String,
-    name: String,
-    created_at: String,
-}
-
-impl From<RawCategory> for CategoryRow {
-    fn from(r: RawCategory) -> Self {
-        Self { id: r.id, name: r.name, created_at: r.created_at }
-    }
+pub struct ListCategoriesResult {
+    pub categories: Vec<CategoryRow>,
+    pub next_page_token: String,
 }
 
 /// Go's category cursor is base64 JSON `{"n": name, "id": id}`.
@@ -178,4 +162,45 @@ fn decode_cat_cursor(token: &str) -> Option<CatCursor> {
 struct CatCursor {
     name: String,
     id: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use surrealdb::Surreal;
+
+    use super::*;
+    use crate::surreal_db;
+
+    async fn repo() -> CategoryRepo<surrealdb::engine::local::Db> {
+        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        db.query("CREATE user CONTENT { email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        CategoryRepo::new(db)
+    }
+
+    #[tokio::test]
+    async fn create_list_update_delete() {
+        let repo = repo().await;
+        let created = repo.create("u1", &[CategoryCreateInput { name: "Food".into() }, CategoryCreateInput { name: "Travel".into() }]).await.unwrap();
+        assert_eq!(created.len(), 2);
+        assert!(!created[0].id.is_empty());
+
+        let listed = repo.list("u1", 0, "").await.unwrap();
+        assert_eq!(listed.categories.len(), 2);
+
+        let errs = repo.update("u1", &[CategoryUpdateInput { id: created[0].id.clone(), name: "Groceries".into() }]).await.unwrap();
+        assert!(errs.is_empty());
+        let by_id = repo.get_by_id("u1", &created[0].id).await.unwrap().unwrap();
+        assert_eq!(by_id.name, "Groceries");
+
+        // cross-user scoping: u2 (no account) sees nothing
+        assert!(repo.get_by_id("u2", &created[0].id).await.unwrap().is_none());
+        let errs = repo.delete("u1", &[created[0].id.clone()]).await.unwrap();
+        assert!(errs.is_empty());
+        assert!(repo.get_by_id("u1", &created[0].id).await.unwrap().is_none());
+    }
 }
