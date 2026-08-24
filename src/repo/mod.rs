@@ -4,6 +4,7 @@ pub mod account;
 pub mod category;
 pub mod investment;
 pub mod rule;
+pub mod surreal;
 pub mod transaction;
 
 use sqlx::SqlitePool;
