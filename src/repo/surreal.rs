@@ -1,8 +1,6 @@
 //! `SurrealDB` repo framework — mirrors flowsmith's `repo/mod.rs`: server client
 //! type, record-id helper, JSON round-trip deserialization, update-or-create,
 //! and the shared repo error.
-// TODO(surrealdb): consumed by the repo rewrite (migrate/surrealdb-repos).
-#![allow(dead_code)]
 
 use std::sync::Arc;
 use surrealdb::types::RecordId;
@@ -29,6 +27,7 @@ pub(crate) fn take_json<T: serde::de::DeserializeOwned>(
 }
 
 /// Update-or-create: run `update`; if it matches no rows, run `create`.
+#[allow(dead_code)]
 pub(crate) async fn update_or_create<C>(
     db: &Surreal<C>,
     update: &str,
@@ -52,10 +51,6 @@ where
 /// Error raised by repositories. Rows missing or unique collisions map here.
 #[derive(Debug, thiserror::Error)]
 pub enum RepoError {
-    #[error("not found")]
-    NotFound,
-    #[error("conflict: {0}")]
-    Conflict(String),
     #[error("database error: {0}")]
     Database(#[from] anyhow::Error),
     #[error("json error: {0}")]

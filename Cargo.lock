@@ -1265,7 +1265,6 @@ dependencies = [
  "sqlx",
  "strum",
  "surrealdb",
- "tempfile",
  "thiserror",
  "tokio",
  "tower",

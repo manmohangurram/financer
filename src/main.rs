@@ -1,17 +1,17 @@
-//! Financer Rust backend — Phase 1: auth + strangler gateway.
-//! Serves the frontend, owns auth routes, proxies the rest to the Go backend.
+//! Financer Rust backend — Rust-only server: `SurrealDB` storage, axum API,
+//! serves the built Vue frontend.
 
 mod auth;
 mod config;
-mod db;
 mod error;
 mod http;
 mod openapi;
-mod surreal_db;
 mod repo;
 mod service;
+mod surreal_db;
 mod timex;
 
+use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -24,7 +24,7 @@ use crate::repo::category::CategoryRepo;
 use crate::repo::investment::InvestmentRepo;
 use crate::repo::rule::RuleRepo;
 use crate::repo::transaction::TransactionRepo;
-use crate::repo::UserRepo;
+use crate::repo::user::UserRepo;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
@@ -44,18 +44,25 @@ async fn main() -> anyhow::Result<()> {
 
     let cfg = Config::from_env();
 
-    std::fs::create_dir_all(cfg.data_dir.join("db"))?;
-    let db = db::open_pools(&cfg.db_path).await?;
-    db::run_migrations(&db.write).await?;
-    tracing::info!("database migrations applied successfully");
+    std::fs::create_dir_all(cfg.data_dir.join("avatars"))?;
+    let client = surreal_db::connect(
+        &cfg.surreal_url,
+        &cfg.surreal_user,
+        &cfg.surreal_pass,
+        &cfg.surreal_ns,
+        &cfg.surreal_db,
+    )
+    .await?;
+    tracing::info!("connected to SurrealDB at {}", cfg.surreal_url);
 
+    let db = Arc::new(client);
     let jwt = Jwt::new(cfg.jwt_secret.clone());
-    let repo = UserRepo::new(db.write.clone());
-    let account_repo = AccountRepo::new(db.write.clone());
-    let category_repo = CategoryRepo::new(db.write.clone());
-    let rule_repo = RuleRepo::new(db.write.clone());
-    let investment_repo = InvestmentRepo::new(db.write.clone());
-    let transaction_repo = TransactionRepo::new(db.write.clone());
+    let repo = UserRepo::new(db.clone());
+    let account_repo = AccountRepo::new(db.clone());
+    let category_repo = CategoryRepo::new(db.clone());
+    let rule_repo = RuleRepo::new(db.clone());
+    let investment_repo = InvestmentRepo::new(db.clone());
+    let transaction_repo = TransactionRepo::new(db.clone());
     let transaction_repo_clone = transaction_repo.clone();
     let account_repo_clone = account_repo.clone();
     let auth_svc = AuthService::new(repo.clone(), jwt.clone());
