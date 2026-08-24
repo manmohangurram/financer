@@ -58,11 +58,10 @@ The runtime image copies these from the build:
 |---|---|---|
 | `/app/<binary>` | builder stage | the compiled binary |
 | `/app/frontend/dist` | frontend stage | the built SPA |
-| `/app/db/migrations` | repo `db/migrations/` | SQL migrations, applied at boot (sqlx migrator) |
 | `/app/config` | repo `config/` | app config templates |
 | `/data` (volume) | — | runtime data: DB, uploads |
 
-These must be present at build context (the workflow checks out the whole repo, so they are). Do not gitignore `db/migrations/` or `config/`.
+These must be present at build context (the workflow checks out the whole repo, so they are). Do not gitignore `config/`.
 
 ---
 
@@ -74,7 +73,7 @@ These must be present at build context (the workflow checks out the whole repo, 
 | `.github/workflows/docker-publish.yml` | Release: build + push multi-arch image to GHCR on tag |
 | `Dockerfile` | Multi-stage build (frontend + cargo-chef + runtime) |
 | `.dockerignore` | Exclude `target/`, `data/`, `node_modules/`, `.git` from build context |
-| `db/migrations/` + `config/` | Runtime assets copied into the image |
+| `config/` | Runtime asset copied into the image |
 
 ---
 
@@ -87,7 +86,7 @@ The Dockerfile is **multi-arch**: build stages run on the host arch (fast, no QE
 - **amd64** → native build, no cross toolchain
 - **arm64** → `rustup target add aarch64-unknown-linux-gnu` + apt cross-gcc (`gcc-aarch64-linux-gnu`, `libc6-dev-arm64-cross`) → `cargo build --release --target aarch64-unknown-linux-gnu`
 
-Why a cross-C toolchain: sqlx bundles `libsqlite3-sys`, which compiles the SQLite amalgamation with `cc` — a real C cross-compiler is required, not just rust-std.
+Why a cross-C toolchain: ring/rustls (used by the SurrealDB HTTP client + reqwest) need a C linker for the final binary on arm64.
 
 ### Via GitHub Actions (recommended)
 
@@ -174,8 +173,9 @@ No per-arch tag needed — the multi-arch manifest resolves the right image on t
 | `<PROJECT>_DATA_DIR` | no | runtime data root (default `/data`, set in image; bind a volume) |
 | `<PROJECT>_DOMAIN_URL` | no | set only if frontend served from a different host |
 | `<PROJECT>_STATIC_DIR` | no | built frontend path (default `/app/frontend/dist`, set in image) |
-| `<PROJECT>_CONFIG_PATH` | no | external config, if any |
-| `<PROJECT>_TLS_CERT` / `<PROJECT>_TLS_KEY` | no | enable HTTPS when present |
+| `<PROJECT>_SURREAL_URL` | no | SurrealDB server (default `127.0.0.1:8000`) |
+| `<PROJECT>_SURREAL_USER` / `<PROJECT>_SURREAL_PASS` | no | SurrealDB root credentials (default `root`/`root`) |
+| `<PROJECT>_SURREAL_NS` / `<PROJECT>_SURREAL_DB` | no | SurrealDB namespace/database (default `financer`/`financer`) |
 
 ---
 
@@ -186,6 +186,6 @@ No per-arch tag needed — the multi-arch manifest resolves the right image on t
 | Frontend calls `localhost:8080` instead of the site URL | `VITE_API_URL` baked into a dev build; rebuild with `VITE_API_URL=`. In Docker the frontend is built with empty base → same-origin. |
 | 404 on `/api/...` after deploy | Wrong `DOMAIN_URL` injection; or unknown API path (SPA returns 404 JSON for unknown `/api/*`). |
 | `no matching manifest for linux/arm64` locally | buildx builder missing: `docker buildx create --use`. |
-| arm64 build fails on libsqlite3-sys/cc | Cross-gcc missing — the Dockerfile installs `gcc-aarch64-linux-gnu` + `libc6-dev-arm64-cross` automatically. |
+| arm64 build fails on ring/cc | Cross-gcc missing — the Dockerfile installs `gcc-aarch64-linux-gnu` + `libc6-dev-arm64-cross` automatically. |
 | Full dependency rebuild on every release | Check the `:buildcache` image exists in GHCR; registry cache survives across tags (gha cache does not — 7-day eviction). |
 | Docker image tag is branch/sha not version | Manual `workflow_dispatch` run; `latest`/version tags apply only on `v*` tag pushes. |

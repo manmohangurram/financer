@@ -1,6 +1,6 @@
 # Financer — Project Rules
 
-Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SQLite storage. No protobuf — API types are hand-written Rust structs in `src/service/*.rs` / `src/repo/*.rs`, serialized to JSON by serde.
+Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SurrealDB storage. No protobuf — API types are hand-written Rust structs in `src/service/*.rs` / `src/repo/*.rs`, serialized to JSON by serde.
 
 ## Documentation Index
 
@@ -14,7 +14,7 @@ Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue
 
 ## Quick Reference
 
-- **Commands:** `cargo run` (API on :8080, migrations auto-applied), `cargo build --locked`, `cargo clippy -- -D warnings`, `cargo test`; frontend: `npm run dev` / `npm run build` / `npm test` (details in [skills/COMMANDS.md](skills/COMMANDS.md)).
-- **Architecture:** repo → service → http layering; SQLite WAL with separate write (1 conn) + read pools; sqlx built-in migrations tracked in `_sqlx_migrations`; per-user data scoping on every table (details in [architecture/](architecture/)).
+- **Commands:** `cargo run` (API on :8080; connects to SurrealDB at FINANCER_SURREAL_URL, schema applied at boot), `cargo build --locked`, `cargo clippy -- -D warnings`, `cargo test`; frontend: `npm run dev` / `npm run build` / `npm test` (details in [skills/COMMANDS.md](skills/COMMANDS.md)).
+- **Architecture:** repo → service → http layering; SurrealDB (server-mode HTTP-RPC client, embedded `Mem` in tests); schema via idempotent `define_tables()` at boot; record ids (`table:<id>`) with plain-string wire ids; per-user scoping via `user` record links (details in [architecture/](architecture/)).
 - **API docs:** Swagger UI at `/docs` (utoipa-generated), spec at `/openapi.json`.
 - **Deployment:** see [DEPLOY.md](DEPLOY.md).

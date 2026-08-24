@@ -29,8 +29,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM --platform=$BUILDPLATFORM chef AS builder
 ARG TARGETARCH
 # amd64 builds natively (glibc). Cross-compiles (e.g. arm64) add the target
-# triple and a cross-gcc: sqlx's bundled libsqlite3-sys compiles the SQLite
-# amalgamation with `cc`, so a real C cross-compiler/linker is required.
+# triple and a cross-gcc for the final link (ring/rustls need a C linker).
 RUN case ${TARGETARCH} in \
         arm64) rustup target add aarch64-unknown-linux-gnu && \
                apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross && \
@@ -60,11 +59,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY --from=builder /out/financer ./financer
-# Migrations are read from disk at startup (Rust mirrors Go's runner).
-COPY db/migrations ./db/migrations
 # Yahoo endpoint config (bases/chart/search templates).
 COPY config ./config
-ENV FINANCER_ADDR=0.0.0.0:8080 FINANCER_DATA_DIR=/data FINANCER_DOMAIN_URL= FINANCER_STATIC_DIR=/app/frontend/dist
+# SurrealDB is a separate server (see docker-compose.yml); the app connects
+# over HTTP-RPC. Schema (define_tables) is applied at boot from the binary.
+# Build args override the defaults — the GitHub Actions workflow injects the
+# repo variables/secrets (FINANCER_SURREAL_*), keeping secrets out of the image.
+ARG FINANCER_SURREAL_URL=127.0.0.1:8000
+ARG FINANCER_SURREAL_USER=root
+ARG FINANCER_SURREAL_PASS=root
+ARG FINANCER_SURREAL_NS=financer
+ARG FINANCER_SURREAL_DB=financer
+ENV FINANCER_ADDR=0.0.0.0:8080 FINANCER_DATA_DIR=/data FINANCER_DOMAIN_URL= FINANCER_STATIC_DIR=/app/frontend/dist \
+    FINANCER_SURREAL_URL=$FINANCER_SURREAL_URL FINANCER_SURREAL_USER=$FINANCER_SURREAL_USER \
+    FINANCER_SURREAL_PASS=$FINANCER_SURREAL_PASS FINANCER_SURREAL_NS=$FINANCER_SURREAL_NS \
+    FINANCER_SURREAL_DB=$FINANCER_SURREAL_DB
 EXPOSE 8080
 VOLUME ["/data"]
 ENTRYPOINT ["/app/financer"]
