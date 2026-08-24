@@ -6,10 +6,10 @@ Run verification in this order after backend changes, then frontend changes.
 
 **Backend (Rust, from repo root):**
 ```bash
-cargo run            # starts API on :8080, auto-runs DB migrations on boot
+cargo run            # starts API on :8080; connects to SurrealDB at FINANCER_SURREAL_URL (schema applied at boot)
 cargo build --locked
 cargo clippy -- -D warnings
-cargo test           # unit + repository integration tests (in-memory SQLite)
+cargo test           # unit + repository integration tests (embedded SurrealDB Mem)
 ```
 
 **Frontend (from `frontend/`):**

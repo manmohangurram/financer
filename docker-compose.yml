@@ -1,0 +1,17 @@
+# Local testing: a SurrealDB server only. The app runs on the host (or your
+# own container) pointed at 127.0.0.1:8000 with the defaults below
+# (FINANCER_SURREAL_URL / root / root / financer / financer).
+services:
+    surrealdb:
+        image: surrealdb/surrealdb:latest
+        command: start rocksdb:/data/financer.db
+        container_name: "surrealdb"
+        user: "1000:1000"
+        ports:
+            - "8000:8000"
+        volumes:
+            - /home/mohan/surrealdb-data:/data
+        environment:
+            - SURREAL_LOG=info
+            - SURREAL_USER=root
+            - SURREAL_PASS=root

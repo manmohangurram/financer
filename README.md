@@ -17,7 +17,7 @@ A self-hosted personal finance tracker with a Rust backend and a Vue 3 single-pa
 
 ## Tech Stack
 
-**Backend** — Rust (axum on tokio, HTTP/1.1 + HTTP/2), SQLite (WAL, separate write/read pools, single-writer) via `sqlx`, JWT (`jsonwebtoken`), SQL migrations applied at boot.
+**Backend** — Rust (axum on tokio), SurrealDB (server-mode HTTP-RPC client; embedded `Mem` in tests), JWT (`jsonwebtoken`), idempotent SurrealQL schema applied at boot.
 
 **Frontend** — Vue 3 + Vite + TypeScript, Tailwind CSS v4 + daisyUI v5 (dark `financer` theme), `@lucide/vue` icons, hand-rolled fetch API client.
 
@@ -27,7 +27,7 @@ All finance math (aggregation, filtering, transfer resolution, FIFO) lives in th
 
 ```bash
 # Backend (from repo root)
-cargo run                 # starts API on :8080, auto-runs DB migrations
+cargo run                 # starts API on :8080; connects to SurrealDB at FINANCER_SURREAL_URL (schema applied at boot)
 
 # Frontend
 cd frontend
@@ -43,9 +43,13 @@ Open `http://localhost:5173` and sign in.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FINANCER_DATA_DIR` | `data` | Root for all runtime data: `db/`, `config/`, `certs/`, `avatars/` subfolders |
+| `FINANCER_DATA_DIR` | `data` | Root for runtime data: `config/`, `certs/`, `avatars/` subfolders |
 | `FINANCER_DOMAIN_URL` | — | External domain the app is served at (e.g. `https://financer.local`); injected into the frontend as the API base — empty/omitted → same-origin |
-| `FINANCER_DB_PATH` | `<DATA_DIR>/db/financer.db` | SQLite database path |
+| `FINANCER_SURREAL_URL` | `127.0.0.1:8000` | SurrealDB server (HTTP-RPC) |
+| `FINANCER_SURREAL_USER` | `root` | SurrealDB root user |
+| `FINANCER_SURREAL_PASS` | `root` | SurrealDB root password |
+| `FINANCER_SURREAL_NS` | `financer` | SurrealDB namespace |
+| `FINANCER_SURREAL_DB` | `financer` | SurrealDB database |
 | `FINANCER_JWT_SECRET` | — | JWT signing secret (set in production) |
 | `FINANCER_ADDR` | `:8080` | API listen address |
 | `FINANCER_STATIC_DIR` | `frontend/dist` | Built frontend served at `/`; omit/absent → API-only (dev) |
@@ -59,11 +63,11 @@ Frontend API URL: `VITE_API_URL` (default `http://localhost:8080`, see `frontend
 ## Project Structure
 
 ```
-main.go                    # wiring: DB, migrations, services, HTTP server
-auth/                      # JWT creation/validation
-db/                        # SQLite open (read/write pools) + embedded migrations
-repository/                # SQL data access (accounts, transactions, rules, transfers, investments)
-services/                  # business logic (auth, accounts, transactions, rules, transfers, spending, investments)
+src/main.rs                # wiring: SurrealDB connect + schema, services, HTTP server
+src/auth.rs                # JWT creation/validation
+src/surreal_db.rs          # SurrealDB connect (server) / connect_mem (tests) + define_tables
+src/repo/                  # SurrealDB data access (user, accounts, transactions, rules, transfers, investments)
+src/service/               # business logic (auth, accounts, transactions, rules, transfers, spending, investments)
 httpserver/                # REST handlers + JSON wire mapping
 gen/financer/v1/           # hand-written API wire types
 cmd/seed/                  # demo data seeder
@@ -119,7 +123,7 @@ Open `http://<pi-ip>:8080` and sign up.
 
 **Data layout** — everything persists under the volume mount (`/data`):
 
-- `db/financer.db` — SQLite database
+- SurrealDB runs as a separate server (see `docker-compose.yml`); data lives in its own volume
 - `config/yahoo.json` — Yahoo endpoint bases (auto-copied on first run; edit to add/swap bases)
 - `certs/cert.pem` + `certs/key.pem` — optional HTTP/3 (QUIC) TLS pair
 - `avatars/` — uploaded profile pictures

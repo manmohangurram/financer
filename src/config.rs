@@ -34,8 +34,8 @@ impl Config {
             surreal_url: env("FINANCER_SURREAL_URL").unwrap_or_else(|| "127.0.0.1:8000".into()),
             surreal_user: env("FINANCER_SURREAL_USER").unwrap_or_else(|| "root".into()),
             surreal_pass: env("FINANCER_SURREAL_PASS").unwrap_or_else(|| "root".into()),
-            surreal_ns: env("FINANCER_SURREAL_NS").unwrap_or_else(|| "main".into()),
-            surreal_db: env("FINANCER_SURREAL_DB").unwrap_or_else(|| "main".into()),
+            surreal_ns: env("FINANCER_SURREAL_NS").unwrap_or_else(|| "financer".into()),
+            surreal_db: env("FINANCER_SURREAL_DB").unwrap_or_else(|| "financer".into()),
         }
     }
 }
