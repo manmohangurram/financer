@@ -1,18 +1,20 @@
 //! Transfer-rule service — resolves a rule's "transfer to account" action at
 //! write time, mirroring Go's `services/transfer_rule.go`.
 
+use std::sync::Arc;
+
 use crate::error::{ApiError, Result};
-use crate::repo::account::AccountRepo;
-use crate::repo::rule::{ConditionData, RuleRepo};
-use crate::repo::transaction::{TransactionRepo, TransactionListFilter, TransactionType};
+use crate::repo::traits::rule::ConditionData;
+use crate::repo::traits::{AccountRepo, RuleRepo, TransactionRepo};
+use crate::repo::traits::transaction::{TransactionListFilter, TransactionType};
 use crate::service::rule::{match_rule_data, TransactionMatchData};
 use crate::service::transfer::{resolve_transfer, ResolveOutcome};
 
 #[derive(Clone)]
 pub struct TransferRuleService {
-    rules: RuleRepo,
-    transactions: TransactionRepo,
-    accounts: AccountRepo,
+    rules: Arc<dyn RuleRepo>,
+    transactions: Arc<dyn TransactionRepo>,
+    accounts: Arc<dyn AccountRepo>,
 }
 
 pub struct RunRuleResponse {
@@ -22,7 +24,7 @@ pub struct RunRuleResponse {
 }
 
 impl TransferRuleService {
-    pub fn new(rule_repo: RuleRepo, transaction_repo: TransactionRepo, account_repo: AccountRepo) -> Self {
+    pub fn new(rule_repo: Arc<dyn RuleRepo>, transaction_repo: Arc<dyn TransactionRepo>, account_repo: Arc<dyn AccountRepo>) -> Self {
         Self { rules: rule_repo, transactions: transaction_repo, accounts: account_repo }
     }
 
@@ -67,7 +69,7 @@ impl TransferRuleService {
             if transfer_target.is_empty() {
                 continue;
             }
-            match resolve_transfer(user_id, txn, &transfer_target, &self.transactions, &self.accounts).await? {
+            match resolve_transfer(user_id, txn, &transfer_target, &*self.transactions, &*self.accounts).await? {
                 ResolveOutcome::Linked { created: c, .. } => {
                     linked += 1;
                     if c {
@@ -83,7 +85,7 @@ impl TransferRuleService {
 
     /// Apply transfer actions of matching rules against given transactions
     /// (used on create/import).
-    pub async fn apply_to_transactions(&self, user_id: &str, txns: &[crate::repo::transaction::Transaction]) -> Result<(i64, i64)> {
+    pub async fn apply_to_transactions(&self, user_id: &str, txns: &[crate::repo::traits::transaction::Transaction]) -> Result<(i64, i64)> {
         if txns.is_empty() {
             return Ok((0, 0));
         }
@@ -106,7 +108,7 @@ impl TransferRuleService {
                     if act.set_transfer_account_id.is_empty() {
                         continue;
                     }
-                    match resolve_transfer(user_id, txn, &act.set_transfer_account_id, &self.transactions, &self.accounts).await? {
+                    match resolve_transfer(user_id, txn, &act.set_transfer_account_id, &*self.transactions, &*self.accounts).await? {
                         ResolveOutcome::Linked { created: c, .. } => {
                             linked += 1;
                             if c {

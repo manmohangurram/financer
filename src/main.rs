@@ -1,5 +1,5 @@
-//! Financer Rust backend — Rust-only server: `SurrealDB` storage, axum API,
-//! serves the built Vue frontend.
+//! Financer Rust backend — Rust-only server on `SurrealDB` OR `SQLite` (picked
+//! at runtime from env), axum API, serves the built Vue frontend.
 
 mod auth;
 mod config;
@@ -18,13 +18,8 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
 use crate::auth::Jwt;
-use crate::config::Config;
-use crate::repo::account::AccountRepo;
-use crate::repo::category::CategoryRepo;
-use crate::repo::investment::InvestmentRepo;
-use crate::repo::rule::RuleRepo;
-use crate::repo::transaction::TransactionRepo;
-use crate::repo::user::UserRepo;
+use crate::config::{Backend, Config};
+use crate::repo::db::{sqlite_repo_set, surreal_repo_set, RepoSet};
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
@@ -43,35 +38,35 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = Config::from_env();
-
     std::fs::create_dir_all(cfg.data_dir.join("avatars"))?;
-    let client = surreal_db::connect(
-        &cfg.surreal_url,
-        &cfg.surreal_user,
-        &cfg.surreal_pass,
-        &cfg.surreal_ns,
-        &cfg.surreal_db,
-    )
-    .await?;
-    tracing::info!("connected to SurrealDB at {}", cfg.surreal_url);
 
-    let db = Arc::new(client);
+    // Build the repo set for the selected backend.
+    let repo_set: RepoSet = match cfg.backend {
+        Backend::Surreal => {
+            surreal_repo_set(&cfg.surreal_url, &cfg.surreal_user, &cfg.surreal_pass, &cfg.surreal_ns, &cfg.surreal_db)
+                .await
+                .map_err(|e| anyhow::anyhow!(e.message))?
+        }
+        Backend::Sqlite => sqlite_repo_set(&cfg.sqlite_path).await.map_err(|e| anyhow::anyhow!(e.message))?,
+    };
+
     let jwt = Jwt::new(cfg.jwt_secret.clone());
-    let repo = UserRepo::new(db.clone());
-    let account_repo = AccountRepo::new(db.clone());
-    let category_repo = CategoryRepo::new(db.clone());
-    let rule_repo = RuleRepo::new(db.clone());
-    let investment_repo = InvestmentRepo::new(db.clone());
-    let transaction_repo = TransactionRepo::new(db.clone());
+    let repo = repo_set.user.clone();
+    let account_repo = repo_set.account.clone();
+    let category_repo = repo_set.category.clone();
+    let rule_repo = repo_set.rule.clone();
+    let investment_repo = Arc::clone(&repo_set.investment);
+    let transaction_repo = repo_set.transaction.clone();
     let transaction_repo_clone = transaction_repo.clone();
     let account_repo_clone = account_repo.clone();
+
     let auth_svc = AuthService::new(repo.clone(), jwt.clone());
     let user_svc = UserService::new(repo, jwt.clone(), cfg.data_dir.join("avatars"));
     let account_svc = AccountService::new(account_repo.clone());
     let category_svc = CategoryService::new(category_repo.clone());
     let investment_svc = InvestmentService::new(investment_repo, YahooClient::new()?);
     let rule_svc = RuleService::new(rule_repo.clone(), category_repo.clone(), transaction_repo.clone());
-    let transfer_rule_svc = TransferRuleService::new(rule_repo, transaction_repo_clone, account_repo_clone);
+    let transfer_rule_svc = TransferRuleService::new(rule_repo, transaction_repo_clone.clone(), account_repo_clone.clone());
     let transaction_svc = TransactionService::new(transaction_repo.clone(), account_repo.clone(), category_repo.clone())
         .with_transfer_rule(transfer_rule_svc.clone());
     let transfer_svc = TransferService::new(transaction_repo, account_repo);

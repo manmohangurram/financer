@@ -5,6 +5,8 @@ use surrealdb::Connection;
 use crate::error::{ApiError, Result};
 use crate::repo::surreal::{rid, DbClient, RepoConn};
 
+pub use crate::repo::traits::user::UserRow;
+
 #[derive(Clone)]
 pub struct UserRepo<C: Connection = DbClient> {
     db: RepoConn<C>,
@@ -25,13 +27,13 @@ impl<C: Connection> UserRepo<C> {
                     email: $email, passwordHash: $hash, name: $name, tokenVersion: 0, createdAt: time::now()
                 } RETURN meta::id(id) AS id",
             )
-            .bind(("email", email.to_string()))
-            .bind(("hash", password_hash.to_string()))
-            .bind(("name", name.to_string()))
+            .bind(("email", email))
+            .bind(("hash", password_hash))
+            .bind(("name", name))
             .await?
             .check()
             .map_err(|e| map_repo_err(&e))?;
-        let id = super::surreal::take_json::<IdRow>(&mut res, 0)?
+        let id = super::take_json::<IdRow>(&mut res, 0)?
             .into_iter()
             .next()
             .map(|r| r.id)
@@ -46,9 +48,9 @@ impl<C: Connection> UserRepo<C> {
                 "SELECT meta::id(id) AS id, email, name, passwordHash, tokenVersion, avatarUrl
                  FROM user WHERE email = $email LIMIT 1",
             )
-            .bind(("email", email.to_string()))
+            .bind(("email", email))
             .await?;
-        Ok(super::surreal::take_json(&mut res, 0)?
+        Ok(super::take_json(&mut res, 0)?
             .into_iter()
             .next())
     }
@@ -62,7 +64,7 @@ impl<C: Connection> UserRepo<C> {
             )
             .bind(("rid", rid("user", id)))
             .await?;
-        Ok(super::surreal::take_json(&mut res, 0)?
+        Ok(super::take_json(&mut res, 0)?
             .into_iter()
             .next())
     }
@@ -77,9 +79,9 @@ impl<C: Connection> UserRepo<C> {
                     avatarUrl = IF $avatar != '' THEN $avatar ELSE avatarUrl END",
             )
             .bind(("rid", rid("user", id)))
-            .bind(("name", name.to_string()))
-            .bind(("email", email.to_string()))
-            .bind(("avatar", avatar_url.to_string()))
+            .bind(("name", name))
+            .bind(("email", email))
+            .bind(("avatar", avatar_url))
             .await?
             .check()
             .map_err(|e| map_repo_err(&e))?;
@@ -95,9 +97,9 @@ impl<C: Connection> UserRepo<C> {
                  RETURN tokenVersion",
             )
             .bind(("rid", rid("user", id)))
-            .bind(("hash", password_hash.to_string()))
+            .bind(("hash", password_hash))
             .await?;
-        let ver = super::surreal::take_json::<TokenVersion>(&mut res, 0)?
+        let ver = super::take_json::<TokenVersion>(&mut res, 0)?
             .first()
             .map_or(0, |t| t.token_version);
         Ok(ver)
@@ -126,15 +128,27 @@ struct IdRow {
     id: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UserRow {
-    pub id: String,
-    pub email: String,
-    pub name: Option<String>,
-    pub password_hash: Option<String>,
-    pub token_version: i64,
-    pub avatar_url: Option<String>,
+// Backend-agnostic `UserRepo` trait impl (forwarders → inherent methods).
+#[async_trait::async_trait]
+impl crate::repo::traits::UserRepo for UserRepo<DbClient> {
+    async fn create(&self, email: &str, password_hash: &str, name: &str) -> Result<String> {
+        self.create(email, password_hash, name).await
+    }
+    async fn by_email(&self, email: &str) -> Result<Option<UserRow>> {
+        self.by_email(email).await
+    }
+    async fn by_id(&self, id: &str) -> Result<Option<UserRow>> {
+        self.by_id(id).await
+    }
+    async fn update_profile(&self, id: &str, name: &str, email: &str, avatar_url: &str) -> Result<()> {
+        self.update_profile(id, name, email, avatar_url).await
+    }
+    async fn change_password(&self, id: &str, password_hash: &str) -> Result<i64> {
+        self.change_password(id, password_hash).await
+    }
+    async fn logout_all(&self, id: &str) -> Result<()> {
+        self.logout_all(id).await
+    }
 }
 
 fn map_repo_err(e: &surrealdb::Error) -> ApiError {

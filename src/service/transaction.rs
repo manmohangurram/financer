@@ -2,22 +2,22 @@
 //! Rule overlay is Phase 4 and intentionally not wired here.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use chrono::Datelike;
 use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
-use crate::repo::account::AccountRepo;
-use crate::repo::category::CategoryRepo;
-use crate::repo::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, TransactionRepo, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
+use crate::repo::traits::{AccountRepo, CategoryRepo, TransactionRepo};
+use crate::repo::traits::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
 use crate::service::transfer_rule::TransferRuleService;
 use crate::timex::{go_ts, round2};
 
 #[derive(Clone)]
 pub struct TransactionService {
-    transaction_repo: TransactionRepo,
-    account_repo: AccountRepo,
-    category_repo: CategoryRepo,
+    transaction_repo: Arc<dyn TransactionRepo>,
+    account_repo: Arc<dyn AccountRepo>,
+    category_repo: Arc<dyn CategoryRepo>,
     transfer_rule: Option<TransferRuleService>,
 }
 
@@ -41,7 +41,7 @@ pub struct BulkResult {
 }
 
 impl TransactionService {
-    pub fn new(transaction_repo: TransactionRepo, account_repo: AccountRepo, category_repo: CategoryRepo) -> Self {
+    pub fn new(transaction_repo: Arc<dyn TransactionRepo>, account_repo: Arc<dyn AccountRepo>, category_repo: Arc<dyn CategoryRepo>) -> Self {
         Self { transaction_repo, account_repo, category_repo, transfer_rule: None }
     }
 
@@ -308,7 +308,7 @@ impl TransactionService {
             }
         }
 
-        let filter = crate::repo::transaction::SpendingFilter {
+        let filter = crate::repo::traits::transaction::SpendingFilter {
             granularity: gran.to_string(),
             from: from_ts.unwrap_or_default(),
             to: to_ts.unwrap_or_default(),

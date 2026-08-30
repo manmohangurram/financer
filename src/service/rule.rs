@@ -1,16 +1,18 @@
 //! Rules service — validation, read-time overlay, and preview, mirroring Go's
 //! `services/rule.go`.
 
+use std::sync::Arc;
+
 use crate::error::{ApiError, Result};
-use crate::repo::category::CategoryRepo;
-use crate::repo::rule::{ActionOp, ConditionData, MatchField, MatchOperator, Rule, RuleAction, RuleCondition, RuleLogic, RuleRepo};
-use crate::repo::transaction::{ListRow, TransactionRepo, TransactionListFilter, TransactionType};
+use crate::repo::traits::rule::{ActionOp, ConditionData, MatchField, MatchOperator, Rule, RuleAction, RuleCondition, RuleLogic};
+use crate::repo::traits::{CategoryRepo as CatTrait, RuleRepo, TransactionRepo as TxnTrait};
+use crate::repo::traits::transaction::{ListRow, TransactionListFilter, TransactionType};
 
 #[derive(Clone)]
 pub struct RuleService {
-    rules: RuleRepo,
-    categories: CategoryRepo,
-    transactions: TransactionRepo,
+    rules: Arc<dyn RuleRepo>,
+    categories: Arc<dyn CatTrait>,
+    transactions: Arc<dyn TxnTrait>,
 }
 
 /// A transaction's matchable view, mutable so overlay can rename/re-categorize.
@@ -24,7 +26,7 @@ pub struct TransactionView {
 }
 
 impl RuleService {
-    pub fn new(rule_repo: RuleRepo, cat_repo: CategoryRepo, txn_repo: TransactionRepo) -> Self {
+    pub fn new(rule_repo: Arc<dyn RuleRepo>, cat_repo: Arc<dyn CatTrait>, txn_repo: Arc<dyn TxnTrait>) -> Self {
         Self { rules: rule_repo, categories: cat_repo, transactions: txn_repo }
     }
 
@@ -254,13 +256,13 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::repo::rule::{MatchField, MatchOperator, RuleLogic};
+    use crate::repo::traits::rule::{MatchField, MatchOperator, RuleLogic};
 
     fn match_data() -> TransactionMatchData {
         TransactionMatchData {
             name: "Netflix".to_string(),
             amount: 15.99,
-            transaction_type: crate::repo::transaction::TransactionType::Debit,
+            transaction_type: crate::repo::traits::transaction::TransactionType::Debit,
             account_id: "acc-1".to_string(),
             categories: vec!["Entertainment".to_string()],
         }
@@ -295,7 +297,7 @@ mod tests {
         let mut txn = TransactionView {
             name: "Netflix".to_string(),
             amount: 15.99,
-            transaction_type: crate::repo::transaction::TransactionType::Debit,
+            transaction_type: crate::repo::traits::transaction::TransactionType::Debit,
             account_id: "acc-1".to_string(),
             category_ids: vec![],
         };

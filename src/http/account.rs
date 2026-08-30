@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 
 use crate::error::json_error;
 use crate::http::{require_user, AppState, JsonResult};
-use crate::repo::account::AccountType;
+use crate::repo::traits::account::AccountType;
 
 pub fn routes() -> Router<AppState> {
     Router::new()

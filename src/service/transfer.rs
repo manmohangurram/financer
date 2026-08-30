@@ -1,17 +1,19 @@
 //! Transfers service — link/unlink and counterpart creation, mirroring Go's
 //! `services/transfer.go`.
 
+use std::sync::Arc;
+
 use uuid::Uuid;
 
 use crate::error::{ApiError, Result};
-use crate::repo::account::AccountRepo;
-use crate::repo::transaction::{self, TransactionRepo, Transaction, TransactionType};
+use crate::repo::traits::{AccountRepo, TransactionRepo};
+use crate::repo::traits::transaction::{self, Transaction, TransactionType};
 use crate::timex::go_ts;
 
 #[derive(Clone)]
 pub struct TransferService {
-    transaction_repo: TransactionRepo,
-    account_repo: AccountRepo,
+    transaction_repo: Arc<dyn TransactionRepo>,
+    account_repo: Arc<dyn AccountRepo>,
 }
 
 pub struct CreateTransferResp {
@@ -22,7 +24,7 @@ pub struct CreateTransferResp {
 pub type BulkResult = crate::service::transaction::BulkResult;
 
 impl TransferService {
-    pub fn new(transaction_repo: TransactionRepo, account_repo: AccountRepo) -> Self {
+    pub fn new(transaction_repo: Arc<dyn TransactionRepo>, account_repo: Arc<dyn AccountRepo>) -> Self {
         Self { transaction_repo, account_repo }
     }
 
@@ -39,7 +41,7 @@ impl TransferService {
             return Err(ApiError::bad_request("account does not belong to user"));
         }
 
-        match resolve_transfer(user_id, &src, to_account_id, &self.transaction_repo, &self.account_repo).await? {
+        match resolve_transfer(user_id, &src, to_account_id, &*self.transaction_repo, &*self.account_repo).await? {
             ResolveOutcome::Noop => Err(ApiError::bad_request("source transaction is already linked")),
             ResolveOutcome::Linked { counterpart_id, created: _ } => {
                 if src.transaction_type == TransactionType::Debit {
@@ -126,8 +128,8 @@ pub async fn resolve_transfer(
     user_id: &str,
     src: &Transaction,
     target_account_id: &str,
-    transaction_repo: &TransactionRepo,
-    account_repo: &AccountRepo,
+    transaction_repo: &dyn TransactionRepo,
+    account_repo: &dyn AccountRepo,
 ) -> Result<ResolveOutcome> {
     if src.account_id == target_account_id || src.transfer_linked {
         return Ok(ResolveOutcome::Noop);
@@ -192,7 +194,7 @@ pub async fn resolve_transfer(
     Ok(ResolveOutcome::Linked { counterpart_id: counter_txn.id, created: true })
 }
 
-async fn account_display(user_id: &str, account_id: &str, account_repo: &AccountRepo) -> String {
+async fn account_display(user_id: &str, account_id: &str, account_repo: &dyn AccountRepo) -> String {
     match account_repo.get_by_id(user_id, account_id).await {
         Ok(Some(a)) if !a.nickname.is_empty() => a.nickname,
         Ok(Some(a)) => a.bank_name,

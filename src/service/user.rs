@@ -3,16 +3,17 @@
 
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::Arc;
 use utoipa::ToSchema;
 
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
-use crate::repo::UserRepo;
+use crate::repo::traits::UserRepo;
 use crate::service::auth::AuthResponse;
 
 #[derive(Clone)]
 pub struct UserService {
-    repo: UserRepo,
+    repo: Arc<dyn UserRepo>,
     jwt: Jwt,
     avatar_dir: PathBuf,
 }
@@ -31,7 +32,7 @@ pub struct ProfileResponse {
 const MAX_AVATAR_BYTES: usize = 5 << 20;
 
 impl UserService {
-    pub fn new(repo: UserRepo, jwt: Jwt, avatar_dir: PathBuf) -> Self {
+    pub fn new(repo: Arc<dyn UserRepo>, jwt: Jwt, avatar_dir: PathBuf) -> Self {
         Self { repo, jwt, avatar_dir }
     }
 

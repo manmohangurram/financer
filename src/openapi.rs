@@ -2,10 +2,10 @@
 
 use utoipa::OpenApi;
 
-use crate::repo::account::AccountType;
-use crate::repo::investment::InvestmentType;
-use crate::repo::rule::{ActionOp, ActionType, MatchField, MatchOperator, RuleLogic};
-use crate::repo::transaction::TransactionType;
+use crate::repo::traits::account::AccountType;
+use crate::repo::traits::investment::InvestmentType;
+use crate::repo::traits::rule::{ActionOp, ActionType, MatchField, MatchOperator, RuleLogic};
+use crate::repo::traits::transaction::TransactionType;
 
 #[derive(OpenApi)]
 #[openapi(

@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 
-use crate::repo::investment::InvestmentType;
+use crate::repo::traits::investment::InvestmentType;
 
 #[derive(Debug, Deserialize)]
 struct YahooConfig {

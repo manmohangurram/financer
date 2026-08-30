@@ -9,7 +9,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::error::{json_error, ApiError};
 use crate::http::{require_user, AppState, JsonResult};
-use crate::repo::transaction::{TransactionListFilter, TransactionType};
+use crate::repo::traits::transaction::{TransactionListFilter, TransactionType};
 use crate::service::transaction::TransactionReq;
 use crate::timex::{round2, ts_rfc3339};
 

@@ -1,11 +1,12 @@
 //! Auth service — signup / login / refresh, mirroring Go's `services/auth.go`.
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use utoipa::ToSchema;
 
 use crate::auth::Jwt;
 use crate::error::{ApiError, Result};
-use crate::repo::UserRepo;
+use crate::repo::traits::UserRepo;
 
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -40,12 +41,12 @@ pub struct RefreshTokenRequest {
 
 #[derive(Clone)]
 pub struct AuthService {
-    repo: UserRepo,
+    repo: Arc<dyn UserRepo>,
     jwt: Jwt,
 }
 
 impl AuthService {
-    pub fn new(repo: UserRepo, jwt: Jwt) -> Self {
+    pub fn new(repo: Arc<dyn UserRepo>, jwt: Jwt) -> Self {
         Self { repo, jwt }
     }
 

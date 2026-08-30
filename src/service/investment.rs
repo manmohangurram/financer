@@ -2,9 +2,11 @@
 //! mirroring Go's `services/investment.go`.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::error::{ApiError, Result};
-use crate::repo::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRepo, InvestmentRow, InvestmentType, Lot, LotInput};
+use crate::repo::traits::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRow, InvestmentType, Lot, LotInput};
+use crate::repo::traits::InvestmentRepo;
 use crate::service::fifo::{compute_fifo, FifoLot, Position};
 use crate::service::yahoo::{PricePoint, YahooClient};
 use crate::timex::{go_ts, round2};
@@ -13,12 +15,12 @@ use utoipa::ToSchema;
 
 #[derive(Clone)]
 pub struct InvestmentService {
-    repo: InvestmentRepo,
+    repo: Arc<dyn InvestmentRepo>,
     yahoo: YahooClient,
 }
 
 impl InvestmentService {
-    pub fn new(repo: InvestmentRepo, yahoo: YahooClient) -> Self {
+    pub fn new(repo: Arc<dyn InvestmentRepo>, yahoo: YahooClient) -> Self {
         Self { repo, yahoo }
     }
 
