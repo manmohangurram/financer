@@ -1,25 +1,12 @@
 //! Accounts repository — CRUD on `SurrealDB`, mirroring the Go backend semantics.
 
 use surrealdb::Connection;
-use utoipa::ToSchema;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
 use crate::timex::go_ts;
 
-/// Account type. Wire value is the uppercase string (`CURRENT`/`CREDIT_CARD`).
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum AccountType {
-    Current,
-    Savings,
-    Loan,
-    CreditCard,
-}
+pub use crate::repo::traits::account::{AccountRow, AccountType};
 
 #[derive(Clone)]
 pub struct AccountRepo<C: Connection = DbClient> {
@@ -51,10 +38,10 @@ impl<C: Connection> AccountRepo<C> {
                 } RETURN meta::id(id) AS id, bankName, nickname, balance, type, createdAt",
             )
             .bind(("uid", rid("user", user_id)))
-            .bind(("bank", bank_name.to_string()))
-            .bind(("nick", nickname.to_string()))
+            .bind(("bank", bank_name))
+            .bind(("nick", nickname))
             .bind(("type", account_type.to_string()))
-            .bind(("created", now.clone()))
+            .bind(("created", now.as_str()))
             .await?
             .check()?;
 
@@ -98,8 +85,8 @@ impl<C: Connection> AccountRepo<C> {
             )
             .bind(("rid", rid("account", id)))
             .bind(("uid", rid("user", user_id)))
-            .bind(("bank", bank_name.to_string()))
-            .bind(("nick", nickname.to_string()))
+            .bind(("bank", bank_name))
+            .bind(("nick", nickname))
             .bind(("type", account_type.to_string()))
             .await?;
         let rows = take_json::<AccountRow>(&mut res, 0)?;
@@ -180,6 +167,41 @@ impl<C: Connection> AccountRepo<C> {
     }
 }
 
+// Backend-agnostic `AccountRepo` trait impl, boxed as `Arc<dyn AccountRepo>`
+// by the service layer. Each forwarder calls the inherent method (inherent
+// methods take precedence over trait methods in method resolution, so no
+// recursion). SQL/query bodies stay unchanged.
+#[async_trait::async_trait]
+impl crate::repo::traits::AccountRepo for AccountRepo<DbClient> {
+    async fn create(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountRow> {
+        self.create(user_id, bank_name, nickname, account_type).await
+    }
+    async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
+        self.get_by_id(user_id, id).await
+    }
+    async fn update(&self, user_id: &str, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<Option<AccountRow>> {
+        self.update(user_id, id, bank_name, nickname, account_type).await
+    }
+    async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
+        self.delete(user_id, id).await
+    }
+    async fn list(&self, user_id: &str) -> Result<Vec<AccountRow>> {
+        self.list(user_id).await
+    }
+    async fn update_balance(&self, account_id: &str, delta: f64) -> Result<()> {
+        self.update_balance(account_id, delta).await
+    }
+    async fn apply_totals(&self, account_id: &str, credit: f64, debit: f64) -> Result<()> {
+        self.apply_totals(account_id, credit, debit).await
+    }
+    async fn sum_balance(&self, user_id: &str) -> Result<f64> {
+        self.sum_balance(user_id).await
+    }
+    async fn sum_totals(&self, user_id: &str) -> Result<(f64, f64)> {
+        self.sum_totals(user_id).await
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct SumRow {
     total: f64,
@@ -191,24 +213,11 @@ struct TotalsRow {
     debit: f64,
 }
 
-/// A stored account row (serde wire shape: camelCase).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccountRow {
-    pub id: String,
-    pub bank_name: String,
-    pub nickname: String,
-    pub balance: f64,
-    #[serde(rename = "type")]
-    pub account_type: AccountType,
-    pub created_at: String,
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
     use std::str::FromStr;
-    use surrealdb::Surreal;
+
 
     use super::*;
     use crate::surreal_db;

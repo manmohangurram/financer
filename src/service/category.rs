@@ -1,15 +1,18 @@
 //! Categories service — business logic mirroring Go's `services/category.go`.
 
+use std::sync::Arc;
+
 use serde::Serialize;
 
 use crate::error::{ApiError, Result};
-use crate::repo::category::{CategoryRepo, CategoryRow};
+use crate::repo::traits::category::{CategoryCreateInput, CategoryRow, CategoryUpdateInput};
+use crate::repo::traits::CategoryRepo;
 use crate::service::transaction::BulkResult;
 use crate::timex::ts_rfc3339;
 
 #[derive(Clone)]
 pub struct CategoryService {
-    repo: CategoryRepo,
+    repo: Arc<dyn CategoryRepo>,
 }
 
 #[derive(Serialize)]
@@ -22,7 +25,7 @@ pub struct CategoryResponse {
 }
 
 impl CategoryService {
-    pub fn new(repo: CategoryRepo) -> Self {
+    pub fn new(repo: Arc<dyn CategoryRepo>) -> Self {
         Self { repo }
     }
 
@@ -33,7 +36,7 @@ impl CategoryService {
     }
 
     pub async fn create(&self, user_id: &str, names: &[String]) -> Result<BulkResult> {
-        let inputs: Vec<_> = names.iter().filter(|n| !n.is_empty()).map(|n| crate::repo::category::CategoryCreateInput { name: n.clone() }).collect();
+        let inputs: Vec<_> = names.iter().filter(|n| !n.is_empty()).map(|n| CategoryCreateInput { name: n.clone() }).collect();
         match self.repo.create(user_id, &inputs).await {
             Ok(_) => Ok(BulkResult { success: true, message: "categories created successfully".to_string(), failed_ids: Vec::new(), skipped: 0 }),
             Err(e) => Ok(BulkResult { success: false, message: "some categories failed".to_string(), failed_ids: vec![e.message], skipped: 0 }),
@@ -41,7 +44,7 @@ impl CategoryService {
     }
 
     pub async fn update(&self, user_id: &str, inputs: &[(String, String)]) -> Result<BulkResult> {
-        let repo_inputs: Vec<_> = inputs.iter().map(|(id, name)| crate::repo::category::CategoryUpdateInput { id: id.clone(), name: name.clone() }).collect();
+        let repo_inputs: Vec<_> = inputs.iter().map(|(id, name)| CategoryUpdateInput { id: id.clone(), name: name.clone() }).collect();
         let errs = self.repo.update(user_id, &repo_inputs).await?;
         if !errs.is_empty() {
             return Ok(BulkResult { success: false, message: "some updates failed".to_string(), failed_ids: errs, skipped: 0 });

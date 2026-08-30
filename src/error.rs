@@ -88,3 +88,17 @@ impl From<crate::repo::surreal::RepoError> for ApiError {
         ApiError::internal("internal error")
     }
 }
+
+impl From<sqlx::Error> for ApiError {
+    fn from(e: sqlx::Error) -> Self {
+        tracing::error!("sqlite error: {e}");
+        ApiError::internal("internal error")
+    }
+}
+
+impl From<anyhow::Error> for ApiError {
+    fn from(e: anyhow::Error) -> Self {
+        tracing::error!("db error: {e}");
+        ApiError::internal("internal error")
+    }
+}

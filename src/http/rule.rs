@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 
 use crate::error::json_error;
 use crate::http::{require_user, AppState, JsonResult};
-use crate::repo::rule::{ActionOp, MatchField, MatchOperator, RuleAction, RuleCondition, RuleLogic};
+use crate::repo::traits::rule::{ActionOp, MatchField, MatchOperator, RuleAction, RuleCondition, RuleLogic};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -115,7 +115,7 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     path = "/api/rules",
     request_body = ReqRule,
     responses(
-        (status = 201, description = "Rule created", body = crate::repo::rule::Rule),
+        (status = 201, description = "Rule created", body = crate::repo::traits::rule::Rule),
         (status = 400, description = "Invalid input"),
         (status = 401, description = "Unauthenticated"),
     ),
@@ -142,7 +142,7 @@ pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
     params(("id", description = "Rule id")),
     request_body = ReqRule,
     responses(
-        (status = 200, description = "Rule updated", body = crate::repo::rule::Rule),
+        (status = 200, description = "Rule updated", body = crate::repo::traits::rule::Rule),
         (status = 400, description = "Invalid input"),
         (status = 401, description = "Unauthenticated"),
         (status = 404, description = "Rule not found"),

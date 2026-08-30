@@ -9,7 +9,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::error::{json_error, ApiError};
 use crate::http::{require_user, AppState, JsonResult};
-use crate::repo::investment::InvestmentType;
+use crate::repo::traits::investment::InvestmentType;
 use crate::service::investment::{occurred_at, ImportRow};
 use std::str::FromStr;
 
@@ -78,7 +78,7 @@ fn parse_type(v: &serde_json::Value) -> Result<InvestmentType, ApiError> {
     path = "/api/investments",
     request_body = ReqInvestment,
     responses(
-        (status = 201, description = "Investment created", body = crate::repo::investment::Investment),
+        (status = 201, description = "Investment created", body = crate::repo::traits::investment::Investment),
         (status = 400, description = "Invalid input"),
         (status = 401, description = "Unauthenticated"),
     ),
@@ -124,7 +124,7 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     path = "/api/investments/{id}",
     params(("id", description = "Investment id")),
     responses(
-        (status = 200, description = "Investment", body = crate::repo::investment::Investment),
+        (status = 200, description = "Investment", body = crate::repo::traits::investment::Investment),
         (status = 401, description = "Unauthenticated"),
         (status = 404, description = "Investment not found"),
     ),
@@ -147,7 +147,7 @@ pub async fn get(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<
     params(("id", description = "Investment id")),
     request_body = ReqInvestment,
     responses(
-        (status = 200, description = "Investment updated", body = crate::repo::investment::Investment),
+        (status = 200, description = "Investment updated", body = crate::repo::traits::investment::Investment),
         (status = 400, description = "Invalid input"),
         (status = 401, description = "Unauthenticated"),
         (status = 404, description = "Investment not found"),
@@ -197,7 +197,7 @@ pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Pa
     params(("id", description = "Investment id")),
     request_body = ReqLot,
     responses(
-        (status = 201, description = "Lot added", body = crate::repo::investment::Lot),
+        (status = 201, description = "Lot added", body = crate::repo::traits::investment::Lot),
         (status = 400, description = "Invalid input"),
         (status = 401, description = "Unauthenticated"),
         (status = 404, description = "Investment not found"),
@@ -269,7 +269,7 @@ pub async fn delete_lot(State(st): State<AppState>, headers: HeaderMap, Path(pat
     ),
     request_body = ReqLot,
     responses(
-        (status = 200, description = "Lot updated", body = crate::repo::investment::Lot),
+        (status = 200, description = "Lot updated", body = crate::repo::traits::investment::Lot),
         (status = 400, description = "Invalid input"),
         (status = 401, description = "Unauthenticated"),
         (status = 404, description = "Lot not found"),

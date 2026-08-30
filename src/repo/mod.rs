@@ -1,12 +1,9 @@
-//! Repository layer — `SurrealDB` repos. `repo/mod.rs` is just the module tree;
-//! each repo lives in its own file.
+//! Repository layer — backend-agnostic. `repo/mod.rs` declares the module tree
+//! and re-exports the shared repo traits. Concrete repos live in `surreal/` and
+//! `sqlite/`, each implementing the corresponding `traits::*Repo` trait.
 
-pub mod account;
-pub mod category;
-pub mod investment;
-pub mod rule;
+pub mod backend;
+pub mod sqlite;
 pub mod surreal;
-pub mod transaction;
-pub mod user;
+pub mod traits;
 
-pub use user::UserRepo;

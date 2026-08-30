@@ -1,19 +1,22 @@
 //! Accounts service — business logic mirroring Go's `services/account.go`.
 
+use std::sync::Arc;
+
 use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
-use crate::repo::account::{AccountRepo, AccountRow, AccountType};
+use crate::repo::traits::account::{AccountRow, AccountType};
+use crate::repo::traits::AccountRepo;
 use crate::timex::ts_rfc3339;
 
 #[derive(Clone)]
 pub struct AccountService {
-    repo: AccountRepo,
+    repo: Arc<dyn AccountRepo>,
 }
 
 impl AccountService {
-    pub fn new(repo: AccountRepo) -> Self {
+    pub fn new(repo: Arc<dyn AccountRepo>) -> Self {
         Self { repo }
     }
 

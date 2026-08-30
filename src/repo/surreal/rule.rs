@@ -3,139 +3,13 @@
 //! engine. Conditions and actions are stored as JSON on the rule record.
 
 use surrealdb::Connection;
-use utoipa::ToSchema;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
 use crate::timex::{go_ts, ts_rfc3339};
 
-/// Rule logic: how conditions combine. Wire + DB string.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum RuleLogic {
-    Or,
-    And,
-}
-
-/// Condition match field. Wire + DB string.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum MatchField {
-    Name,
-    Amount,
-    Type,
-    Category,
-    Account,
-}
-
-/// Condition operator. Wire + DB string.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum MatchOperator {
-    Contains,
-    StartsWith,
-    EndsWith,
-    Equals,
-    GreaterThan,
-    LessThan,
-    Regex,
-}
-
-/// Name output operation. Wire + DB string.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum ActionOp {
-    Rename,
-    AddPrefix,
-    AddSuffix,
-}
-
-/// The action's kind. Variants mirror Go's SET_* names (the wire/db contract).
-#[allow(clippy::enum_variant_names)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema,
-)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum ActionType {
-    SetName,
-    SetCategory,
-    SetTransferAccount,
-}
-
-/// One rule condition (wire shape).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
-pub struct RuleCondition {
-    #[serde(rename = "matchField")]
-    pub match_field: MatchField,
-    pub operator: MatchOperator,
-    pub pattern: String,
-}
-
-/// One rule output action (wire shape).
-#[allow(clippy::struct_field_names)]
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-#[schema(rename_all = "camelCase")]
-pub struct RuleAction {
-    #[serde(default)]
-    pub set_name: String,
-    #[serde(default)]
-    pub set_name_op: Option<ActionOp>,
-    #[serde(default)]
-    pub set_category_id: String,
-    #[serde(default)]
-    pub set_transfer_account_id: String,
-}
-
-/// A rule as returned to the frontend (wire shape). Also deserializable for
-/// the `SurrealDB` JSON round-trip.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-#[schema(rename_all = "camelCase")]
-pub struct Rule {
-    pub id: String,
-    pub name: String,
-    pub priority: i64,
-    pub logic: RuleLogic,
-    pub conditions: Vec<RuleCondition>,
-    pub actions: Vec<RuleAction>,
-    #[serde(rename = "createdAt")]
-    pub created_at: String,
-}
-
-/// Conditions flattened for the match engine (Go's `RuleConditionData`).
-#[derive(Debug, Clone)]
-pub struct ConditionData {
-    pub match_field: MatchField,
-    pub operator: MatchOperator,
-    pub pattern: String,
-}
-
-/// A rule loaded for read-time overlay, priority-ordered.
-#[derive(Debug, Clone)]
-pub struct OverlayRule {
-    pub logic: RuleLogic,
-    pub conditions: Vec<ConditionData>,
-    pub actions: Vec<RuleAction>,
-}
+#[allow(unused_imports)]
+pub use crate::repo::traits::rule::{ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};
 
 #[derive(Clone)]
 pub struct RuleRepo<C: Connection = DbClient> {
@@ -167,12 +41,12 @@ impl<C: Connection> RuleRepo<C> {
                 } RETURN meta::id(id) AS id, name, priority, logic, conditions, actions, createdAt",
             )
             .bind(("uid", rid("user", user_id)))
-            .bind(("name", name.to_string()))
+            .bind(("name", name))
             .bind(("priority", priority))
             .bind(("logic", logic.to_string()))
             .bind(("conditions", serde_json::to_value(conditions).unwrap()))
             .bind(("actions", serde_json::to_value(actions).unwrap()))
-            .bind(("created", now.clone()))
+            .bind(("created", now.as_str()))
             .await?
             .check()?;
         let mut rule = take_json::<Rule>(&mut res, 0)?
@@ -207,7 +81,7 @@ impl<C: Connection> RuleRepo<C> {
             )
             .bind(("rid", rid("rule", id)))
             .bind(("uid", rid("user", user_id)))
-            .bind(("name", name.to_string()))
+            .bind(("name", name))
             .bind(("priority", priority))
             .bind(("logic", logic.to_string()))
             .bind(("conditions", serde_json::to_value(conditions).unwrap()))
@@ -277,10 +151,50 @@ fn cond_to_data(c: &RuleCondition) -> ConditionData {
     ConditionData { match_field: c.match_field, operator: c.operator, pattern: c.pattern.clone() }
 }
 
+// Backend-agnostic `RuleRepo` trait impl (forwarders → inherent methods).
+#[async_trait::async_trait]
+impl crate::repo::traits::RuleRepo for RuleRepo<DbClient> {
+    async fn create(
+        &self,
+        user_id: &str,
+        name: &str,
+        priority: i64,
+        logic: RuleLogic,
+        conditions: &[RuleCondition],
+        actions: &[RuleAction],
+    ) -> Result<Rule> {
+        self.create(user_id, name, priority, logic, conditions, actions).await
+    }
+    async fn update(
+        &self,
+        user_id: &str,
+        id: &str,
+        name: &str,
+        priority: i64,
+        logic: RuleLogic,
+        conditions: &[RuleCondition],
+        actions: &[RuleAction],
+    ) -> Result<bool> {
+        self.update(user_id, id, name, priority, logic, conditions, actions).await
+    }
+    async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
+        self.delete(user_id, id).await
+    }
+    async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<Rule>> {
+        self.get_by_id(user_id, id).await
+    }
+    async fn list(&self, user_id: &str) -> Result<Vec<Rule>> {
+        self.list(user_id).await
+    }
+    async fn list_for_overlay(&self, user_id: &str) -> Result<Vec<OverlayRule>> {
+        self.list_for_overlay(user_id).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use surrealdb::Surreal;
+
 
     use super::*;
     use crate::surreal_db;

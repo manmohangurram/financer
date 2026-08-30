@@ -2,6 +2,13 @@
 //! type, record-id helper, JSON round-trip deserialization, update-or-create,
 //! and the shared repo error.
 
+pub mod account;
+pub mod category;
+pub mod investment;
+pub mod rule;
+pub mod transaction;
+pub mod user;
+
 use std::sync::Arc;
 use surrealdb::types::RecordId;
 use surrealdb::{Connection, Surreal};

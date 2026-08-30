@@ -8,6 +8,8 @@ use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
 use crate::timex::go_ts;
 
+pub use crate::repo::traits::category::{CategoryCreateInput, CategoryRow, CategoryUpdateInput, ListCategoriesResult};
+
 #[derive(Clone)]
 pub struct CategoryRepo<C: Connection = DbClient> {
     db: RepoConn<C>,
@@ -29,8 +31,8 @@ impl<C: Connection> CategoryRepo<C> {
                      RETURN meta::id(id) AS id, name, createdAt",
                 )
                 .bind(("uid", rid("user", user_id)))
-                .bind(("name", input.name.clone()))
-                .bind(("created", now.clone()))
+                .bind(("name", input.name.as_str()))
+                .bind(("created", now.as_str()))
                 .await?
                 .check()?;
             let row = take_json::<CategoryRow>(&mut res, 0)?
@@ -67,7 +69,7 @@ impl<C: Connection> CategoryRepo<C> {
                 )
                 .bind(("rid", rid("category", &input.id)))
                 .bind(("uid", rid("user", user_id)))
-                .bind(("name", input.name.clone()))
+                .bind(("name", input.name.as_str()))
                 .await?;
             if take_json::<serde_json::Value>(&mut res, 0)?.is_empty() {
                 errors.push(format!("category {} not found", input.id));
@@ -108,7 +110,7 @@ impl<C: Connection> CategoryRepo<C> {
 
         let mut q = self.db.query(&query).bind(("uid", rid("user", user_id)));
         if let Some(cur) = &cursor {
-            q = q.bind(("name", cur.name.clone())).bind(("rid", rid("category", &cur.id)));
+            q = q.bind(("name", cur.name.as_str())).bind(("rid", rid("category", &cur.id)));
         }
         let mut res = q.await?;
         let mut categories: Vec<CategoryRow> = take_json(&mut res, 0)?;
@@ -125,29 +127,27 @@ impl<C: Connection> CategoryRepo<C> {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CategoryRow {
-    pub id: String,
-    pub name: String,
-    pub created_at: String,
-}
-
-pub struct CategoryCreateInput {
-    pub name: String,
-}
-
-pub struct CategoryUpdateInput {
-    pub id: String,
-    pub name: String,
-}
-
-pub struct ListCategoriesResult {
-    pub categories: Vec<CategoryRow>,
-    pub next_page_token: String,
-}
-
 /// Go's category cursor is base64 JSON `{"n": name, "id": id}`.
+// Backend-agnostic `CategoryRepo` trait impl (forwarders → inherent methods).
+#[async_trait::async_trait]
+impl crate::repo::traits::CategoryRepo for CategoryRepo<DbClient> {
+    async fn create(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>> {
+        self.create(user_id, inputs).await
+    }
+    async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<CategoryRow>> {
+        self.get_by_id(user_id, id).await
+    }
+    async fn update(&self, user_id: &str, inputs: &[CategoryUpdateInput]) -> Result<Vec<String>> {
+        self.update(user_id, inputs).await
+    }
+    async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
+        self.delete(user_id, ids).await
+    }
+    async fn list(&self, user_id: &str, page_size: i64, page_token: &str) -> Result<ListCategoriesResult> {
+        self.list(user_id, page_size, page_token).await
+    }
+}
+
 fn encode_cat_cursor(name: &str, id: &str) -> String {
     let payload = json!({ "n": name, "id": id }).to_string();
     B64URL.encode(payload.as_bytes())
@@ -167,7 +167,7 @@ struct CatCursor {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use surrealdb::Surreal;
+
 
     use super::*;
     use crate::surreal_db;
