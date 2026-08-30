@@ -3,7 +3,6 @@
 
 mod auth;
 mod config;
-mod db;
 mod error;
 mod http;
 mod openapi;
@@ -20,7 +19,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::auth::Jwt;
 use crate::config::{Backend, Config};
-use crate::repo::backend::{sqlite_repo_set, surreal_repo_set, RepoSet};
+use crate::repo::db::{sqlite_repo_set, surreal_repo_set, RepoSet};
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;

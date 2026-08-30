@@ -2,7 +2,7 @@
 //! and re-exports the shared repo traits. Concrete repos live in `surreal/` and
 //! `sqlite/`, each implementing the corresponding `traits::*Repo` trait.
 
-pub mod backend;
+pub mod db;
 pub mod sqlite;
 pub mod surreal;
 pub mod traits;

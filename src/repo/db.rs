@@ -1,8 +1,13 @@
-//! Runtime backend selection: builds a `RepoSet` (all six repos boxed as
-//! `Arc<dyn Trait>`) from either the `SurrealDB` or `SQLite` backend, decided
-//! by which env vars are present.
+//! Backend bootstrapping: `SQLite` pool + migrations, and runtime repo-set
+//! selection (`SurrealDB` or `SQLite`).
 
+use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
+
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+use sqlx::SqlitePool;
 
 use crate::error::Result;
 use crate::repo::surreal;
@@ -41,8 +46,8 @@ pub async fn surreal_repo_set(
 
 /// Build the repo set for the `SQLite` backend (WAL, write + read pools).
 pub async fn sqlite_repo_set(db_path: &str) -> Result<RepoSet> {
-    let db = crate::db::open_pools(std::path::Path::new(db_path)).await?;
-    crate::db::run_migrations(&db.write).await?;
+    let db = open_pools(Path::new(db_path)).await?;
+    run_migrations(&db.write).await?;
     tracing::info!("connected to SQLite at {db_path}");
     let pool = db.write.clone();
     Ok(RepoSet {
@@ -53,4 +58,46 @@ pub async fn sqlite_repo_set(db_path: &str) -> Result<RepoSet> {
         investment: Arc::new(crate::repo::sqlite::investment::SqliteInvestmentRepo::new(pool.clone())),
         transaction: Arc::new(crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool)),
     })
+}
+
+/// SQLite pools: WAL mode, single-writer write pool + a read pool.
+pub struct Db {
+    #[allow(dead_code)]
+    pub read: SqlitePool,
+    pub write: SqlitePool,
+}
+
+/// Open the write (single-conn) and read pools against the same `SQLite` file,
+/// mirroring Go's `OpenDBs`.
+pub async fn open_pools(db_path: &Path) -> anyhow::Result<Db> {
+    let base = SqliteConnectOptions::from_str(db_path.to_str().unwrap())
+        .unwrap()
+        .journal_mode(SqliteJournalMode::Wal)
+        .busy_timeout(Duration::from_secs(5))
+        .foreign_keys(true)
+        .synchronous(SqliteSynchronous::Normal);
+
+    let write_opts = base.clone().create_if_missing(true);
+    let write = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(write_opts)
+        .await?;
+
+    let read_opts = base.clone().read_only(true);
+    let read = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect_with(read_opts)
+        .await?;
+
+    Ok(Db { read, write })
+}
+
+/// Apply pending migrations via sqlx's built-in migrator, tracking applied
+/// versions in `_sqlx_migrations`. Migrations live in `db/migrations/` as
+/// `NNNNNN_description.up.sql` / `.down.sql` pairs (sqlx's convention).
+pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
+
+pub async fn run_migrations(pool: &SqlitePool) -> anyhow::Result<()> {
+    MIGRATOR.run(pool).await?;
+    Ok(())
 }
