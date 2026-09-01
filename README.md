@@ -81,7 +81,26 @@ frontend/src/
 
 ## API
 
-REST JSON under `/api/...`. `POST /api/auth/{signup,login,refresh}` are public; everything else requires `Authorization: Bearer <token>`. Notable endpoints: `GET /api/dashboard`, `GET /api/spending`, `GET/POST/PUT /api/transactions`, `/api/transfers/*`, `/api/rules/*`, `/api/instruments/*`.
+REST JSON under `/api/...`. `POST /api/auth/{signup,login,refresh}` are public; everything else requires `Authorization: Bearer <token>`. Notable endpoints: `GET /api/dashboard`, `GET /api/spending`, `GET/POST/PUT /api/transactions`, `/api/transfers/*`, `/api/rules/*`, `/api/instruments/*`. Manage MCP/API keys via `GET/POST /api/me/keys` and `DELETE /api/me/keys/{id}`.
+
+## MCP (Model Context Protocol)
+
+A read-only **MCP server** is exposed at `/mcp` (streamable HTTP) so an external AI agent (Gemini, Claude, DeepSeek, ChatGPT — any MCP-capable client) can read your finance data. No AI code lives in financer; the agent is your side.
+
+Authenticate with a per-user **API key** (created in Settings → API keys, max 50, optionally expiring).
+
+```json
+{
+  "mcpServers": {
+    "financer": {
+      "url": "https://your-host/mcp",
+      "headers": { "Authorization": "Bearer fin_live_<your-key>" }
+    }
+  }
+}
+```
+
+Tools: `list_accounts`, `list_transactions`, `get_balance_summary`, `get_portfolio`, `list_categories`. Read-only — an agent cannot mutate your data.
 
 ## Tests
 
