@@ -68,6 +68,10 @@ pub async fn define_tables<C: Connection>(client: &Surreal<C>) -> Result<()> {
 
             DEFINE TABLE IF NOT EXISTS investment_price_history;
             DEFINE TABLE IF NOT EXISTS transfer_link;
+
+            DEFINE TABLE IF NOT EXISTS user_key;
+            DEFINE INDEX IF NOT EXISTS user_key_user ON TABLE user_key COLUMNS user;
+            DEFINE INDEX IF NOT EXISTS user_key_hash ON TABLE user_key COLUMNS keyHash UNIQUE;
             ",
         )
         .await?
