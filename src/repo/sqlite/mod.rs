@@ -7,3 +7,4 @@ pub mod investment;
 pub mod rule;
 pub mod transaction;
 pub mod user;
+pub mod user_key;
