@@ -73,6 +73,12 @@ export interface ProfileServiceClient {
   logoutAll: (req: unknown) => Promise<any>;
 }
 
+export interface UserKeyServiceClient {
+  listKeys: (req: unknown) => Promise<any>;
+  createKey: (req: unknown) => Promise<any>;
+  deleteKey: (req: unknown) => Promise<any>;
+}
+
 let _accounts: AccountServiceClient | null = null;
 let _categories: CategoryServiceClient | null = null;
 let _transactions: TransactionServiceClient | null = null;
@@ -81,6 +87,7 @@ let _transfers: TransferServiceClient | null = null;
 let _investments: InvestmentServiceClient | null = null;
 let _analytics: AnalyticsServiceClient | null = null;
 let _profile: ProfileServiceClient | null = null;
+let _userKeys: UserKeyServiceClient | null = null;
 
 function api(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string) {
   return (req: unknown) => {
@@ -224,6 +231,17 @@ export function profile(): ProfileServiceClient {
     };
   }
   return _profile;
+}
+
+export function apiKeys(): UserKeyServiceClient {
+  if (!_userKeys) {
+    _userKeys = {
+      listKeys: api('GET', '/api/me/keys'),
+      createKey: api('POST', '/api/me/keys'),
+      deleteKey: api('DELETE', '/api/me/keys/{id}')
+    };
+  }
+  return _userKeys;
 }
 
 function getAuthHeaders(): Record<string, string> {

@@ -3,12 +3,13 @@ import { ref, onMounted, computed } from 'vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
 import AppInput from '@/components/AppInput.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
-import { profile } from '@/lib/api/client';
+import { profile, apiKeys } from '@/lib/api/client';
 import { API_BASE } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { getAccessToken, setTokens } from '@/lib/api/transport';
 import { applyTheme, current as currentTheme } from '@/lib/theme';
-import { Camera, Save, Loader2, ShieldCheck, Sun, Moon, Monitor } from '@lucide/vue';
+import { Camera, Save, Loader2, ShieldCheck, Sun, Moon, Monitor, Plus, Trash2 } from '@lucide/vue';
+import { formatDate } from '@/lib/utils/format';
 
 const auth = useAuthStore();
 
@@ -18,6 +19,61 @@ const notice = ref('');
 
 const form = ref({ name: '', email: '', avatarUrl: '' });
 const password = ref({ currentPassword: '', newPassword: '' });
+
+// --- API keys ---
+const keys = ref<any[]>([]);
+const newKeyName = ref('');
+const newKeyDays = ref(0);
+const newKeyResult = ref('');
+const keyNotice = ref('');
+const keyError = ref('');
+const savingKey = ref(false);
+
+async function loadKeys() {
+  keyError.value = '';
+  try {
+    keys.value = await apiKeys().listKeys({});
+  } catch (e: any) {
+    keyError.value = e?.message || 'Failed to load API keys';
+  }
+}
+
+async function createKey() {
+  savingKey.value = true;
+  keyError.value = '';
+  keyNotice.value = '';
+  newKeyResult.value = '';
+  try {
+    const resp = await apiKeys().createKey({
+      name: newKeyName.value,
+      expiresInDays: newKeyDays.value
+    });
+    newKeyResult.value = resp?.key || '';
+    newKeyName.value = '';
+    newKeyDays.value = 0;
+    await loadKeys();
+  } catch (e: any) {
+    keyError.value = e?.message || 'Failed to create API key';
+  } finally {
+    savingKey.value = false;
+  }
+}
+
+function maskKey(k: any): string {
+  const p = k?.keyPrefix || '';
+  return p ? p + '••••' : '••••';
+}
+
+async function revokeKey(id: string) {
+  if (!confirm('Revoke this API key?')) return;
+  keyError.value = '';
+  try {
+    await apiKeys().deleteKey({ id });
+    await loadKeys();
+  } catch (e: any) {
+    keyError.value = e?.message || 'Failed to revoke API key';
+  }
+}
 const savingProfile = ref(false);
 const savingPassword = ref(false);
 const loggingOutAll = ref(false);
@@ -123,7 +179,10 @@ async function confirmLogoutAllNow() {
   confirmLogoutAll.value = false;
 }
 
-onMounted(loadProfile);
+onMounted(() => {
+  loadProfile();
+  loadKeys();
+});
 </script>
 
 <template>
@@ -228,6 +287,46 @@ onMounted(loadProfile);
                 Dark
               </button>
             </div>
+          </section>
+
+          <section class="p-6 space-y-5">
+            <div>
+              <h2 class="text-lg font-semibold text-text">API keys</h2>
+              <p class="text-[12px] text-subtle">Keys for external tools (e.g. MCP clients). Max 50 per user. Never shown again after creation.</p>
+            </div>
+
+            <p v-if="keyError" class="text-error text-sm">{{ keyError }}</p>
+            <p v-if="keyNotice" class="text-success text-sm">{{ keyNotice }}</p>
+
+            <div v-if="newKeyResult" class="rounded-lg border border-primary/30 bg-base-200 p-3">
+              <p class="text-[12px] text-subtle">Copy this key now — it won't be shown again:</p>
+              <code class="block break-all text-text text-sm mt-1 font-mono">{{ newKeyResult }}</code>
+            </div>
+
+            <div class="flex items-end gap-3">
+              <AppInput v-model="newKeyName" label="Name" placeholder="e.g. Claude Desktop" class="flex-1" />
+              <AppInput v-model="newKeyDays" label="Expires (days, 0=never)" type="number" min="0" class="w-40" />
+              <button class="btn btn-primary btn-sm gap-1.5" :disabled="savingKey" @click="createKey">
+                <Loader2 v-if="savingKey" class="w-4 h-4 animate-spin" />
+                <Plus v-else class="w-4 h-4" />
+                Create key
+              </button>
+            </div>
+
+            <div v-if="keys.length" class="space-y-2">
+              <div v-for="k in keys" :key="k.id" class="flex items-center justify-between gap-4 rounded-lg border border-base-300 p-3">
+                <div>
+                  <p class="text-text text-sm font-medium">{{ k.name || 'Untitled' }}</p>
+                  <p class="text-[12px] text-subtle font-mono">{{ maskKey(k) }}</p>
+                  <p class="text-[11px] text-subtle">Created {{ formatDate(k.createdAt) }}<span v-if="k.expiresAt"> · expires {{ formatDate(k.expiresAt) }}</span></p>
+                </div>
+                <button class="btn btn-outline btn-error btn-sm gap-1.5" @click="revokeKey(k.id)">
+                  <Trash2 class="w-4 h-4" />
+                  Revoke
+                </button>
+              </div>
+            </div>
+            <p v-else class="text-[12px] text-subtle">No API keys yet.</p>
           </section>
 
           <section class="p-6 flex items-center justify-between gap-4">
