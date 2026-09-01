@@ -4,6 +4,7 @@ pub mod auth;
 pub mod transaction;
 pub mod transfer;
 pub mod user;
+pub mod user_key;
 pub mod rule;
 pub mod transfer_rule;
 pub mod fifo;
