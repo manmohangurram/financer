@@ -10,6 +10,7 @@ pub mod rule;
 pub mod settings;
 pub mod transaction;
 pub mod transfer;
+pub mod user_key;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
@@ -27,6 +28,7 @@ use crate::http::rule::routes as rule_routes;
 use crate::http::settings::routes as settings_routes;
 use crate::http::transaction::routes as transaction_routes;
 use crate::http::transfer::routes as transfer_routes;
+use crate::http::user_key::routes as user_key_routes;
 use crate::service::account::AccountService;
 use crate::service::investment::InvestmentService;
 use crate::service::category::CategoryService;
@@ -36,11 +38,13 @@ use crate::service::auth::{AuthService, LoginRequest, RefreshTokenRequest, Signu
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
 use crate::service::user::UserService;
+use crate::service::user_key::UserKeyService;
 
 #[derive(Clone)]
 pub struct AppState {
     pub auth: AuthService,
     pub user: UserService,
+    pub user_key: UserKeyService,
     pub account: AccountService,
     pub investment: InvestmentService,
     pub category: CategoryService,
@@ -68,6 +72,7 @@ pub fn router(state: AppState) -> Router {
         .merge(transaction_routes())
         .merge(transfer_routes())
         .merge(settings_routes())
+        .merge(user_key_routes())
         .route("/avatars/{name}", get(avatar_file))
         .fallback(spa)
         .with_state(state)

@@ -1,8 +1,5 @@
 //! `SurrealDB` per-user API-keys repository, implementing
 //! `crate::repo::traits::UserKeyRepo`.
-//!
-//! The service stage wires this in; dead-code is allowed until then.
-#![allow(dead_code)]
 
 use surrealdb::Connection;
 

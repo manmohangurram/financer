@@ -11,7 +11,7 @@ use sqlx::SqlitePool;
 
 use crate::error::Result;
 use crate::repo::surreal;
-use crate::repo::traits::{AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserRepo};
+use crate::repo::traits::{AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo};
 
 /// All repositories, type-erased so the service layer is backend-agnostic.
 pub struct RepoSet {
@@ -21,6 +21,7 @@ pub struct RepoSet {
     pub rule: Arc<dyn RuleRepo>,
     pub investment: Arc<dyn InvestmentRepo>,
     pub transaction: Arc<dyn TransactionRepo>,
+    pub user_key: Arc<dyn UserKeyRepo>,
 }
 
 /// Build the repo set for the `SurrealDB` backend.
@@ -41,6 +42,7 @@ pub async fn surreal_repo_set(
         rule: Arc::new(surreal::rule::RuleRepo::new(c.clone())),
         investment: Arc::new(surreal::investment::InvestmentRepo::new(c.clone())),
         transaction: Arc::new(surreal::transaction::TransactionRepo::new(c.clone())),
+        user_key: Arc::new(surreal::user_key::UserKeyRepo::new(c.clone())),
     })
 }
 
@@ -56,7 +58,8 @@ pub async fn sqlite_repo_set(db_path: &str) -> Result<RepoSet> {
         category: Arc::new(crate::repo::sqlite::category::SqliteCategoryRepo::new(pool.clone())),
         rule: Arc::new(crate::repo::sqlite::rule::SqliteRuleRepo::new(pool.clone())),
         investment: Arc::new(crate::repo::sqlite::investment::SqliteInvestmentRepo::new(pool.clone())),
-        transaction: Arc::new(crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool)),
+        transaction: Arc::new(crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool.clone())),
+        user_key: Arc::new(crate::repo::sqlite::user_key::SqliteUserKeyRepo::new(pool)),
     })
 }
 
