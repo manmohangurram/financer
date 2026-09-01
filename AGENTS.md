@@ -5,7 +5,7 @@ Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue
 ## Documentation Index
 
 - **Commands & verification** — [skills/COMMANDS.md](skills/COMMANDS.md)
-- **Skills routing table** — [skills/SKILLS.md](skills/SKILLS.md)
+- **For skill routing & stack/PR workflows** — see the global pi skills (`~/.pi/agent/skills/`) as needed
 - **Architecture** (request flow, layering, API types, rule engine, server aggregation, frontend client, data scoping) — [architecture/REQUEST_FLOW.md](architecture/REQUEST_FLOW.md), [architecture/LAYERING.md](architecture/LAYERING.md), [architecture/API_TYPES.md](architecture/API_TYPES.md), [architecture/RULE_ENGINE.md](architecture/RULE_ENGINE.md), [architecture/SERVER_AGGREGATION.md](architecture/SERVER_AGGREGATION.md), [architecture/FRONTEND_CLIENT.md](architecture/FRONTEND_CLIENT.md), [architecture/DATA_SCOPING.md](architecture/DATA_SCOPING.md)
 - **Frontend structure** — [architecture/FRONTEND_STRUCTURE.md](architecture/FRONTEND_STRUCTURE.md)
 - **Rust naming conventions** — [architecture/NAMING_CONVENTIONS.md](architecture/NAMING_CONVENTIONS.md)
