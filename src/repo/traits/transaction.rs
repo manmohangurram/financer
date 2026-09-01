@@ -73,7 +73,7 @@ pub struct ListTransactionResult {
 }
 
 /// A listed row: the transaction plus its transfer link id and category ids.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListRow {
     #[serde(flatten)]

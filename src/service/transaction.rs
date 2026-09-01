@@ -350,7 +350,7 @@ fn failed_ids(errs: &[String]) -> HashSet<String> {
 
 // `total_` prefix matches the wire keys (totalBalance, ...).
 #[allow(clippy::struct_field_names)]
-#[derive(ToSchema)]
+#[derive(ToSchema, serde::Serialize)]
 #[schema(rename_all = "camelCase")]
 pub struct Dashboard {
     pub total_balance: f64,
