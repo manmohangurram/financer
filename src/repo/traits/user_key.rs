@@ -1,15 +1,13 @@
 //! Shares user-key types + the backend-agnostic `UserKeyRepo` trait.
-//!
-//! The service stage wires this in; dead-code is allowed until then.
-#![allow(dead_code)]
 
 use async_trait::async_trait;
 
 use crate::error::Result;
 
 /// A per-user API key row (masked view for the UI; never contains the secret).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct UserKeyRow {
     pub id: String,
     pub name: String,

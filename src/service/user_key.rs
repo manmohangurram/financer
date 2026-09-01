@@ -19,8 +19,9 @@ const KEY_PREFIX: &str = "fin_live_";
 
 /// A key returned to the UI: the masked row, plus the plaintext key on the
 /// create response only (never stored or re-displayed).
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
 pub struct UserKeyView {
     pub id: String,
     pub name: String,

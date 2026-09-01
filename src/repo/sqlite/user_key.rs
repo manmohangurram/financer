@@ -1,8 +1,5 @@
 //! `SQLite` per-user API-keys repository, implementing
 //! `crate::repo::traits::UserKeyRepo` over an `sqlx::SqlitePool`.
-//!
-//! The service stage wires this in; dead-code is allowed until then.
-#![allow(dead_code)]
 
 use async_trait::async_trait;
 use sqlx::SqlitePool;

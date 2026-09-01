@@ -30,6 +30,7 @@ use crate::service::auth::AuthService;
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
 use crate::service::user::UserService;
+use crate::service::user_key::UserKeyService;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
 
     let auth_svc = AuthService::new(repo.clone(), jwt.clone());
     let user_svc = UserService::new(repo, jwt.clone(), cfg.data_dir.join("avatars"));
+    let user_key_svc = UserKeyService::new(repo_set.user_key.clone());
     let account_svc = AccountService::new(account_repo.clone());
     let category_svc = CategoryService::new(category_repo.clone());
     let investment_svc = InvestmentService::new(investment_repo, YahooClient::new()?);
@@ -74,6 +76,7 @@ async fn main() -> anyhow::Result<()> {
     let state = http::AppState {
         auth: auth_svc,
         user: user_svc,
+        user_key: user_key_svc,
         account: account_svc,
         investment: investment_svc,
         category: category_svc,
