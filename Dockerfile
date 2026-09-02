@@ -11,7 +11,7 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
 # Same-origin by default; an absolute API base can be injected at runtime via
-# the FINANCER_DOMAIN_URL env (read by the Rust server, not baked at build).
+# the server.domain_url config.toml setting (not baked at build).
 RUN VITE_API_URL= npm run build
 
 # We only pay the cargo-chef install cost once (cached from the second build).
@@ -63,16 +63,10 @@ COPY --from=builder /out/financer ./financer
 # SurrealDB is a separate server (see docker-compose.yml); the app connects
 # over HTTP-RPC. Schema (define_tables) is applied at boot from the binary.
 # Build args override the defaults — the GitHub Actions workflow injects the
-# repo variables/secrets (FINANCER_SURREAL_*), keeping secrets out of the image.
-ARG FINANCER_SURREAL_URL=127.0.0.1:8000
-ARG FINANCER_SURREAL_USER=root
-ARG FINANCER_SURREAL_PASS=root
-ARG FINANCER_SURREAL_NS=financer
-ARG FINANCER_SURREAL_DB=financer
-ENV FINANCER_ADDR=0.0.0.0:8080 FINANCER_DATA_DIR=/data FINANCER_DOMAIN_URL= FINANCER_STATIC_DIR=/app/frontend/dist \
-    FINANCER_SURREAL_URL=$FINANCER_SURREAL_URL FINANCER_SURREAL_USER=$FINANCER_SURREAL_USER \
-    FINANCER_SURREAL_PASS=$FINANCER_SURREAL_PASS FINANCER_SURREAL_NS=$FINANCER_SURREAL_NS \
-    FINANCER_SURREAL_DB=$FINANCER_SURREAL_DB
+# Config comes from the mounted /data/config/config.toml (see config.example.toml).
+# FINANCER_CONFIG points the app at it. All other settings (addr, data_dir,
+# static_dir, database, yahoo) are read from that config file.
+ENV FINANCER_CONFIG=/data/config/config.toml
 EXPOSE 8080
 VOLUME ["/data"]
 ENTRYPOINT ["/app/financer"]

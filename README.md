@@ -27,7 +27,7 @@ All finance math (aggregation, filtering, transfer resolution, FIFO) lives in th
 
 ```bash
 # Backend (from repo root)
-cargo run                 # starts API on :8080; connects to SurrealDB at FINANCER_SURREAL_URL (schema applied at boot)
+cargo run                 # starts API on :8080; config from config.toml (schema applied at boot)
 
 # Frontend
 cd frontend
@@ -39,24 +39,26 @@ npm test                  # vitest
 
 Open `http://localhost:5173` and sign in.
 
-## Configuration (env vars)
+## Configuration (config.toml)
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `FINANCER_DATA_DIR` | `data` | Root for runtime data: `config/`, `certs/`, `avatars/` subfolders |
-| `FINANCER_DOMAIN_URL` | — | External domain the app is served at (e.g. `https://financer.local`); injected into the frontend as the API base — empty/omitted → same-origin |
-| `FINANCER_SURREAL_URL` | `127.0.0.1:8000` | SurrealDB server (HTTP-RPC) |
-| `FINANCER_SURREAL_USER` | `root` | SurrealDB root user |
-| `FINANCER_SURREAL_PASS` | `root` | SurrealDB root password |
-| `FINANCER_SURREAL_NS` | `financer` | SurrealDB namespace |
-| `FINANCER_SURREAL_DB` | `financer` | SurrealDB database |
-| `FINANCER_JWT_SECRET` | — | JWT signing secret (set in production) |
-| `FINANCER_ADDR` | `:8080` | API listen address |
-| `FINANCER_STATIC_DIR` | `frontend/dist` | Built frontend served at `/`; omit/absent → API-only (dev) |
-| `FINANCER_YAHOO_CONFIG` | `<DATA_DIR>/config/yahoo.json` | Yahoo endpoints; bundled default copied there on first run |
-| `FINANCER_TLS_CERT` / `FINANCER_TLS_KEY` | `<DATA_DIR>/certs/{cert,key}.pem` | Enable HTTP/3 (QUIC) when present |
-| `FINANCER_QUOTE_REFRESH_INTERVAL` | `30m` | Background quote refresh |
-| `FINANCER_HISTORY_REFRESH_INTERVAL` | `30m` | Background price-history refresh |
+All runtime config comes from `/data/config/config.toml` (on the mounted `/data`
+volume). It is auto-generated on first run with sensible defaults (SQLite, no
+LLM, a 64-char random `jwt_secret`). See [`config.example.toml`](config.example.toml)
+for the full template and comments.
+
+Key sections:
+
+| Section | Purpose |
+|---|---|
+| `[server]` | `addr`, `data_dir`, `static_dir`, `domain_url`, `jwt_secret` (auto 64-char if empty) |
+| `[storage]` | `database` = `"sqlite"` \| `"surreal"` |
+| `[storage.sqlite]` | `path`, `journal_mode`, `synchronous`, `busy_timeout_ms`, `foreign_keys`, `page_size`, pool sizes |
+| `[storage.surreal]` | `url`, `user`, `pass`, `ns`, `db` |
+| `[yahoo]` | `bases`, `chart`, `search` (Yahoo endpoint templates) |
+
+At container runtime, set `FINANCER_CONFIG=/data/config/config.toml` (the image
+does this by default) and mount a `/data` volume. `config.toml` may hold
+secrets (the `jwt_secret`), so it is gitignored — commit only `config.example.toml`.
 
 Frontend API URL: `VITE_API_URL` (default `http://localhost:8080`, see `frontend/.env.example`).
 
@@ -131,9 +133,10 @@ mkdir -p ~/financer/data
 
 docker run -d --name financer --restart unless-stopped \
   -p 8080:8080 \
-  -e FINANCER_JWT_SECRET=change-me \
   -v ~/financer/data:/data \
   ghcr.io/manmohangurram/financer:latest
+# Create ~/financer/data/config/config.toml from config.example.toml (or let the
+# app auto-generate it). The image reads FINANCER_CONFIG=/data/config/config.toml.
 ```
 
 > Optionally, you can make **only the package** public (github.com → your profile → *Packages* → *Financer* → *Package settings* → *Change visibility* → **Public**) while keeping the repo private — then the Pi can pull without a PAT. This only exposes the built image, never the source code.
@@ -143,7 +146,7 @@ Open `http://<pi-ip>:8080` and sign up.
 **Data layout** — everything persists under the volume mount (`/data`):
 
 - SurrealDB runs as a separate server (see `docker-compose.yml`); data lives in its own volume
-- `config/yahoo.json` — Yahoo endpoint bases (auto-copied on first run; edit to add/swap bases)
+- `[yahoo]` in config.toml — Yahoo endpoint bases + chart/search templates (edit to add/swap bases)
 - `certs/cert.pem` + `certs/key.pem` — optional HTTP/3 (QUIC) TLS pair
 - `avatars/` — uploaded profile pictures
 

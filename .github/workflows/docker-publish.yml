@@ -15,14 +15,6 @@ env:
   # Build platforms. Set the DOCKER_PLATFORMS repo variable to include arm64
   # (e.g. "linux/arm64,linux/amd64"); defaults to amd64 when unset.
   PLATFORMS: ${{ vars.DOCKER_PLATFORMS || 'linux/amd64' }}
-  # SurrealDB connection baked into the image at build time. Keep these as
-  # repo variables (or secrets for the password) — the Dockerfile ARGs default
-  # to local-dev values when unset.
-  SURREAL_URL: ${{ vars.FINANCER_SURREAL_URL || '127.0.0.1:8000' }}
-  SURREAL_USER: ${{ vars.FINANCER_SURREAL_USER || 'root' }}
-  SURREAL_PASS: ${{ secrets.FINANCER_SURREAL_PASS || 'root' }}
-  SURREAL_NS: ${{ vars.FINANCER_SURREAL_NS || 'financer' }}
-  SURREAL_DB: ${{ vars.FINANCER_SURREAL_DB || 'financer' }}
 
 jobs:
   build-and-push:
@@ -67,11 +59,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            FINANCER_SURREAL_URL=${{ env.SURREAL_URL }}
-            FINANCER_SURREAL_USER=${{ env.SURREAL_USER }}
-            FINANCER_SURREAL_PASS=${{ env.SURREAL_PASS }}
-            FINANCER_SURREAL_NS=${{ env.SURREAL_NS }}
-            FINANCER_SURREAL_DB=${{ env.SURREAL_DB }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
