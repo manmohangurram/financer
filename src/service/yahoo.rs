@@ -3,18 +3,8 @@
 
 use serde::Deserialize;
 
+use crate::config::YahooConfigSection;
 use crate::repo::traits::investment::InvestmentType;
-
-#[derive(Debug, Deserialize)]
-struct YahooConfig {
-    bases: Vec<String>,
-    chart: String,
-    search: String,
-}
-
-fn config_path() -> String {
-    std::env::var("FINANCER_YAHOO_CONFIG").unwrap_or_else(|_| "config/yahoo.json".to_string())
-}
 
 /// A quote for one symbol.
 #[derive(Debug, Clone, Copy)]
@@ -46,16 +36,14 @@ pub struct YahooClient {
 }
 
 impl YahooClient {
-    pub fn new() -> anyhow::Result<Self> {
-        let raw = std::fs::read_to_string(config_path())?;
-        let cfg: YahooConfig = serde_json::from_str(&raw)?;
+    pub fn new(cfg: &YahooConfigSection) -> anyhow::Result<Self> {
         if cfg.bases.is_empty() || cfg.chart.is_empty() || cfg.search.is_empty() {
             anyhow::bail!("yahoo config: bases, chart, and search are required");
         }
         Ok(Self {
-            bases: cfg.bases,
-            chart: cfg.chart,
-            search: cfg.search,
+            bases: cfg.bases.clone(),
+            chart: cfg.chart.clone(),
+            search: cfg.search.clone(),
             http: reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build()?,
         })
     }

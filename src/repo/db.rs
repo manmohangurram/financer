@@ -47,10 +47,10 @@ pub async fn surreal_repo_set(
 }
 
 /// Build the repo set for the `SQLite` backend (WAL, write + read pools).
-pub async fn sqlite_repo_set(db_path: &str) -> Result<RepoSet> {
-    let db = open_pools(Path::new(db_path)).await?;
+pub async fn sqlite_repo_set(cfg: &crate::config::Sqlite) -> Result<RepoSet> {
+    let db = open_pools(Path::new(&cfg.path), cfg).await?;
     run_migrations(&db.write).await?;
-    tracing::info!("connected to SQLite at {db_path}");
+    tracing::info!("connected to SQLite at {}", cfg.path);
     let pool = db.write.clone();
     Ok(RepoSet {
         user: Arc::new(crate::repo::sqlite::user::SqliteUserRepo::new(pool.clone())),
@@ -71,28 +71,51 @@ pub struct Db {
 }
 
 /// Open the write (single-conn) and read pools against the same `SQLite` file,
-/// mirroring Go's `OpenDBs`.
-pub async fn open_pools(db_path: &Path) -> anyhow::Result<Db> {
-    let base = SqliteConnectOptions::from_str(db_path.to_str().unwrap())
+/// applying the tuning from config.
+pub async fn open_pools(db_path: &Path, cfg: &crate::config::Sqlite) -> anyhow::Result<Db> {
+    let mut base = SqliteConnectOptions::from_str(db_path.to_str().unwrap())
         .unwrap()
-        .journal_mode(SqliteJournalMode::Wal)
-        .busy_timeout(Duration::from_secs(5))
-        .foreign_keys(true)
-        .synchronous(SqliteSynchronous::Normal);
+        .journal_mode(parse_journal_mode(&cfg.journal_mode))
+        .busy_timeout(Duration::from_millis(cfg.busy_timeout_ms))
+        .foreign_keys(cfg.foreign_keys)
+        .synchronous(parse_synchronous(&cfg.synchronous));
+    if cfg.page_size > 0 {
+        base = base.page_size(cfg.page_size);
+    }
 
     let write_opts = base.clone().create_if_missing(true);
     let write = SqlitePoolOptions::new()
-        .max_connections(1)
+        .max_connections(cfg.write_pool_size)
         .connect_with(write_opts)
         .await?;
 
     let read_opts = base.clone().read_only(true);
     let read = SqlitePoolOptions::new()
-        .max_connections(5)
+        .max_connections(cfg.read_pool_size)
         .connect_with(read_opts)
         .await?;
 
     Ok(Db { read, write })
+}
+
+fn parse_journal_mode(s: &str) -> SqliteJournalMode {
+    match s.to_lowercase().as_str() {
+        "delete" => SqliteJournalMode::Delete,
+        "truncate" => SqliteJournalMode::Truncate,
+        "persist" => SqliteJournalMode::Persist,
+        "memory" => SqliteJournalMode::Memory,
+        "off" => SqliteJournalMode::Off,
+        _ => SqliteJournalMode::Wal,
+    }
+}
+
+fn parse_synchronous(s: &str) -> SqliteSynchronous {
+    match s.to_lowercase().as_str() {
+        "off" => SqliteSynchronous::Off,
+        "full" => SqliteSynchronous::Full,
+        "extra" => SqliteSynchronous::Extra,
+        _ => SqliteSynchronous::Normal,
+    }
 }
 
 /// Apply pending migrations via sqlx's built-in migrator, tracking applied

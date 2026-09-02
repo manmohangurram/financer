@@ -1,0 +1,52 @@
+# Financer configuration.
+#
+# Copy this to /data/config/config.toml (or set FINANCER_CONFIG to a path).
+# On first run without a config, financer writes a default here automatically
+# (SQLite, no LLM, auto-generated jwt_secret).
+#
+# IMPORTANT: /data may contain the jwt_secret. Mount a volume and do NOT commit
+# the real config.toml — only this example.
+
+[server]
+addr = "0.0.0.0:8080"
+# Where runtime data lives. Also the base for the config file path when
+# FINANCER_CONFIG is unset: {data_dir}/config/config.toml
+data_dir = "/data"
+static_dir = "frontend/dist"
+domain_url = ""
+# 64-char secret. If left empty, a random one is generated on first run and
+# written into the file. Set it explicitly for a stable secret across restarts.
+jwt_secret = ""
+
+[storage]
+# "sqlite" | "surreal"
+backend = "sqlite"
+
+[storage.sqlite]
+path = "/data/financer.db"
+# "delete" | "truncate" | "persist" | "memory" | "wal" | "off"
+# NOTE: sqlx does not expose WAL2; "wal" is the recommended default.
+journal_mode = "wal"
+# "off" | "normal" | "full" | "extra"
+synchronous = "normal"
+busy_timeout_ms = 5000
+foreign_keys = true
+# Bytes; 0 = SQLite default (4096)
+page_size = 0
+write_pool_size = 1
+read_pool_size = 5
+
+[storage.surreal]
+url = "127.0.0.1:8000"
+user = "root"
+pass = "root"
+ns = "financer"
+db = "financer"
+
+[yahoo]
+bases = [
+  "https://query1.finance.yahoo.com",
+  "https://query2.finance.yahoo.com",
+]
+chart = "/v8/finance/chart/{symbol}?interval={interval}&period1={period1}&period2={period2}&includePrePost=true&events=div%7Csplit%7Cearn&lang=en-US&region=US&source=cosaic"
+search = "/v1/finance/search?q={query}&quotesCount=8&newsCount=0"
