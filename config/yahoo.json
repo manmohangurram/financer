@@ -1,8 +1,0 @@
-{
-  "bases": [
-    "https://query1.finance.yahoo.com",
-    "https://query2.finance.yahoo.com"
-  ],
-  "chart": "/v8/finance/chart/{symbol}?interval={interval}&period1={period1}&period2={period2}&includePrePost=true&events=div%7Csplit%7Cearn&lang=en-US&region=US&source=cosaic",
-  "search": "/v1/finance/search?q={query}&quotesCount=8&newsCount=0"
-}

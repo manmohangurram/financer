@@ -49,7 +49,7 @@ impl Default for Server {
 #[serde(default)]
 pub struct Storage {
     /// "sqlite" | "surreal"
-    pub backend: String,
+    pub database: String,
     pub sqlite: Sqlite,
     pub surreal: Surreal,
 }
@@ -57,7 +57,7 @@ pub struct Storage {
 impl Default for Storage {
     fn default() -> Self {
         Self {
-            backend: "sqlite".into(),
+            database: "sqlite".into(),
             sqlite: Sqlite::default(),
             surreal: Surreal::default(),
         }
@@ -118,7 +118,7 @@ impl Default for Surreal {
     }
 }
 
-/// The Yahoo Finance client config (moved from the old `config/yahoo.json`).
+/// The Yahoo Finance client config (from `[yahoo]` in config.toml).
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct YahooConfigSection {
@@ -140,9 +140,9 @@ impl Default for YahooConfigSection {
     }
 }
 
-/// Storage backend choice, derived from `Storage.backend`.
+/// Storage database choice, derived from `Storage.database`.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Backend {
+pub enum Database {
     Surreal,
     Sqlite,
 }
@@ -180,11 +180,11 @@ impl Config {
 
     // --- flattened accessors (keeps main.rs call sites stable) ---
 
-    pub fn backend(&self) -> Backend {
-        if self.storage.backend.eq_ignore_ascii_case("surreal") {
-            Backend::Surreal
+    pub fn database(&self) -> Database {
+        if self.storage.database.eq_ignore_ascii_case("surreal") {
+            Database::Surreal
         } else {
-            Backend::Sqlite
+            Database::Sqlite
         }
     }
 

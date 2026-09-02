@@ -20,7 +20,7 @@ jwt_secret = ""
 
 [storage]
 # "sqlite" | "surreal"
-backend = "sqlite"
+database = "sqlite"
 
 [storage.sqlite]
 path = "/data/financer.db"

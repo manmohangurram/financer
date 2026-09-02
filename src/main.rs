@@ -41,14 +41,14 @@ async fn main() -> anyhow::Result<()> {
     let cfg = Config::load()?;
     std::fs::create_dir_all(cfg.data_dir().join("avatars"))?;
 
-    // Build the repo set for the selected backend.
-    let repo_set: RepoSet = match cfg.backend() {
-        crate::config::Backend::Surreal => {
+    // Build the repo set for the selected database.
+    let repo_set: RepoSet = match cfg.database() {
+        crate::config::Database::Surreal => {
             surreal_repo_set(cfg.surreal_url(), cfg.surreal_user(), cfg.surreal_pass(), cfg.surreal_ns(), cfg.surreal_db())
                 .await
                 .map_err(|e| anyhow::anyhow!(e.message))?
         }
-        crate::config::Backend::Sqlite => sqlite_repo_set(cfg.sqlite()).await.map_err(|e| anyhow::anyhow!(e.message))?,
+        crate::config::Database::Sqlite => sqlite_repo_set(cfg.sqlite()).await.map_err(|e| anyhow::anyhow!(e.message))?,
     };
 
     let jwt = Jwt::new(cfg.jwt_secret().to_string());
