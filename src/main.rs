@@ -39,19 +39,19 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = Config::load()?;
-    std::fs::create_dir_all(cfg.data_dir().join("avatars"))?;
+    std::fs::create_dir_all(cfg.server.data_dir.join("avatars"))?;
 
     // Build the repo set for the selected database.
     let repo_set: RepoSet = match cfg.database() {
         crate::config::Database::Surreal => {
-            surreal_repo_set(cfg.surreal_url(), cfg.surreal_user(), cfg.surreal_pass(), cfg.surreal_ns(), cfg.surreal_db())
+            surreal_repo_set(&cfg.storage.surreal.url, &cfg.storage.surreal.user, &cfg.storage.surreal.pass, &cfg.storage.surreal.ns, &cfg.storage.surreal.db)
                 .await
                 .map_err(|e| anyhow::anyhow!(e.message))?
         }
-        crate::config::Database::Sqlite => sqlite_repo_set(cfg.sqlite()).await.map_err(|e| anyhow::anyhow!(e.message))?,
+        crate::config::Database::Sqlite => sqlite_repo_set(&cfg.storage.sqlite).await.map_err(|e| anyhow::anyhow!(e.message))?,
     };
 
-    let jwt = Jwt::new(cfg.jwt_secret().to_string());
+    let jwt = Jwt::new(cfg.server.jwt_secret.clone());
     let repo = repo_set.user.clone();
     let account_repo = repo_set.account.clone();
     let category_repo = repo_set.category.clone();
@@ -62,11 +62,11 @@ async fn main() -> anyhow::Result<()> {
     let account_repo_clone = account_repo.clone();
 
     let auth_svc = AuthService::new(repo.clone(), jwt.clone());
-    let user_svc = UserService::new(repo, jwt.clone(), cfg.data_dir().join("avatars"));
+    let user_svc = UserService::new(repo, jwt.clone(), cfg.server.data_dir.join("avatars"));
     let user_key_svc = UserKeyService::new(repo_set.user_key.clone());
     let account_svc = AccountService::new(account_repo.clone());
     let category_svc = CategoryService::new(category_repo.clone());
-    let investment_svc = InvestmentService::new(investment_repo, YahooClient::new(cfg.yahoo())?);
+    let investment_svc = InvestmentService::new(investment_repo, YahooClient::new(&cfg.yahoo)?);
     let rule_svc = RuleService::new(rule_repo.clone(), category_repo.clone(), transaction_repo.clone());
     let transfer_rule_svc = TransferRuleService::new(rule_repo, transaction_repo_clone.clone(), account_repo_clone.clone());
     let transaction_svc = TransactionService::new(transaction_repo.clone(), account_repo.clone(), category_repo.clone())
@@ -85,16 +85,16 @@ async fn main() -> anyhow::Result<()> {
         transaction: transaction_svc,
         transfer: transfer_svc,
         jwt,
-        static_dir: cfg.static_dir().to_string_lossy().into_owned(),
-        avatar_dir: cfg.data_dir().join("avatars").to_string_lossy().into_owned(),
-        domain_url: cfg.domain_url().to_string(),
+        static_dir: cfg.server.static_dir.to_string_lossy().into_owned(),
+        avatar_dir: cfg.server.data_dir.join("avatars").to_string_lossy().into_owned(),
+        domain_url: cfg.server.domain_url.clone(),
     };
 
     let app = http::router(state)
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()).layer(CorsLayer::permissive()));
 
-    let listener = tokio::net::TcpListener::bind(cfg.addr()).await?;
-    tracing::info!("Financer Rust server listening on {}", cfg.addr());
+    let listener = tokio::net::TcpListener::bind(&cfg.server.addr).await?;
+    tracing::info!("Financer Rust server listening on {}", cfg.server.addr);
     axum::serve(listener, app).await?;
     Ok(())
 }

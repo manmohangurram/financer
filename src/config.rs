@@ -15,6 +15,23 @@ pub fn default_config_path() -> PathBuf {
     PathBuf::from("/data/config/config.toml")
 }
 
+/// Find the config path to read: honour `FINANCER_CONFIG` if set (tests/dev),
+/// else `{data_dir}/config/config.toml` with `/data` default.
+fn config_path_for_read() -> PathBuf {
+    std::env::var("FINANCER_CONFIG")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map_or_else(default_config_path, PathBuf::from)
+}
+
+/// Generate a 64-character random alphanumeric secret.
+pub fn generate_secret() -> String {
+    use rand::Rng;
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::thread_rng();
+    (0..64).map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char).collect()
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct Config {
@@ -27,7 +44,7 @@ pub struct Config {
 #[serde(default)]
 pub struct Server {
     pub addr: String,
-    pub data_dir: String,
+    pub data_dir: PathBuf,
     pub static_dir: PathBuf,
     pub domain_url: String,
     pub jwt_secret: String,
@@ -178,8 +195,7 @@ impl Config {
         Ok(())
     }
 
-    // --- flattened accessors (keeps main.rs call sites stable) ---
-
+    /// Choose the database from `[storage] database` value.
     pub fn database(&self) -> Database {
         if self.storage.database.eq_ignore_ascii_case("surreal") {
             Database::Surreal
@@ -188,57 +204,4 @@ impl Config {
         }
     }
 
-    pub fn addr(&self) -> &str {
-        &self.server.addr
-    }
-    pub fn data_dir(&self) -> &Path {
-        Path::new(&self.server.data_dir)
-    }
-    pub fn jwt_secret(&self) -> &str {
-        &self.server.jwt_secret
-    }
-    pub fn static_dir(&self) -> &Path {
-        &self.server.static_dir
-    }
-    pub fn domain_url(&self) -> &str {
-        &self.server.domain_url
-    }
-    pub fn sqlite(&self) -> &Sqlite {
-        &self.storage.sqlite
-    }
-    pub fn surreal_url(&self) -> &str {
-        &self.storage.surreal.url
-    }
-    pub fn surreal_user(&self) -> &str {
-        &self.storage.surreal.user
-    }
-    pub fn surreal_pass(&self) -> &str {
-        &self.storage.surreal.pass
-    }
-    pub fn surreal_ns(&self) -> &str {
-        &self.storage.surreal.ns
-    }
-    pub fn surreal_db(&self) -> &str {
-        &self.storage.surreal.db
-    }
-    pub fn yahoo(&self) -> &YahooConfigSection {
-        &self.yahoo
-    }
-}
-
-/// Find the config path to read: honour `FINANCER_CONFIG` if set (tests/dev),
-/// else `{data_dir}/config/config.toml` with `/data` default.
-fn config_path_for_read() -> PathBuf {
-    std::env::var("FINANCER_CONFIG")
-        .ok()
-        .filter(|v| !v.is_empty())
-        .map_or_else(default_config_path, PathBuf::from)
-}
-
-/// Generate a 64-character random alphanumeric secret.
-pub fn generate_secret() -> String {
-    use rand::Rng;
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
-    (0..64).map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char).collect()
 }
