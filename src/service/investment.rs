@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::error::{ApiError, Result};
-use crate::repo::traits::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRow, InvestmentType, Lot, LotInput};
+use crate::repo::traits::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRow, InvestmentType, Lot, LotInput, LotRow};
 use crate::repo::traits::InvestmentRepo;
 use crate::service::fifo::{compute_fifo, FifoLot, Position};
 use crate::service::yahoo::{PricePoint, YahooClient};
@@ -27,12 +27,16 @@ impl InvestmentService {
     /// Compute FIFO position, current value, and unrealized P&L.
     async fn position_for(&self, user_id: &str, inst: &InvestmentRow) -> Result<(Position, f64, f64)> {
         let lots = self.repo.list_lots(user_id, &inst.id).await?;
+        Ok(Self::position_from_lots(inst, &lots))
+    }
+
+    fn position_from_lots(inst: &InvestmentRow, lots: &[LotRow]) -> (Position, f64, f64) {
         let fifo: Vec<FifoLot> = lots.iter().map(|l| FifoLot { side: l.side, quantity: l.quantity, price: l.price }).collect();
         let pos = compute_fifo(&fifo);
         let price = effective_price(inst);
         let current_value = pos.quantity * price;
         let unrealized = (price - pos.avg_cost) * pos.quantity;
-        Ok((pos, current_value, unrealized))
+        (pos, current_value, unrealized)
     }
 
     async fn with_position(&self, user_id: &str, inst: &InvestmentRow) -> Result<Investment> {
@@ -215,9 +219,16 @@ impl InvestmentService {
 
     pub async fn portfolio_summary(&self, user_id: &str) -> Result<PortfolioSummary> {
         let instruments = self.repo.list_investments(user_id).await?;
+        // Batch-fetch all lots once (avoids N+1 per-investment queries).
+        let all_lots = self.repo.list_lots_by_user(user_id).await?;
+        let mut lots_by_inv: std::collections::HashMap<String, Vec<LotRow>> = std::collections::HashMap::new();
+        for l in all_lots {
+            lots_by_inv.entry(l.investment_id.clone()).or_default().push(l);
+        }
         let mut summary = PortfolioSummary::default();
         for inst in &instruments {
-            let (pos, current_value, _) = self.position_for(user_id, inst).await?;
+            let lots = lots_by_inv.get(&inst.id).map_or(&[][..], |v| v.as_slice());
+            let (pos, current_value, _) = Self::position_from_lots(inst, lots);
             let price = effective_price(inst);
             summary.total_invested += pos.cost_basis;
             summary.total_current_value += current_value;
