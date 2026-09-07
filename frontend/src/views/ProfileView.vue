@@ -24,6 +24,7 @@ const password = ref({ currentPassword: '', newPassword: '' });
 const keys = ref<any[]>([]);
 const newKeyName = ref('');
 const newKeyDays = ref(0);
+const newKeyScope = ref('read');
 const newKeyResult = ref('');
 const keyNotice = ref('');
 const keyError = ref('');
@@ -46,11 +47,13 @@ async function createKey() {
   try {
     const resp = await apiKeys().createKey({
       name: newKeyName.value,
-      expiresInDays: newKeyDays.value
+      expiresInDays: newKeyDays.value,
+      scope: newKeyScope.value
     });
     newKeyResult.value = resp?.key || '';
     newKeyName.value = '';
     newKeyDays.value = 0;
+    newKeyScope.value = 'read';
     await loadKeys();
   } catch (e: any) {
     keyError.value = e?.message || 'Failed to create API key';
@@ -306,6 +309,13 @@ onMounted(() => {
             <div class="flex items-end gap-3">
               <AppInput v-model="newKeyName" label="Name" placeholder="e.g. Claude Desktop" class="flex-1" />
               <AppInput v-model="newKeyDays" label="Expires (days, 0=never)" type="number" min="0" class="w-40" />
+              <label class="form-control w-40">
+                <span class="label-text text-[12px] text-subtle">Scope</span>
+                <select v-model="newKeyScope" class="select select-bordered select-sm">
+                  <option value="read">Read</option>
+                  <option value="read_write">Read + write</option>
+                </select>
+              </label>
               <button class="btn btn-primary btn-sm gap-1.5" :disabled="savingKey" @click="createKey">
                 <Loader2 v-if="savingKey" class="w-4 h-4 animate-spin" />
                 <Plus v-else class="w-4 h-4" />

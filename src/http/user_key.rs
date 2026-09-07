@@ -25,6 +25,8 @@ pub struct ReqCreateKey {
     #[serde(default)]
     #[serde(rename = "expiresInDays")]
     expires_in_days: i64,
+    #[serde(default)]
+    scope: String,
 }
 
 #[utoipa::path(
@@ -67,7 +69,7 @@ pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.user_key.create(&uid, &req.name, req.expires_in_days).await {
+    match st.user_key.create(&uid, &req.name, req.expires_in_days, &req.scope).await {
         Ok(r) => (StatusCode::CREATED, Json(r)).into_response(),
         Err(e) => e.into_response(),
     }
