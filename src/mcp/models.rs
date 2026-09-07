@@ -154,3 +154,21 @@ pub struct CreateTransferCounterpartReq {
     pub to_account_id: String,
 }
 
+/// Preview a rule payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewRuleReq {
+    #[serde(default)]
+    pub logic: crate::repo::traits::rule::RuleLogic,
+    #[serde(default)]
+    pub conditions: Vec<crate::repo::traits::rule::RuleCondition>,
+    #[serde(default)]
+    pub limit: i64,
+}
+
+/// Run a rule by id payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct RunRuleReq {
+    pub id: String,
+}
+

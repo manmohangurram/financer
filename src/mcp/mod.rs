@@ -21,12 +21,13 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
 
 use crate::http::AppState;
-use crate::mcp::models::{CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, RuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
+use crate::mcp::models::{CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
 use crate::service::rule::RuleService;
+use crate::service::transfer_rule::TransferRuleService;
 use crate::service::transaction::{TransactionReq, TransactionService};
 use crate::service::transfer::TransferService;
 use crate::service::user_key::UserKeyService;
@@ -59,6 +60,7 @@ pub struct FinancerHandler {
     pub investment: Arc<InvestmentService>,
     pub rule: Arc<RuleService>,
     pub transfer: Arc<TransferService>,
+    pub transfer_rule: Arc<TransferRuleService>,
 }
 
 impl FinancerHandler {
@@ -69,6 +71,7 @@ impl FinancerHandler {
         investment: Arc<InvestmentService>,
         rule: Arc<RuleService>,
         transfer: Arc<TransferService>,
+        transfer_rule: Arc<TransferRuleService>,
     ) -> Self {
         Self {
             account,
@@ -77,6 +80,7 @@ impl FinancerHandler {
             investment,
             rule,
             transfer,
+            transfer_rule,
         }
     }
 
@@ -367,6 +371,36 @@ impl FinancerHandler {
             Err(e) => err_json(e.message),
         }
     }
+
+    #[tool(description = "Preview which transactions match a rule (no mutation). Example args: {\"logic\":\"AND\",\"conditions\":[{\"matchField\":\"NAME\",\"operator\":\"CONTAINS\",\"pattern\":\"swiggy\"}]}.")]
+    async fn preview_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<PreviewRuleReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        match self.rule.preview(&uid, req.logic, &req.conditions, req.limit).await {
+            Ok(views) => {
+                let items: Vec<_> = views.iter().map(|v| serde_json::json!({ "name": v.name, "amount": v.amount, "type": v.transaction_type.to_string(), "accountId": v.account_id, "categoryIds": v.category_ids })).collect();
+                serde_json::json!({ "transactions": items }).to_string()
+            }
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Run a rule against existing transactions (applies it). Example args: {\"id\":\"<rule-id>\"}.")]
+    async fn run_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<RunRuleReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot run rules");
+        }
+        match self.transfer_rule.run_rule(&uid, &req.id).await {
+            Ok(r) => serde_json::json!({ "matched": r.matched, "linked": r.linked, "created": r.created }).to_string(),
+            Err(e) => err_json(e.message),
+        }
+    }
 }
 
 /// Read the injected `KeyScope` and whether writes are allowed.
@@ -411,6 +445,7 @@ pub fn mcp_router(st: &AppState) -> Router<()> {
         Arc::new(st.investment.clone()),
         Arc::new(st.rule.clone()),
         Arc::new(st.transfer.clone()),
+        Arc::new(st.transfer_rule.clone()),
     );
     let service = StreamableHttpService::new(
         move || Ok(handler.clone()),
