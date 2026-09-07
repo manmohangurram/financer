@@ -35,3 +35,7 @@ graphify-out/
 .superpowers/
 docs/superpowers/
 *.deb
+
+# Runtime config (may hold secrets) — use config.example.toml for the template
+config.toml
+/data/

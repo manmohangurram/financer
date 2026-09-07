@@ -59,8 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY --from=builder /out/financer ./financer
-# Yahoo endpoint config (bases/chart/search templates).
-COPY config ./config
+# Yahoo endpoint config now comes from config.toml ([yahoo]), not a file.
 # SurrealDB is a separate server (see docker-compose.yml); the app connects
 # over HTTP-RPC. Schema (define_tables) is applied at boot from the binary.
 # Build args override the defaults — the GitHub Actions workflow injects the
