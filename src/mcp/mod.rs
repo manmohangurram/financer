@@ -21,7 +21,7 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
 
 use crate::http::AppState;
-use crate::mcp::models::{CreateCategoryReq, CreateTransactionsReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, RuleReq, TxnPayload, UpdateRuleReq, UpdateTransactionsReq};
+use crate::mcp::models::{CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, RuleReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
@@ -269,6 +269,51 @@ impl FinancerHandler {
         }
         match self.transaction.delete(&uid, &req.ids).await {
             Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Create an account. Example args: {\"bankName\":\"Chase\",\"type\":\"CURRENT\"}.")]
+    async fn create_account(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateAccountReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot create accounts");
+        }
+        match self.account.create(&uid, &req.bank_name, &req.nickname, req.account_type).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Update an account by id. Example args: {\"id\":\"<id>\",\"bankName\":\"Chase Blue\"}.")]
+    async fn update_account(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<UpdateAccountReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot update accounts");
+        }
+        match self.account.update(&uid, &req.id, &req.bank_name, &req.nickname, req.account_type).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Delete an account by id. Example args: {\"id\":\"<id>\"}.")]
+    async fn delete_account(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot delete accounts");
+        }
+        match self.account.delete(&uid, &req.id).await {
+            Ok(()) => serde_json::json!({"ok": true}).to_string(),
             Err(e) => err_json(e.message),
         }
     }

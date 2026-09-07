@@ -100,3 +100,27 @@ pub struct DeleteTransactionsReq {
     pub ids: Vec<String>,
 }
 
+/// Create account payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateAccountReq {
+    pub bank_name: String,
+    #[serde(default)]
+    pub nickname: String,
+    #[serde(rename = "type")]
+    pub account_type: crate::repo::traits::account::AccountType,
+}
+
+/// Update account payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAccountReq {
+    pub id: String,
+    #[serde(default)]
+    pub bank_name: String,
+    #[serde(default)]
+    pub nickname: String,
+    #[serde(rename = "type")]
+    pub account_type: crate::repo::traits::account::AccountType,
+}
+
