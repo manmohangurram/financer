@@ -6,7 +6,6 @@ pub mod account;
 pub mod analytics;
 pub mod category;
 pub mod investment;
-pub mod mcp;
 pub mod rule;
 pub mod settings;
 pub mod transaction;
@@ -60,7 +59,7 @@ pub struct AppState {
 }
 
 pub fn router(state: AppState) -> Router {
-    let mcp = crate::http::mcp::mcp_router(&state).with_state(());
+    let mcp = crate::mcp::mcp_router(&state).with_state(());
     Router::new()
         .route("/api/auth/signup", axum::routing::post(signup))
         .route("/api/auth/login", axum::routing::post(login))

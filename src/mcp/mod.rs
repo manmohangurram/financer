@@ -1,9 +1,12 @@
-//! MCP server (read-only) — exposes financer data to external AI agents over
-//! the Model Context Protocol. Mounted as a streamable-HTTP server at `/mcp`.
-//! Auth uses the per-user API key from the `Authorization` header; the
-//! authenticated `user_id` is injected into the request extensions and read by
-//! each tool method (per-request, no shared mutable state).
+//! MCP server — exposes financer data to external AI agents over the Model
+//! Context Protocol. Mounted as a streamable-HTTP server at `/mcp`. Read tools
+//! cover accounts/transactions/categories/investments; rule + category tools
+//! allow a client (e.g. an AI agent) to manage rules and categories. Auth uses
+//! the per-user API key from the `Authorization` header; the authenticated
+//! `user_id` is injected into the request extensions and read by each tool
+//! method (per-request, no shared mutable state).
 
+pub mod models;
 
 use std::sync::Arc;
 
@@ -16,13 +19,14 @@ use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
+use crate::http::AppState;
+use crate::mcp::models::{CreateCategoryReq, DeleteReq, ListTransactionsReq, RuleReq, UpdateRuleReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
+use crate::service::rule::RuleService;
 use crate::service::transaction::TransactionService;
 use crate::service::user_key::UserKeyService;
 
@@ -31,13 +35,14 @@ use crate::service::user_key::UserKeyService;
 #[derive(Clone)]
 pub struct UserId(pub String);
 
-/// Read-only MCP handler. Holds the services + auth service.
+/// MCP handler. Holds the services (read + rule/category manage) + auth service.
 #[derive(Clone)]
 pub struct FinancerHandler {
     pub account: Arc<AccountService>,
     pub transaction: Arc<TransactionService>,
     pub category: Arc<CategoryService>,
     pub investment: Arc<InvestmentService>,
+    pub rule: Arc<RuleService>,
 }
 
 impl FinancerHandler {
@@ -46,12 +51,14 @@ impl FinancerHandler {
         transaction: Arc<TransactionService>,
         category: Arc<CategoryService>,
         investment: Arc<InvestmentService>,
+        rule: Arc<RuleService>,
     ) -> Self {
         Self {
             account,
             transaction,
             category,
             investment,
+            rule,
         }
     }
 
@@ -69,17 +76,9 @@ impl FinancerHandler {
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ListTransactionsReq {
-    #[serde(default)]
-    pub category_ids: Vec<String>,
-    pub ty: Option<String>,
-}
-
 #[tool_router]
 impl FinancerHandler {
-    #[tool(description = "List the user's accounts with balances.")]
+    #[tool(description = "List the user's accounts with balances. Example: no arguments.")]
     async fn list_accounts(&self, ctx: RequestContext<RoleServer>) -> String {
         let uid = match Self::user_id(&ctx) {
             Ok(u) => u,
@@ -92,7 +91,7 @@ impl FinancerHandler {
         serde_json::to_string(&rows).unwrap_or_else(|e| err_json(format!("serialize error: {e}")))
     }
 
-    #[tool(description = "List the user's transactions (optionally filtered).")]
+    #[tool(description = "List the user's transactions. Example args: {\"categoryIds\":[\"<id>\"], \"ty\":\"DEBIT\"}.")]
     async fn list_transactions(
         &self,
         ctx: RequestContext<RoleServer>,
@@ -114,7 +113,7 @@ impl FinancerHandler {
         serde_json::to_string(&r.rows).unwrap_or_else(|e| err_json(format!("serialize error: {e}")))
     }
 
-    #[tool(description = "Total balance and credit/debit totals across accounts.")]
+    #[tool(description = "Total balance and credit/debit totals across accounts. Example: no arguments.")]
     async fn get_balance_summary(&self, ctx: RequestContext<RoleServer>) -> String {
         let uid = match Self::user_id(&ctx) {
             Ok(u) => u,
@@ -127,7 +126,7 @@ impl FinancerHandler {
         serde_json::to_string(&d).unwrap_or_else(|e| err_json(format!("serialize error: {e}")))
     }
 
-    #[tool(description = "Investments with lots and FIFO positions.")]
+    #[tool(description = "Investments with lots and FIFO positions. Example: no arguments.")]
     async fn get_portfolio(&self, ctx: RequestContext<RoleServer>) -> String {
         let uid = match Self::user_id(&ctx) {
             Ok(u) => u,
@@ -140,7 +139,7 @@ impl FinancerHandler {
         serde_json::to_string(&p).unwrap_or_else(|e| err_json(format!("serialize error: {e}")))
     }
 
-    #[tool(description = "List the user's categories.")]
+    #[tool(description = "List the user's categories. Example: no arguments.")]
     async fn list_categories(&self, ctx: RequestContext<RoleServer>) -> String {
         let uid = match Self::user_id(&ctx) {
             Ok(u) => u,
@@ -152,6 +151,66 @@ impl FinancerHandler {
         };
         serde_json::to_string(&rows).unwrap_or_else(|e| err_json(format!("serialize error: {e}")))
     }
+
+    #[tool(description = "Create categories by name. Example args: {\"names\":[\"Food Delivery\"]}.")]
+    async fn create_category(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateCategoryReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        match self.category.create(&uid, &req.names).await {
+            Ok(r) => serde_json::json!({ "success": r.success, "message": r.message, "failedIds": r.failed_ids }).to_string(),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "List the user's rules. Example: no arguments.")]
+    async fn list_rules(&self, ctx: RequestContext<RoleServer>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        match self.rule.list(&uid).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Create a rule. Example args: {\"name\":\"Swiggy\",\"conditions\":[{\"matchField\":\"NAME\",\"operator\":\"CONTAINS\",\"pattern\":\"swiggy\"}],\"actions\":[{\"setName\":\"Swiggy\"}]}.")]
+    async fn create_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<RuleReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        match self.rule.create(&uid, &req.name, req.priority, req.logic, &req.conditions, &req.actions).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Update a rule by id. Example args: {\"id\":\"<rule-id>\",\"name\":\"Swiggy\"}.")]
+    async fn update_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<UpdateRuleReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        match self.rule.update(&uid, &req.id, &req.name, req.priority, req.logic, &req.conditions, &req.actions).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Delete a rule by id. Example args: {\"id\":\"<rule-id>\"}.")]
+    async fn delete_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        match self.rule.delete(&uid, &req.id).await {
+            Ok(()) => serde_json::json!({"ok": true}).to_string(),
+            Err(e) => err_json(e.message),
+        }
+    }
 }
 
 #[allow(clippy::unused_async_trait_impl)]
@@ -159,12 +218,13 @@ impl FinancerHandler {
 impl ServerHandler for FinancerHandler {}
 
 /// Build and mount the MCP server at `/mcp`, authenticated by API key.
-pub fn mcp_router(st: &crate::http::AppState) -> Router<()> {
+pub fn mcp_router(st: &AppState) -> Router<()> {
     let handler = FinancerHandler::new(
         Arc::new(st.account.clone()),
         Arc::new(st.transaction.clone()),
         Arc::new(st.category.clone()),
         Arc::new(st.investment.clone()),
+        Arc::new(st.rule.clone()),
     );
     let service = StreamableHttpService::new(
         move || Ok(handler.clone()),
