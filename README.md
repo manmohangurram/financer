@@ -1,4 +1,4 @@
-# Financer — Personal Finance Tracker
+b# Financer — Personal Finance Tracker
 
 > **⚠️ Under active development — not ready for production.** The app (v0.0.1, alpha) is a work in progress: expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
 
@@ -42,8 +42,8 @@ Open `http://localhost:5173` and sign in.
 ## Configuration (config.toml)
 
 All runtime config comes from `/data/config/config.toml` (on the mounted `/data`
-volume). It is auto-generated on first run with sensible defaults (SQLite, no
-LLM, a 64-char random `jwt_secret`). See [`config.example.toml`](config.example.toml)
+volume). It is auto-generated on first run with sensible defaults (SQLite, a
+64-char random `jwt_secret`). See [`config.example.toml`](config.example.toml)
 for the full template and comments.
 
 Key sections:

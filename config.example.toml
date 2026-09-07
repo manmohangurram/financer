@@ -2,7 +2,7 @@
 #
 # Copy this to /data/config/config.toml (or set FINANCER_CONFIG to a path).
 # On first run without a config, financer writes a default here automatically
-# (SQLite, no LLM, auto-generated jwt_secret).
+# (SQLite, auto-generated jwt_secret).
 #
 # IMPORTANT: /data may contain the jwt_secret. Mount a volume and do NOT commit
 # the real config.toml — only this example.
