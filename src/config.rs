@@ -1,8 +1,8 @@
 //! Runtime configuration from `config.toml`.
 //!
 //! The file is read at `/data/config/config.toml` (the `/data` volume). If it
-//! is missing, a default is written on first run: SQLite storage, no LLM, and
-//! a freshly generated 64-char JWT secret.
+//! is missing, a default is written on first run: SQLite storage and a
+//! freshly generated 64-char JWT secret.
 
 use std::fs;
 use std::path::{Path, PathBuf};

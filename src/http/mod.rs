@@ -103,7 +103,7 @@ async fn avatar_file(State(s): State<AppState>, uri: Uri) -> Response {
 }
 
 /// SPA fallback: serve a real file if it exists, else index.html (with
-/// `FINANCER_DOMAIN_URL` injection), mirroring Go's `spaHandler`.
+/// `server.domain_url` injection), mirroring Go's `spaHandler`.
 async fn spa(State(s): State<AppState>, uri: Uri) -> Response {
     let path = uri.path();
     // Unknown /api/* routes are API 404s, not SPA assets (mirror Go's apiHandler).

@@ -166,16 +166,20 @@ No per-arch tag needed — the multi-arch manifest resolves the right image on t
 
 ## 6. Required env vars in production
 
-| Variable | Required | Notes |
+| Setting (config.toml) | Required | Notes |
 |---|---|---|
-| `<PROJECT>_JWT_SECRET` | **yes** | JWT signing secret — set a strong random value |
-| `<PROJECT>_ADDR` | no | listen address (default `0.0.0.0:8080`, set in image) |
-| `<PROJECT>_DATA_DIR` | no | runtime data root (default `/data`, set in image; bind a volume) |
-| `<PROJECT>_DOMAIN_URL` | no | set only if frontend served from a different host |
-| `<PROJECT>_STATIC_DIR` | no | built frontend path (default `/app/frontend/dist`, set in image) |
-| `<PROJECT>_SURREAL_URL` | no | SurrealDB server (default `127.0.0.1:8000`) |
-| `<PROJECT>_SURREAL_USER` / `<PROJECT>_SURREAL_PASS` | no | SurrealDB root credentials (default `root`/`root`) |
-| `<PROJECT>_SURREAL_NS` / `<PROJECT>_SURREAL_DB` | no | SurrealDB namespace/database (default `financer`/`financer`) |
+| `server.jwt_secret` | auto | 64-char secret; auto-generated if empty |
+| `server.addr` | no | listen address (default `0.0.0.0:8080`) |
+| `server.data_dir` | no | runtime data root (default `/data`, bind a volume) |
+| `server.domain_url` | no | set only if frontend served from a different host |
+| `server.static_dir` | no | built frontend path (default `frontend/dist`) |
+| `storage.database` | no | `sqlite` \| `surreal` (default `sqlite`) |
+| `storage.surreal.url/user/pass/ns/db` | no | SurrealDB connection (defaults `127.0.0.1:8000` / `root` / `root` / `financer` / `financer`) |
+| `storage.sqlite.*` | no | SQLite tuning (path, journal_mode, synchronous, busy_timeout, page_size, pool sizes) |
+| `yahoo.*` | no | Yahoo endpoint templates (bases, chart, search) |
+
+All settings live in `/data/config/config.toml` on the mounted volume (or set
+`FINANCER_CONFIG` to point elsewhere). If missing, a default is auto-generated.
 
 ---
 
