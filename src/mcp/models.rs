@@ -226,9 +226,3 @@ pub struct LotInputReq {
     pub occurred_at: String,
 }
 
-/// Create/delete investment by id payload.
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InvByIdReq {
-    pub id: String,
-}
-
