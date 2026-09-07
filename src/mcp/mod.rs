@@ -8,6 +8,17 @@
 
 pub mod models;
 
+/// Auth preamble for a tool: resolve the user id or return an error string.
+/// `return` targets the calling tool fn. Usage: `let uid = uid!(&ctx);`
+macro_rules! uid {
+    ($ctx:expr) => {
+        match FinancerHandler::user_id($ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        }
+    };
+}
+
 use std::sync::Arc;
 
 use axum::http::{header, HeaderMap, Request};
@@ -21,7 +32,7 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
 
 use crate::http::AppState;
-use crate::mcp::models::{CategoriesReq, CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, InvByIdReq, InvestmentReq, ListTransactionsReq, LotInputReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
+use crate::mcp::models::{CategoriesReq, CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, InvestmentReq, ListTransactionsReq, LotInputReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
@@ -102,10 +113,7 @@ impl FinancerHandler {
 impl FinancerHandler {
     #[tool(description = "List the user's accounts with balances. Example: no arguments.")]
     async fn list_accounts(&self, ctx: RequestContext<RoleServer>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         let rows = match self.account.list(&uid).await {
             Ok(r) => r,
             Err(e) => return err_json(e.message),
@@ -119,10 +127,7 @@ impl FinancerHandler {
         ctx: RequestContext<RoleServer>,
         Parameters(req): Parameters<ListTransactionsReq>,
     ) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         let f = TransactionListFilter {
             category_ids: req.category_ids,
             transaction_type: req.ty.as_deref().and_then(parse_type),
@@ -137,10 +142,7 @@ impl FinancerHandler {
 
     #[tool(description = "Total balance and credit/debit totals across accounts. Example: no arguments.")]
     async fn get_balance_summary(&self, ctx: RequestContext<RoleServer>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         let d = match self.transaction.dashboard(&uid).await {
             Ok(d) => d,
             Err(e) => return err_json(e.message),
@@ -150,10 +152,7 @@ impl FinancerHandler {
 
     #[tool(description = "Investments with lots and FIFO positions. Example: no arguments.")]
     async fn get_portfolio(&self, ctx: RequestContext<RoleServer>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         let p = match self.investment.portfolio_summary(&uid).await {
             Ok(p) => p,
             Err(e) => return err_json(e.message),
@@ -163,10 +162,7 @@ impl FinancerHandler {
 
     #[tool(description = "List the user's categories. Example: no arguments.")]
     async fn list_categories(&self, ctx: RequestContext<RoleServer>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         let rows = match self.category.list(&uid, 100, "").await {
             Ok((rows, _)) => rows,
             Err(e) => return err_json(e.message),
@@ -176,10 +172,7 @@ impl FinancerHandler {
 
     #[tool(description = "Create categories by name. Example args: {\"names\":[\"Food Delivery\"]}.")]
     async fn create_category(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateCategoryReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         match self.category.create(&uid, &req.names).await {
             Ok(r) => serde_json::json!({ "success": r.success, "message": r.message, "failedIds": r.failed_ids }).to_string(),
             Err(e) => err_json(e.message),
@@ -188,10 +181,7 @@ impl FinancerHandler {
 
     #[tool(description = "List the user's rules. Example: no arguments.")]
     async fn list_rules(&self, ctx: RequestContext<RoleServer>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         match self.rule.list(&uid).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
             Err(e) => err_json(e.message),
@@ -200,10 +190,7 @@ impl FinancerHandler {
 
     #[tool(description = "Create a rule. Example args: {\"name\":\"Swiggy\",\"conditions\":[{\"matchField\":\"NAME\",\"operator\":\"CONTAINS\",\"pattern\":\"swiggy\"}],\"actions\":[{\"setName\":\"Swiggy\"}]}.")]
     async fn create_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<RuleReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         match self.rule.create(&uid, &req.name, req.priority, req.logic, &req.conditions, &req.actions).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
             Err(e) => err_json(e.message),
@@ -212,10 +199,7 @@ impl FinancerHandler {
 
     #[tool(description = "Update a rule by id. Example args: {\"id\":\"<rule-id>\",\"name\":\"Swiggy\"}.")]
     async fn update_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<UpdateRuleReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         match self.rule.update(&uid, &req.id, &req.name, req.priority, req.logic, &req.conditions, &req.actions).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
             Err(e) => err_json(e.message),
@@ -224,10 +208,7 @@ impl FinancerHandler {
 
     #[tool(description = "Delete a rule by id. Example args: {\"id\":\"<rule-id>\"}.")]
     async fn delete_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         match self.rule.delete(&uid, &req.id).await {
             Ok(()) => serde_json::json!({"ok": true}).to_string(),
             Err(e) => err_json(e.message),
@@ -236,10 +217,7 @@ impl FinancerHandler {
 
     #[tool(description = "Create transactions. Example args: {\"transactions\":[{\"name\":\"Coffee\",\"amount\":4.5,\"type\":\"DEBIT\",\"accountId\":\"<id>\"}]}.")]
     async fn create_transaction(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateTransactionsReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot create transactions");
         }
@@ -252,10 +230,7 @@ impl FinancerHandler {
 
     #[tool(description = "Update transactions. Example args: {\"transactions\":[{\"id\":\"<id>\",\"name\":\"Updated\"}]}.")]
     async fn update_transaction(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<UpdateTransactionsReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot update transactions");
         }
@@ -268,10 +243,7 @@ impl FinancerHandler {
 
     #[tool(description = "Delete transactions by id. Example args: {\"ids\":[\"<id>\"]}.")]
     async fn delete_transaction(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteTransactionsReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot delete transactions");
         }
@@ -283,10 +255,7 @@ impl FinancerHandler {
 
     #[tool(description = "Create an account. Example args: {\"bankName\":\"Chase\",\"type\":\"CURRENT\"}.")]
     async fn create_account(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateAccountReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot create accounts");
         }
@@ -298,10 +267,7 @@ impl FinancerHandler {
 
     #[tool(description = "Update an account by id. Example args: {\"id\":\"<id>\",\"bankName\":\"Chase Blue\"}.")]
     async fn update_account(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<UpdateAccountReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot update accounts");
         }
@@ -313,10 +279,7 @@ impl FinancerHandler {
 
     #[tool(description = "Delete an account by id. Example args: {\"id\":\"<id>\"}.")]
     async fn delete_account(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot delete accounts");
         }
@@ -328,10 +291,7 @@ impl FinancerHandler {
 
     #[tool(description = "Link transfer debit/credit pairs. Example args: {\"links\":[{\"debitTransactionId\":\"<id>\",\"creditTransactionId\":\"<id>\"}]}.")]
     async fn link_transfers(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<TransfersReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot link transfers");
         }
@@ -344,10 +304,7 @@ impl FinancerHandler {
 
     #[tool(description = "Unlink transfers by link id. Example args: {\"ids\":[\"<link-id>\"]}.")]
     async fn unlink_transfers(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<TransfersReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot unlink transfers");
         }
@@ -359,10 +316,7 @@ impl FinancerHandler {
 
     #[tool(description = "Create the missing side of a transfer (counterpart). Example args: {\"transactionId\":\"<id>\",\"toAccountId\":\"<id>\"}.")]
     async fn create_transfer_counterpart(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateTransferCounterpartReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot create transfer counterpart");
         }
@@ -374,10 +328,7 @@ impl FinancerHandler {
 
     #[tool(description = "Preview which transactions match a rule (no mutation). Example args: {\"logic\":\"AND\",\"conditions\":[{\"matchField\":\"NAME\",\"operator\":\"CONTAINS\",\"pattern\":\"swiggy\"}]}.")]
     async fn preview_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<PreviewRuleReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         match self.rule.preview(&uid, req.logic, &req.conditions, req.limit).await {
             Ok(views) => {
                 let items: Vec<_> = views.iter().map(|v| serde_json::json!({ "name": v.name, "amount": v.amount, "type": v.transaction_type.to_string(), "accountId": v.account_id, "categoryIds": v.category_ids })).collect();
@@ -389,10 +340,7 @@ impl FinancerHandler {
 
     #[tool(description = "Run a rule against existing transactions (applies it). Example args: {\"id\":\"<rule-id>\"}.")]
     async fn run_rule(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<RunRuleReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot run rules");
         }
@@ -404,10 +352,7 @@ impl FinancerHandler {
 
     #[tool(description = "Update categories by id+name. Example args: {\"categories\":[{\"id\":\"<id>\",\"name\":\"New\"}]}.")]
     async fn update_category(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CategoriesReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot update categories");
         }
@@ -420,10 +365,7 @@ impl FinancerHandler {
 
     #[tool(description = "Delete categories by id. Example args: {\"ids\":[\"<id>\"]}.")]
     async fn delete_category(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CategoriesReq>) -> String {
-        let uid = match Self::user_id(&ctx) {
-            Ok(u) => u,
-            Err(e) => return err_json(e.message),
-        };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot delete categories");
         }
@@ -435,7 +377,7 @@ impl FinancerHandler {
 
     #[tool(description = "Create an investment. Example args: {\"symbol\":\"RELIANCE\",\"name\":\"Reliance\",\"investmentType\":\"STOCK\"}.")]
     async fn create_investment(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvestmentReq>) -> String {
-        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) { return err_json("read-only API key; cannot create investments"); }
         match self.investment.create(&uid, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
@@ -445,7 +387,7 @@ impl FinancerHandler {
 
     #[tool(description = "Update an investment by id. Example args: {\"id\":\"<id>\",\"symbol\":\"RELIANCE\"}.")]
     async fn update_investment(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvestmentReq>) -> String {
-        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) { return err_json("read-only API key; cannot update investments"); }
         match self.investment.update(&uid, &req.id, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
@@ -454,8 +396,8 @@ impl FinancerHandler {
     }
 
     #[tool(description = "Delete an investment by id. Example args: {\"id\":\"<id>\"}.")]
-    async fn delete_investment(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvByIdReq>) -> String {
-        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+    async fn delete_investment(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteReq>) -> String {
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) { return err_json("read-only API key; cannot delete investments"); }
         match self.investment.delete(&uid, &req.id).await {
             Ok(()) => serde_json::json!({"ok": true}).to_string(),
@@ -465,7 +407,7 @@ impl FinancerHandler {
 
     #[tool(description = "Add a lot to an investment. Example args: {\"investmentId\":\"<id>\",\"side\":1,\"quantity\":10,\"price\":100,\"occurredAt\":\"2024-01-02 10:00:00 +0000 UTC\"}.")]
     async fn add_lot(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<LotInputReq>) -> String {
-        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) { return err_json("read-only API key; cannot add lots"); }
         match self.investment.add_lot(&uid, &req.investment_id, req.side.unwrap_or(1), req.quantity, req.price, &req.occurred_at).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
@@ -475,7 +417,7 @@ impl FinancerHandler {
 
     #[tool(description = "Update a lot by investment id + lot id. Example args: {\"investmentId\":\"<id>\",\"lotId\":\"<lot>\",\"quantity\":20}.")]
     async fn update_lot(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<LotInputReq>) -> String {
-        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) { return err_json("read-only API key; cannot update lots"); }
         match self.investment.update_lot(&uid, &req.investment_id, &req.lot_id, req.quantity, req.price, &req.occurred_at).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
@@ -484,8 +426,8 @@ impl FinancerHandler {
     }
 
     #[tool(description = "Delete a lot by lot id. Example args: {\"id\":\"<lot-id>\"}.")]
-    async fn delete_lot(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvByIdReq>) -> String {
-        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+    async fn delete_lot(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteReq>) -> String {
+        let uid = uid!(&ctx);
         if !Self::can_write(&ctx) { return err_json("read-only API key; cannot delete lots"); }
         match self.investment.delete_lot(&uid, &req.id).await {
             Ok(()) => serde_json::json!({"ok": true}).to_string(),
@@ -500,7 +442,7 @@ impl FinancerHandler {
         ctx.extensions
             .get::<http::request::Parts>()
             .and_then(|p| p.extensions.get::<KeyScope>())
-            .is_none_or(KeyScope::can_write)
+            .is_some_and(KeyScope::can_write)
     }
 }
 
