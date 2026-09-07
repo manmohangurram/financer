@@ -442,7 +442,7 @@ impl FinancerHandler {
         ctx.extensions
             .get::<http::request::Parts>()
             .and_then(|p| p.extensions.get::<KeyScope>())
-            .is_none_or(KeyScope::can_write)
+            .is_some_and(KeyScope::can_write)
     }
 }
 
