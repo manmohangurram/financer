@@ -21,13 +21,13 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
 
 use crate::http::AppState;
-use crate::mcp::models::{CreateCategoryReq, DeleteReq, ListTransactionsReq, RuleReq, UpdateRuleReq};
+use crate::mcp::models::{CreateCategoryReq, CreateTransactionsReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, RuleReq, TxnPayload, UpdateRuleReq, UpdateTransactionsReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
 use crate::service::rule::RuleService;
-use crate::service::transaction::TransactionService;
+use crate::service::transaction::{TransactionReq, TransactionService};
 use crate::service::user_key::UserKeyService;
 
 /// The authenticated user id, injected into request extensions by the auth
@@ -223,6 +223,82 @@ impl FinancerHandler {
         match self.rule.delete(&uid, &req.id).await {
             Ok(()) => serde_json::json!({"ok": true}).to_string(),
             Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Create transactions. Example args: {\"transactions\":[{\"name\":\"Coffee\",\"amount\":4.5,\"type\":\"DEBIT\",\"accountId\":\"<id>\"}]}.")]
+    async fn create_transaction(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateTransactionsReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot create transactions");
+        }
+        let inputs: Vec<TransactionReq> = req.transactions.into_iter().map(TransactionReq::from).collect();
+        match self.transaction.create(&uid, &inputs).await {
+            Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Update transactions. Example args: {\"transactions\":[{\"id\":\"<id>\",\"name\":\"Updated\"}]}.")]
+    async fn update_transaction(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<UpdateTransactionsReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot update transactions");
+        }
+        let inputs: Vec<TransactionReq> = req.transactions.into_iter().map(TransactionReq::from).collect();
+        match self.transaction.update(&uid, &inputs).await {
+            Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Delete transactions by id. Example args: {\"ids\":[\"<id>\"]}.")]
+    async fn delete_transaction(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<DeleteTransactionsReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot delete transactions");
+        }
+        match self.transaction.delete(&uid, &req.ids).await {
+            Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+}
+
+/// Read the injected `KeyScope` and whether writes are allowed.
+impl FinancerHandler {
+    fn can_write(ctx: &RequestContext<RoleServer>) -> bool {
+        ctx.extensions
+            .get::<http::request::Parts>()
+            .and_then(|p| p.extensions.get::<KeyScope>())
+            .is_none_or(KeyScope::can_write)
+    }
+}
+
+fn bulk_json(r: &crate::service::transaction::BulkResult) -> String {
+    serde_json::json!({ "success": r.success, "message": r.message, "failedIds": r.failed_ids }).to_string()
+}
+
+impl From<TxnPayload> for TransactionReq {
+    fn from(p: TxnPayload) -> Self {
+        TransactionReq {
+            id: p.id,
+            name: p.name,
+            amount: p.amount,
+            transaction_type: p.transaction_type,
+            occurred_at: p.occurred_at,
+            account_id: p.account_id,
+            category_ids: p.category_ids,
+            external_id: p.external_id,
         }
     }
 }
