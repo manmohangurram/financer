@@ -21,7 +21,7 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
 
 use crate::http::AppState;
-use crate::mcp::models::{CategoriesReq, CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
+use crate::mcp::models::{CategoriesReq, CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, InvByIdReq, InvestmentReq, ListTransactionsReq, LotInputReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
@@ -429,6 +429,66 @@ impl FinancerHandler {
         }
         match self.category.delete(&uid, &req.ids).await {
             Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Create an investment. Example args: {\"symbol\":\"RELIANCE\",\"name\":\"Reliance\",\"investmentType\":\"STOCK\"}.")]
+    async fn create_investment(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvestmentReq>) -> String {
+        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        if !Self::can_write(&ctx) { return err_json("read-only API key; cannot create investments"); }
+        match self.investment.create(&uid, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Update an investment by id. Example args: {\"id\":\"<id>\",\"symbol\":\"RELIANCE\"}.")]
+    async fn update_investment(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvestmentReq>) -> String {
+        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        if !Self::can_write(&ctx) { return err_json("read-only API key; cannot update investments"); }
+        match self.investment.update(&uid, &req.id, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Delete an investment by id. Example args: {\"id\":\"<id>\"}.")]
+    async fn delete_investment(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvByIdReq>) -> String {
+        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        if !Self::can_write(&ctx) { return err_json("read-only API key; cannot delete investments"); }
+        match self.investment.delete(&uid, &req.id).await {
+            Ok(()) => serde_json::json!({"ok": true}).to_string(),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Add a lot to an investment. Example args: {\"investmentId\":\"<id>\",\"side\":1,\"quantity\":10,\"price\":100,\"occurredAt\":\"2024-01-02 10:00:00 +0000 UTC\"}.")]
+    async fn add_lot(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<LotInputReq>) -> String {
+        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        if !Self::can_write(&ctx) { return err_json("read-only API key; cannot add lots"); }
+        match self.investment.add_lot(&uid, &req.investment_id, req.side.unwrap_or(1), req.quantity, req.price, &req.occurred_at).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Update a lot by investment id + lot id. Example args: {\"investmentId\":\"<id>\",\"lotId\":\"<lot>\",\"quantity\":20}.")]
+    async fn update_lot(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<LotInputReq>) -> String {
+        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        if !Self::can_write(&ctx) { return err_json("read-only API key; cannot update lots"); }
+        match self.investment.update_lot(&uid, &req.investment_id, &req.lot_id, req.quantity, req.price, &req.occurred_at).await {
+            Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Delete a lot by lot id. Example args: {\"id\":\"<lot-id>\"}.")]
+    async fn delete_lot(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<InvByIdReq>) -> String {
+        let uid = match Self::user_id(&ctx) { Ok(u) => u, Err(e) => return err_json(e.message) };
+        if !Self::can_write(&ctx) { return err_json("read-only API key; cannot delete lots"); }
+        match self.investment.delete_lot(&uid, &req.id).await {
+            Ok(()) => serde_json::json!({"ok": true}).to_string(),
             Err(e) => err_json(e.message),
         }
     }

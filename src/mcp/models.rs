@@ -192,3 +192,43 @@ pub struct CategoriesReq {
     pub categories: Vec<CatItem>,
 }
 
+/// Create/update investment payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct InvestmentReq {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub symbol: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(rename = "investmentType")]
+    pub investment_type: crate::repo::traits::investment::InvestmentType,
+    #[serde(default)]
+    pub manual_nav: f64,
+}
+
+/// Add/update/delete lot payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LotInputReq {
+    #[serde(default)]
+    pub investment_id: String,
+    #[serde(default)]
+    pub lot_id: String,
+    #[serde(default)]
+    pub side: Option<i64>,
+    #[serde(default)]
+    pub quantity: f64,
+    #[serde(default)]
+    pub price: f64,
+    #[serde(default)]
+    pub occurred_at: String,
+}
+
+/// Create/delete investment by id payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct InvByIdReq {
+    pub id: String,
+}
+
