@@ -124,3 +124,33 @@ pub struct UpdateAccountReq {
     pub account_type: crate::repo::traits::account::AccountType,
 }
 
+/// One transfer link (debit/credit pair).
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferLink {
+    #[serde(default)]
+    pub debit_transaction_id: String,
+    #[serde(default)]
+    pub credit_transaction_id: String,
+}
+
+/// Link/unlink transfers payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TransfersReq {
+    #[serde(default)]
+    pub ids: Vec<String>,
+    #[serde(default)]
+    pub links: Vec<TransferLink>,
+}
+
+/// Create transfer counterpart payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTransferCounterpartReq {
+    #[serde(default)]
+    pub transaction_id: String,
+    #[serde(default)]
+    pub to_account_id: String,
+}
+
