@@ -21,13 +21,14 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
 
 use crate::http::AppState;
-use crate::mcp::models::{CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, RuleReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
+use crate::mcp::models::{CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, RuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
 use crate::service::rule::RuleService;
 use crate::service::transaction::{TransactionReq, TransactionService};
+use crate::service::transfer::TransferService;
 use crate::service::user_key::UserKeyService;
 
 /// The authenticated user id, injected into request extensions by the auth
@@ -57,6 +58,7 @@ pub struct FinancerHandler {
     pub category: Arc<CategoryService>,
     pub investment: Arc<InvestmentService>,
     pub rule: Arc<RuleService>,
+    pub transfer: Arc<TransferService>,
 }
 
 impl FinancerHandler {
@@ -66,6 +68,7 @@ impl FinancerHandler {
         category: Arc<CategoryService>,
         investment: Arc<InvestmentService>,
         rule: Arc<RuleService>,
+        transfer: Arc<TransferService>,
     ) -> Self {
         Self {
             account,
@@ -73,6 +76,7 @@ impl FinancerHandler {
             category,
             investment,
             rule,
+            transfer,
         }
     }
 
@@ -317,6 +321,52 @@ impl FinancerHandler {
             Err(e) => err_json(e.message),
         }
     }
+
+    #[tool(description = "Link transfer debit/credit pairs. Example args: {\"links\":[{\"debitTransactionId\":\"<id>\",\"creditTransactionId\":\"<id>\"}]}.")]
+    async fn link_transfers(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<TransfersReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot link transfers");
+        }
+        let links: Vec<(String, String)> = req.links.into_iter().map(|l| (l.debit_transaction_id, l.credit_transaction_id)).collect();
+        match self.transfer.link_transfers(&uid, &links).await {
+            Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Unlink transfers by link id. Example args: {\"ids\":[\"<link-id>\"]}.")]
+    async fn unlink_transfers(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<TransfersReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot unlink transfers");
+        }
+        match self.transfer.unlink_transfers(&uid, &req.ids).await {
+            Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Create the missing side of a transfer (counterpart). Example args: {\"transactionId\":\"<id>\",\"toAccountId\":\"<id>\"}.")]
+    async fn create_transfer_counterpart(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateTransferCounterpartReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot create transfer counterpart");
+        }
+        match self.transfer.create_counterpart(&uid, &req.transaction_id, &req.to_account_id).await {
+            Ok(r) => serde_json::json!({ "debitTransactionId": r.debit_transaction_id, "creditTransactionId": r.credit_transaction_id }).to_string(),
+            Err(e) => err_json(e.message),
+        }
+    }
 }
 
 /// Read the injected `KeyScope` and whether writes are allowed.
@@ -360,6 +410,7 @@ pub fn mcp_router(st: &AppState) -> Router<()> {
         Arc::new(st.category.clone()),
         Arc::new(st.investment.clone()),
         Arc::new(st.rule.clone()),
+        Arc::new(st.transfer.clone()),
     );
     let service = StreamableHttpService::new(
         move || Ok(handler.clone()),
