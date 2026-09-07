@@ -58,3 +58,45 @@ pub struct CreateCategoryReq {
 pub struct DeleteReq {
     pub id: String,
 }
+
+/// A single transaction create/update payload (mirrors `TransactionReq`).
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TxnPayload {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    pub amount: f64,
+    #[serde(rename = "type")]
+    pub transaction_type: crate::repo::traits::transaction::TransactionType,
+    #[serde(default)]
+    pub occurred_at: String,
+    #[serde(default)]
+    pub account_id: String,
+    #[serde(default)]
+    pub category_ids: Vec<String>,
+    #[serde(default)]
+    pub external_id: Option<String>,
+}
+
+/// Create transactions payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTransactionsReq {
+    pub transactions: Vec<TxnPayload>,
+}
+
+/// Update transactions payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateTransactionsReq {
+    pub transactions: Vec<TxnPayload>,
+}
+
+/// Delete transactions by id payload.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteTransactionsReq {
+    pub ids: Vec<String>,
+}
+
