@@ -162,6 +162,21 @@ impl<C: Connection> InvestmentRepo<C> {
         Ok(take_json(&mut res, 0)?)
     }
 
+    pub async fn list_lots_by_user(&self, user_id: &str) -> Result<Vec<LotRow>> {
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, meta::id(investment) AS investmentId, side,
+                    quantity, price, occurredAt, createdAt
+                 FROM investment_lot
+                 WHERE user = $uid
+                 ORDER BY occurredAt ASC, createdAt ASC",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?)
+    }
+
     pub async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
         let now = go_ts(chrono::Utc::now());
         let mut res = self
@@ -352,6 +367,9 @@ impl crate::repo::traits::InvestmentRepo for InvestmentRepo<DbClient> {
     }
     async fn list_lots(&self, user_id: &str, investment_id: &str) -> Result<Vec<LotRow>> {
         self.list_lots(user_id, investment_id).await
+    }
+    async fn list_lots_by_user(&self, user_id: &str) -> Result<Vec<LotRow>> {
+        self.list_lots_by_user(user_id).await
     }
     async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
         self.create_lot(user_id, investment_id, side, quantity, price, occurred_at).await

@@ -157,6 +157,8 @@ pub trait InvestmentRepo: Send + Sync {
     async fn update_investment(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow>;
     async fn delete_investment(&self, user_id: &str, id: &str) -> Result<bool>;
     async fn list_lots(&self, user_id: &str, investment_id: &str) -> Result<Vec<LotRow>>;
+    /// All lots for a user (batch — avoids N+1 in portfolio/refresh loops).
+    async fn list_lots_by_user(&self, user_id: &str) -> Result<Vec<LotRow>>;
     async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow>;
     async fn delete_lot(&self, user_id: &str, id: &str) -> Result<bool>;
     async fn insert_lot(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool>;

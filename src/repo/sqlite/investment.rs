@@ -125,6 +125,16 @@ impl SqliteInvestmentRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    async fn list_lots_by_user_inner(&self, user_id: &str) -> Result<Vec<LotRow>> {
+        let rows = sqlx::query_as::<_, RawLot>(
+            "SELECT id, investment_id, side, quantity, price, occurred_at, created_at FROM investment_lots WHERE user_id = ? ORDER BY occurred_at ASC, created_at ASC",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
     async fn create_lot_inner(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
         let id = Uuid::new_v4().to_string();
         let now = go_ts(chrono::Utc::now());
@@ -263,6 +273,9 @@ impl crate::repo::traits::InvestmentRepo for SqliteInvestmentRepo {
     }
     async fn list_lots(&self, user_id: &str, investment_id: &str) -> Result<Vec<LotRow>> {
         self.list_lots_inner(user_id, investment_id).await
+    }
+    async fn list_lots_by_user(&self, user_id: &str) -> Result<Vec<LotRow>> {
+        self.list_lots_by_user_inner(user_id).await
     }
     async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
         self.create_lot_inner(user_id, investment_id, side, quantity, price, occurred_at).await
