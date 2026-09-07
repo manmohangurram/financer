@@ -35,6 +35,20 @@ use crate::service::user_key::UserKeyService;
 #[derive(Clone)]
 pub struct UserId(pub String);
 
+/// API key scope: `read` or `read_write`. Injected by the auth middleware.
+/// Consumed by write tools (later branches); dead-code until then.
+#[derive(Clone)]
+#[allow(dead_code)]
+pub struct KeyScope(pub String);
+
+impl KeyScope {
+    /// Whether this key may perform write (mutating) tools.
+    #[allow(dead_code)]
+    pub fn can_write(&self) -> bool {
+        self.0.eq_ignore_ascii_case("read_write")
+    }
+}
+
 /// MCP handler. Holds the services (read + rule/category manage) + auth service.
 #[derive(Clone)]
 pub struct FinancerHandler {
@@ -243,7 +257,7 @@ pub fn mcp_router(st: &AppState) -> Router<()> {
 }
 
 /// axum middleware: validate `Authorization: Bearer <api_key>`, inject `UserId`
-/// into the request extensions, then continue.
+/// and `KeyScope` into the request extensions, then continue.
 async fn auth_middleware(
     mut req: Request<axum::body::Body>,
     next: Next,
@@ -252,8 +266,9 @@ async fn auth_middleware(
     let key = extract_bearer(req.headers());
     match key {
         Some(k) => match user_key_service.authenticate(&k).await {
-            Ok(uid) => {
+            Ok((uid, scope)) => {
                 req.extensions_mut().insert(UserId(uid));
+                req.extensions_mut().insert(KeyScope(scope));
             }
             Err(_) => return unauthorized(),
         },

@@ -35,6 +35,8 @@ pub struct UserKeyView {
     pub expires_at: Option<String>,
     #[serde(rename = "lastUsedAt")]
     pub last_used_at: Option<String>,
+    /// `read` | `read_write`
+    pub scope: String,
 }
 
 #[derive(Clone)]
@@ -47,18 +49,20 @@ impl UserKeyService {
         Self { repo }
     }
 
-    /// Create a key. `expires_in_days` of 0 leaves it non-expiring.
-    pub async fn create(&self, user_id: &str, name: &str, expires_in_days: i64) -> Result<UserKeyView> {
+    /// Create a key. `expires_in_days` of 0 leaves it non-expiring. `scope` is
+    /// `read` (default) or `read_write`.
+    pub async fn create(&self, user_id: &str, name: &str, expires_in_days: i64, scope: &str) -> Result<UserKeyView> {
         if self.repo.count(user_id).await? >= MAX_KEYS_PER_USER {
             return Err(ApiError::bad_request(format!("max {MAX_KEYS_PER_USER} keys per user")));
         }
+        let scope = if scope.eq_ignore_ascii_case("read_write") { "read_write" } else { "read" };
         let (key, hash, prefix) = generate_key();
         let expires_at = if expires_in_days > 0 {
             Some(go_ts(chrono::Utc::now() + chrono::Duration::days(expires_in_days)))
         } else {
             None
         };
-        let id = self.repo.create(user_id, name, &hash, &prefix, expires_at.clone()).await?;
+        let id = self.repo.create(user_id, name, &hash, &prefix, expires_at.clone(), scope).await?;
         Ok(UserKeyView {
             id,
             name: name.to_string(),
@@ -67,6 +71,7 @@ impl UserKeyService {
             created_at: go_ts(chrono::Utc::now()),
             expires_at,
             last_used_at: None,
+            scope: scope.to_string(),
         })
     }
 
@@ -81,11 +86,11 @@ impl UserKeyService {
         Ok(())
     }
 
-    /// Authenticate a raw key for the MCP server. Returns the owning user id.
+    /// Authenticate a raw key for the MCP server. Returns `(user_id, scope)`.
     /// Rejects unknown and expired keys.
-    pub async fn authenticate(&self, key: &str) -> Result<String> {
+    pub async fn authenticate(&self, key: &str) -> Result<(String, String)> {
         let hash = hash_key(key);
-        let Some((user_id, id)) = self.repo.by_key_hash(&hash).await? else {
+        let Some((user_id, id, scope)) = self.repo.by_key_hash(&hash).await? else {
             return Err(ApiError::unauthorized("invalid API key"));
         };
         if let Some(expires) = self.repo.get_by_id(&user_id, &id).await?.and_then(|r| r.expires_at) {
@@ -94,7 +99,7 @@ impl UserKeyService {
             }
         }
         let _ = self.repo.touch_last_used(&id).await;
-        Ok(user_id)
+        Ok((user_id, scope))
     }
 }
 

@@ -25,12 +25,13 @@ impl SqliteUserKeyRepo {
         key_hash: &str,
         key_prefix: &str,
         expires_at: Option<String>,
+        scope: &str,
     ) -> Result<String> {
         let id = Uuid::new_v4().to_string();
         let now = go_ts(chrono::Utc::now());
         sqlx::query(
-            "INSERT INTO user_keys (id, user_id, name, key_hash, key_prefix, created_at, expires_at, last_used_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+            "INSERT INTO user_keys (id, user_id, name, key_hash, key_prefix, created_at, expires_at, last_used_at, scope)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)",
         )
         .bind(&id)
         .bind(user_id)
@@ -39,6 +40,7 @@ impl SqliteUserKeyRepo {
         .bind(key_prefix)
         .bind(&now)
         .bind(expires_at)
+        .bind(scope)
         .execute(&self.pool)
         .await?;
         Ok(id)
@@ -46,7 +48,7 @@ impl SqliteUserKeyRepo {
 
     async fn list_inner(&self, user_id: &str) -> Result<Vec<UserKeyRow>> {
         let rows = sqlx::query_as::<_, RawUserKey>(
-            "SELECT id, name, key_prefix, created_at, expires_at, last_used_at
+            "SELECT id, name, key_prefix, created_at, expires_at, last_used_at, scope
              FROM user_keys WHERE user_id = ? ORDER BY created_at DESC",
         )
         .bind(user_id)
@@ -65,7 +67,7 @@ impl SqliteUserKeyRepo {
 
     async fn get_by_id_inner(&self, user_id: &str, id: &str) -> Result<Option<UserKeyRow>> {
         let row = sqlx::query_as::<_, RawUserKey>(
-            "SELECT id, name, key_prefix, created_at, expires_at, last_used_at
+            "SELECT id, name, key_prefix, created_at, expires_at, last_used_at, scope
              FROM user_keys WHERE id = ? AND user_id = ?",
         )
         .bind(id)
@@ -84,9 +86,9 @@ impl SqliteUserKeyRepo {
         Ok(res.rows_affected() > 0)
     }
 
-    async fn by_key_hash_inner(&self, key_hash: &str) -> Result<Option<(String, String)>> {
-        let row: Option<(String, String)> = sqlx::query_as(
-            "SELECT user_id, id FROM user_keys WHERE key_hash = ?",
+    async fn by_key_hash_inner(&self, key_hash: &str) -> Result<Option<(String, String, String)>> {
+        let row: Option<(String, String, String)> = sqlx::query_as(
+            "SELECT user_id, id, scope FROM user_keys WHERE key_hash = ?",
         )
         .bind(key_hash)
         .fetch_optional(&self.pool)
@@ -106,8 +108,8 @@ impl SqliteUserKeyRepo {
 
 #[async_trait]
 impl UserKeyRepoTrait for SqliteUserKeyRepo {
-    async fn create(&self, user_id: &str, name: &str, key_hash: &str, key_prefix: &str, expires_at: Option<String>) -> Result<String> {
-        self.create_inner(user_id, name, key_hash, key_prefix, expires_at).await
+    async fn create(&self, user_id: &str, name: &str, key_hash: &str, key_prefix: &str, expires_at: Option<String>, scope: &str) -> Result<String> {
+        self.create_inner(user_id, name, key_hash, key_prefix, expires_at, scope).await
     }
     async fn list(&self, user_id: &str) -> Result<Vec<UserKeyRow>> {
         self.list_inner(user_id).await
@@ -121,7 +123,7 @@ impl UserKeyRepoTrait for SqliteUserKeyRepo {
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_inner(user_id, id).await
     }
-    async fn by_key_hash(&self, key_hash: &str) -> Result<Option<(String, String)>> {
+    async fn by_key_hash(&self, key_hash: &str) -> Result<Option<(String, String, String)>> {
         self.by_key_hash_inner(key_hash).await
     }
     async fn touch_last_used(&self, id: &str) -> Result<()> {
@@ -137,6 +139,7 @@ struct RawUserKey {
     created_at: String,
     expires_at: Option<String>,
     last_used_at: Option<String>,
+    scope: String,
 }
 
 impl From<RawUserKey> for UserKeyRow {
@@ -148,6 +151,7 @@ impl From<RawUserKey> for UserKeyRow {
             created_at: r.created_at,
             expires_at: r.expires_at,
             last_used_at: r.last_used_at,
+            scope: r.scope,
         }
     }
 }

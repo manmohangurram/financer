@@ -26,6 +26,7 @@ impl<C: Connection> UserKeyRepo<C> {
         key_hash: &str,
         key_prefix: &str,
         expires_at: Option<String>,
+        scope: &str,
     ) -> Result<String> {
         let now = go_ts(chrono::Utc::now());
         let mut res = self
@@ -33,7 +34,7 @@ impl<C: Connection> UserKeyRepo<C> {
             .query(
                 "CREATE user_key CONTENT {
                     user: $uid, name: $name, keyHash: $hash, keyPrefix: $prefix,
-                    createdAt: $created, expiresAt: $expires, lastUsedAt: NONE
+                    createdAt: $created, expiresAt: $expires, lastUsedAt: NONE, scope: $scope
                 } RETURN meta::id(id) AS id",
             )
             .bind(("uid", rid("user", user_id)))
@@ -42,6 +43,7 @@ impl<C: Connection> UserKeyRepo<C> {
             .bind(("prefix", key_prefix))
             .bind(("created", now))
             .bind(("expires", expires_at))
+            .bind(("scope", scope))
             .await?
             .check()?;
         Ok(super::take_json::<IdRow>(&mut res, 0)?
@@ -55,7 +57,7 @@ impl<C: Connection> UserKeyRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, name, keyPrefix, createdAt, expiresAt, lastUsedAt
+                "SELECT meta::id(id) AS id, name, keyPrefix, createdAt, expiresAt, lastUsedAt, scope
                  FROM user_key WHERE user = $uid ORDER BY createdAt DESC",
             )
             .bind(("uid", rid("user", user_id)))
@@ -78,7 +80,7 @@ impl<C: Connection> UserKeyRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, name, keyPrefix, createdAt, expiresAt, lastUsedAt
+                "SELECT meta::id(id) AS id, name, keyPrefix, createdAt, expiresAt, lastUsedAt, scope
                  FROM user_key WHERE id = $rid AND user = $uid LIMIT 1",
             )
             .bind(("rid", rid("user_key", id)))
@@ -97,17 +99,17 @@ impl<C: Connection> UserKeyRepo<C> {
         Ok(!super::take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
     }
 
-    pub async fn by_key_hash(&self, key_hash: &str) -> Result<Option<(String, String)>> {
+    pub async fn by_key_hash(&self, key_hash: &str) -> Result<Option<(String, String, String)>> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(user) AS uid, meta::id(id) AS id
+                "SELECT meta::id(user) AS uid, meta::id(id) AS id, scope
                  FROM user_key WHERE keyHash = $hash LIMIT 1",
             )
             .bind(("hash", key_hash))
             .await?;
         let row = super::take_json::<AuthRow>(&mut res, 0)?.into_iter().next();
-        Ok(row.map(|r| (r.uid, r.id)))
+        Ok(row.map(|r| (r.uid, r.id, r.scope)))
     }
 
     pub async fn touch_last_used(&self, id: &str) -> Result<()> {
@@ -135,13 +137,14 @@ struct CountRow {
 struct AuthRow {
     uid: String,
     id: String,
+    scope: String,
 }
 
 // Backend-agnostic `UserKeyRepo` trait impl (forwarders → inherent methods).
 #[async_trait::async_trait]
 impl crate::repo::traits::UserKeyRepo for UserKeyRepo<DbClient> {
-    async fn create(&self, user_id: &str, name: &str, key_hash: &str, key_prefix: &str, expires_at: Option<String>) -> Result<String> {
-        self.create(user_id, name, key_hash, key_prefix, expires_at).await
+    async fn create(&self, user_id: &str, name: &str, key_hash: &str, key_prefix: &str, expires_at: Option<String>, scope: &str) -> Result<String> {
+        self.create(user_id, name, key_hash, key_prefix, expires_at, scope).await
     }
     async fn list(&self, user_id: &str) -> Result<Vec<UserKeyRow>> {
         self.list(user_id).await
@@ -155,7 +158,7 @@ impl crate::repo::traits::UserKeyRepo for UserKeyRepo<DbClient> {
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete(user_id, id).await
     }
-    async fn by_key_hash(&self, key_hash: &str) -> Result<Option<(String, String)>> {
+    async fn by_key_hash(&self, key_hash: &str) -> Result<Option<(String, String, String)>> {
         self.by_key_hash(key_hash).await
     }
     async fn touch_last_used(&self, id: &str) -> Result<()> {
