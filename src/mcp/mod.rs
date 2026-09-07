@@ -21,7 +21,7 @@ use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{RoleServer, ServerHandler, tool_handler, tool_router, tool};
 
 use crate::http::AppState;
-use crate::mcp::models::{CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
+use crate::mcp::models::{CategoriesReq, CreateAccountReq, CreateCategoryReq, CreateTransactionsReq, CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq};
 use crate::repo::traits::transaction::TransactionListFilter;
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
@@ -398,6 +398,37 @@ impl FinancerHandler {
         }
         match self.transfer_rule.run_rule(&uid, &req.id).await {
             Ok(r) => serde_json::json!({ "matched": r.matched, "linked": r.linked, "created": r.created }).to_string(),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Update categories by id+name. Example args: {\"categories\":[{\"id\":\"<id>\",\"name\":\"New\"}]}.")]
+    async fn update_category(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CategoriesReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot update categories");
+        }
+        let inputs: Vec<(String, String)> = req.categories.into_iter().map(|c| (c.id, c.name)).collect();
+        match self.category.update(&uid, &inputs).await {
+            Ok(r) => bulk_json(&r),
+            Err(e) => err_json(e.message),
+        }
+    }
+
+    #[tool(description = "Delete categories by id. Example args: {\"ids\":[\"<id>\"]}.")]
+    async fn delete_category(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CategoriesReq>) -> String {
+        let uid = match Self::user_id(&ctx) {
+            Ok(u) => u,
+            Err(e) => return err_json(e.message),
+        };
+        if !Self::can_write(&ctx) {
+            return err_json("read-only API key; cannot delete categories");
+        }
+        match self.category.delete(&uid, &req.ids).await {
+            Ok(r) => bulk_json(&r),
             Err(e) => err_json(e.message),
         }
     }

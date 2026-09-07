@@ -172,3 +172,23 @@ pub struct RunRuleReq {
     pub id: String,
 }
 
+/// One category update item.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatItem {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+}
+
+/// Update/delete categories payload (ids + items).
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoriesReq {
+    #[serde(default)]
+    pub ids: Vec<String>,
+    #[serde(default)]
+    pub categories: Vec<CatItem>,
+}
+
