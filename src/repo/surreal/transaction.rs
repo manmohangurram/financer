@@ -54,7 +54,7 @@ impl<C: Connection> TransactionRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, name, amount, type, occurredAt,
+                "SELECT meta::id(id) AS id, name, cleanName, amount, type, occurredAt,
                     meta::id(account) AS accountId, createdAt, externalId,
                     transferLink != NONE AS transferLinked
                  FROM transaction WHERE id = $rid AND user = $uid LIMIT 1",
@@ -227,7 +227,7 @@ impl<C: Connection> TransactionRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, name, amount, type, occurredAt,
+                "SELECT meta::id(id) AS id, name, cleanName, amount, type, occurredAt,
                     meta::id(account) AS accountId, createdAt, externalId,
                     transferLink != NONE AS transferLinked
                  FROM transaction WHERE user = $uid AND id IN $rids",
@@ -242,7 +242,7 @@ impl<C: Connection> TransactionRepo<C> {
     #[allow(clippy::too_many_lines)]
     pub async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult> {
         let mut query = String::from(
-            "SELECT meta::id(id) AS id, name, amount, type, occurredAt,
+            "SELECT meta::id(id) AS id, name, cleanName, amount, type, occurredAt,
                 meta::id(account) AS accountId, createdAt, externalId,
                 transferLink != NONE AS transferLinked,
                 IF transferLink != NONE THEN meta::id(transferLink) ELSE '' END AS linkId,
