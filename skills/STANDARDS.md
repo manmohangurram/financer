@@ -1,4 +1,4 @@
-# Commands & Verification
+# Standards — Commands, Verification & Code Quality
 
 ## Commands
 
@@ -31,3 +31,16 @@ Before opening a pull request for a branch, run these review skills and fold any
 - `code-review-and-quality` — correctness, security, maintainability.
 - `performance-optimization` — measure and fix measurable bottlenecks (skip if nothing to measure).
 - `finishing-a-development-branch` — branch completion: verify tests, present merge options.
+
+## Code standards
+
+### No noise comments
+
+Never add noise comments. A comment earns its place only when it explains something the code does not already say.
+
+- **Cut** comments that restate the code: `// increment count`, `/// Create a user`, `/// Build the X backend` above `build_x_backend()`.
+- **Cut** `/// X payload.`-style doc lines that just repeat the struct/function name.
+- **Keep** a comment only when it carries non-obvious *why* or intent the code can't express: return-meaning on an opaque type, data-scoping/shape notes, security rationale, "mirrors Go's X" references, an edge-case reason, a batch-vs-N+1 query rationale.
+- **Keep** module-level (`//!`) context and section separators where they aid navigation — but terse, not prose.
+
+Rule of thumb: if deleting the comment loses no understanding, delete it. Write code that needs no comment; comment only the part that isn't obvious.

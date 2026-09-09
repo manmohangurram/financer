@@ -219,7 +219,7 @@ impl InvestmentService {
 
     pub async fn portfolio_summary(&self, user_id: &str) -> Result<PortfolioSummary> {
         let instruments = self.repo.list_investments(user_id).await?;
-        // Batch-fetch all lots once (avoids N+1 per-investment queries).
+        // Batch-fetch all lots once instead of one query per investment.
         let all_lots = self.repo.list_lots_by_user(user_id).await?;
         let mut lots_by_inv: std::collections::HashMap<String, Vec<LotRow>> = std::collections::HashMap::new();
         for l in all_lots {

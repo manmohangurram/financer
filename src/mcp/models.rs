@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::repo::traits::rule::{RuleAction, RuleCondition, RuleLogic};
 
-/// List transactions filter.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListTransactionsReq {
@@ -15,7 +14,6 @@ pub struct ListTransactionsReq {
     pub ty: Option<String>,
 }
 
-/// Create a rule payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RuleReq {
@@ -30,7 +28,6 @@ pub struct RuleReq {
     pub actions: Vec<RuleAction>,
 }
 
-/// Update a rule payload (id + the settable fields).
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateRuleReq {
@@ -47,19 +44,16 @@ pub struct UpdateRuleReq {
     pub actions: Vec<RuleAction>,
 }
 
-/// Create categories payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct CreateCategoryReq {
     pub names: Vec<String>,
 }
 
-/// Delete by id payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct DeleteReq {
     pub id: String,
 }
 
-/// A single transaction create/update payload (mirrors `TransactionReq`).
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TxnPayload {
@@ -79,28 +73,24 @@ pub struct TxnPayload {
     pub external_id: Option<String>,
 }
 
-/// Create transactions payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateTransactionsReq {
     pub transactions: Vec<TxnPayload>,
 }
 
-/// Update transactions payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateTransactionsReq {
     pub transactions: Vec<TxnPayload>,
 }
 
-/// Delete transactions by id payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteTransactionsReq {
     pub ids: Vec<String>,
 }
 
-/// Create account payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAccountReq {
@@ -111,7 +101,6 @@ pub struct CreateAccountReq {
     pub account_type: crate::repo::traits::account::AccountType,
 }
 
-/// Update account payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateAccountReq {
@@ -134,7 +123,6 @@ pub struct TransferLink {
     pub credit_transaction_id: String,
 }
 
-/// Link/unlink transfers payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TransfersReq {
@@ -144,7 +132,6 @@ pub struct TransfersReq {
     pub links: Vec<TransferLink>,
 }
 
-/// Create transfer counterpart payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateTransferCounterpartReq {
@@ -154,7 +141,6 @@ pub struct CreateTransferCounterpartReq {
     pub to_account_id: String,
 }
 
-/// Preview a rule payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewRuleReq {
@@ -166,7 +152,6 @@ pub struct PreviewRuleReq {
     pub limit: i64,
 }
 
-/// Run a rule by id payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct RunRuleReq {
     pub id: String,
@@ -182,7 +167,6 @@ pub struct CatItem {
     pub name: String,
 }
 
-/// Update/delete categories payload (ids + items).
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CategoriesReq {
@@ -192,7 +176,6 @@ pub struct CategoriesReq {
     pub categories: Vec<CatItem>,
 }
 
-/// Create/update investment payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InvestmentReq {
@@ -208,7 +191,6 @@ pub struct InvestmentReq {
     pub manual_nav: f64,
 }
 
-/// Add/update/delete lot payload.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LotInputReq {

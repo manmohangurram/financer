@@ -24,7 +24,6 @@ pub struct RepoSet {
     pub user_key: Arc<dyn UserKeyRepo>,
 }
 
-/// Build the repo set for the `SurrealDB` backend.
 pub async fn surreal_repo_set(
     url: &str,
     user: &str,
@@ -46,7 +45,6 @@ pub async fn surreal_repo_set(
     })
 }
 
-/// Build the repo set for the `SQLite` backend (WAL, write + read pools).
 pub async fn sqlite_repo_set(cfg: &crate::config::Sqlite) -> Result<RepoSet> {
     let db = open_pools(Path::new(&cfg.path), cfg).await?;
     run_migrations(&db.write).await?;
