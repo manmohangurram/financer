@@ -187,11 +187,17 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
     };
     match st.transaction.list(&uid, f).await {
         Ok(res) => {
-            // Build overlay views (rules may rename / re-categorize at read time).
+            // Actual-Budget model: rules apply at write time and their result is
+            // persisted in clean_name/category_ids. Reads return what's stored.
+            // Only legacy rows (no persisted clean_name, imported before rules
+            // ran at write) still need read-time overlay to resolve a display.
+            let needs_overlay: Vec<bool> = res.rows.iter().map(|r| r.txn.clean_name.is_none()).collect();
             let mut views: Vec<crate::service::rule::TransactionView> = res
                 .rows
                 .iter()
-                .map(|r| crate::service::rule::TransactionView {
+                .zip(&needs_overlay)
+                .filter(|(_, need)| **need)
+                .map(|(r, _)| crate::service::rule::TransactionView {
                     name: r.txn.name.clone(),
                     amount: r.txn.amount,
                     transaction_type: r.txn.transaction_type,
@@ -199,24 +205,35 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
                     category_ids: r.category_ids.clone(),
                 })
                 .collect();
-            if let Err(e) = st.rule.overlay(&uid, &mut views).await {
-                return e.into_response();
+            if !views.is_empty() {
+                if let Err(e) = st.rule.overlay(&uid, &mut views).await {
+                    return e.into_response();
+                }
             }
-            let items: Vec<WireTxn> = views
+            let mut view_iter = views.into_iter();
+            let items: Vec<WireTxn> = res
+                .rows
                 .iter()
-                .zip(res.rows.iter())
-                .map(|(v, r)| WireTxn {
-                    id: r.txn.id.clone(),
-                    name: r.txn.name.clone(),
-                    clean_name: if v.name == r.txn.name { r.txn.clean_name.clone() } else { Some(v.name.clone()) },
-                    amount: round2(v.amount),
-                    transaction_type: v.transaction_type.to_string(),
-                    occurred_at: ts_rfc3339(&r.txn.occurred_at),
-                    account_id: v.account_id.clone(),
-                    created_at: ts_rfc3339(&r.txn.created_at),
-                    linked_transfer_id: r.link_id.clone(),
-                    // Wire contract: null (not []) when no categories.
-                    category_ids: if v.category_ids.is_empty() { None } else { Some(v.category_ids.clone()) },
+                .map(|r| {
+                    // New rows carry the persisted resolved name + categories;
+                    // legacy rows get the overlay result (fallback to stored).
+                    let v = if r.txn.clean_name.is_none() { view_iter.next() } else { None };
+                    let vref = v.as_ref();
+                    let resolved_name = vref.and_then(|x| (x.name != r.txn.name).then(|| x.name.clone())).or_else(|| r.txn.clean_name.clone());
+                    let category_ids = vref.map_or_else(|| r.category_ids.clone(), |x| x.category_ids.clone());
+                    WireTxn {
+                        id: r.txn.id.clone(),
+                        name: r.txn.name.clone(),
+                        clean_name: if resolved_name.as_deref() == Some(r.txn.name.as_str()) { None } else { resolved_name },
+                        amount: round2(r.txn.amount),
+                        transaction_type: r.txn.transaction_type.to_string(),
+                        occurred_at: ts_rfc3339(&r.txn.occurred_at),
+                        account_id: r.txn.account_id.clone(),
+                        created_at: ts_rfc3339(&r.txn.created_at),
+                        linked_transfer_id: r.link_id.clone(),
+                        // Wire contract: null (not []) when no categories.
+                        category_ids: if category_ids.is_empty() { None } else { Some(category_ids) },
+                    }
                 })
                 .collect();
             Json(serde_json::json!({
