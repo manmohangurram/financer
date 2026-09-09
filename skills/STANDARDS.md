@@ -84,3 +84,63 @@ Real example — SurrealDB query binds:
 - **`Option` unwraps**: prefer `let Some(x) = ... else { return Err(...) }` / `?` over `.unwrap()` in prod code; `.unwrap()` only in tests.
 - **Builder setters** for optional service deps (`with_rule`, `with_transfer_rule`) instead of many-arg constructors.
 - Let `cargo clippy -- -D warnings` be the final arbiter; where clippy and a local preference differ, follow clippy.
+
+## Engineering standards (Rust)
+
+The conventions big-engineering orgs apply, adapted to this codebase. Repo-specific naming and gotchas live in `architecture/NAMING_CONVENTIONS.md` and `architecture/CONVENTIONS_GOTCHAS.md` — those win where they disagree; these are the general baseline.
+
+### Modules & structure
+
+- **One file = one clear responsibility.** Struct + its impl + that domain's types in one module (`src/repo/transaction.rs`, `src/service/account.rs`). Keep files under ~1000 lines; split when a module does more than one thing.
+- **Layering is one-way**: `http` → `service` → `repo` → storage. No lower layer calls a higher one; `service` never touches DB details; `repo` never touches HTTP.
+- **Dual-backend repos**: shared types + trait in `src/repo/traits/`, concrete impl in `src/repo/sqlite/` and `src/repo/surreal/`. Both impls must stay behavior-identical and both get tested.
+- **Public surface is intentional.** `pub` only what other modules/crates use. Private by default.
+- **No re-export chains for internal use** — import from the real module path.
+
+### Declarations & types
+
+- **Struct first, impl after**, grouped by concern (constructors, then behavior). Derives listed in a stable order: `Debug, Clone` (Copy after Clone if applicable), `PartialEq, Eq`, serde, then macros.
+- **Prefer composition over inheritance-style structs.** No speculative generics/traits — add a generic/trait only when there are 2+ real impls or callers.
+- **Type fields to match invariants**: `Option<T>` for optional, `Vec<T>` for lists, enums over raw ints/strings for closed sets, `String` over `&str` for owned.
+- **`new()` returns `Self`; fallible construction returns `Result`.** Builder pattern for optional config (see `with_*`).
+- **Enums: no sentinel/`Unspecified` variant.** Unknown wire value → `Err`/400 at the boundary, never a silent default.
+
+### Traits
+
+- **One trait per domain**, in `traits/<domain>.rs`, with the row/input types it needs.
+- **Trait methods take `&self`** unless mutation is required; be backend-agnostic (no storage type in signatures).
+- **`async_trait` for object safety** when the trait is used as `Arc<dyn Trait>` (the service boundary). Mark `Send + Sync`.
+- **Forwarders**: concrete impls keep an inherent `_inner`/same-name method with the real logic; the trait impl calls it. Don't duplicate bodies.
+- **Keep traits to what callers need** — no unused default methods or speculative members.
+
+### Functions
+
+- **Short, single-purpose.** Extract when a fn exceeds ~40–50 lines or does more than one thing.
+- **Arguments**: small; prefer a struct/options for 4+ related params. Booleans as params are a smell — split the fn or pass an enum.
+- **Return `Result<T>` for fallible, not `Option` for errors**; use `?` to propagate. Map infra errors to the domain `ApiError` at the boundary.
+- **Name by behavior**: verbs (`create`, `link`, `is_linked`), not implementation.
+
+### Error handling
+
+- **Domain error type** (`ApiError`) with stable status mapping (400/401/404/409/500). Repos/logic return `Result`; HTTP translates.
+- **Never swallow errors silently.** Log (`tracing::error!`) then return a generic message; don't leak internals.
+- **`?` over manual `match`** for error propagation. Convert at the layer boundary, not mid-flow.
+
+### Variables & naming
+
+- See `architecture/NAMING_CONVENTIONS.md` (full words, role-not-shape, predicate booleans, snake_case/PascalCase).
+- **Locals**: `snake_case`, short but clear; `row`, `req`, `repo`, `svc`, `txn` only for unambiguous, file-scoped locals.
+- **No single-letter except loop/closure params** where the type is obvious (`for c in chars` ok; avoid `x`/`t` for domain values).
+
+### Testing
+
+- **Both backends tested** where a repo has sqlite + surreal impls (SurrealDB `Mem`, SQLite tempfile).
+- **Behavior over implementation**; test the public service/repo API.
+- **`cargo clippy -- -D warnings` and `cargo test` must pass** before any PR (see Verification above).
+- One smoke/assert test minimum for non-trivial logic; not every helper needs a suite.
+
+### General
+
+- **No `unsafe`** unless absolutely required and justified.
+- **No new dependency without reason** — prefer stdlib/existing deps (see review `ponytail-review`).
+- **`clippy -D warnings` is law.**
