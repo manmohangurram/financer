@@ -150,15 +150,26 @@ impl TransactionService {
 
         let mut inserted_txns: Vec<Transaction> = Vec::new();
         let mut skipped = 0i64;
+        let mut deltas: HashMap<String, (f64, f64, f64)> = HashMap::new(); // account -> (balance, credit, debit)
         for t in &txns {
             if !outcome.inserted.contains(&t.id) {
                 skipped += 1;
                 continue;
             }
             inserted_txns.push(t.clone());
-            self.account_repo.update_balance(&t.account_id, Self::delta(t.transaction_type, t.amount)).await?;
             let (c, d) = Self::totals(t.transaction_type, t.amount);
-            self.account_repo.apply_totals(&t.account_id, c, d).await?;
+            let e = deltas.entry(t.account_id.clone()).or_insert((0.0, 0.0, 0.0));
+            e.0 += Self::delta(t.transaction_type, t.amount);
+            e.1 += c;
+            e.2 += d;
+        }
+        for (acc_id, (b, c, d)) in deltas {
+            if b != 0.0 {
+                self.account_repo.update_balance(&acc_id, b).await?;
+            }
+            if c != 0.0 || d != 0.0 {
+                self.account_repo.apply_totals(&acc_id, c, d).await?;
+            }
         }
 
         if let Some(tr) = &self.transfer_rule {
