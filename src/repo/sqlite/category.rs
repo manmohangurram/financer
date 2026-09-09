@@ -28,7 +28,7 @@ impl SqliteCategoryRepo {
             sqlx::query("INSERT INTO categories (id, user_id, name, created_at) VALUES (?, ?, ?, ?)")
                 .bind(&id)
                 .bind(user_id)
-                .bind(input.name.clone())
+                .bind(input.name.as_str())
                 .bind(&now)
                 .execute(&self.pool)
                 .await?;
@@ -52,8 +52,8 @@ impl SqliteCategoryRepo {
         let mut errors = Vec::new();
         for input in inputs {
             let result = sqlx::query("UPDATE categories SET name = COALESCE(NULLIF(?, ''), name) WHERE id = ? AND user_id = ?")
-                .bind(input.name.clone())
-                .bind(input.id.clone())
+                .bind(input.name.as_str())
+                .bind(input.id.as_str())
                 .bind(user_id)
                 .execute(&self.pool)
                 .await?;
@@ -93,7 +93,7 @@ impl SqliteCategoryRepo {
         let page_size_usize = usize::try_from(page_size).unwrap_or(0);
         let mut q = sqlx::query_as::<_, RawCat>(&sql).bind(user_id);
         if let Some(cur) = &cursor {
-            q = q.bind(cur.name.clone()).bind(cur.name.clone()).bind(cur.id.clone());
+            q = q.bind(cur.name.as_str()).bind(cur.name.as_str()).bind(cur.id.as_str());
         }
         if page_size > 0 {
             q = q.bind(page_size + 1);
