@@ -37,7 +37,7 @@ impl SqliteTransactionRepo {
 
     async fn get_full_inner(&self, user_id: &str, id: &str) -> Result<Option<Transaction>> {
         let row = sqlx::query_as::<_, RawTransaction>(
-            "SELECT t.id, t.name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id
+            "SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id
              FROM transactions t WHERE t.id = ? AND t.user_id = ?",
         )
         .bind(id)
@@ -61,7 +61,7 @@ impl SqliteTransactionRepo {
     ) -> Result<Option<Transaction>> {
         let around_str = &around[..around.len().min(19)];
         let row = sqlx::query_as::<_, RawTransaction>(
-            "SELECT t.id, t.name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, NULL AS external_id
+            "SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, NULL AS external_id
             FROM transactions t
             WHERE t.user_id = ? AND t.account_id = ? AND t.type = ? AND t.amount = ?
               AND t.occurred_at >= datetime(?, '-3 days') AND t.occurred_at <= datetime(?, '+3 days')
@@ -102,12 +102,13 @@ impl SqliteTransactionRepo {
         for input in inputs {
             let t = &input.txn;
             let res = sqlx::query(
-                "INSERT OR IGNORE INTO transactions (id, user_id, name, amount, type, occurred_at, account_id, created_at, external_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO transactions (id, user_id, name, clean_name, amount, type, occurred_at, account_id, created_at, external_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(&t.id)
             .bind(user_id)
             .bind(&t.name)
+            .bind(&t.clean_name)
             .bind(t.amount)
             .bind(t.transaction_type.to_string())
             .bind(&t.occurred_at)
@@ -238,7 +239,7 @@ impl SqliteTransactionRepo {
             return Ok(Vec::new());
         }
         let mut query = String::from(
-            "SELECT id, name, amount, type, occurred_at, account_id, created_at, external_id FROM transactions WHERE user_id = ? AND id IN (",
+            "SELECT id, name, clean_name, amount, type, occurred_at, account_id, created_at, external_id FROM transactions WHERE user_id = ? AND id IN (",
         );
         query.push_str("?, ".repeat(ids.len()).trim_end_matches(", "));
         query.push(')');
@@ -254,7 +255,7 @@ impl SqliteTransactionRepo {
         let (where_sql, filter_args) = build_txn_where(f);
 
         let mut query = String::from(
-            "SELECT t.id, t.name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id,
+            "SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id,
                     COALESCE(l.id, ''),
                     (SELECT GROUP_CONCAT(tc.category_id) FROM transaction_categories tc WHERE tc.transaction_id = t.id),
                     COUNT(*) OVER () AS total
@@ -573,16 +574,17 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for RawListTxn {
         let txn = RawTransaction {
             id: row.try_get(0)?,
             name: row.try_get(1)?,
-            amount: row.try_get(2)?,
-            transaction_type: row.try_get(3)?,
-            occurred_at: row.try_get(4)?,
-            account_id: row.try_get(5)?,
-            created_at: row.try_get(6)?,
-            external_id: row.try_get(7)?,
+            clean_name: row.try_get(2)?,
+            amount: row.try_get(3)?,
+            transaction_type: row.try_get(4)?,
+            occurred_at: row.try_get(5)?,
+            account_id: row.try_get(6)?,
+            created_at: row.try_get(7)?,
+            external_id: row.try_get(8)?,
         };
-        let link: Option<String> = row.try_get(8)?;
-        let cat_group: Option<String> = row.try_get(9)?;
-        let total: i64 = row.try_get(10)?;
+        let link: Option<String> = row.try_get(9)?;
+        let cat_group: Option<String> = row.try_get(10)?;
+        let total: i64 = row.try_get(11)?;
         Ok(RawListTxn(txn, link, cat_group, total))
     }
 }
@@ -591,6 +593,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for RawListTxn {
 struct RawTransaction {
     id: String,
     name: String,
+    clean_name: Option<String>,
     amount: f64,
     #[sqlx(rename = "type")]
     transaction_type: String,
@@ -605,6 +608,7 @@ impl From<RawTransaction> for Transaction {
         Self {
             id: r.id,
             name: r.name,
+            clean_name: r.clean_name,
             amount: r.amount,
             transaction_type: TransactionType::from_str(&r.transaction_type).unwrap_or(TransactionType::Debit),
             occurred_at: r.occurred_at,

@@ -54,7 +54,7 @@ impl<C: Connection> TransactionRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, name, amount, type, occurredAt,
+                "SELECT meta::id(id) AS id, name, cleanName, amount, type, occurredAt,
                     meta::id(account) AS accountId, createdAt, externalId,
                     transferLink != NONE AS transferLinked
                  FROM transaction WHERE id = $rid AND user = $uid LIMIT 1",
@@ -135,7 +135,7 @@ impl<C: Connection> TransactionRepo<C> {
                 .db
                 .query(
                     "CREATE transaction CONTENT {
-                        id: $id, user: $uid, name: $name, amount: $amount, type: $type,
+                        id: $id, user: $uid, name: $name, cleanName: $clean, amount: $amount, type: $type,
                         occurredAt: $occ, account: $acc, createdAt: $created,
                         externalId: $ext, categories: $cats, transferLink: NONE
                     } RETURN meta::id(id) AS id",
@@ -143,6 +143,7 @@ impl<C: Connection> TransactionRepo<C> {
                 .bind(("id", t.id.as_str()))
                 .bind(("uid", rid("user", user_id)))
                 .bind(("name", t.name.as_str()))
+                .bind(("clean", t.clean_name.as_deref()))
                 .bind(("amount", t.amount))
                 .bind(("type", t.transaction_type.to_string()))
                 .bind(("occ", t.occurred_at.as_str()))
@@ -226,7 +227,7 @@ impl<C: Connection> TransactionRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, name, amount, type, occurredAt,
+                "SELECT meta::id(id) AS id, name, cleanName, amount, type, occurredAt,
                     meta::id(account) AS accountId, createdAt, externalId,
                     transferLink != NONE AS transferLinked
                  FROM transaction WHERE user = $uid AND id IN $rids",
@@ -241,7 +242,7 @@ impl<C: Connection> TransactionRepo<C> {
     #[allow(clippy::too_many_lines)]
     pub async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult> {
         let mut query = String::from(
-            "SELECT meta::id(id) AS id, name, amount, type, occurredAt,
+            "SELECT meta::id(id) AS id, name, cleanName, amount, type, occurredAt,
                 meta::id(account) AS accountId, createdAt, externalId,
                 transferLink != NONE AS transferLinked,
                 IF transferLink != NONE THEN meta::id(transferLink) ELSE '' END AS linkId,
@@ -683,6 +684,7 @@ mod tests {
         Transaction {
             id: id.to_string(),
             name: name.to_string(),
+            clean_name: None,
             amount,
             transaction_type,
             occurred_at: "2024-01-02 03:04:05 +0000 UTC".to_string(),
@@ -724,6 +726,25 @@ mod tests {
         let full = repo.get_full("u1", "t1").await.unwrap().unwrap();
         assert_eq!(full.name, "Coffee");
         assert_eq!(full.amount, 5.5);
+    }
+
+    #[tokio::test]
+    async fn clean_name_roundtrips_on_read() {
+        let (db, repo) = setup().await;
+        let acc = account_id(&db).await;
+        let mut t = txn("t1", "UPI-RAW-1", 5.5, TransactionType::Debit, &acc, None);
+        t.clean_name = Some("Clean Shop".to_string());
+        repo.create("u1", &[CreateTransactionInput { txn: t, category_ids: vec![] }]).await.unwrap();
+
+        let full = repo.get_full("u1", "t1").await.unwrap().unwrap();
+        assert_eq!(full.name, "UPI-RAW-1"); // raw preserved
+        assert_eq!(full.clean_name.as_deref(), Some("Clean Shop"));
+
+        let batch = repo.get_by_id_batch("u1", &["t1".to_string()]).await.unwrap();
+        assert_eq!(batch[0].clean_name.as_deref(), Some("Clean Shop"));
+
+        let list = repo.list("u1", &TransactionListFilter::default()).await.unwrap();
+        assert_eq!(list.rows[0].txn.clean_name.as_deref(), Some("Clean Shop"));
     }
 
 
@@ -862,7 +883,7 @@ mod spending_tests {
         let cat = take_json::<String>(&mut res, 0).unwrap()[0].clone();
 
         let txn = |id: &str, name: &str, amt: f64, ty: TransactionType, acc: &str| Transaction {
-            id: id.to_string(), name: name.to_string(), amount: amt, transaction_type: ty,
+            id: id.to_string(), name: name.to_string(), clean_name: None, amount: amt, transaction_type: ty,
             occurred_at: "2024-01-02 10:00:00 +0000 UTC".to_string(),
             account_id: acc.to_string(), created_at: "2024-01-02 10:00:01 +0000 UTC".to_string(),
             external_id: None, transfer_linked: false,

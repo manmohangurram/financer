@@ -55,6 +55,8 @@ struct JsonListTxn {
 struct WireTxn {
     id: String,
     name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clean_name: Option<String>,
     amount: f64,
     #[serde(rename = "type")]
     transaction_type: String,
@@ -205,14 +207,15 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
                 .zip(res.rows.iter())
                 .map(|(v, r)| WireTxn {
                     id: r.txn.id.clone(),
-                    name: v.name.clone(),
+                    name: r.txn.name.clone(),
+                    clean_name: if v.name == r.txn.name { r.txn.clean_name.clone() } else { Some(v.name.clone()) },
                     amount: round2(v.amount),
                     transaction_type: v.transaction_type.to_string(),
                     occurred_at: ts_rfc3339(&r.txn.occurred_at),
                     account_id: v.account_id.clone(),
                     created_at: ts_rfc3339(&r.txn.created_at),
                     linked_transfer_id: r.link_id.clone(),
-                    // Go emits null for an empty category set; mirror that.
+                    // Wire contract: null (not []) when no categories.
                     category_ids: if v.category_ids.is_empty() { None } else { Some(v.category_ids.clone()) },
                 })
                 .collect();
