@@ -25,6 +25,8 @@ pub enum TransactionType {
 pub struct Transaction {
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clean_name: Option<String>,
     pub amount: f64,
     #[allow(clippy::struct_field_names)]
     #[serde(rename = "type")]

@@ -135,7 +135,7 @@ impl<C: Connection> TransactionRepo<C> {
                 .db
                 .query(
                     "CREATE transaction CONTENT {
-                        id: $id, user: $uid, name: $name, amount: $amount, type: $type,
+                        id: $id, user: $uid, name: $name, cleanName: $clean, amount: $amount, type: $type,
                         occurredAt: $occ, account: $acc, createdAt: $created,
                         externalId: $ext, categories: $cats, transferLink: NONE
                     } RETURN meta::id(id) AS id",
@@ -143,6 +143,7 @@ impl<C: Connection> TransactionRepo<C> {
                 .bind(("id", t.id.as_str()))
                 .bind(("uid", rid("user", user_id)))
                 .bind(("name", t.name.as_str()))
+                .bind(("clean", t.clean_name.as_deref()))
                 .bind(("amount", t.amount))
                 .bind(("type", t.transaction_type.to_string()))
                 .bind(("occ", t.occurred_at.as_str()))
@@ -683,6 +684,7 @@ mod tests {
         Transaction {
             id: id.to_string(),
             name: name.to_string(),
+            clean_name: None,
             amount,
             transaction_type,
             occurred_at: "2024-01-02 03:04:05 +0000 UTC".to_string(),
@@ -862,7 +864,7 @@ mod spending_tests {
         let cat = take_json::<String>(&mut res, 0).unwrap()[0].clone();
 
         let txn = |id: &str, name: &str, amt: f64, ty: TransactionType, acc: &str| Transaction {
-            id: id.to_string(), name: name.to_string(), amount: amt, transaction_type: ty,
+            id: id.to_string(), name: name.to_string(), clean_name: None, amount: amt, transaction_type: ty,
             occurred_at: "2024-01-02 10:00:00 +0000 UTC".to_string(),
             account_id: acc.to_string(), created_at: "2024-01-02 10:00:01 +0000 UTC".to_string(),
             external_id: None, transfer_linked: false,

@@ -10,6 +10,7 @@ use utoipa::ToSchema;
 use crate::error::{ApiError, Result};
 use crate::repo::traits::{AccountRepo, CategoryRepo, TransactionRepo};
 use crate::repo::traits::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
+use crate::service::rule::{RuleService, TransactionView};
 use crate::service::transfer_rule::TransferRuleService;
 use crate::timex::{go_ts, round2};
 
@@ -19,6 +20,7 @@ pub struct TransactionService {
     account_repo: Arc<dyn AccountRepo>,
     category_repo: Arc<dyn CategoryRepo>,
     transfer_rule: Option<TransferRuleService>,
+    rule: Option<Arc<RuleService>>,
 }
 
 /// A transaction ready for create/update, mirroring Go's `TransactionResponse`.
@@ -42,11 +44,18 @@ pub struct BulkResult {
 
 impl TransactionService {
     pub fn new(transaction_repo: Arc<dyn TransactionRepo>, account_repo: Arc<dyn AccountRepo>, category_repo: Arc<dyn CategoryRepo>) -> Self {
-        Self { transaction_repo, account_repo, category_repo, transfer_rule: None }
+        Self { transaction_repo, account_repo, category_repo, transfer_rule: None, rule: None }
     }
 
     pub fn with_transfer_rule(mut self, transfer_rule: TransferRuleService) -> Self {
         self.transfer_rule = Some(transfer_rule);
+        self
+    }
+
+    /// Enable write-time rule application: on create, set `clean_name` (and
+    /// category) from matching rules. The raw `name` is never overwritten.
+    pub fn with_rule(mut self, rule: Arc<RuleService>) -> Self {
+        self.rule = Some(rule);
         self
     }
 
@@ -84,6 +93,22 @@ impl TransactionService {
         self.transaction_repo.list(user_id, &f).await
     }
 
+    // Snapshot rule-resolved name into clean_name + category at write; raw name is untouched.
+    // No rule wired, or no match, leaves clean_name None.
+    async fn apply_rules_on_create(&self, user_id: &str, inputs: &mut [CreateTransactionInput]) -> Result<()> {
+        let Some(rule) = &self.rule else { return Ok(()) };
+        let mut views: Vec<TransactionView> = inputs.iter().map(txn_to_view).collect();
+        rule.overlay(user_id, &mut views).await?;
+        for (input, view) in inputs.iter_mut().zip(views) {
+            // Only adopt when a rule actually changed the display name.
+            if view.name != input.txn.name {
+                input.txn.clean_name = Some(view.name);
+            }
+            input.category_ids = view.category_ids;
+        }
+        Ok(())
+    }
+
     pub async fn create(&self, user_id: &str, reqs: &[TransactionReq]) -> Result<BulkResult> {
         if reqs.len() > 1000 {
             return Err(ApiError::bad_request("too many transactions in one request (max 1000)"));
@@ -106,6 +131,7 @@ impl TransactionService {
             let txn = Transaction {
                 id: t.id.clone(),
                 name: t.name.clone(),
+                clean_name: None,
                 amount: round2(t.amount),
                 transaction_type: t.transaction_type,
                 occurred_at,
@@ -117,6 +143,8 @@ impl TransactionService {
             inputs.push(CreateTransactionInput { txn: txn.clone(), category_ids: t.category_ids.clone() });
             txns.push(txn);
         }
+
+        self.apply_rules_on_create(user_id, &mut inputs).await?;
 
         let outcome: CreateOutcome = self.transaction_repo.create(user_id, &inputs).await?;
 
@@ -169,6 +197,7 @@ impl TransactionService {
                 txn: Transaction {
                     id: t.id.clone(),
                     name: t.name.clone(),
+                    clean_name: None,
                     amount: round2(t.amount),
                     transaction_type: t.transaction_type,
                     occurred_at: t.occurred_at.clone(),
@@ -397,5 +426,14 @@ fn bucket_label(key: &str, gran: &str) -> String {
     key.to_string()
 }
 
-
-
+// Mirror a pending create input as the matchable view the rule overlay expects.
+fn txn_to_view(input: &CreateTransactionInput) -> TransactionView {
+    let t = &input.txn;
+    TransactionView {
+        name: t.name.clone(),
+        amount: t.amount,
+        transaction_type: t.transaction_type,
+        account_id: t.account_id.clone(),
+        category_ids: input.category_ids.clone(),
+    }
+}

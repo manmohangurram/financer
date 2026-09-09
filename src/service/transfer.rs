@@ -160,6 +160,7 @@ pub async fn resolve_transfer(
 
     let counter_txn = Transaction {
         id: Uuid::new_v4().to_string(),
+        clean_name: None,
         name: format!("Transfer from {}", account_display(user_id, &src.account_id, account_repo).await),
         amount: src.amount,
         transaction_type: opposite,
