@@ -728,6 +728,25 @@ mod tests {
         assert_eq!(full.amount, 5.5);
     }
 
+    #[tokio::test]
+    async fn clean_name_roundtrips_on_read() {
+        let (db, repo) = setup().await;
+        let acc = account_id(&db).await;
+        let mut t = txn("t1", "UPI-RAW-1", 5.5, TransactionType::Debit, &acc, None);
+        t.clean_name = Some("Clean Shop".to_string());
+        repo.create("u1", &[CreateTransactionInput { txn: t, category_ids: vec![] }]).await.unwrap();
+
+        let full = repo.get_full("u1", "t1").await.unwrap().unwrap();
+        assert_eq!(full.name, "UPI-RAW-1"); // raw preserved
+        assert_eq!(full.clean_name.as_deref(), Some("Clean Shop"));
+
+        let batch = repo.get_by_id_batch("u1", &["t1".to_string()]).await.unwrap();
+        assert_eq!(batch[0].clean_name.as_deref(), Some("Clean Shop"));
+
+        let list = repo.list("u1", &TransactionListFilter::default()).await.unwrap();
+        assert_eq!(list.rows[0].txn.clean_name.as_deref(), Some("Clean Shop"));
+    }
+
 
     #[tokio::test]
     async fn list_filters_and_paginates() {
