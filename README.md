@@ -87,13 +87,14 @@ cp .env.example .env
 docker run -d --name financer --restart unless-stopped \
   -p 8080:8080 \
   -v financer-data:/data \
+  -e FINANCER_JWT_SECRET="$(openssl rand -hex 32)" \
   ghcr.io/manmohangurram/financer:latest
 ```
 
 Open **http://localhost:8080** and sign up.
 
-> [!NOTE]
-> On first run the app writes a default `config.toml` (SQLite + a generated JWT secret) into the mounted `/data` volume. Nothing else is required to get started.
+> [!IMPORTANT]
+> `FINANCER_JWT_SECRET` is **required** — the server refuses to start without it. Set a stable value (e.g. `openssl rand -hex 32`) so sessions survive restarts.
 
 ### Pulling a private package
 
@@ -107,47 +108,29 @@ Alternatively, make only the package public (GitHub → your profile → *Packag
 
 ## Configuration
 
-All runtime settings live in **`/data/config/config.toml`** (inside the mounted volume). If the file is missing it is generated with defaults. Point the app elsewhere with the `FINANCER_CONFIG` environment variable.
+Configuration is **entirely environment variables** — there is no config file. Every setting has a built-in default except `FINANCER_JWT_SECRET`, which is required. Blank/unset vars keep the default.
 
-See [`config.example.toml`](config.example.toml) for the full, commented template.
-
-| Section | Keys | Purpose |
+| Variable | Default | Purpose |
 |---|---|---|
-| `[server]` | `addr`, `data_dir`, `static_dir`, `domain_url`, `jwt_secret`, `timezone` | Listen address, data root, SPA dir, external URL, token secret (auto-generated 64-char if empty), IANA timezone for date/day bucketing |
-| `[storage]` | `database` | `"sqlite"` (default) or `"surreal"` |
-| `[storage.sqlite]` | `path`, `journal_mode`, `synchronous`, `busy_timeout_ms`, `foreign_keys`, `page_size`, `write_pool_size`, `read_pool_size` | SQLite tuning |
-| `[storage.surreal]` | `url`, `user`, `pass`, `ns`, `db` | SurrealDB connection |
-| `[yahoo]` | `bases`, `chart`, `search` | Yahoo endpoints for quotes/history |
-
-**Environment variables**
-
-Every setting can be overridden by an env var, which **takes precedence over `config.toml`** (env > file > default). Blank/unset vars are ignored.
-
-| Variable | Overrides |
-|---|---|
-| `FINANCER_CONFIG` | Path to the config file (default `/data/config/config.toml`) |
-| `FINANCER_ADDR` | `[server] addr` |
-| `FINANCER_DATA_DIR` | `[server] data_dir` |
-| `FINANCER_DOMAIN_URL` | `[server] domain_url` |
-| `FINANCER_JWT_SECRET` | `[server] jwt_secret` |
-| `FINANCER_TIMEZONE` | `[server] timezone` |
-| `FINANCER_DATABASE` | `[storage] database` (`sqlite` \| `surreal`) |
-| `FINANCER_SQLITE_PATH` | `[storage.sqlite] path` |
-| `FINANCER_SURREAL_URL` | `[storage.surreal] url` |
-| `FINANCER_SURREAL_USER` | `[storage.surreal] user` |
-| `FINANCER_SURREAL_PASS` | `[storage.surreal] pass` |
-| `FINANCER_SURREAL_NS` | `[storage.surreal] ns` |
-| `FINANCER_SURREAL_DB` | `[storage.surreal] db` |
-
-> [!IMPORTANT]
-> `config.toml` contains the `jwt_secret` — treat it as a secret. Only `config.example.toml` is committed to the repo.
+| `FINANCER_JWT_SECRET` | **required** | Token signing secret (e.g. `openssl rand -hex 32`) |
+| `FINANCER_ADDR` | `0.0.0.0:8080` | Listen address |
+| `FINANCER_DATA_DIR` | `/data` | Runtime data root |
+| `FINANCER_DOMAIN_URL` | *(empty)* | External URL, if the SPA is served from a different origin |
+| `FINANCER_TIMEZONE` | `Asia/Kolkata` | IANA timezone for day/month bucketing and date ranges |
+| `FINANCER_DATABASE` | `sqlite` | `sqlite` \| `surreal` |
+| `FINANCER_SQLITE_PATH` | `/data/financer.db` | SQLite file |
+| `FINANCER_SURREAL_URL` | `127.0.0.1:8000` | SurrealDB endpoint |
+| `FINANCER_SURREAL_USER` | `root` | SurrealDB user |
+| `FINANCER_SURREAL_PASS` | `root` | SurrealDB password |
+| `FINANCER_SURREAL_NS` | `financer` | SurrealDB namespace |
+| `FINANCER_SURREAL_DB` | `financer` | SurrealDB database |
 
 **Frontend API base:** in the container the frontend is built same-origin, so it talks to the API on whatever host serves the page. For local dev set `VITE_API_URL` (see [`frontend/.env.example`](frontend/.env.example)).
 
 ### Storage backends
 
 - **SQLite (default)** — zero-dependency, single file at `/data/financer.db`. Migrations in `db/migrations/` run automatically at boot.
-- **SurrealDB (optional)** — set `[storage] database = "surreal"` (or `FINANCER_DATABASE=surreal`) and point `[storage.surreal]` / `FINANCER_SURREAL_*` at a running SurrealDB. The schema is applied idempotently at boot. The default [`docker-compose.yml`](docker-compose.yml) bundles a SurrealDB for you.
+- **SurrealDB (optional)** — set `FINANCER_DATABASE=surreal` and point `FINANCER_SURREAL_*` at a running SurrealDB. The schema is applied idempotently at boot. The default [`docker-compose.yml`](docker-compose.yml) bundles a SurrealDB for you.
 
 ## Data, backups & upgrades
 
@@ -156,7 +139,6 @@ Everything persists under the mounted `/data` volume:
 | Path | Contents |
 |---|---|
 | `/data/financer.db` (+ `-wal`, `-shm`) | SQLite database |
-| `/data/config/config.toml` | Configuration (contains the JWT secret) |
 | `/data/avatars/` | Uploaded profile pictures |
 
 ### Backup
@@ -256,7 +238,7 @@ Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `get_
 **Prerequisites:** Rust ≥ 1.85 (edition 2024) and Node 22.
 
 ```bash
-# Backend — API on :8080 (config auto-generated on first run)
+# Backend — API on :8080 (set FINANCER_JWT_SECRET, see Configuration)
 cargo run
 
 # Frontend — Vite dev server on :5173, calls the API directly (CORS)
@@ -292,7 +274,7 @@ cargo audit          # advisories ignored are documented in .cargo/audit.toml
 src/
   main.rs                 # wiring: repo set, services, HTTP server
   auth.rs                 # JWT creation/validation
-  config.rs               # config.toml loading + defaults
+  config.rs               # env config + defaults
   error.rs                # ApiError → HTTP status mapping
   http/                   # REST handlers (account, transaction, rule, investment, analytics, settings, …)
   mcp/                    # MCP server tools + models

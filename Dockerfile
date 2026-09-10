@@ -11,7 +11,7 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
 # Same-origin by default; an absolute API base can be injected at runtime via
-# the server.domain_url config.toml setting (not baked at build).
+# the FINANCER_DOMAIN_URL setting (not baked at build).
 RUN VITE_API_URL= npm run build
 
 # We only pay the cargo-chef install cost once (cached from the second build).
@@ -59,14 +59,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY --from=builder /out/financer ./financer
-# Yahoo endpoint config now comes from config.toml ([yahoo]), not a file.
-# SurrealDB is a separate server (see docker-compose.yml); the app connects
-# over HTTP-RPC. Schema (define_tables) is applied at boot from the binary.
-# Build args override the defaults — the GitHub Actions workflow injects the
-# Config comes from the mounted /data/config/config.toml (see config.example.toml).
-# FINANCER_CONFIG points the app at it. All other settings (addr, data_dir,
-# static_dir, database, yahoo) are read from that config file.
-ENV FINANCER_CONFIG=/data/config/config.toml
+# Configuration is entirely from environment variables (see README.md);
+# there is no config file. SurrealDB is a separate server (see
+# docker-compose.yml). The schema is applied at boot from the binary.
 EXPOSE 8080
 VOLUME ["/data"]
 ENTRYPOINT ["/app/financer"]

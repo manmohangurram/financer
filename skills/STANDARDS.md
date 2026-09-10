@@ -6,7 +6,7 @@ Run verification in this order after backend changes, then frontend changes.
 
 **Backend (Rust, from repo root):**
 ```bash
-cargo run            # starts API on :8080; reads config from config.toml (schema applied at boot)
+cargo run            # starts API on :8080; config from FINANCER_* env (schema applied at boot)
 cargo build --locked
 cargo clippy --all-targets -- -D warnings
 cargo test           # unit + repo (SurrealDB Mem) + HTTP integration tests (SQLite)

@@ -41,7 +41,7 @@ Frontend resolution order (`frontend/src/lib/api/client.ts`):
 
 ```bash
 # Terminal 1 — backend (API on :8080)
-<PROJECT>_JWT_SECRET=devsecret cargo run
+FINANCER_JWT_SECRET=devsecret cargo run
 
 # Terminal 2 — frontend (vite dev, calls the API directly)
 cd frontend
@@ -145,7 +145,7 @@ docker run -d \
   --name <app> \
   -p 8080:8080 \
   -v <app>-data:/data \
-  -e <PROJECT>_JWT_SECRET="$(openssl rand -hex 32)" \
+  -e FINANCER_JWT_SECRET="$(openssl rand -hex 32)" \
   ghcr.io/<owner>/<image>:latest
 ```
 
@@ -156,7 +156,7 @@ docker run -d \
   --name <app> \
   -p 8080:8080 \
   -v <app>-data:/data \
-  -e <PROJECT>_JWT_SECRET="$(openssl rand -hex 32)" \
+  -e FINANCER_JWT_SECRET="$(openssl rand -hex 32)" \
   ghcr.io/<owner>/<image>:latest   # same tag — manifest picks the arm64 image automatically
 ```
 
@@ -166,20 +166,18 @@ No per-arch tag needed — the multi-arch manifest resolves the right image on t
 
 ## 6. Required env vars in production
 
-| Setting (config.toml) | Required | Notes |
-|---|---|---|
-| `server.jwt_secret` | auto | 64-char secret; auto-generated if empty |
-| `server.addr` | no | listen address (default `0.0.0.0:8080`) |
-| `server.data_dir` | no | runtime data root (default `/data`, bind a volume) |
-| `server.domain_url` | no | set only if frontend served from a different host |
-| `server.static_dir` | no | built frontend path (default `frontend/dist`) |
-| `storage.database` | no | `sqlite` \| `surreal` (default `sqlite`) |
-| `storage.surreal.url/user/pass/ns/db` | no | SurrealDB connection (defaults `127.0.0.1:8000` / `root` / `root` / `financer` / `financer`) |
-| `storage.sqlite.*` | no | SQLite tuning (path, journal_mode, synchronous, busy_timeout, page_size, pool sizes) |
-| `yahoo.*` | no | Yahoo endpoint templates (bases, chart, search) |
+Configuration is env-only (no config file). See the table in `README.md`.
 
-All settings live in `/data/config/config.toml` on the mounted volume (or set
-`FINANCER_CONFIG` to point elsewhere). If missing, a default is auto-generated.
+| Env var | Required | Notes |
+|---|---|---|
+| `FINANCER_JWT_SECRET` | **yes** | token signing secret; the server refuses to start without it |
+| `FINANCER_ADDR` | no | listen address (default `0.0.0.0:8080`) |
+| `FINANCER_DATA_DIR` | no | runtime data root (default `/data`, bind a volume) |
+| `FINANCER_DOMAIN_URL` | no | set only if the SPA is served from a different host |
+| `FINANCER_TIMEZONE` | no | IANA zone (default `Asia/Kolkata`) |
+| `FINANCER_DATABASE` | no | `sqlite` \| `surreal` (default `sqlite`) |
+| `FINANCER_SQLITE_PATH` | no | SQLite file (default `/data/financer.db`) |
+| `FINANCER_SURREAL_URL/USER/PASS/NS/DB` | no | SurrealDB connection |
 
 ---
 

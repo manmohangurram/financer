@@ -14,7 +14,7 @@ Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue
 
 ## Quick Reference
 
-- **Commands:** `cargo run` (API on :8080; reads config from config.toml, schema applied at boot), `cargo build --locked`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo audit`; frontend: `npm run dev` / `npm run build` / `npm test` (details in [skills/STANDARDS.md](skills/STANDARDS.md)).
+- **Commands:** `cargo run` (API on :8080; config from `FINANCER_*` env, schema applied at boot), `cargo build --locked`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo audit`; frontend: `npm run dev` / `npm run build` / `npm test` (details in [skills/STANDARDS.md](skills/STANDARDS.md)).
 - **Architecture:** repo → service → http layering; SurrealDB (server-mode HTTP-RPC client, embedded `Mem` in tests); schema via idempotent `define_tables()` at boot; record ids (`table:<id>`) with plain-string wire ids; per-user scoping via `user` record links (details in [architecture/](architecture/)).
 - **API docs:** Swagger UI at `/docs` (utoipa-generated), spec at `/openapi.json`.
 - **Deployment:** see [DEPLOY.md](DEPLOY.md).
