@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use crate::error::{ApiError, Result};
 use crate::repo::traits::account::{AccountRow, AccountType};
 use crate::repo::traits::AccountRepo;
-use crate::timex::ts_rfc3339;
+use crate::utils::timex::ts_rfc3339;
 
 #[derive(Clone)]
 pub struct AccountService {

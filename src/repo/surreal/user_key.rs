@@ -5,7 +5,7 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, DbClient, RepoConn};
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 pub use crate::repo::traits::user_key::UserKeyRow;
 

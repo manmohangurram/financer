@@ -13,7 +13,7 @@ use crate::repo::traits::transaction::{
     ListTransactionResult, SpendingBucketRow, SpendingCategoryRow, SpendingFilter, Transaction,
     TransactionListFilter, TransactionType, UpdateTransactionInput,
 };
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 pub struct SqliteTransactionRepo {
     pool: SqlitePool,
@@ -512,7 +512,7 @@ fn build_txn_where(f: &TransactionListFilter) -> (String, Vec<String>) {
         query.push_str(" AND t.occurred_at < ?");
         if let Ok(d) = chrono::NaiveDate::parse_from_str(&f.date_to, "%Y-%m-%d") {
             let end = d.and_hms_opt(0, 0, 0).unwrap().and_utc() + chrono::Duration::days(1);
-            args.push(crate::timex::go_ts(end));
+            args.push(crate::utils::timex::go_ts(end));
         } else {
             args.push(f.date_to.clone());
         }

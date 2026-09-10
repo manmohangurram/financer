@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use utoipa::ToSchema;
 
 use crate::error::Result;
-use crate::timex::{round2, ts_rfc3339};
+use crate::utils::math::round2;
+use crate::utils::timex::ts_rfc3339;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema, schemars::JsonSchema,

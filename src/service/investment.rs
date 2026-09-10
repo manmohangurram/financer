@@ -9,7 +9,8 @@ use crate::repo::traits::investment::{effective_price, investment_wire, lot_wire
 use crate::repo::traits::InvestmentRepo;
 use crate::service::fifo::{compute_fifo, FifoLot, Position};
 use crate::service::yahoo::{PricePoint, YahooClient};
-use crate::timex::{go_ts, round2};
+use crate::utils::math::round2;
+use crate::utils::timex::go_ts;
 use chrono::Datelike;
 use utoipa::ToSchema;
 

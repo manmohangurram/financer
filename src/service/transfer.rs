@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::error::{ApiError, Result};
 use crate::repo::traits::{AccountRepo, TransactionRepo};
 use crate::repo::traits::transaction::{self, Transaction, TransactionType};
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 #[derive(Clone)]
 pub struct TransferService {

@@ -4,7 +4,7 @@
 use surrealdb::Connection;
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 #[allow(unused_imports)]
 pub use crate::repo::traits::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRow, InvestmentType, Lot, LotInput, LotRow};

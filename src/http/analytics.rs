@@ -9,7 +9,7 @@ use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::http::{require_user, AppState};
-use crate::timex::round2;
+use crate::utils::math::round2;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
