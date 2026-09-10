@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
-    let cfg = Config::load()?;
+    let cfg = Config::from_env()?;
     // Set the process timezone once, before any date/time work.
     crate::utils::timex::init_tz(&cfg.server.timezone);
     std::fs::create_dir_all(cfg.server.data_dir.join("avatars"))?;

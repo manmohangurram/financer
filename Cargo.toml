@@ -45,7 +45,6 @@ rand = "0.8"
 rmcp = { version = "3", features = ["server", "transport-streamable-http-server", "schemars"] }
 schemars = { version = "1", features = ["derive"] }
 http = "1"
-toml = "0.8"
 chrono-tz = "0.10.4"
 
 [dev-dependencies]

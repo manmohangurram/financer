@@ -1,47 +1,19 @@
-//! Runtime configuration from `config.toml`.
+//! Runtime configuration from `FINANCER_*` environment variables.
 //!
-//! The file is read at `/data/config/config.toml` (the `/data` volume). If it
-//! is missing, a default is written on first run: SQLite storage and a
-//! freshly generated 64-char JWT secret.
+//! There is no config file: every setting has a built-in default and can be
+//! overridden by an env var (see the README table). Storage is UTC and the
+//! timezone defaults to `Asia/Kolkata`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
-
-/// Default config path: `<data_dir>/config/config.toml`, where `data_dir`
-/// defaults to `/data` (the user-defined volume).
-pub fn default_config_path() -> PathBuf {
-    PathBuf::from("/data/config/config.toml")
-}
-
-/// Find the config path to read: honour `FINANCER_CONFIG` if set (tests/dev),
-/// else `{data_dir}/config/config.toml` with `/data` default.
-fn config_path_for_read() -> PathBuf {
-    std::env::var("FINANCER_CONFIG")
-        .ok()
-        .filter(|v| !v.is_empty())
-        .map_or_else(default_config_path, PathBuf::from)
-}
-
-/// Generate a 64-character random alphanumeric secret.
-pub fn generate_secret() -> String {
-    use rand::Rng;
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
-    (0..64).map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char).collect()
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
-#[serde(default)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub server: Server,
     pub storage: Storage,
     pub yahoo: YahooConfigSection,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[derive(Debug, Clone)]
 pub struct Server {
     pub addr: String,
     pub data_dir: PathBuf,
@@ -59,14 +31,13 @@ impl Default for Server {
             data_dir: "/data".into(),
             static_dir: PathBuf::from("frontend/dist"),
             domain_url: String::new(),
-            jwt_secret: generate_secret(),
+            jwt_secret: String::new(),
             timezone: "Asia/Kolkata".into(),
         }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[derive(Debug, Clone)]
 pub struct Storage {
     /// "sqlite" | "surreal"
     pub database: String,
@@ -76,17 +47,12 @@ pub struct Storage {
 
 impl Default for Storage {
     fn default() -> Self {
-        Self {
-            database: "sqlite".into(),
-            sqlite: Sqlite::default(),
-            surreal: Surreal::default(),
-        }
+        Self { database: "sqlite".into(), sqlite: Sqlite::default(), surreal: Surreal::default() }
     }
 }
 
 /// Advanced SQLite tuning (maps to sqlx `SqliteConnectOptions`).
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[derive(Debug, Clone)]
 pub struct Sqlite {
     pub path: String,
     /// "delete" | "truncate" | "persist" | "memory" | "wal" | "off"
@@ -116,8 +82,7 @@ impl Default for Sqlite {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[derive(Debug, Clone)]
 pub struct Surreal {
     pub url: String,
     pub user: String,
@@ -138,9 +103,8 @@ impl Default for Surreal {
     }
 }
 
-/// The Yahoo Finance client config (from `[yahoo]` in config.toml).
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+/// The Yahoo Finance client config.
+#[derive(Debug, Clone)]
 pub struct YahooConfigSection {
     pub bases: Vec<String>,
     pub chart: String,
@@ -168,32 +132,16 @@ pub enum Database {
 }
 
 impl Config {
-    /// Load config from `config.toml`, auto-generating a default at
-    /// `{data_dir}/config/config.toml` if none exists. `FINANCER_*` environment
-    /// variables are then applied on top, so **env > file > default**.
-    pub fn load() -> anyhow::Result<Self> {
-        let path = config_path_for_read();
-        let mut cfg = if path.exists() {
-            let raw = fs::read_to_string(&path)?;
-            let mut cfg: Config = toml::from_str(&raw)?;
-            // If the example was copied with an empty secret, generate one.
-            if cfg.server.jwt_secret.is_empty() {
-                cfg.server.jwt_secret = generate_secret();
-            }
-            cfg
-        } else {
-            let default = Config::default();
-            default.write_default(&path)?;
-            default
-        };
-        cfg.apply_env_overrides();
+    /// Build the config from `FINANCER_*` env vars, starting from defaults.
+    /// Blank/unset vars leave the default in place. Fails if
+    /// `FINANCER_JWT_SECRET` is missing (there is no persistent secret store).
+    pub fn from_env() -> anyhow::Result<Self> {
+        let mut cfg = Config::default();
+        cfg.apply_overrides_from(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
+        if cfg.server.jwt_secret.is_empty() {
+            anyhow::bail!("FINANCER_JWT_SECRET is required — set it to a stable secret (e.g. `openssl rand -hex 32`)");
+        }
         Ok(cfg)
-    }
-
-    /// Apply `FINANCER_*` env vars over the loaded config. Blank values are
-    /// ignored, so an unset/empty var leaves the file/default value in place.
-    fn apply_env_overrides(&mut self) {
-        self.apply_overrides_from(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
     }
 
     fn apply_overrides_from(&mut self, get: impl Fn(&str) -> Option<String>) {
@@ -235,16 +183,6 @@ impl Config {
         }
     }
 
-    /// Save the default config to `path`, creating parent dirs.
-    fn write_default(&self, path: &Path) -> anyhow::Result<()> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let toml_str = toml::to_string_pretty(self)?;
-        fs::write(path, toml_str)?;
-        Ok(())
-    }
-
     /// Choose the database from `[storage] database` value.
     pub fn database(&self) -> Database {
         if self.storage.database.eq_ignore_ascii_case("surreal") {
@@ -253,7 +191,6 @@ impl Config {
             Database::Sqlite
         }
     }
-
 }
 
 #[cfg(test)]
@@ -263,8 +200,9 @@ mod tests {
     fn map<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
         move |k| pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| (*v).to_string())
     }
+
     #[test]
-    fn env_overrides_win_over_file_and_default() {
+    fn env_vars_win_over_defaults() {
         let mut cfg = Config::default();
         cfg.apply_overrides_from(map(&[
             ("FINANCER_ADDR", "0.0.0.0:9000"),
