@@ -11,6 +11,8 @@ mod repo;
 mod service;
 mod surreal_db;
 mod timex;
+#[cfg(test)]
+mod tests;
 
 use std::sync::Arc;
 use tower::ServiceBuilder;

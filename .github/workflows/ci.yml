@@ -28,10 +28,15 @@ jobs:
         run: cargo check --locked
 
       - name: Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Test
         run: cargo test
+
+      - name: Audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
 
   frontend:
     runs-on: ubuntu-latest
