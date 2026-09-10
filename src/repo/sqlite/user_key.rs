@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::user_key::{UserKeyRepo as UserKeyRepoTrait, UserKeyRow};
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 pub struct SqliteUserKeyRepo {
     pool: SqlitePool,

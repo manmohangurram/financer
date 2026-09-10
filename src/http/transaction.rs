@@ -11,7 +11,8 @@ use crate::error::{json_error, ApiError};
 use crate::http::{require_user, AppState, JsonResult};
 use crate::repo::traits::transaction::{TransactionListFilter, TransactionType};
 use crate::service::transaction::TransactionReq;
-use crate::timex::{round2, ts_rfc3339};
+use crate::utils::math::round2;
+use crate::utils::timex::ts_rfc3339;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -76,14 +77,14 @@ fn txn_occurred_at(v: &serde_json::Value) -> Result<String, ApiError> {
             let dt = chrono::DateTime::from_timestamp(secs, nanos)
                 .map(|d| d.with_timezone(&chrono::Utc))
                 .ok_or_else(|| ApiError::bad_request("invalid date"))?;
-            Ok(crate::timex::go_ts(dt))
+            Ok(crate::utils::timex::go_ts(dt))
         }
         serde_json::Value::String(s) => {
             if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
-                return Ok(crate::timex::go_ts(dt.with_timezone(&chrono::Utc)));
+                return Ok(crate::utils::timex::go_ts(dt.with_timezone(&chrono::Utc)));
             }
             if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-                return Ok(crate::timex::go_ts(d.and_hms_opt(0, 0, 0).unwrap().and_utc()));
+                return Ok(crate::utils::timex::go_ts(d.and_hms_opt(0, 0, 0).unwrap().and_utc()));
             }
             Err(ApiError::bad_request(format!("invalid date {s:?}")))
         }

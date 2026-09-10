@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::investment::{InvestmentRow, InvestmentType, LotInput, LotRow};
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 pub struct SqliteInvestmentRepo {
     pool: SqlitePool,

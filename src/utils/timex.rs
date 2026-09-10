@@ -31,8 +31,3 @@ pub fn ts_rfc3339(stored: &str) -> String {
     }
     s.to_string()
 }
-
-/// Round a monetary value to 2 decimals (Go's `round2f`/`cents`).
-pub fn round2(v: f64) -> f64 {
-    (v * 100.0).round() / 100.0
-}

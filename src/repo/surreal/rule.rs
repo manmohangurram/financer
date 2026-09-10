@@ -6,7 +6,7 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::timex::{go_ts, ts_rfc3339};
+use crate::utils::timex::{go_ts, ts_rfc3339};
 
 #[allow(unused_imports)]
 pub use crate::repo::traits::rule::{ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};

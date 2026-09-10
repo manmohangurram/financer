@@ -10,7 +10,7 @@ mod openapi;
 mod repo;
 mod service;
 mod surreal_db;
-mod timex;
+mod utils;
 #[cfg(test)]
 mod tests;
 

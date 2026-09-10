@@ -4,7 +4,7 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 pub use crate::repo::traits::account::{AccountRow, AccountType};
 

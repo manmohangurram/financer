@@ -12,7 +12,8 @@ use crate::repo::traits::{AccountRepo, CategoryRepo, TransactionRepo};
 use crate::repo::traits::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
 use crate::service::rule::{RuleService, TransactionView};
 use crate::service::transfer_rule::TransferRuleService;
-use crate::timex::{go_ts, round2};
+use crate::utils::math::round2;
+use crate::utils::timex::go_ts;
 
 #[derive(Clone)]
 pub struct TransactionService {

@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use crate::error::{ApiError, Result};
 use crate::repo::traits::UserKeyRepo;
 use crate::repo::traits::user_key::UserKeyRow;
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 const MAX_KEYS_PER_USER: i64 = 50;
 const KEY_PREFIX: &str = "fin_live_";

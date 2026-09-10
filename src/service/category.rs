@@ -8,7 +8,7 @@ use crate::error::{ApiError, Result};
 use crate::repo::traits::category::{CategoryCreateInput, CategoryRow, CategoryUpdateInput};
 use crate::repo::traits::CategoryRepo;
 use crate::service::transaction::BulkResult;
-use crate::timex::ts_rfc3339;
+use crate::utils::timex::ts_rfc3339;
 
 #[derive(Clone)]
 pub struct CategoryService {

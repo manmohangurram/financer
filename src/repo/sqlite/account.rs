@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::account::{AccountRow, AccountType};
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 pub struct SqliteAccountRepo {
     pool: SqlitePool,

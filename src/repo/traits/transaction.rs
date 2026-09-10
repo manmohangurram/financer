@@ -6,7 +6,7 @@ use base64::{engine::general_purpose::URL_SAFE as B64URL, Engine as _};
 use serde_json::json;
 
 use crate::error::Result;
-use crate::timex::go_ts;
+use crate::utils::timex::go_ts;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, utoipa::ToSchema, schemars::JsonSchema,
@@ -114,7 +114,7 @@ pub struct TransactionCursor {
 }
 
 pub fn encode_transaction_cursor(occurred_at: &str, id: &str) -> String {
-    let payload = json!({ "OccurredAt": crate::timex::ts_rfc3339(occurred_at), "ID": id }).to_string();
+    let payload = json!({ "OccurredAt": crate::utils::timex::ts_rfc3339(occurred_at), "ID": id }).to_string();
     B64URL.encode(payload.as_bytes())
 }
 
