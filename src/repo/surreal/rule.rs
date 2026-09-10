@@ -225,7 +225,7 @@ mod tests {
             set_name_op: Some(ActionOp::Rename),
             ..Default::default()
         };
-        let created = repo.create("u1", "Renamer", 5, RuleLogic::And, &[cond()], &[action.clone()]).await.unwrap();
+        let created = repo.create("u1", "Renamer", 5, RuleLogic::And, &[cond()], std::slice::from_ref(&action)).await.unwrap();
         assert_eq!(created.name, "Renamer");
         assert_eq!(created.logic, RuleLogic::And);
         assert_eq!(created.conditions.len(), 1);

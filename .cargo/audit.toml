@@ -1,0 +1,11 @@
+# cargo-audit configuration.
+#
+# Run: `cargo audit`
+
+[advisories]
+# RUSTSEC-2023-0071 — rsa 0.9.x "Marvin Attack" (timing side-channel in RSA
+# *decryption*). No fixed release exists. It is pulled transitively and
+# unconditionally by surrealdb-core -> jsonwebtoken, which uses RSA only for
+# JWT *signature verification* (public-key operation), not decryption — the
+# vulnerable code path is never exercised. Revisit when surrealdb drops `rsa`.
+ignore = ["RUSTSEC-2023-0071"]

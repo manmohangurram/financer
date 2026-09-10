@@ -396,6 +396,7 @@ impl crate::repo::traits::InvestmentRepo for InvestmentRepo<DbClient> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::float_cmp)]
     use std::sync::Arc;
 
 

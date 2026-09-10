@@ -650,6 +650,7 @@ impl crate::repo::traits::TransactionRepo for TransactionRepo<DbClient> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::float_cmp)]
     use std::sync::Arc;
     use std::str::FromStr;
 
@@ -833,6 +834,7 @@ mod tests {
 
 #[cfg(test)]
 mod spending_tests {
+    #![allow(clippy::float_cmp)]
     use std::sync::Arc;
     use super::*;
     use crate::surreal_db;

@@ -215,6 +215,7 @@ struct TotalsRow {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::float_cmp)]
     use std::sync::Arc;
     use std::str::FromStr;
 

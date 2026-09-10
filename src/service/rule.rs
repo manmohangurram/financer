@@ -280,7 +280,7 @@ mod tests {
     fn match_conditions() {
         let data = match_data();
         let contains = ConditionData { match_field: MatchField::Name, operator: MatchOperator::Contains, pattern: "netflix".to_string() };
-        assert!(match_rule_data(&data, RuleLogic::Or, &[contains.clone()]));
+        assert!(match_rule_data(&data, RuleLogic::Or, std::slice::from_ref(&contains)));
 
         let gt = ConditionData { match_field: MatchField::Amount, operator: MatchOperator::GreaterThan, pattern: "100".to_string() };
         assert!(!match_rule_data(&data, RuleLogic::Or, &[gt]));

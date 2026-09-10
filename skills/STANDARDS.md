@@ -8,8 +8,9 @@ Run verification in this order after backend changes, then frontend changes.
 ```bash
 cargo run            # starts API on :8080; reads config from config.toml (schema applied at boot)
 cargo build --locked
-cargo clippy -- -D warnings
-cargo test           # unit + repository integration tests (embedded SurrealDB Mem)
+cargo clippy --all-targets -- -D warnings
+cargo test           # unit + repo (SurrealDB Mem) + HTTP integration tests (SQLite)
+cargo audit          # dependency advisories; ignores documented in .cargo/audit.toml
 ```
 
 **Frontend (from `frontend/`):**
@@ -21,7 +22,7 @@ npm test            # vitest — pure helpers/composables under src/lib
 
 ## Verification checklist
 
-After any change run `cargo build --locked && cargo clippy -- -D warnings && cargo test` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
+After any change run `cargo build --locked && cargo clippy --all-targets -- -D warnings && cargo test && cargo audit` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
 
 ## Review before every PR
 
@@ -83,7 +84,7 @@ Real example — SurrealDB query binds:
 - **Prefixed enum->string via `strum`** (`Display`/`as_str` if derived), not hand `match`.
 - **`Option` unwraps**: prefer `let Some(x) = ... else { return Err(...) }` / `?` over `.unwrap()` in prod code; `.unwrap()` only in tests.
 - **Builder setters** for optional service deps (`with_rule`, `with_transfer_rule`) instead of many-arg constructors.
-- Let `cargo clippy -- -D warnings` be the final arbiter; where clippy and a local preference differ, follow clippy.
+- Let `cargo clippy --all-targets -- -D warnings` be the final arbiter; where clippy and a local preference differ, follow clippy.
 
 ## Engineering standards (Rust)
 
@@ -136,7 +137,7 @@ The conventions big-engineering orgs apply, adapted to this codebase. Repo-speci
 
 - **Both backends tested** where a repo has sqlite + surreal impls (SurrealDB `Mem`, SQLite tempfile).
 - **Behavior over implementation**; test the public service/repo API.
-- **`cargo clippy -- -D warnings` and `cargo test` must pass** before any PR (see Verification above).
+- **`cargo clippy --all-targets -- -D warnings` and `cargo test` must pass** before any PR (see Verification above).
 - One smoke/assert test minimum for non-trivial logic; not every helper needs a suite.
 
 ### General
