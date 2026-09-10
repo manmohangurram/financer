@@ -5,7 +5,7 @@
 //! timezone is only used to interpret those instants (day/month buckets, ranges,
 //! `now()`).
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, SecondsFormat, TimeZone, Utc};
 use chrono_tz::Tz;
 use std::sync::OnceLock;
 
@@ -94,12 +94,17 @@ pub fn local_key_in(tz: Tz, stored: &str, granularity: &str) -> String {
     }
 }
 
-/// Parse a stored timestamp back to RFC3339 UTC (matching Go's `tsRFC3339`).
-/// Handles the Go driver format (with optional fractional seconds), plain
-/// `YYYY-MM-DD HH:MM:SS`, and RFC3339.
+/// Format a stored UTC timestamp for the wire: the instant rendered in the
+/// configured timezone (`2026-09-11T02:00:00+05:30`). Storage stays UTC; only
+/// the return value is converted.
 pub fn ts_rfc3339(stored: &str) -> String {
+    ts_rfc3339_in(tz(), stored)
+}
+
+/// [`ts_rfc3339`] against an explicit timezone (testable, no global state).
+pub fn ts_rfc3339_in(tz: Tz, stored: &str) -> String {
     if let Some(dt) = parse_utc(stored) {
-        return dt.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        return dt.with_timezone(&tz).to_rfc3339_opts(SecondsFormat::Secs, false);
     }
     stored.trim().to_string()
 }
@@ -120,8 +125,11 @@ mod tests {
     }
 
     #[test]
-    fn ts_rfc3339_normalises_stored_format() {
-        assert_eq!(ts_rfc3339("2026-09-10 20:30:00 +0000 UTC"), "2026-09-10T20:30:00Z");
+    fn ts_rfc3339_renders_the_configured_zone() {
+        // Storage stays UTC; the wire value carries the local offset.
+        assert_eq!(ts_rfc3339_in(Tz::UTC, "2026-09-10 20:30:00 +0000 UTC"), "2026-09-10T20:30:00+00:00");
+        let ist = tz("Asia/Kolkata");
+        assert_eq!(ts_rfc3339_in(ist, "2026-09-10 20:30:00 +0000 UTC"), "2026-09-11T02:00:00+05:30");
     }
 
     #[test]
