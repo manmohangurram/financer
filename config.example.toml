@@ -4,6 +4,11 @@
 # On first run without a config, financer writes a default here automatically
 # (SQLite, auto-generated jwt_secret).
 #
+# Every setting below can also be overridden by an environment variable, which
+# takes precedence over this file — handy for containers. See the env var
+# table in README.md (FINANCER_ADDR, FINANCER_JWT_SECRET, FINANCER_DATABASE,
+# FINANCER_SURREAL_*, ...).
+#
 # IMPORTANT: /data may contain the jwt_secret. Mount a volume and do NOT commit
 # the real config.toml — only this example.
 
