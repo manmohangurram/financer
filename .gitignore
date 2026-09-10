@@ -20,6 +20,7 @@ data/
 .env
 .env.local
 .env.*
+!.env.example
 *.pem
 
 # Node / frontend
@@ -39,3 +40,6 @@ docs/superpowers/
 # Runtime config (may hold secrets) — use config.example.toml for the template
 config.toml
 /data/
+
+# Local-only dev compose (personal paths) — not for the repo
+docker-compose.test.yml
