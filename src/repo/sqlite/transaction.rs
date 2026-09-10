@@ -10,10 +10,9 @@ use uuid::Uuid;
 use crate::error::Result;
 use crate::repo::traits::transaction::{
     decode_transaction_cursor, encode_transaction_cursor, CreateOutcome, CreateTransactionInput, ListRow,
-    ListTransactionResult, SpendingBucketRow, SpendingCategoryRow, SpendingFilter, Transaction,
+    ListTransactionResult, SpendingFilter, SpendingTxn, Transaction,
     TransactionListFilter, TransactionType, UpdateTransactionInput,
 };
-use crate::utils::timex::go_ts;
 
 pub struct SqliteTransactionRepo {
     pool: SqlitePool,
@@ -324,52 +323,36 @@ impl SqliteTransactionRepo {
         Ok(ListTransactionResult { rows: items, next_page_token: next_token, total_count: total })
     }
 
-    async fn spending_buckets_inner(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingBucketRow>> {
-        let key_expr = if f.granularity == "month" { "substr(t.occurred_at, 1, 7)" } else { "substr(t.occurred_at, 1, 10)" };
+    async fn spending_rows_inner(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>> {
         let (range, range_args) = spending_range_clause(f);
         let query = format!(
-            "SELECT {key_expr} AS key, COALESCE(SUM(t.amount), 0) AS amount
-             FROM transactions t
-             {}
-             WHERE t.user_id = ? AND t.type = 'DEBIT'
-               AND (tl.id IS NULL OR a_self.type IN ('CREDIT_CARD','LOAN') OR a_other.type IN ('CREDIT_CARD','LOAN'))
-             {range}
-             GROUP BY key ORDER BY key",
-            spending_where()
-        );
-        let mut bind_args: Vec<String> = vec![user_id.to_string()];
-        bind_args.extend(range_args);
-        let mut q = sqlx::query_as::<_, (String, f64)>(&query);
-        for a in &bind_args {
-            q = q.bind(a);
-        }
-        let rows = q.fetch_all(&self.pool).await?;
-        Ok(rows.into_iter().map(|(key, amount)| SpendingBucketRow { key, amount }).collect())
-    }
-
-    async fn spending_categories_inner(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingCategoryRow>> {
-        let (range, range_args) = spending_range_clause(f);
-        let query = format!(
-            "SELECT COALESCE(c.id, '__uncategorized__'), COALESCE(c.name, 'Uncategorized'),
-                COALESCE(SUM(CASE WHEN t.type = 'DEBIT' THEN t.amount ELSE 0.0 END), 0.0) AS debit,
-                COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE 0.0 END), 0.0) AS credit
+            "SELECT t.id, t.occurred_at, t.amount, t.type, c.id, c.name
              FROM transactions t
              LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
              LEFT JOIN categories c ON c.id = tc.category_id
              {}
              WHERE t.user_id = ? AND (tl.id IS NULL OR a_self.type IN ('CREDIT_CARD','LOAN') OR a_other.type IN ('CREDIT_CARD','LOAN'))
-             {range}
-             GROUP BY COALESCE(c.id, '__uncategorized__') ORDER BY debit DESC",
+             {range}",
             spending_where()
         );
         let mut bind_args: Vec<String> = vec![user_id.to_string()];
         bind_args.extend(range_args);
-        let mut q = sqlx::query_as::<_, (String, String, f64, f64)>(&query);
+        let mut q = sqlx::query_as::<_, (String, String, f64, String, Option<String>, Option<String>)>(&query);
         for a in &bind_args {
             q = q.bind(a);
         }
         let rows = q.fetch_all(&self.pool).await?;
-        Ok(rows.into_iter().map(|(id, name, debit, credit)| SpendingCategoryRow { id, name, debit, credit }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|(id, occurred_at, amount, ty, category_id, category_name)| SpendingTxn {
+                id,
+                occurred_at,
+                amount,
+                transaction_type: ty.parse().unwrap_or(TransactionType::Debit),
+                category_id,
+                category_name,
+            })
+            .collect())
     }
 
     async fn create_links_inner(&self, user_id: &str, links: &[(String, String)]) -> Result<Vec<String>> {
@@ -387,7 +370,7 @@ impl SqliteTransactionRepo {
             .bind(user_id)
             .bind(debit)
             .bind(credit)
-            .bind(go_ts(chrono::Utc::now()))
+            .bind(crate::utils::timex::now_go_ts())
             .execute(&mut *tx)
             .await
             {
@@ -465,11 +448,8 @@ impl crate::repo::traits::TransactionRepo for SqliteTransactionRepo {
     async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult> {
         self.list_inner(user_id, f).await
     }
-    async fn spending_buckets(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingBucketRow>> {
-        self.spending_buckets_inner(user_id, f).await
-    }
-    async fn spending_categories(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingCategoryRow>> {
-        self.spending_categories_inner(user_id, f).await
+    async fn spending_rows(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>> {
+        self.spending_rows_inner(user_id, f).await
     }
     async fn create_links(&self, user_id: &str, links: &[(String, String)]) -> Result<Vec<String>> {
         self.create_links_inner(user_id, links).await
@@ -510,12 +490,7 @@ fn build_txn_where(f: &TransactionListFilter) -> (String, Vec<String>) {
     }
     if !f.date_to.is_empty() {
         query.push_str(" AND t.occurred_at < ?");
-        if let Ok(d) = chrono::NaiveDate::parse_from_str(&f.date_to, "%Y-%m-%d") {
-            let end = d.and_hms_opt(0, 0, 0).unwrap().and_utc() + chrono::Duration::days(1);
-            args.push(crate::utils::timex::go_ts(end));
-        } else {
-            args.push(f.date_to.clone());
-        }
+        args.push(f.date_to.clone());
     }
     if f.min_amount > 0.0 {
         query.push_str(" AND t.amount >= ?");

@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::investment::{InvestmentRow, InvestmentType, LotInput, LotRow};
-use crate::utils::timex::go_ts;
 
 pub struct SqliteInvestmentRepo {
     pool: SqlitePool,
@@ -21,7 +20,7 @@ impl SqliteInvestmentRepo {
 
     async fn create_investment_inner(&self, user_id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
         let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let sym: Option<&str> = if symbol.is_empty() { None } else { Some(symbol) };
         let nav: Option<f64> = if manual_nav == 0.0 { None } else { Some(manual_nav) };
         sqlx::query(
@@ -137,7 +136,7 @@ impl SqliteInvestmentRepo {
 
     async fn create_lot_inner(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
         let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         sqlx::query(
             "INSERT INTO investment_lots (id, user_id, investment_id, side, quantity, price, occurred_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
@@ -165,7 +164,7 @@ impl SqliteInvestmentRepo {
 
     async fn insert_lot_inner(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool> {
         let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let ext: Option<&str> = if input.external_id.is_empty() { None } else { Some(&input.external_id) };
         let result = sqlx::query(
             "INSERT OR IGNORE INTO investment_lots (id, user_id, investment_id, side, quantity, price, occurred_at, created_at, external_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -200,7 +199,7 @@ impl SqliteInvestmentRepo {
         sqlx::query("UPDATE investments SET current_price = ?, prev_close = ?, last_quote_at = ? WHERE id = ?")
             .bind(current_price)
             .bind(prev_close)
-            .bind(go_ts(chrono::Utc::now()))
+            .bind(crate::utils::timex::now_go_ts())
             .bind(id)
             .execute(&self.pool)
             .await?;

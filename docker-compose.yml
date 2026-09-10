@@ -34,7 +34,9 @@ services:
       FINANCER_SURREAL_DB: ${SURREAL_DB:-financer}
       # Set a stable secret so sessions survive restarts (else one is generated).
       FINANCER_JWT_SECRET: ${FINANCER_JWT_SECRET:-}
+      # Container clock and the app's date/time zone.
       TZ: ${TZ:-Asia/Kolkata}
+      FINANCER_TIMEZONE: ${TZ:-Asia/Kolkata}
     volumes:
       - ${DATA_DIR:-./data}:/data
 

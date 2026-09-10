@@ -113,7 +113,7 @@ See [`config.example.toml`](config.example.toml) for the full, commented templat
 
 | Section | Keys | Purpose |
 |---|---|---|
-| `[server]` | `addr`, `data_dir`, `static_dir`, `domain_url`, `jwt_secret` | Listen address, data root, SPA dir, external URL, token secret (auto-generated 64-char if empty) |
+| `[server]` | `addr`, `data_dir`, `static_dir`, `domain_url`, `jwt_secret`, `timezone` | Listen address, data root, SPA dir, external URL, token secret (auto-generated 64-char if empty), IANA timezone for date/day bucketing |
 | `[storage]` | `database` | `"sqlite"` (default) or `"surreal"` |
 | `[storage.sqlite]` | `path`, `journal_mode`, `synchronous`, `busy_timeout_ms`, `foreign_keys`, `page_size`, `write_pool_size`, `read_pool_size` | SQLite tuning |
 | `[storage.surreal]` | `url`, `user`, `pass`, `ns`, `db` | SurrealDB connection |
@@ -130,6 +130,7 @@ Every setting can be overridden by an env var, which **takes precedence over `co
 | `FINANCER_DATA_DIR` | `[server] data_dir` |
 | `FINANCER_DOMAIN_URL` | `[server] domain_url` |
 | `FINANCER_JWT_SECRET` | `[server] jwt_secret` |
+| `FINANCER_TIMEZONE` | `[server] timezone` |
 | `FINANCER_DATABASE` | `[storage] database` (`sqlite` \| `surreal`) |
 | `FINANCER_SQLITE_PATH` | `[storage.sqlite] path` |
 | `FINANCER_SURREAL_URL` | `[storage.surreal] url` |

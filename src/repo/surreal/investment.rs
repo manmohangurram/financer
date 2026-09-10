@@ -4,7 +4,6 @@
 use surrealdb::Connection;
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::utils::timex::go_ts;
 
 #[allow(unused_imports)]
 pub use crate::repo::traits::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRow, InvestmentType, Lot, LotInput, LotRow};
@@ -20,7 +19,7 @@ impl<C: Connection> InvestmentRepo<C> {
     }
 
     pub async fn create_investment(&self, user_id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let sym = if symbol.is_empty() { None } else { Some(symbol.to_string()) };
         let nav = if manual_nav == 0.0 { None } else { Some(manual_nav) };
         let mut res = self
@@ -178,7 +177,7 @@ impl<C: Connection> InvestmentRepo<C> {
     }
 
     pub async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let mut res = self
             .db
             .query(
@@ -218,7 +217,7 @@ impl<C: Connection> InvestmentRepo<C> {
     /// Idempotent insert: a second insert with the same (user, `externalId`) is
     /// skipped. Returns whether the row was inserted.
     pub async fn insert_lot(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool> {
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let ext: Option<String> = if input.external_id.is_empty() { None } else { Some(input.external_id.clone()) };
         // Dedup check (matches the old INSERT OR IGNORE on (user, externalId)).
         if let Some(e) = &ext {
@@ -276,7 +275,7 @@ impl<C: Connection> InvestmentRepo<C> {
             .bind(("rid", rid("investment", id)))
             .bind(("price", current_price))
             .bind(("prev", prev_close))
-            .bind(("at", go_ts(chrono::Utc::now())))
+            .bind(("at", crate::utils::timex::now_go_ts()))
             .await?
             .check()?;
         Ok(())

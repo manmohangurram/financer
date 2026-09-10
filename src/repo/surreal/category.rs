@@ -6,7 +6,6 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::utils::timex::go_ts;
 
 pub use crate::repo::traits::category::{CategoryCreateInput, CategoryRow, CategoryUpdateInput, ListCategoriesResult};
 
@@ -23,7 +22,7 @@ impl<C: Connection> CategoryRepo<C> {
     pub async fn create(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>> {
         let mut rows = Vec::new();
         for input in inputs {
-            let now = go_ts(chrono::Utc::now());
+            let now = crate::utils::timex::now_go_ts();
             let mut res = self
                 .db
                 .query(

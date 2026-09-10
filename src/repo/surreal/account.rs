@@ -4,7 +4,6 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::utils::timex::go_ts;
 
 pub use crate::repo::traits::account::{AccountRow, AccountType};
 
@@ -27,7 +26,7 @@ impl<C: Connection> AccountRepo<C> {
         nickname: &str,
         account_type: AccountType,
     ) -> Result<AccountRow> {
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
 
         let mut res = self
             .db

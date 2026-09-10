@@ -5,7 +5,6 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, DbClient, RepoConn};
-use crate::utils::timex::go_ts;
 
 pub use crate::repo::traits::user_key::UserKeyRow;
 
@@ -28,7 +27,7 @@ impl<C: Connection> UserKeyRepo<C> {
         expires_at: Option<String>,
         scope: &str,
     ) -> Result<String> {
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let mut res = self
             .db
             .query(
@@ -116,7 +115,7 @@ impl<C: Connection> UserKeyRepo<C> {
         self.db
             .query("UPDATE $rid SET lastUsedAt = $at")
             .bind(("rid", rid("user_key", id)))
-            .bind(("at", go_ts(chrono::Utc::now())))
+            .bind(("at", crate::utils::timex::now_go_ts()))
             .await?
             .check()?;
         Ok(())

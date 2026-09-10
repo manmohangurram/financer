@@ -18,6 +18,42 @@ async fn dashboard_totals_reflect_transactions() {
 }
 
 #[tokio::test]
+async fn spending_counts_multi_category_txn_once_per_bucket() {
+    let app = TestApp::new().await;
+
+    let cats = app
+        .post_json(
+            "/api/categories",
+            &serde_json::json!({ "categories": [{ "name": "Food" }, { "name": "Travel" }] }),
+            Some(&app.token),
+        )
+        .await;
+    assert_eq!(cats.0, StatusCode::CREATED, "cat create: {}", cats.1);
+    let (_, list) = app.get_json("/api/categories", Some(&app.token)).await;
+    let ids: Vec<String> = list["categories"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap().to_string()).collect();
+
+    let occurred_at = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let txn = app
+        .post_json(
+            "/api/transactions",
+            &serde_json::json!({
+                "transactions": [{ "name": "Trip snack", "amount": 40.0, "type": "DEBIT",
+                                   "accountId": app.account_id, "categoryIds": ids, "occurredAt": occurred_at }]
+            }),
+            Some(&app.token),
+        )
+        .await;
+    assert_eq!(txn.0, StatusCode::CREATED, "txn create: {}", txn.1);
+
+    let (_, s) = app.get_json("/api/spending?range=1M", Some(&app.token)).await;
+    // One transaction, two categories → the bucket still counts it once.
+    let bucket_total: f64 = s["buckets"].as_array().unwrap().iter().map(|b| b["amount"].as_f64().unwrap()).sum();
+    assert_eq!(bucket_total, 40.0, "bucket double-counted a multi-category txn: {s}");
+    // Both categories attribute the amount (existing behaviour).
+    assert_eq!(s["categories"].as_array().map(Vec::len), Some(2), "{s}");
+}
+
+#[tokio::test]
 async fn spending_buckets_and_categories() {
     let app = TestApp::new().await;
 
@@ -34,7 +70,7 @@ async fn spending_buckets_and_categories() {
 
     // Explicit timestamp a day ago: the spending window is [from, now) and
     // go_ts truncates to seconds, so a txn at "now" can fall on the boundary.
-    let occurred_at = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let occurred_at = (crate::utils::timex::now_utc() - chrono::Duration::days(1)).format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let txn = app
         .post_json(
             "/api/transactions",

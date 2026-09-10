@@ -90,7 +90,19 @@ impl TransactionService {
         Ok(())
     }
 
-    pub async fn list(&self, user_id: &str, f: TransactionListFilter) -> Result<ListTransactionResult> {
+    pub async fn list(&self, user_id: &str, mut f: TransactionListFilter) -> Result<ListTransactionResult> {
+        // dateFrom/dateTo arrive as local dates; convert to UTC bounds for the
+        // storage filter (matching how spending interprets its ranges).
+        if !f.date_from.is_empty() {
+            let d = f.date_from.clone();
+            f.date_from = crate::utils::timex::local_day_start(&d)
+                .ok_or_else(|| ApiError::bad_request(format!("invalid dateFrom {d}")))?;
+        }
+        if !f.date_to.is_empty() {
+            let d = f.date_to.clone();
+            f.date_to = crate::utils::timex::local_day_end(&d)
+                .ok_or_else(|| ApiError::bad_request(format!("invalid dateTo {d}")))?;
+        }
         self.transaction_repo.list(user_id, &f).await
     }
 
@@ -114,7 +126,7 @@ impl TransactionService {
         if reqs.len() > 1000 {
             return Err(ApiError::bad_request("too many transactions in one request (max 1000)"));
         }
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let mut txns: Vec<Transaction> = Vec::new();
         let mut inputs: Vec<CreateTransactionInput> = Vec::new();
         for t in reqs {
@@ -301,9 +313,10 @@ impl TransactionService {
         Ok(Dashboard { total_balance: balance, total_income: credit, total_expenses: debit })
     }
 
-    /// Spending buckets + categories for a range, computed in SQL.
+    /// Spending buckets + categories for a range. Rows are aggregated in Rust
+    /// so day/month buckets use the configured timezone.
     pub async fn spending(&self, user_id: &str, range: &str, from: &str, to: &str, account_id: &str) -> Result<SpendingResult> {
-        let now = chrono::Utc::now();
+        let now = crate::utils::timex::now_utc();
         let mut gran = "day";
         let mut from_ts: Option<String> = None;
         let mut to_ts: Option<String> = None;
@@ -332,44 +345,64 @@ impl TransactionService {
         if !from.is_empty() || !to.is_empty() {
             let f = chrono::NaiveDate::parse_from_str(from, "%Y-%m-%d").ok();
             let t = chrono::NaiveDate::parse_from_str(to, "%Y-%m-%d").ok();
-            from_ts = f.map(|d| go_ts(d.and_hms_opt(0, 0, 0).unwrap().and_utc()));
-            to_ts = t.map(|d| go_ts((d + chrono::Duration::days(1)).and_hms_opt(0, 0, 0).unwrap().and_utc()));
-            if let (Some(ft), Some(tt)) = (&from_ts, &to_ts) {
-                // compare via date strings
-                let f_day = &ft[..10];
-                let t_day = &tt[..10];
-                let fd = chrono::NaiveDate::parse_from_str(f_day, "%Y-%m-%d").unwrap();
-                let td = chrono::NaiveDate::parse_from_str(t_day, "%Y-%m-%d").unwrap();
-                if (td - fd).num_days() > 366 {
+            // The dates are local; convert local midnight to the UTC instant.
+            from_ts = f.and_then(crate::utils::timex::local_date_start_utc).map(go_ts);
+            // `to` is inclusive, so the end bound is local midnight of the next day.
+            to_ts = t
+                .and_then(|d| crate::utils::timex::local_date_start_utc(d + chrono::Duration::days(1)))
+                .map(go_ts);
+            if let (Some(fd), Some(td)) = (f, t) {
+                let days = (td - fd).num_days();
+                if days > 366 {
                     return Err(ApiError::bad_request("custom range must be at most 1 year"));
                 }
-                if (td - fd).num_days() > 30 {
+                if days > 30 {
                     gran = "month";
                 }
             }
         }
 
         let filter = crate::repo::traits::transaction::SpendingFilter {
-            granularity: gran.to_string(),
             from: from_ts.unwrap_or_default(),
             to: to_ts.unwrap_or_default(),
             account_id: account_id.to_string(),
         };
-        let buckets = self.transaction_repo.spending_buckets(user_id, &filter).await?;
-        let cats = self.transaction_repo.spending_categories(user_id, &filter).await?;
+        let rows = self.transaction_repo.spending_rows(user_id, &filter).await?;
 
-        let bucket_items: Vec<SpendingBucket> = buckets.iter().map(|b| SpendingBucket {
-            key: b.key.clone(),
-            label: bucket_label(&b.key, gran),
-            amount: b.amount,
-        }).collect();
-        let category_items: Vec<SpendingCategory> = cats.iter().map(|c| SpendingCategory {
-            id: c.id.clone(),
-            name: c.name.clone(),
-            debit: c.debit,
-            credit: c.credit,
-            net: c.debit - c.credit,
-        }).collect();
+        // Bucket in the configured timezone (a DST-correct local bucket can't be
+        // expressed in SQL — the offset varies per row).
+        let mut bucket_map: std::collections::BTreeMap<String, f64> = std::collections::BTreeMap::new();
+        let mut cat_map: std::collections::HashMap<String, (String, f64, f64)> = std::collections::HashMap::new();
+        // One row per (transaction, category): count each transaction once per bucket.
+        let mut bucketed: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for r in &rows {
+            let is_debit = r.transaction_type == TransactionType::Debit;
+            if is_debit && bucketed.insert(&r.id) {
+                *bucket_map
+                    .entry(crate::utils::timex::local_key(&r.occurred_at, gran))
+                    .or_default() += r.amount;
+            }
+            let (id, name) = match (&r.category_id, &r.category_name) {
+                (Some(id), Some(name)) => (id.clone(), name.clone()),
+                _ => ("__uncategorized__".to_string(), "Uncategorized".to_string()),
+            };
+            let e = cat_map.entry(id).or_insert((name, 0.0, 0.0));
+            if is_debit {
+                e.1 += r.amount;
+            } else {
+                e.2 += r.amount;
+            }
+        }
+
+        let bucket_items: Vec<SpendingBucket> = bucket_map
+            .iter()
+            .map(|(k, amount)| SpendingBucket { key: k.clone(), label: bucket_label(k, gran), amount: *amount })
+            .collect();
+        let mut category_items: Vec<SpendingCategory> = cat_map
+            .into_iter()
+            .map(|(id, (name, debit, credit))| SpendingCategory { id, name, debit, credit, net: debit - credit })
+            .collect();
+        category_items.sort_by(|a, b| b.debit.partial_cmp(&a.debit).unwrap_or(std::cmp::Ordering::Equal));
         Ok(SpendingResult { buckets: bucket_items, categories: category_items })
     }
 }

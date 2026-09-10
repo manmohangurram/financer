@@ -58,7 +58,7 @@ impl UserKeyService {
         let scope = if scope.eq_ignore_ascii_case("read_write") { "read_write" } else { "read" };
         let (key, hash, prefix) = generate_key();
         let expires_at = if expires_in_days > 0 {
-            Some(go_ts(chrono::Utc::now() + chrono::Duration::days(expires_in_days)))
+            Some(go_ts(crate::utils::timex::now_utc() + chrono::Duration::days(expires_in_days)))
         } else {
             None
         };
@@ -68,7 +68,7 @@ impl UserKeyService {
             name: name.to_string(),
             plaintext: key,
             key_prefix: prefix,
-            created_at: go_ts(chrono::Utc::now()),
+            created_at: crate::utils::timex::now_go_ts(),
             expires_at,
             last_used_at: None,
             scope: scope.to_string(),
@@ -129,7 +129,7 @@ fn hash_key(key: &str) -> String {
 
 fn is_expired(expires_at: &str) -> bool {
     // Stored as go_ts "YYYY-MM-DD HH:MM:SS +0000 UTC"; compare against now.
-    let now = go_ts(chrono::Utc::now());
+    let now = crate::utils::timex::now_go_ts();
     expires_at < now.as_str()
 }
 
@@ -148,8 +148,8 @@ mod tests {
 
     #[test]
     fn expiry_parses_go_ts_string() {
-        let past = go_ts(chrono::Utc::now() - chrono::Duration::days(1));
-        let future = go_ts(chrono::Utc::now() + chrono::Duration::days(1));
+        let past = go_ts(crate::utils::timex::now_utc() - chrono::Duration::days(1));
+        let future = go_ts(crate::utils::timex::now_utc() + chrono::Duration::days(1));
         assert!(is_expired(&past));
         assert!(!is_expired(&future));
     }

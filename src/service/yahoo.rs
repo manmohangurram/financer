@@ -120,7 +120,7 @@ impl YahooClient {
 
     /// Try each base and, for bare symbols, the `.NS` suffix.
     async fn fetch_quote(&self, sym: &str) -> Option<Quote> {
-        let now = chrono::Utc::now().timestamp();
+        let now = crate::utils::timex::now_utc().timestamp();
         let p1 = now - 24 * 3600;
         let p2 = now;
         for base in &self.bases {

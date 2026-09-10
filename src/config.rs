@@ -48,6 +48,8 @@ pub struct Server {
     pub static_dir: PathBuf,
     pub domain_url: String,
     pub jwt_secret: String,
+    /// IANA timezone used for all date/time interpretation (e.g. "Asia/Kolkata").
+    pub timezone: String,
 }
 
 impl Default for Server {
@@ -58,6 +60,7 @@ impl Default for Server {
             static_dir: PathBuf::from("frontend/dist"),
             domain_url: String::new(),
             jwt_secret: generate_secret(),
+            timezone: "Asia/Kolkata".into(),
         }
     }
 }
@@ -206,6 +209,9 @@ impl Config {
         if let Some(v) = get("FINANCER_JWT_SECRET") {
             self.server.jwt_secret = v;
         }
+        if let Some(v) = get("FINANCER_TIMEZONE") {
+            self.server.timezone = v;
+        }
         if let Some(v) = get("FINANCER_DATABASE") {
             self.storage.database = v;
         }
@@ -263,12 +269,14 @@ mod tests {
         cfg.apply_overrides_from(map(&[
             ("FINANCER_ADDR", "0.0.0.0:9000"),
             ("FINANCER_JWT_SECRET", "secret"),
+            ("FINANCER_TIMEZONE", "Asia/Kolkata"),
             ("FINANCER_DATABASE", "surreal"),
             ("FINANCER_SURREAL_URL", "surrealdb:8000"),
             ("FINANCER_SURREAL_PASS", "pw"),
         ]));
         assert_eq!(cfg.server.addr, "0.0.0.0:9000");
         assert_eq!(cfg.server.jwt_secret, "secret");
+        assert_eq!(cfg.server.timezone, "Asia/Kolkata");
         assert_eq!(cfg.storage.database, "surreal");
         assert_eq!(cfg.storage.surreal.url, "surrealdb:8000");
         assert_eq!(cfg.storage.surreal.pass, "pw");

@@ -7,7 +7,6 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::user_key::{UserKeyRepo as UserKeyRepoTrait, UserKeyRow};
-use crate::utils::timex::go_ts;
 
 pub struct SqliteUserKeyRepo {
     pool: SqlitePool,
@@ -28,7 +27,7 @@ impl SqliteUserKeyRepo {
         scope: &str,
     ) -> Result<String> {
         let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         sqlx::query(
             "INSERT INTO user_keys (id, user_id, name, key_hash, key_prefix, created_at, expires_at, last_used_at, scope)
              VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)",
@@ -98,7 +97,7 @@ impl SqliteUserKeyRepo {
 
     async fn touch_last_used_inner(&self, id: &str) -> Result<()> {
         sqlx::query("UPDATE user_keys SET last_used_at = ? WHERE id = ?")
-            .bind(go_ts(chrono::Utc::now()))
+            .bind(crate::utils::timex::now_go_ts())
             .bind(id)
             .execute(&self.pool)
             .await?;

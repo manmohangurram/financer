@@ -87,24 +87,21 @@ pub struct ListRow {
 }
 
 pub struct SpendingFilter {
-    pub granularity: String,
     pub from: String,
     pub to: String,
     pub account_id: String,
 }
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SpendingBucketRow {
-    pub key: String,
-    pub amount: f64,
-}
-
-#[derive(Debug)]
-pub struct SpendingCategoryRow {
+/// A single spending-relevant transaction (raw, one row per category), fetched
+/// so day/month bucketing can be done in the configured timezone. A DST-correct
+/// local bucket cannot be expressed in SQL — the UTC offset varies per row — so
+/// the service aggregates these in Rust.
+pub struct SpendingTxn {
     pub id: String,
-    pub name: String,
-    pub debit: f64,
-    pub credit: f64,
+    pub occurred_at: String,
+    pub amount: f64,
+    pub transaction_type: TransactionType,
+    pub category_id: Option<String>,
+    pub category_name: Option<String>,
 }
 
 /// A decoded page cursor. `occurred_at` is kept in the stored Go-driver format.
@@ -150,8 +147,7 @@ pub trait TransactionRepo: Send + Sync {
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
     async fn get_by_id_batch(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>>;
     async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult>;
-    async fn spending_buckets(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingBucketRow>>;
-    async fn spending_categories(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingCategoryRow>>;
+    async fn spending_rows(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>>;
     async fn create_links(&self, user_id: &str, links: &[(String, String)]) -> Result<Vec<String>>;
     async fn delete_links(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
     async fn is_transaction_linked(&self, txn_id: &str) -> Result<bool>;
