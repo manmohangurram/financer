@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Financer personal finance tracker backend (Rust) — strangler replacement for the Go backend"
+license = "0BSD"
+repository = "https://github.com/manmohangurram/financer"
 default-run = "financer"
 
 [lints.rust]

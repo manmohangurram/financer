@@ -8,6 +8,7 @@ Rust backend · Vue 3 frontend · single container · SQLite (default) or Surrea
 
 [![CI](https://github.com/manmohangurram/financer/actions/workflows/ci.yml/badge.svg)](https://github.com/manmohangurram/financer/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/manmohangurram/financer?display_name=tag)](https://github.com/manmohangurram/financer/releases)
+[![License: 0BSD](https://img.shields.io/badge/license-0BSD-blue)](LICENSE)
 [![GHCR](https://img.shields.io/badge/ghcr.io-financer-2496ED?logo=docker&logoColor=white)](https://github.com/manmohangurram/financer/pkgs/container/financer)
 
 </div>
@@ -313,4 +314,4 @@ Issues and pull requests are welcome. Please run the [quality gate](#tests) befo
 
 ## License
 
-No license has been chosen yet. Until one is added, the source is **all rights reserved** (no permission to use, copy, or distribute) — open an issue if you'd like a specific license.
+[**0BSD**](LICENSE) (Zero-Clause BSD) — an OSI-approved, no-conditions license. Anyone may use, copy, modify, and/or distribute this software for any purpose, commercial or otherwise, with **no attribution required**. Provided "as is", without warranty of any kind.
