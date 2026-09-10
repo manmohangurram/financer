@@ -1,0 +1,23 @@
+# Minimal Financer: one container, SQLite storage, no external services.
+#
+#   docker compose -f docker-compose.minimal.yml up -d
+#
+# Config is auto-generated into the mounted data directory on first run
+# (SQLite + a random JWT secret). Settings come from environment variables
+# (see .env.example) — copy it to .env to override the defaults below. For
+# the default setup with a bundled SurrealDB, use docker-compose.yml.
+services:
+  financer:
+    image: ghcr.io/manmohangurram/financer:${IMAGE_TAG:-latest}
+    container_name: financer
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      FINANCER_DATABASE: sqlite
+      FINANCER_SQLITE_PATH: ${FINANCER_SQLITE_PATH:-/data/financer.db}
+      # Set a stable secret so sessions survive restarts (else one is generated).
+      FINANCER_JWT_SECRET: ${FINANCER_JWT_SECRET:-}
+      TZ: ${TZ:-Asia/Kolkata}
+    volumes:
+      - ${DATA_DIR:-./data}:/data

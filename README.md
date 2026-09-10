@@ -65,24 +65,20 @@ The image is published to GitHub Container Registry for `linux/amd64` and `linux
 
 ### Docker Compose (recommended)
 
-Create `compose.yaml`:
-
-```yaml
-services:
-  financer:
-    image: ghcr.io/manmohangurram/financer:latest
-    container_name: financer
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./data:/data
-```
-
-Then:
+The repo ships two compose files:
 
 ```bash
+# Default: SurrealDB + the app
 docker compose up -d
+
+# Minimal: one container, SQLite, no external database
+docker compose -f docker-compose.minimal.yml up -d
+```
+
+Copy [`.env.example`](.env.example) to `.env` to set the port, data directory, image tag, timezone, and (for the default setup) the SurrealDB credentials:
+
+```bash
+cp .env.example .env
 ```
 
 ### Docker run
@@ -150,7 +146,7 @@ Every setting can be overridden by an env var, which **takes precedence over `co
 ### Storage backends
 
 - **SQLite (default)** — zero-dependency, single file at `/data/financer.db`. Migrations in `db/migrations/` run automatically at boot.
-- **SurrealDB (optional)** — set `[storage] database = "surreal"` and point `[storage.surreal]` at a running SurrealDB. The schema is applied idempotently at boot. The repo's `docker-compose.yml` starts a SurrealDB server for local development.
+- **SurrealDB (optional)** — set `[storage] database = "surreal"` (or `FINANCER_DATABASE=surreal`) and point `[storage.surreal]` / `FINANCER_SURREAL_*` at a running SurrealDB. The schema is applied idempotently at boot. The default [`docker-compose.yml`](docker-compose.yml) bundles a SurrealDB for you.
 
 ## Data, backups & upgrades
 
