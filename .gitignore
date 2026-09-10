@@ -37,8 +37,7 @@ graphify-out/
 docs/superpowers/
 *.deb
 
-# Runtime config (may hold secrets) — use config.example.toml for the template
-config.toml
+# Runtime data
 /data/
 
 # Local-only dev compose (personal paths) — not for the repo

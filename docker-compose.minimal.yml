@@ -16,8 +16,8 @@ services:
     environment:
       FINANCER_DATABASE: sqlite
       FINANCER_SQLITE_PATH: ${FINANCER_SQLITE_PATH:-/data/financer.db}
-      # Set a stable secret so sessions survive restarts (else one is generated).
-      FINANCER_JWT_SECRET: ${FINANCER_JWT_SECRET:-}
+      # Required: a stable JWT secret (e.g. `openssl rand -hex 32`).
+      FINANCER_JWT_SECRET: ${FINANCER_JWT_SECRET:?set FINANCER_JWT_SECRET}
       # Container clock and the app's date/time zone.
       TZ: ${TZ:-Asia/Kolkata}
       FINANCER_TIMEZONE: ${TZ:-Asia/Kolkata}
