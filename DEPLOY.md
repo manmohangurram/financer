@@ -81,24 +81,24 @@ These must be present at build context (the workflow checks out the whole repo, 
 
 ### How it works
 
-The Dockerfile is **multi-arch**: build stages run on the host arch (fast, no QEMU) and cross-compile to `TARGETARCH`:
+The image is **multi-arch**. CI builds each architecture on a native runner; the Dockerfile also supports cross-compiling to `TARGETARCH` when built under emulation (local `buildx` without an arm machine):
 
 - **amd64** → native build, no cross toolchain
-- **arm64** → `rustup target add aarch64-unknown-linux-gnu` + apt cross-gcc (`gcc-aarch64-linux-gnu`, `libc6-dev-arm64-cross`) → `cargo build --release --target aarch64-unknown-linux-gnu`
+- **arm64 on an arm runner** → native build
+- **arm64 under emulation** → `rustup target add aarch64-unknown-linux-gnu` + apt cross-gcc (`gcc-aarch64-linux-gnu`, `libc6-dev-arm64-cross`) → `cargo build --release --target aarch64-unknown-linux-gnu`
 
-Why a cross-C toolchain: ring/rustls (used by the SurrealDB HTTP client + reqwest) need a C linker for the final binary on arm64.
+Why a cross-C toolchain when cross-compiling: ring/rustls (used by the SurrealDB HTTP client + reqwest) need a C linker for the final binary on arm64.
 
 ### Via GitHub Actions (recommended)
 
-Set the **repo variable** `DOCKER_PLATFORMS` (Settings → Secrets and variables → Actions → Variables):
+The workflow builds **every architecture natively** — no QEMU — on a runner matrix:
 
-| Value | Builds |
+| Arch | Runner |
 |---|---|
-| `linux/amd64` (default) | x86_64 hosts |
-| `linux/arm64` | ARM64 — Raspberry Pi (64-bit OS), Apple Silicon |
-| `linux/arm64,linux/amd64` | **both** — one multi-arch manifest in GHCR |
+| `linux/amd64` | `ubuntu-latest` |
+| `linux/arm64` | `ubuntu-24.04-arm` |
 
-Then tag a release — the workflow builds and pushes both:
+Tag a release:
 
 ```bash
 git tag v1.0.0
@@ -106,11 +106,12 @@ git push origin v1.0.0
 ```
 
 The workflow (`docker-publish.yml`):
-1. Sets up QEMU (only when arm64 is in `DOCKER_PLATFORMS`) for the runtime-stage emulation
-2. Sets up buildx, logs into GHCR
-3. Builds the platforms via buildx → one manifest
-4. Pushes to `ghcr.io/<owner>/<image>` tagged with the git tag + `latest`
-5. Reuses the **registry-backed build cache** (`:buildcache` image) so cargo-chef dep layers persist across releases — only the app crate recompiles
+1. Builds each platform on its native runner and pushes it **by digest**
+2. Merges the per-arch digests into one multi-arch manifest (a `merge` job)
+3. Tags `ghcr.io/<owner>/<image>` with the git tag + `latest`
+4. Reuses the per-arch **registry-backed build cache** (`:buildcache-amd64` / `:buildcache-arm64`) so cargo-chef dep layers persist across releases — only the app crate recompiles
+
+No repo variable to configure; both architectures ship from every `v*` tag.
 
 ### Locally with buildx
 
@@ -191,5 +192,5 @@ All settings live in `/data/config/config.toml` on the mounted volume (or set
 | 404 on `/api/...` after deploy | Wrong `DOMAIN_URL` injection; or unknown API path (SPA returns 404 JSON for unknown `/api/*`). |
 | `no matching manifest for linux/arm64` locally | buildx builder missing: `docker buildx create --use`. |
 | arm64 build fails on ring/cc | Cross-gcc missing — the Dockerfile installs `gcc-aarch64-linux-gnu` + `libc6-dev-arm64-cross` automatically. |
-| Full dependency rebuild on every release | Check the `:buildcache` image exists in GHCR; registry cache survives across tags (gha cache does not — 7-day eviction). |
+| Full dependency rebuild on every release | Check the `:buildcache-<arch>` images exist in GHCR; the registry cache survives across tags (gha cache does not — 7-day eviction). |
 | Docker image tag is branch/sha not version | Manual `workflow_dispatch` run; `latest`/version tags apply only on `v*` tag pushes. |
