@@ -14,7 +14,7 @@ Rust backend · Vue 3 frontend · single container · SQLite (default) or Surrea
 </div>
 
 > [!WARNING]
-> **Alpha — under active development, not ready for production.** Expect breaking changes and rough edges. Keep regular backups and use at your own risk.
+> **Alpha — still under active development, not ready for production.** Expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
 
 Financer tracks accounts, transactions, transfers, spending, rules (auto-categorization), and investments — in one place, with a dark, dense dashboard UI. It ships as **one container**: the Rust binary serves both the API and the built frontend (no nginx).
 
