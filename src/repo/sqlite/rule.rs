@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::rule::{ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};
-use crate::utils::timex::{go_ts, ts_rfc3339};
+use crate::utils::timex::{ts_rfc3339};
 
 pub struct SqliteRuleRepo {
     pool: SqlitePool,
@@ -28,7 +28,7 @@ impl SqliteRuleRepo {
         actions: &[RuleAction],
     ) -> Result<Rule> {
         let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let mut tx = self.pool.begin().await?;
         sqlx::query("INSERT INTO rules (id, name, priority, logic, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?)")
             .bind(&id)

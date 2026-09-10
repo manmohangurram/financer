@@ -22,6 +22,9 @@ domain_url = ""
 # 64-char secret. If left empty, a random one is generated on first run and
 # written into the file. Set it explicitly for a stable secret across restarts.
 jwt_secret = ""
+# IANA timezone used for day/month buckets and "today" (e.g. "Asia/Kolkata").
+# Stored timestamps stay UTC; this only changes how they are grouped.
+timezone = "Asia/Kolkata"
 
 [storage]
 # "sqlite" | "surreal"

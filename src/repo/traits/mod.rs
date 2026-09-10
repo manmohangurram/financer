@@ -23,7 +23,7 @@ pub use investment::{InvestmentRepo, InvestmentRow, InvestmentType, LotInput, Lo
 #[allow(unused_imports)]
 pub use rule::{OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic, RuleRepo};
 #[allow(unused_imports)]
-pub use transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, SpendingBucketRow, SpendingCategoryRow, SpendingFilter, Transaction, TransactionListFilter, TransactionRepo, TransactionType, UpdateTransactionInput};
+pub use transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, SpendingFilter, SpendingTxn, Transaction, TransactionListFilter, TransactionRepo, TransactionType, UpdateTransactionInput};
 #[allow(unused_imports)]
 pub use user::{UserRepo, UserRow};
 #[allow(unused_imports)]

@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::account::{AccountRow, AccountType};
-use crate::utils::timex::go_ts;
 
 pub struct SqliteAccountRepo {
     pool: SqlitePool,
@@ -22,7 +21,7 @@ impl SqliteAccountRepo {
     #[allow(clippy::cast_precision_loss)]
     async fn create_inner(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountRow> {
         let id = Uuid::new_v4().to_string();
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         sqlx::query(
             "INSERT INTO accounts (id, user_id, bank_name, nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )

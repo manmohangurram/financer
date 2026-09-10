@@ -248,7 +248,7 @@ impl InvestmentService {
         if !force {
             let (ts, closes, last_fetched) = self.repo.get_price_history(user_id, investment_id, &cache_key).await?;
             let fresh_secs = price_history_freshness(range_id);
-            if !ts.is_empty() && chrono::Utc::now().timestamp() - last_fetched < fresh_secs {
+            if !ts.is_empty() && crate::utils::timex::now_utc().timestamp() - last_fetched < fresh_secs {
                 let points: Vec<PricePoint> = ts.iter().zip(closes.iter()).map(|(t, c)| PricePoint { t: *t, close: *c }).collect();
                 return Ok(points);
             }
@@ -261,7 +261,7 @@ impl InvestmentService {
         let points = aggregate_price_points(&raw, &cfg.agg);
         let ts: Vec<i64> = points.iter().map(|p| p.t).collect();
         let closes: Vec<f64> = points.iter().map(|p| p.close).collect();
-        let _ = self.repo.upsert_price_history(&inst.id, cache_key, &ts, &closes, chrono::Utc::now().timestamp()).await;
+        let _ = self.repo.upsert_price_history(&inst.id, cache_key, &ts, &closes, crate::utils::timex::now_utc().timestamp()).await;
         Ok(points)
     }
 }
@@ -333,7 +333,7 @@ fn resolve_range(range_id: &str, from: &str, to: &str) -> Result<(RangeConfig, S
 
     let ranges = price_history_ranges();
     let cfg = ranges.get(range_id).cloned().ok_or_else(|| ApiError::bad_request("range must be one of 1d,7d,1m,6m,1y,3y or provide from/to"))?;
-    let now = chrono::Utc::now();
+    let now = crate::utils::timex::now_utc();
     let (p1, p2) = if range_id == "1d" {
         preset_1d(now)
     } else {

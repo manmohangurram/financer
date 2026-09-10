@@ -6,11 +6,11 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::utils::timex::go_ts;
+
 
 pub use crate::repo::traits::transaction::{
     decode_transaction_cursor, encode_transaction_cursor, CreateOutcome, CreateTransactionInput, ListRow,
-    ListTransactionResult, SpendingBucketRow, SpendingCategoryRow, SpendingFilter, Transaction, TransactionListFilter,
+    ListTransactionResult, SpendingFilter, SpendingTxn, Transaction, TransactionListFilter,
     TransactionType, UpdateTransactionInput,
 };
 
@@ -272,11 +272,7 @@ impl<C: Connection> TransactionRepo<C> {
         }
         if !f.date_to.is_empty() {
             query.push_str(" AND occurredAt < $to");
-            let to_val = match chrono::NaiveDate::parse_from_str(&f.date_to, "%Y-%m-%d") {
-                Ok(d) => go_ts(d.and_hms_opt(0, 0, 0).unwrap().and_utc() + chrono::Duration::days(1)),
-                Err(_) => f.date_to.clone(),
-            };
-            binds.push(("to".into(), json!(to_val)));
+            binds.push(("to".into(), json!(f.date_to)));
         }
         if f.min_amount > 0.0 {
             query.push_str(" AND amount >= $min");
@@ -372,71 +368,58 @@ impl<C: Connection> TransactionRepo<C> {
         Ok(ListTransactionResult { rows, next_page_token: next_token, total_count: total })
     }
 
-    /// Sum debit spending per day/month, excluding non-debt transfers.
-    pub async fn spending_buckets(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingBucketRow>> {
-        let (range, range_args) = spending_range_clause(f);
-        let key_expr = if f.granularity == "month" { "string::slice(occurredAt, 0, 7)" } else { "string::slice(occurredAt, 0, 10)" };
-        let query = format!(
-            "SELECT {key_expr} AS key, math::sum(amount) AS amount
-             FROM transaction
-             WHERE user = $uid AND type = 'DEBIT'
-               AND {TRANSFER_EXCLUSION}
-             {range}
-             GROUP BY key ORDER BY key"
-        );
-        let mut q = self.db.query(&query).bind(("uid", rid("user", user_id)));
-        for (k, v) in range_args {
-            q = q.bind((k, v));
-        }
-        let mut res = q.await?;
-        Ok(take_json(&mut res, 0)?)
-    }
-
-    /// Sum debit/credit per category, with the same transfer exclusion.
-    pub async fn spending_categories(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingCategoryRow>> {
+    /// Fetch the raw spending-relevant transactions for a range (one row per
+    /// category) so the service can bucket them in the configured timezone.
+    pub async fn spending_rows(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>> {
         let (range, range_args) = spending_range_clause(f);
         let query = format!(
-            "SELECT categories AS cid,
-                math::sum(IF type = 'DEBIT' THEN amount ELSE 0 END) AS debit,
-                math::sum(IF type = 'CREDIT' THEN amount ELSE 0 END) AS credit
+            "SELECT meta::id(id) AS id, occurredAt, amount, type, categories AS cid
              FROM transaction
              WHERE user = $uid AND {TRANSFER_EXCLUSION}
-             {range}
-             GROUP BY cid"
+             {range}"
         );
         let mut q = self.db.query(&query).bind(("uid", rid("user", user_id)));
         for (k, v) in range_args {
             q = q.bind((k, v));
         }
         let mut res = q.await?;
-        let rows: Vec<SpendingCatGroup> = take_json(&mut res, 0)?;
+        let rows: Vec<SpendingTxnRow> = take_json(&mut res, 0)?;
 
-        let mut out: Vec<SpendingCategoryRow> = Vec::new();
-        let mut uncategorized = SpendingCategoryRow {
-            id: "__uncategorized__".to_string(),
-            name: "Uncategorized".to_string(),
-            debit: 0.0,
-            credit: 0.0,
-        };
+        let mut names: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        let mut out = Vec::new();
         for r in rows {
+            let ty: TransactionType = r.transaction_type.parse().unwrap_or(TransactionType::Debit);
             let cids = r.cid.unwrap_or_default();
             if cids.is_empty() {
-                uncategorized.debit += r.debit;
-                uncategorized.credit += r.credit;
+                out.push(SpendingTxn {
+                    id: r.id,
+                    occurred_at: r.occurred_at,
+                    amount: r.amount,
+                    transaction_type: ty,
+                    category_id: None,
+                    category_name: None,
+                });
                 continue;
             }
-            // Multi-category transactions attribute to each category's group;
-            // fetch names for the first id (single-category rows are the norm).
             for cid in &cids {
                 let bare = cid.strip_prefix("category:").unwrap_or(cid).to_string();
-                let name = self.category_name(user_id, &bare).await?;
-                out.push(SpendingCategoryRow { id: bare.clone(), name, debit: r.debit, credit: r.credit });
+                let name = if let Some(n) = names.get(&bare) {
+                    n.clone()
+                } else {
+                    let n = self.category_name(user_id, &bare).await?;
+                    names.insert(bare.clone(), n.clone());
+                    n
+                };
+                out.push(SpendingTxn {
+                    id: r.id.clone(),
+                    occurred_at: r.occurred_at.clone(),
+                    amount: r.amount,
+                    transaction_type: ty,
+                    category_id: Some(bare),
+                    category_name: Some(name),
+                });
             }
         }
-        if uncategorized.debit != 0.0 || uncategorized.credit != 0.0 {
-            out.push(uncategorized);
-        }
-        out.sort_by(|a, b| b.debit.partial_cmp(&a.debit).unwrap_or(std::cmp::Ordering::Equal));
         Ok(out)
     }
 
@@ -482,11 +465,15 @@ struct CountRow {
 }
 
 #[derive(serde::Deserialize)]
-struct SpendingCatGroup {
+struct SpendingTxnRow {
+    id: String,
+    #[serde(rename = "occurredAt")]
+    occurred_at: String,
+    amount: f64,
+    #[serde(rename = "type")]
+    transaction_type: String,
     #[serde(default)]
     cid: Option<Vec<String>>,
-    debit: f64,
-    credit: f64,
 }
 
 // --- transfer links (record links on the transactions) ---
@@ -510,7 +497,7 @@ impl<C: Connection> TransactionRepo<C> {
             .bind(("uid", rid("user", user_id)))
             .bind(("debit", rid("transaction", debit)))
             .bind(("credit", rid("transaction", credit)))
-            .bind(("created", go_ts(chrono::Utc::now())))
+            .bind(("created", crate::utils::timex::now_go_ts()))
             .await;
         let link_id = match res {
             Ok(mut r) => take_json::<LinkId>(&mut r, 0)?
@@ -631,11 +618,8 @@ impl crate::repo::traits::TransactionRepo for TransactionRepo<DbClient> {
     async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult> {
         self.list(user_id, f).await
     }
-    async fn spending_buckets(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingBucketRow>> {
-        self.spending_buckets(user_id, f).await
-    }
-    async fn spending_categories(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingCategoryRow>> {
-        self.spending_categories(user_id, f).await
+    async fn spending_rows(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>> {
+        self.spending_rows(user_id, f).await
     }
     async fn create_links(&self, user_id: &str, links: &[(String, String)]) -> Result<Vec<String>> {
         self.create_links(user_id, links).await
@@ -870,7 +854,7 @@ mod spending_tests {
 
 
     #[tokio::test]
-    async fn spending_buckets_and_categories() {
+    async fn spending_rows_returns_raw_transactions() {
         let (db, repo) = setup().await;
         let mut res = db
             .query("SELECT meta::id(id) AS id, type FROM account ORDER BY type")
@@ -896,17 +880,15 @@ mod spending_tests {
             CreateTransactionInput { txn: txn("t2", "Salary", 1000.0, TransactionType::Credit, &current), category_ids: vec![] },
         ]).await.unwrap();
 
-        let filter = SpendingFilter { granularity: "day".into(), from: String::new(), to: String::new(), account_id: String::new() };
-        let buckets = repo.spending_buckets("u1", &filter).await.unwrap();
-        assert_eq!(buckets.len(), 1, "one day bucket (only debit counts)");
-        assert_eq!(buckets[0].key, "2024-01-02");
-        assert_eq!(buckets[0].amount, 50.0);
-
-        let cats = repo.spending_categories("u1", &filter).await.unwrap();
-        assert!(cats.len() >= 2, "Food + Uncategorized");
-        let food = cats.iter().find(|c| c.name == "Food").unwrap();
-        assert_eq!(food.debit, 50.0);
-        let uncat = cats.iter().find(|c| c.name == "Uncategorized").unwrap();
-        assert_eq!(uncat.credit, 1000.0, "salary credit lands in uncategorized");
+        let filter = SpendingFilter { from: String::new(), to: String::new(), account_id: String::new() };
+        let rows = repo.spending_rows("u1", &filter).await.unwrap();
+        assert_eq!(rows.len(), 2);
+        let debit = rows.iter().find(|r| r.transaction_type == TransactionType::Debit).unwrap();
+        assert_eq!(debit.amount, 50.0);
+        assert_eq!(debit.category_id.as_deref(), Some(cat.as_str()));
+        assert_eq!(debit.category_name.as_deref(), Some("Food"));
+        let credit = rows.iter().find(|r| r.transaction_type == TransactionType::Credit).unwrap();
+        assert_eq!(credit.amount, 1000.0);
+        assert!(credit.category_id.is_none(), "uncategorized");
     }
 }

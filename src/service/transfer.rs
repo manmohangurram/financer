@@ -8,7 +8,6 @@ use uuid::Uuid;
 use crate::error::{ApiError, Result};
 use crate::repo::traits::{AccountRepo, TransactionRepo};
 use crate::repo::traits::transaction::{self, Transaction, TransactionType};
-use crate::utils::timex::go_ts;
 
 #[derive(Clone)]
 pub struct TransferService {
@@ -166,7 +165,7 @@ pub async fn resolve_transfer(
         transaction_type: opposite,
         account_id: target_account_id.to_string(),
         occurred_at: src.occurred_at.clone(),
-        created_at: go_ts(chrono::Utc::now()),
+        created_at: crate::utils::timex::now_go_ts(),
         external_id: None,
         transfer_linked: false,
     };

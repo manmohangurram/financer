@@ -42,6 +42,8 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = Config::load()?;
+    // Set the process timezone once, before any date/time work.
+    crate::utils::timex::init_tz(&cfg.server.timezone);
     std::fs::create_dir_all(cfg.server.data_dir.join("avatars"))?;
 
     // Build the repo set for the selected database.
@@ -98,7 +100,13 @@ async fn main() -> anyhow::Result<()> {
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()).layer(CorsLayer::permissive()));
 
     let listener = tokio::net::TcpListener::bind(&cfg.server.addr).await?;
-    tracing::info!("Financer Rust server listening on {}", cfg.server.addr);
+    tracing::info!(
+        "Financer Rust server listening on {} (local time {})",
+        cfg.server.addr,
+        crate::utils::timex::now_utc()
+            .with_timezone(&crate::utils::timex::tz())
+            .format("%Y-%m-%d %H:%M:%S %Z")
+    );
     axum::serve(listener, app).await?;
     Ok(())
 }

@@ -6,7 +6,7 @@ use surrealdb::Connection;
 
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::utils::timex::{go_ts, ts_rfc3339};
+use crate::utils::timex::{ts_rfc3339};
 
 #[allow(unused_imports)]
 pub use crate::repo::traits::rule::{ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};
@@ -31,7 +31,7 @@ impl<C: Connection> RuleRepo<C> {
         conditions: &[RuleCondition],
         actions: &[RuleAction],
     ) -> Result<Rule> {
-        let now = go_ts(chrono::Utc::now());
+        let now = crate::utils::timex::now_go_ts();
         let mut res = self
             .db
             .query(

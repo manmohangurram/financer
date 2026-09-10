@@ -9,7 +9,6 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::category::{CategoryCreateInput, CategoryRow, CategoryUpdateInput, ListCategoriesResult};
-use crate::utils::timex::go_ts;
 
 pub struct SqliteCategoryRepo {
     pool: SqlitePool,
@@ -24,7 +23,7 @@ impl SqliteCategoryRepo {
         let mut rows = Vec::new();
         for input in inputs {
             let id = Uuid::new_v4().to_string();
-            let now = go_ts(chrono::Utc::now());
+            let now = crate::utils::timex::now_go_ts();
             sqlx::query("INSERT INTO categories (id, user_id, name, created_at) VALUES (?, ?, ?, ?)")
                 .bind(&id)
                 .bind(user_id)
