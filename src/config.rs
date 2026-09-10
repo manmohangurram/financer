@@ -158,7 +158,7 @@ impl Default for YahooConfigSection {
 }
 
 /// Storage database choice, derived from `Storage.database`.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Database {
     Surreal,
     Sqlite,
@@ -166,10 +166,11 @@ pub enum Database {
 
 impl Config {
     /// Load config from `config.toml`, auto-generating a default at
-    /// `{data_dir}/config/config.toml` if none exists.
+    /// `{data_dir}/config/config.toml` if none exists. `FINANCER_*` environment
+    /// variables are then applied on top, so **env > file > default**.
     pub fn load() -> anyhow::Result<Self> {
         let path = config_path_for_read();
-        let cfg = if path.exists() {
+        let mut cfg = if path.exists() {
             let raw = fs::read_to_string(&path)?;
             let mut cfg: Config = toml::from_str(&raw)?;
             // If the example was copied with an empty secret, generate one.
@@ -182,7 +183,50 @@ impl Config {
             default.write_default(&path)?;
             default
         };
+        cfg.apply_env_overrides();
         Ok(cfg)
+    }
+
+    /// Apply `FINANCER_*` env vars over the loaded config. Blank values are
+    /// ignored, so an unset/empty var leaves the file/default value in place.
+    fn apply_env_overrides(&mut self) {
+        self.apply_overrides_from(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
+    }
+
+    fn apply_overrides_from(&mut self, get: impl Fn(&str) -> Option<String>) {
+        if let Some(v) = get("FINANCER_ADDR") {
+            self.server.addr = v;
+        }
+        if let Some(v) = get("FINANCER_DATA_DIR") {
+            self.server.data_dir = v.into();
+        }
+        if let Some(v) = get("FINANCER_DOMAIN_URL") {
+            self.server.domain_url = v;
+        }
+        if let Some(v) = get("FINANCER_JWT_SECRET") {
+            self.server.jwt_secret = v;
+        }
+        if let Some(v) = get("FINANCER_DATABASE") {
+            self.storage.database = v;
+        }
+        if let Some(v) = get("FINANCER_SQLITE_PATH") {
+            self.storage.sqlite.path = v;
+        }
+        if let Some(v) = get("FINANCER_SURREAL_URL") {
+            self.storage.surreal.url = v;
+        }
+        if let Some(v) = get("FINANCER_SURREAL_USER") {
+            self.storage.surreal.user = v;
+        }
+        if let Some(v) = get("FINANCER_SURREAL_PASS") {
+            self.storage.surreal.pass = v;
+        }
+        if let Some(v) = get("FINANCER_SURREAL_NS") {
+            self.storage.surreal.ns = v;
+        }
+        if let Some(v) = get("FINANCER_SURREAL_DB") {
+            self.storage.surreal.db = v;
+        }
     }
 
     /// Save the default config to `path`, creating parent dirs.
@@ -204,4 +248,41 @@ impl Config {
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |k| pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| (*v).to_string())
+    }
+    #[test]
+    fn env_overrides_win_over_file_and_default() {
+        let mut cfg = Config::default();
+        cfg.apply_overrides_from(map(&[
+            ("FINANCER_ADDR", "0.0.0.0:9000"),
+            ("FINANCER_JWT_SECRET", "secret"),
+            ("FINANCER_DATABASE", "surreal"),
+            ("FINANCER_SURREAL_URL", "surrealdb:8000"),
+            ("FINANCER_SURREAL_PASS", "pw"),
+        ]));
+        assert_eq!(cfg.server.addr, "0.0.0.0:9000");
+        assert_eq!(cfg.server.jwt_secret, "secret");
+        assert_eq!(cfg.storage.database, "surreal");
+        assert_eq!(cfg.storage.surreal.url, "surrealdb:8000");
+        assert_eq!(cfg.storage.surreal.pass, "pw");
+        // Unset vars keep their defaults.
+        assert_eq!(cfg.storage.surreal.user, "root");
+        assert_eq!(cfg.storage.sqlite.path, "/data/financer.db");
+        assert_eq!(cfg.database(), Database::Surreal);
+    }
+
+    #[test]
+    fn blank_env_values_are_ignored() {
+        let mut cfg = Config::default();
+        cfg.apply_overrides_from(|_| None); // nothing set
+        assert_eq!(cfg.server.addr, "0.0.0.0:8080");
+        assert_eq!(cfg.storage.database, "sqlite");
+    }
 }

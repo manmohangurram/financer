@@ -125,9 +125,22 @@ See [`config.example.toml`](config.example.toml) for the full, commented templat
 
 **Environment variables**
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `FINANCER_CONFIG` | `/data/config/config.toml` | Path to the config file |
+Every setting can be overridden by an env var, which **takes precedence over `config.toml`** (env > file > default). Blank/unset vars are ignored.
+
+| Variable | Overrides |
+|---|---|
+| `FINANCER_CONFIG` | Path to the config file (default `/data/config/config.toml`) |
+| `FINANCER_ADDR` | `[server] addr` |
+| `FINANCER_DATA_DIR` | `[server] data_dir` |
+| `FINANCER_DOMAIN_URL` | `[server] domain_url` |
+| `FINANCER_JWT_SECRET` | `[server] jwt_secret` |
+| `FINANCER_DATABASE` | `[storage] database` (`sqlite` \| `surreal`) |
+| `FINANCER_SQLITE_PATH` | `[storage.sqlite] path` |
+| `FINANCER_SURREAL_URL` | `[storage.surreal] url` |
+| `FINANCER_SURREAL_USER` | `[storage.surreal] user` |
+| `FINANCER_SURREAL_PASS` | `[storage.surreal] pass` |
+| `FINANCER_SURREAL_NS` | `[storage.surreal] ns` |
+| `FINANCER_SURREAL_DB` | `[storage.surreal] db` |
 
 > [!IMPORTANT]
 > `config.toml` contains the `jwt_secret` — treat it as a secret. Only `config.example.toml` is committed to the repo.
