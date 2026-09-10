@@ -177,6 +177,7 @@ impl<C: Connection> TransactionRepo<C> {
                 .query(
                     "UPDATE $rid SET
                         name = IF $name != '' THEN $name ELSE name END,
+                        cleanName = IF $name != '' THEN NONE ELSE cleanName END,
                         amount = IF $amount != 0 THEN $amount ELSE amount END,
                         type = IF $type != 'NONE' THEN $type ELSE type END,
                         occurredAt = IF $occ != '' THEN $occ ELSE occurredAt END,

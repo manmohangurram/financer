@@ -156,12 +156,14 @@ impl SqliteTransactionRepo {
             let res = sqlx::query(
                 "UPDATE transactions SET
                     name = COALESCE(NULLIF(?, ''), name),
+                    clean_name = CASE WHEN ? != '' THEN NULL ELSE clean_name END,
                     amount = CASE WHEN ? != 0 THEN ? ELSE amount END,
                     type = CASE WHEN ? != 0 THEN ? ELSE type END,
                     occurred_at = COALESCE(NULLIF(?, ''), occurred_at),
                     account_id = COALESCE(NULLIF(?, ''), account_id)
                  WHERE id = ? AND user_id = ?",
             )
+            .bind(&t.name)
             .bind(&t.name)
             .bind(t.amount)
             .bind(t.amount)

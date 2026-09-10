@@ -106,7 +106,7 @@ function counterpart(txn: any) {
               <div class="w-2 h-2 rounded-full shrink-0" :class="isCredit(txn) ? 'bg-income' : 'bg-expense'"></div>
               <div class="min-w-0">
                 <div class="flex items-center gap-1.5">
-                  <span class="text-[14px] text-text font-medium truncate">{{ txn.cleanName || txn.name }}</span>
+                  <span class="text-[14px] text-text font-medium truncate">{{ txn.name }}</span>
                   <button
                     v-if="!readonly && txn.type === 'DEBIT' && !txn.linkedTransferId"
                     type="button"

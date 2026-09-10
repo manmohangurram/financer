@@ -55,8 +55,6 @@ struct JsonListTxn {
 struct WireTxn {
     id: String,
     name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    clean_name: Option<String>,
     amount: f64,
     #[serde(rename = "type")]
     transaction_type: String,
@@ -187,36 +185,23 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
     };
     match st.transaction.list(&uid, f).await {
         Ok(res) => {
-            // Build overlay views (rules may rename / re-categorize at read time).
-            let mut views: Vec<crate::service::rule::TransactionView> = res
+            // Actual-Budget model: rules applied at write time are persisted in
+            // clean_name. Reads return the resolved display (clean_name when a
+            // rule matched, else the raw name) — no read-time rule overlay.
+            let items: Vec<WireTxn> = res
                 .rows
                 .iter()
-                .map(|r| crate::service::rule::TransactionView {
-                    name: r.txn.name.clone(),
-                    amount: r.txn.amount,
-                    transaction_type: r.txn.transaction_type,
-                    account_id: r.txn.account_id.clone(),
-                    category_ids: r.category_ids.clone(),
-                })
-                .collect();
-            if let Err(e) = st.rule.overlay(&uid, &mut views).await {
-                return e.into_response();
-            }
-            let items: Vec<WireTxn> = views
-                .iter()
-                .zip(res.rows.iter())
-                .map(|(v, r)| WireTxn {
+                .map(|r| WireTxn {
                     id: r.txn.id.clone(),
-                    name: r.txn.name.clone(),
-                    clean_name: if v.name == r.txn.name { r.txn.clean_name.clone() } else { Some(v.name.clone()) },
-                    amount: round2(v.amount),
-                    transaction_type: v.transaction_type.to_string(),
+                    name: r.txn.clean_name.clone().unwrap_or_else(|| r.txn.name.clone()),
+                    amount: round2(r.txn.amount),
+                    transaction_type: r.txn.transaction_type.to_string(),
                     occurred_at: ts_rfc3339(&r.txn.occurred_at),
-                    account_id: v.account_id.clone(),
+                    account_id: r.txn.account_id.clone(),
                     created_at: ts_rfc3339(&r.txn.created_at),
                     linked_transfer_id: r.link_id.clone(),
                     // Wire contract: null (not []) when no categories.
-                    category_ids: if v.category_ids.is_empty() { None } else { Some(v.category_ids.clone()) },
+                    category_ids: if r.category_ids.is_empty() { None } else { Some(r.category_ids.clone()) },
                 })
                 .collect();
             Json(serde_json::json!({
