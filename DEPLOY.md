@@ -105,19 +105,30 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The workflow (`docker-publish.yml`):
-1. Builds each platform on its native runner and pushes it **by digest**
-2. Merges the per-arch digests into one multi-arch manifest (a `merge` job)
-3. Tags `ghcr.io/<owner>/<image>` with the git tag + `latest`
-4. Reuses the per-arch **registry-backed build cache** (`:buildcache-amd64` / `:buildcache-arm64`) so cargo-chef dep layers persist across releases — only the app crate recompiles
+The workflow (`docker-publish.yml`) publishes **two variants** — the default SQLite build and a SurrealDB build (`--features surreal`):
 
-No repo variable to configure; both architectures ship from every `v*` tag.
+| Variant | Tags |
+|---|---|
+| SQLite (default) | `:v1.0.0`, `:latest` |
+| SurrealDB | `:v1.0.0-surreal`, `:latest-surreal` |
+
+1. Builds each platform **× variant** on its native runner and pushes it **by digest**
+2. Merges the per-arch digests into one multi-arch manifest **per variant** (`merge` job)
+3. Tags `ghcr.io/<owner>/<image>` as above
+4. Reuses the per-arch, per-variant **registry-backed build cache** (`:buildcache-<variant>-<arch>`) so cargo-chef dep layers persist across releases — only the app crate recompiles
+
+No repo variable to configure; every `v*` tag ships both variants for both architectures.
 
 ### Locally with buildx
 
+The `Dockerfile` takes a `CARGO_FEATURES` build arg — empty builds SQLite, `surreal` builds the SurrealDB variant.
+
 ```bash
-# both arches
+# SQLite (default), both arches
 docker buildx build --platform linux/arm64,linux/amd64 -t ghcr.io/<owner>/<image>:test .
+
+# SurrealDB variant
+docker buildx build --platform linux/arm64,linux/amd64 --build-arg CARGO_FEATURES=surreal -t ghcr.io/<owner>/<image>:test-surreal .
 
 # just arm64 (Pi)
 docker buildx build --platform linux/arm64 -t ghcr.io/<owner>/<image>:arm64 .

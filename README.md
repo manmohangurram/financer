@@ -61,7 +61,14 @@ All finance math (aggregation, filtering, transfer resolution, FIFO) lives in th
 
 ## Quick start
 
-The image is published to GitHub Container Registry for `linux/amd64` and `linux/arm64`.
+The image is published to GitHub Container Registry for `linux/amd64` and `linux/arm64`, in two variants:
+
+| Tag | Storage |
+|---|---|
+| `ghcr.io/manmohangurram/financer:latest` | **SQLite** (default) |
+| `ghcr.io/manmohangurram/financer:latest-surreal` | **SurrealDB** (compiled with `--features surreal`) |
+
+The default [`docker-compose.yml`](docker-compose.yml) runs against a bundled SurrealDB, so it pulls the `-surreal` variant; [`docker-compose.minimal.yml`](docker-compose.minimal.yml) is single-container SQLite.
 
 ### Docker Compose (recommended)
 
@@ -130,7 +137,7 @@ Configuration is **entirely environment variables** — there is no config file.
 ### Storage backends
 
 - **SQLite (default)** — zero-dependency, single file at `/data/financer.db`. Migrations in `db/migrations/` run automatically at boot.
-- **SurrealDB (optional)** — set `FINANCER_DATABASE=surreal` and point `FINANCER_SURREAL_*` at a running SurrealDB. The schema is applied idempotently at boot. The default [`docker-compose.yml`](docker-compose.yml) bundles a SurrealDB for you.
+- **SurrealDB (optional)** — a separate **image variant**: `ghcr.io/manmohangurram/financer:latest-surreal` (the default build is SQLite-only). Set `FINANCER_DATABASE=surreal` and point `FINANCER_SURREAL_*` at a running SurrealDB. The schema is applied idempotently at boot. The default [`docker-compose.yml`](docker-compose.yml) bundles a SurrealDB for you.
 
 ## Data, backups & upgrades
 

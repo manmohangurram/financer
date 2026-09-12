@@ -18,7 +18,10 @@ services:
       - surrealdb_data:/data
 
   financer:
-    image: ghcr.io/manmohangurram/financer:${IMAGE_TAG:-latest}
+    # This compose runs against the bundled SurrealDB, so it needs the
+    # SurrealDB image variant (`<tag>-surreal`). For SQLite use
+    # docker-compose.minimal.yml.
+    image: ghcr.io/manmohangurram/financer:${IMAGE_TAG:-latest}-surreal
     container_name: financer
     restart: unless-stopped
     depends_on:
