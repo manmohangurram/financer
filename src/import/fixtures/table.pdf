@@ -1,0 +1,75 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 500 800] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1318 >>
+stream
+1 w
+40 700 m 400 700 l S
+40 670 m 400 670 l S
+40 640 m 400 640 l S
+40 610 m 400 610 l S
+40 700 m 40 610 l S
+160 700 m 160 610 l S
+280 700 m 280 610 l S
+400 700 m 400 610 l S
+BT /F1 11 Tf 45 680 Td (Date) Tj ET
+BT /F1 11 Tf 165 680 Td (Description) Tj ET
+BT /F1 11 Tf 285 680 Td (Amount) Tj ET
+BT /F1 11 Tf 45 650 Td (01/04/2021) Tj ET
+BT /F1 11 Tf 165 650 Td (Coffee Shop) Tj ET
+BT /F1 11 Tf 285 650 Td (120.50) Tj ET
+BT /F1 11 Tf 45 620 Td (02/04/2021) Tj ET
+BT /F1 11 Tf 165 620 Td (Salary) Tj ET
+BT /F1 11 Tf 285 620 Td (5000.00) Tj ET
+40 560 m 400 560 l S
+40 530 m 400 530 l S
+40 500 m 400 500 l S
+40 560 m 40 500 l S
+160 560 m 160 500 l S
+280 560 m 280 500 l S
+400 560 m 400 500 l S
+BT /F1 11 Tf 45 540 Td (Date) Tj ET
+BT /F1 11 Tf 165 540 Td (Description) Tj ET
+BT /F1 11 Tf 285 540 Td (Amount) Tj ET
+BT /F1 11 Tf 45 510 Td (03/04/2021) Tj ET
+BT /F1 11 Tf 165 510 Td (Groceries) Tj ET
+BT /F1 11 Tf 285 510 Td (800.00) Tj ET
+40 450 m 400 450 l S
+40 420 m 400 420 l S
+40 390 m 400 390 l S
+40 450 m 40 390 l S
+160 450 m 160 390 l S
+280 450 m 280 390 l S
+400 450 m 400 390 l S
+BT /F1 11 Tf 45 430 Td (04/04/2021) Tj ET
+BT /F1 11 Tf 165 430 Td (Fuel) Tj ET
+BT /F1 11 Tf 285 430 Td (300.00) Tj ET
+BT /F1 11 Tf 45 400 Td (05/04/2021) Tj ET
+BT /F1 11 Tf 165 400 Td (Pharmacy) Tj ET
+BT /F1 11 Tf 285 400 Td (150.00) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001611 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1681
+%%EOF

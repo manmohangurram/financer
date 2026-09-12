@@ -299,12 +299,12 @@ impl<C: Connection> TransactionRepo<C> {
         }
 
         if f.sort_by.is_empty() {
-            if !f.page_token.is_empty() {
-                if let Some(cur) = decode_transaction_cursor(&f.page_token) {
-                    query.push_str(" AND (occurredAt < $curOcc OR (occurredAt = $curOcc AND type::string(meta::id(id)) < $curId))");
-                    binds.push(("curOcc".into(), json!(cur.occurred_at)));
-                    binds.push(("curId".into(), json!(cur.id)));
-                }
+            if !f.page_token.is_empty()
+                && let Some(cur) = decode_transaction_cursor(&f.page_token)
+            {
+                query.push_str(" AND (occurredAt < $curOcc OR (occurredAt = $curOcc AND type::string(meta::id(id)) < $curId))");
+                binds.push(("curOcc".into(), json!(cur.occurred_at)));
+                binds.push(("curId".into(), json!(cur.id)));
             }
             query.push_str(" ORDER BY occurredAt DESC, id DESC");
             if f.page_size > 0 {
