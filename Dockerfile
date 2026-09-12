@@ -28,6 +28,8 @@ RUN cargo chef prepare --recipe-path recipe.json
 # Builder: build dependencies once (cached layer), then the app crate.
 FROM --platform=$BUILDPLATFORM chef AS builder
 ARG TARGETARCH
+# Cargo features to build with. Empty = SQLite only; `surreal` adds SurrealDB.
+ARG CARGO_FEATURES=""
 # amd64 builds natively (glibc). Cross-compiles (e.g. arm64) add the target
 # triple and a cross-gcc for the final link (ring/rustls need a C linker).
 RUN case ${TARGETARCH} in \
@@ -39,17 +41,17 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN case ${TARGETARCH} in \
         arm64) CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
                CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-               cargo chef cook --release --target aarch64-unknown-linux-gnu --recipe-path recipe.json;; \
-        *)     cargo chef cook --release --recipe-path recipe.json;; \
+               cargo chef cook --release --features "$CARGO_FEATURES" --target aarch64-unknown-linux-gnu --recipe-path recipe.json;; \
+        *)     cargo chef cook --release --features "$CARGO_FEATURES" --recipe-path recipe.json;; \
     esac
 COPY . .
 RUN mkdir -p /out && \
     case ${TARGETARCH} in \
         arm64) CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
                CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-               cargo build --release --locked -p financer --target aarch64-unknown-linux-gnu && \
+               cargo build --release --locked -p financer --features "$CARGO_FEATURES" --target aarch64-unknown-linux-gnu && \
                cp target/aarch64-unknown-linux-gnu/release/financer /out/financer;; \
-        *)     cargo build --release --locked -p financer && \
+        *)     cargo build --release --locked -p financer --features "$CARGO_FEATURES" && \
                cp target/release/financer /out/financer;; \
     esac
 

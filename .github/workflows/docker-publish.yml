@@ -1,9 +1,10 @@
 name: Docker
 
-# Builds and pushes the multi-arch image to GHCR on git tag creation (e.g.
-# `v1.0.0`). Each architecture is built on a *native* runner (no QEMU
-# emulation), then the per-arch digests are merged into one manifest. The image
-# version tag equals the git tag; `latest` is applied too.
+# Builds and pushes the multi-arch images to GHCR on git tag creation (e.g.
+# `v1.0.0`). Two variants are published: the default SQLite build and a
+# SurrealDB build (`--features surreal`), the latter tagged `-surreal`.
+# Each architecture is built on a native runner (no QEMU) and the per-arch
+# digests are merged into one manifest per variant.
 on:
   push:
     tags:
@@ -19,14 +20,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - arch: amd64
+        arch:
+          - name: amd64
             platform: linux/amd64
             runner: ubuntu-latest
-          - arch: arm64
+          - name: arm64
             platform: linux/arm64
             runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
+        variant:
+          - name: sqlite
+            features: ''
+          - name: surreal
+            features: surreal
+    runs-on: ${{ matrix.arch.runner }}
     permissions:
       contents: read
       packages: write
@@ -44,17 +50,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build (${{ matrix.arch }}) and push by digest
+      - name: Build (${{ matrix.variant.name }}/${{ matrix.arch.name }}) and push by digest
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ matrix.platform }}
-          # Push the single-arch image by digest; the merge job assembles tags.
+          platforms: ${{ matrix.arch.platform }}
+          build-args: CARGO_FEATURES=${{ matrix.variant.features }}
+          # Push the single-arch image by digest; the merge jobs assemble tags.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          # Per-arch cache so the two jobs don't clobber each other.
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }},mode=max
+          # Per-arch, per-variant cache so the jobs don't clobber each other.
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.variant.name }}-${{ matrix.arch.name }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.variant.name }}-${{ matrix.arch.name }},mode=max
 
       - name: Export digest
         run: |
@@ -65,7 +72,7 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.arch }}
+          name: digests-${{ matrix.variant.name }}-${{ matrix.arch.name }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -73,6 +80,16 @@ jobs:
   merge:
     runs-on: ubuntu-latest
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: sqlite
+            suffix: ''
+            latest: latest
+          - variant: surreal
+            suffix: -surreal
+            latest: latest-surreal
     permissions:
       contents: read
       packages: write
@@ -81,7 +98,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: digests-*
+          pattern: digests-${{ matrix.variant }}-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
@@ -100,12 +117,12 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Image version = git tag (e.g. v1.0.0).
-            type=ref,event=tag
+            # Image version = git tag (e.g. v1.0.0), suffixed for the Surreal build.
+            type=ref,event=tag,suffix=${{ matrix.suffix }}
             # Always-tag latest from the newest release.
-            type=raw,value=latest
+            type=raw,value=${{ matrix.latest }}
 
-      - name: Create multi-arch manifest
+      - name: Create multi-arch manifest (${{ matrix.variant }})
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
