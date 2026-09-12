@@ -110,19 +110,21 @@ async fn spa(State(s): State<AppState>, uri: Uri) -> Response {
         return ApiError::not_found(format!("unknown endpoint {path}")).into_response();
     }
     let index = read_index(&s);
-    if let Some(p) = path.strip_prefix('/') {
-        if !p.is_empty() && !p.starts_with('/') && !p.split('/').any(|seg| seg == "..") {
-            let candidate = std::path::Path::new(&s.static_dir).join(p);
-            if candidate.is_file() {
-                if let Ok(content) = std::fs::read(&candidate) {
-                    return (
-                        StatusCode::OK,
-                        [(header::CONTENT_TYPE, mime_for(p))],
-                        axum::body::Body::from(content),
-                    )
-                        .into_response();
-                }
-            }
+    if let Some(p) = path.strip_prefix('/')
+        && !p.is_empty()
+        && !p.starts_with('/')
+        && !p.split('/').any(|seg| seg == "..")
+    {
+        let candidate = std::path::Path::new(&s.static_dir).join(p);
+        if candidate.is_file()
+            && let Ok(content) = std::fs::read(&candidate)
+        {
+            return (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, mime_for(p))],
+                axum::body::Body::from(content),
+            )
+                .into_response();
         }
     }
     (

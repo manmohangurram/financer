@@ -3,9 +3,19 @@
 # Run: `cargo audit`
 
 [advisories]
-# RUSTSEC-2023-0071 — rsa 0.9.x "Marvin Attack" (timing side-channel in RSA
-# *decryption*). No fixed release exists. It is pulled transitively and
-# unconditionally by surrealdb-core -> jsonwebtoken, which uses RSA only for
-# JWT *signature verification* (public-key operation), not decryption — the
-# vulnerable code path is never exercised. Revisit when surrealdb drops `rsa`.
-ignore = ["RUSTSEC-2023-0071"]
+# Reviewed exceptions. Every entry is a *transitive* crate pinned by an upstream
+# we cannot bump; none of them is a vulnerability we can act on. Revisit when the
+# parent crate picks up a maintained dependency.
+ignore = [
+    # rsa 0.9.x "Marvin Attack" — timing side-channel in RSA *decryption*. No
+    # fixed release exists. Pulled unconditionally by surrealdb-core ->
+    # jsonwebtoken, which uses RSA only for JWT *signature verification*
+    # (public-key operation), not decryption — the vulnerable path is not
+    # exercised. Revisit when surrealdb drops `rsa`.
+    "RUSTSEC-2023-0071",
+    # Unmaintained notices (no vulnerability, no upgrade path from us):
+    "RUSTSEC-2024-0436", # paste       <- utoipa-axum 0.2.0 (latest)
+    "RUSTSEC-2026-0192", # ttf-parser  <- lopdf 0.42, pinned by pdfsink-rs 0.2.19 (latest)
+    "RUSTSEC-2025-0141", # bincode     <- surrealmx (surrealdb storage engine)
+    "RUSTSEC-2023-0089", # atomic-polyfill <- heapless 0.7 (surrealdb)
+]

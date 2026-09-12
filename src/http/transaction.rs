@@ -1,6 +1,6 @@
 //! Transactions HTTP handlers — mirroring Go's `httpserver/transaction_handlers.go`.
 
-use axum::extract::{Query, State};
+use axum::extract::{Multipart, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
@@ -17,6 +17,55 @@ use crate::utils::timex::ts_rfc3339;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/transactions", axum::routing::get(list).post(create).put(update).delete(delete))
+        .route("/api/transactions/import/file", axum::routing::post(import_file))
+}
+
+/// Upload a CSV/XLSX/PDF for import. Parses it, stores it under an opaque id,
+/// and returns the headers + data-row count for the column-mapping step.
+#[utoipa::path(
+    post,
+    path = "/api/transactions/import/file",
+    request_body(content = String, content_type = "multipart/form-data"),
+    responses(
+        (status = 200, description = "Parsed file: id, headers and row count"),
+        (status = 400, description = "Unsupported type, unreadable file, or no header row"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp: Multipart) -> Response {
+    let uid = match require_user(&headers, &st.jwt) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    let Some((filename, bytes)) = read_file_field(&mut mp).await else {
+        return ApiError::bad_request("missing 'file' field").into_response();
+    };
+    let Some(kind) = crate::import::kind_for(&filename) else {
+        return ApiError::bad_request("unsupported file type; expected .csv, .xlsx or .pdf").into_response();
+    };
+    let parsed = match crate::import::parse(&bytes, kind) {
+        Ok(p) => p,
+        Err(e) => return e.into_response(),
+    };
+    let ext = crate::import::store::extension_of(&filename);
+    let id = match crate::import::store::save(&uid, &ext, &bytes) {
+        Ok((id, _hash)) => id,
+        Err(e) => return e.into_response(),
+    };
+    Json(serde_json::json!({ "id": id, "headers": parsed.headers, "rowCount": parsed.rows.len() })).into_response()
+}
+
+/// Read the `file` field of a multipart body as `(filename, bytes)`.
+async fn read_file_field(mp: &mut Multipart) -> Option<(String, Vec<u8>)> {
+    while let Ok(Some(field)) = mp.next_field().await {
+        if field.name() == Some("file") {
+            let filename = field.file_name().unwrap_or_default().to_string();
+            let bytes = field.bytes().await.ok()?.to_vec();
+            return Some((filename, bytes));
+        }
+    }
+    None
 }
 
 #[derive(Deserialize, ToSchema)]
