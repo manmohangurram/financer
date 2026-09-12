@@ -136,3 +136,22 @@ describe('mapCsvRowsToTransactions', () => {
     expect(d.getFullYear()).toBe(2026);
   });
 });
+
+describe('guessMapping', () => {
+  it('recognises bank-statement headers', () => {
+    expect(guessMapping('Date')).toBe('date');
+    expect(guessMapping('Narration')).toBe('description');
+    expect(guessMapping('Particulars')).toBe('description');
+    expect(guessMapping('Withdrawal Amount')).toBe('debit');
+    expect(guessMapping('Deposit Amount')).toBe('credit');
+    expect(guessMapping('Closing Balance*')).toBe('ignore');
+    expect(guessMapping('Value Date')).toBe('ignore');
+    expect(guessMapping('Chq. / Ref No.')).toBe('ignore');
+  });
+
+  it('keeps the simple CSV headers working', () => {
+    expect(guessMapping('Amount')).toBe('amount');
+    expect(guessMapping('Description')).toBe('description');
+    expect(guessMapping('Type')).toBe('type');
+  });
+});
