@@ -351,10 +351,10 @@ impl TransactionService {
             to_ts = t
                 .and_then(|d| crate::utils::timex::local_date_start_utc(d + chrono::Duration::days(1)))
                 .map(go_ts);
-            if let (Some(fd), Some(td)) = (f, t) {
-                if (td - fd).num_days() > 30 {
-                    gran = "month";
-                }
+            if let (Some(fd), Some(td)) = (f, t)
+                && (td - fd).num_days() > 30
+            {
+                gran = "month";
             }
         }
 
