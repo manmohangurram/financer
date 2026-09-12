@@ -11,7 +11,7 @@ pub mod settings;
 pub mod transaction;
 pub mod transfer;
 pub mod user_key;
-use axum::extract::State;
+use axum::extract::{Multipart, State};
 use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use utoipa::OpenApi;
@@ -56,6 +56,18 @@ pub struct AppState {
     pub static_dir: String,
     pub avatar_dir: String,
     pub domain_url: String,
+}
+
+/// Read the `file` field of a multipart body as `(filename, bytes)`.
+pub(crate) async fn read_upload_file(mp: &mut Multipart) -> Option<(String, Vec<u8>)> {
+    while let Ok(Some(field)) = mp.next_field().await {
+        if field.name() == Some("file") {
+            let filename = field.file_name().unwrap_or_default().to_string();
+            let bytes = field.bytes().await.ok()?.to_vec();
+            return Some((filename, bytes));
+        }
+    }
+    None
 }
 
 pub fn router(state: AppState) -> Router {
@@ -110,19 +122,21 @@ async fn spa(State(s): State<AppState>, uri: Uri) -> Response {
         return ApiError::not_found(format!("unknown endpoint {path}")).into_response();
     }
     let index = read_index(&s);
-    if let Some(p) = path.strip_prefix('/') {
-        if !p.is_empty() && !p.starts_with('/') && !p.split('/').any(|seg| seg == "..") {
-            let candidate = std::path::Path::new(&s.static_dir).join(p);
-            if candidate.is_file() {
-                if let Ok(content) = std::fs::read(&candidate) {
-                    return (
-                        StatusCode::OK,
-                        [(header::CONTENT_TYPE, mime_for(p))],
-                        axum::body::Body::from(content),
-                    )
-                        .into_response();
-                }
-            }
+    if let Some(p) = path.strip_prefix('/')
+        && !p.is_empty()
+        && !p.starts_with('/')
+        && !p.split('/').any(|seg| seg == "..")
+    {
+        let candidate = std::path::Path::new(&s.static_dir).join(p);
+        if candidate.is_file()
+            && let Ok(content) = std::fs::read(&candidate)
+        {
+            return (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, mime_for(p))],
+                axum::body::Body::from(content),
+            )
+                .into_response();
         }
     }
     (

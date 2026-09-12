@@ -293,13 +293,13 @@ impl SqliteTransactionRepo {
         bind_args.extend(filter_args);
 
         if f.sort_by.is_empty() {
-            if !f.page_token.is_empty() {
-                if let Some(cur) = decode_transaction_cursor(&f.page_token) {
-                    query.push_str(" AND (t.occurred_at < ? OR (t.occurred_at = ? AND t.id < ?))");
-                    bind_args.push(cur.occurred_at.clone());
-                    bind_args.push(cur.occurred_at.clone());
-                    bind_args.push(cur.id.clone());
-                }
+            if !f.page_token.is_empty()
+                && let Some(cur) = decode_transaction_cursor(&f.page_token)
+            {
+                query.push_str(" AND (t.occurred_at < ? OR (t.occurred_at = ? AND t.id < ?))");
+                bind_args.push(cur.occurred_at.clone());
+                bind_args.push(cur.occurred_at.clone());
+                bind_args.push(cur.id.clone());
             }
             query.push_str(" ORDER BY t.occurred_at DESC, t.id DESC");
             if f.page_size > 0 {
