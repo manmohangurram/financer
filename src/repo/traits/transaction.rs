@@ -144,6 +144,7 @@ pub trait TransactionRepo: Send + Sync {
     async fn is_transfer_linked(&self, txn_id: &str) -> Result<bool>;
     async fn create(&self, user_id: &str, inputs: &[CreateTransactionInput]) -> Result<CreateOutcome>;
     async fn update(&self, user_id: &str, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>>;
+    async fn apply_rule_result(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()>;
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
     async fn get_by_id_batch(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>>;
     async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult>;

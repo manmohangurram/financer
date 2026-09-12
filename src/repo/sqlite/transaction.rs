@@ -210,6 +210,29 @@ impl SqliteTransactionRepo {
         Ok(errors)
     }
 
+    async fn apply_rule_result_inner(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("UPDATE transactions SET clean_name = ? WHERE id = ? AND user_id = ?")
+            .bind(clean_name)
+            .bind(id)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM transaction_categories WHERE transaction_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        for cat in category_ids {
+            sqlx::query("INSERT OR IGNORE INTO transaction_categories (transaction_id, category_id) VALUES (?, ?)")
+                .bind(id)
+                .bind(cat)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn delete_inner(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         let mut errors: Vec<String> = Vec::new();
         if ids.is_empty() {
@@ -438,6 +461,9 @@ impl crate::repo::traits::TransactionRepo for SqliteTransactionRepo {
     }
     async fn update(&self, user_id: &str, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>> {
         self.update_inner(user_id, inputs).await
+    }
+    async fn apply_rule_result(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()> {
+        self.apply_rule_result_inner(user_id, id, clean_name, category_ids).await
     }
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         self.delete_inner(user_id, ids).await
