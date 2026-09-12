@@ -6,8 +6,7 @@ import TransactionForm from '@/components/workspace/TransactionForm.vue';
 import { transactions } from '@/lib/api/client';
 import { dateToUnixSeconds, toLocalDateString } from '@/lib/utils/format';
 import { roundMoney } from '@/lib/utils/money';
-import { guessMapping, mapCsvRowsToTransactions, csvFileKey, type CsvField } from '@/lib/utils/csv';
-import { readWorkbook } from '@/lib/utils/workbook';
+import { guessMapping, type CsvField } from '@/lib/utils/csv';
 import { Upload, PenLine, FileSpreadsheet } from '@lucide/vue';
 
 const props = defineProps<{ accounts: any[]; categories: any[]; defaultAccountId: string }>();
@@ -31,9 +30,8 @@ const txnForm = ref<{
 const step = ref(1);
 const accountId = ref(props.defaultAccountId);
 const headers = ref<string[]>([]);
-const rows = ref<string[][]>([]);
-const fileKey = ref('');
-const mapping = ref<CsvField[]>([]);
+const rowCount = ref(0);
+const importId = ref('');
 const error = ref('');
 const submitting = ref(false);
 const importing = ref(false);
@@ -61,13 +59,6 @@ const requiredFields = computed<{ key: FieldKey; label: string }[]>(() =>
 
 const fieldToCol = ref<Record<FieldKey, number>>({ date: -1, description: -1, amount: -1, type: -1, debit: -1, credit: -1 });
 
-function buildMapping() {
-  mapping.value = headers.value.map((_, i) => {
-    const key = (Object.keys(fieldToCol.value) as FieldKey[]).find((k) => fieldToCol.value[k] === i);
-    return key ? (key as CsvField) : 'ignore';
-  });
-}
-
 function guessForMode(header: string): CsvField {
   const g = guessMapping(header);
   if (formatMode.value === 'single' && (g === 'debit' || g === 'credit')) return 'amount';
@@ -81,7 +72,6 @@ function guessFields() {
     const g = guessForMode(headers.value[i]);
     if (g !== 'ignore' && fieldToCol.value[g] === -1) fieldToCol.value[g] = i;
   }
-  buildMapping();
 }
 
 function switchFormat(mode: 'single' | 'split') {
@@ -91,7 +81,6 @@ function switchFormat(mode: 'single' | 'split') {
 
 function onFieldChange(field: { key: FieldKey }, value: string) {
   fieldToCol.value[field.key] = parseInt(value, 10);
-  buildMapping();
 }
 
 function switchMode(m: Mode) {
@@ -101,19 +90,20 @@ function switchMode(m: Mode) {
 
 async function processFile(file: File | undefined | null) {
   if (!file) return;
+  error.value = '';
   try {
-    const parsed = await readWorkbook(file);
-    if (!parsed) { error.value = 'Need a header row and at least one data row.'; return; }
+    const parsed = await transactions().importFile(file);
+    if (!parsed.headers.length) { error.value = 'No table found in that file.'; return; }
+    importId.value = parsed.id;
     headers.value = parsed.headers;
-    rows.value = parsed.rows;
-    fileKey.value = file.name.toLowerCase().endsWith('.csv') ? csvFileKey(await file.text()) : `xlsx:${file.name}:${file.lastModified}`;
+    rowCount.value = parsed.rowCount;
     // Statements usually carry separate Withdrawal/Deposit columns.
     const guesses = headers.value.map((h) => guessMapping(h));
     formatMode.value = guesses.includes('debit') && guesses.includes('credit') ? 'split' : 'single';
     guessFields();
     step.value = 2;
-  } catch {
-    error.value = 'Could not read that file.';
+  } catch (err: any) {
+    error.value = err?.message || 'Could not read that file.';
   }
 }
 
@@ -146,17 +136,7 @@ async function runImport() {
   importing.value = true;
   error.value = '';
   try {
-    const txns = mapCsvRowsToTransactions(rows.value, mapping.value, accountId.value, fileKey.value);
-    if (txns.length === 0) {
-      error.value = 'No valid rows to import — check the column mapping and data.';
-      return;
-    }
-    // One call holds at most 500 rows; larger files are split into batches.
-    const BATCH = 500;
-    for (let i = 0; i < txns.length; i += BATCH) {
-      const batch = txns.slice(i, i + BATCH);
-      await transactions().createTransactions({ transactions: batch });
-    }
+    await transactions().commitImportFile({ id: importId.value, accountId: accountId.value, mapping: fieldToCol.value });
     emit('imported');
     emit('close');
   } catch (e: any) {
@@ -187,7 +167,7 @@ async function runImport() {
           @click="switchMode('csv')"
         >
           <FileSpreadsheet class="w-4 h-4" stroke-width="1.5" />
-          Import CSV
+          Import file
         </button>
       </div>
 
@@ -214,14 +194,14 @@ async function runImport() {
             @drop.prevent="handleDrop"
           >
             <Upload class="w-10 h-10 mx-auto mb-3 text-faint" stroke-width="1.5" />
-            <p class="text-[14px] text-text-muted mb-2">Drop a CSV or Excel (.xlsx) file or click to browse</p>
+            <p class="text-[14px] text-text-muted mb-2">Drop CSV, XLSX or PDF file, or click to browse</p>
             <button type="button" class="btn btn-outline btn-sm" @click="fileInput?.click()">Choose file</button>
-            <input ref="fileInput" type="file" accept=".csv,.xlsx" class="hidden" @change="handleFile" />
+            <input ref="fileInput" type="file" accept=".csv,.xlsx,.pdf" class="hidden" @change="handleFile" />
           </div>
           <p v-if="error" class="text-[13px] text-expense mt-2">{{ error }}</p>
         </template>
         <template v-else>
-          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1 mb-4" role="group" aria-label="CSV format">
+          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1 mb-4" role="group" aria-label="Amount format">
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
@@ -235,7 +215,7 @@ async function runImport() {
               @click="switchFormat('split')"
             >Debit + Credit columns</button>
           </div>
-          <p class="text-[13px] text-text-muted mb-3">Map your columns to the CSV fields:</p>
+          <p class="text-[13px] text-text-muted mb-3">Map your columns to the transaction fields:</p>
           <div class="space-y-2 max-h-60 overflow-y-auto">
             <div v-for="f in requiredFields" :key="f.key" class="flex items-center gap-3">
               <span class="text-[13px] text-text w-36 shrink-0">{{ f.label }}</span>
@@ -248,7 +228,7 @@ async function runImport() {
           <div class="flex items-center justify-between mt-4">
             <button @click="step = 1" class="text-[13px] text-subtle hover:text-text">Back</button>
             <button @click="runImport" class="btn btn-primary" :disabled="importing">
-              {{ importing ? 'Importing...' : `Import ${rows.length} rows` }}
+              {{ importing ? 'Importing...' : `Import ${rowCount} rows` }}
             </button>
           </div>
           <p v-if="error" class="text-[13px] text-expense mt-2">{{ error }}</p>
