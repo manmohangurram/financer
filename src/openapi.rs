@@ -32,6 +32,7 @@ use crate::repo::traits::transaction::TransactionType;
         crate::http::transaction::create,
         crate::http::transaction::update,
         crate::http::transaction::delete,
+        crate::http::transaction::import_pdf,
         crate::http::transfer::link,
         crate::http::transfer::unlink,
         crate::http::transfer::counterpart,

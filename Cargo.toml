@@ -2,7 +2,7 @@
 name = "financer"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.97"
 description = "Financer personal finance tracker backend (Rust) — strangler replacement for the Go backend"
 license = "0BSD"
 repository = "https://github.com/manmohangurram/financer"
@@ -52,6 +52,7 @@ rmcp = { version = "3", features = ["server", "transport-streamable-http-server"
 schemars = { version = "1", features = ["derive"] }
 http = "1"
 chrono-tz = "0.10.4"
+pdfsink-rs = "0.2.19"
 
 [dev-dependencies]
 tempfile = "3"

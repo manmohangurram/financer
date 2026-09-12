@@ -1,6 +1,6 @@
 //! Transactions HTTP handlers — mirroring Go's `httpserver/transaction_handlers.go`.
 
-use axum::extract::{Query, State};
+use axum::extract::{Multipart, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
@@ -17,6 +17,43 @@ use crate::utils::timex::ts_rfc3339;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/transactions", axum::routing::get(list).post(create).put(update).delete(delete))
+        .route("/api/transactions/import/pdf", axum::routing::post(import_pdf))
+}
+
+/// Parse a PDF statement and return its first table as `{headers, rows}`, ready
+/// for the same column mapping the CSV/XLSX path uses.
+#[utoipa::path(
+    post,
+    path = "/api/transactions/import/pdf",
+    request_body(content = String, content_type = "multipart/form-data"),
+    responses(
+        (status = 200, description = "Extracted table (headers + rows)"),
+        (status = 400, description = "Missing file, encrypted, unreadable, or no table"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import_pdf(State(st): State<AppState>, headers: HeaderMap, mut mp: Multipart) -> Response {
+    if let Err(e) = require_user(&headers, &st.jwt) {
+        return e.into_response();
+    }
+    let mut data: Vec<u8> = Vec::new();
+    while let Ok(Some(field)) = mp.next_field().await {
+        if field.name() == Some("file") {
+            match field.bytes().await {
+                Ok(b) => data = b.to_vec(),
+                Err(_) => return ApiError::bad_request("failed to read the uploaded PDF").into_response(),
+            }
+            break;
+        }
+    }
+    if data.is_empty() {
+        return ApiError::bad_request("missing 'file' field").into_response();
+    }
+    match crate::pdf::extract_table(&data) {
+        Ok(t) => Json(serde_json::json!({ "headers": t.headers, "rows": t.rows })).into_response(),
+        Err(e) => e.into_response(),
+    }
 }
 
 #[derive(Deserialize, ToSchema)]

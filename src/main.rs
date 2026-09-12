@@ -7,6 +7,7 @@ mod error;
 mod http;
 mod mcp;
 mod openapi;
+mod pdf;
 mod repo;
 mod service;
 #[cfg(feature = "surreal")]
