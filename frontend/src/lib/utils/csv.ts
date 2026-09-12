@@ -1,4 +1,5 @@
-import { roundMoney } from '@/lib/utils/money';
+// CSV helpers still used by the investments import (the transaction import now
+// parses on the backend). `guessMapping` drives the header-driven mapping UI.
 
 export function parseCsvLine(line: string): string[] {
   const cells: string[] = [];
@@ -41,64 +42,6 @@ export function guessMapping(header: string): CsvField {
   return 'ignore';
 }
 
-export interface ImportedTransaction {
-  name: string;
-  amount: number;
-  type: 'CREDIT' | 'DEBIT';
-  accountId: string;
-  occurredAt: { seconds: number; nanos: number };
-  categoryIds: string[];
-  externalId: string;
-}
-
-// fnv1a hash — a stable per-file fingerprint (not security, just a key) so a
-// re-imported file gets the same external ids and duplicates are skipped.
-function fnv1a(str: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(16);
-}
-
-// csvFileKey returns a stable fingerprint for a CSV's raw text.
-export function csvFileKey(text: string): string {
-  return fnv1a(text);
-}
-
-function parseTypeValue(v: string): 'CREDIT' | 'DEBIT' | null {
-  const s = v.toLowerCase();
-  if (/(credit|cr|deposit|received|income|refund|\+)/.test(s)) return 'CREDIT';
-  if (/(debit|dr|withdraw|payment|expense|fee|-)/.test(s)) return 'DEBIT';
-  return null;
-}
-
-function resolveAmountAndType(row: string[], idx: { type: number; debit: number; credit: number; amount: number }) {
-  const debitV = idx.debit >= 0 ? parseFloat(row[idx.debit]) || 0 : 0;
-  const creditV = idx.credit >= 0 ? parseFloat(row[idx.credit]) || 0 : 0;
-  let typeHint = idx.type >= 0 ? parseTypeValue(row[idx.type]) : null;
-
-  let amt = 0;
-  if (debitV || creditV) {
-    if (debitV && creditV) {
-      const isCredit = typeHint === null ? creditV >= debitV : typeHint === 'CREDIT';
-      amt = isCredit ? creditV : debitV;
-      typeHint = isCredit ? 'CREDIT' : 'DEBIT';
-    } else if (creditV) {
-      amt = creditV;
-      typeHint = 'CREDIT';
-    } else {
-      amt = debitV;
-      typeHint = 'DEBIT';
-    }
-  } else if (idx.amount >= 0) {
-    amt = parseFloat(row[idx.amount]) || 0;
-  }
-  if (typeHint === null) typeHint = amt < 0 ? 'DEBIT' : 'CREDIT';
-  return { amount: Math.abs(amt), type: typeHint };
-}
-
 function parseDMY(cell: string): Date | null {
   const m = (cell || '').trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
   if (!m) return null;
@@ -120,29 +63,4 @@ export function buildDate(dateCell: string): number {
   }
   const d = new Date(dateCell || '');
   return isNaN(d.getTime()) ? Date.now() : d.getTime();
-}
-
-export function mapCsvRowsToTransactions(rows: string[][], mapping: string[], accountId: string, fileKey = ''): ImportedTransaction[] {
-  const idx = {
-    type: mapping.indexOf('type'),
-    debit: mapping.indexOf('debit'),
-    credit: mapping.indexOf('credit'),
-    amount: mapping.indexOf('amount'),
-    date: mapping.indexOf('date'),
-    description: mapping.indexOf('description')
-  };
-  return rows
-    .map((row, i) => {
-      const { amount, type } = resolveAmountAndType(row, idx);
-      return {
-        name: idx.description >= 0 ? row[idx.description] : 'Imported',
-        amount: roundMoney(amount),
-        type,
-        accountId,
-        occurredAt: { seconds: Math.floor(buildDate(row[idx.date]) / 1000), nanos: 0 },
-        categoryIds: [] as string[],
-        externalId: fileKey ? `${fileKey}:${i}` : ''
-      };
-    })
-    .filter((t) => t.name && t.amount);
 }
