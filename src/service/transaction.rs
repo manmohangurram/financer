@@ -352,11 +352,7 @@ impl TransactionService {
                 .and_then(|d| crate::utils::timex::local_date_start_utc(d + chrono::Duration::days(1)))
                 .map(go_ts);
             if let (Some(fd), Some(td)) = (f, t) {
-                let days = (td - fd).num_days();
-                if days > 366 {
-                    return Err(ApiError::bad_request("custom range must be at most 1 year"));
-                }
-                if days > 30 {
+                if (td - fd).num_days() > 30 {
                     gran = "month";
                 }
             }
