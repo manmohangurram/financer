@@ -8,7 +8,7 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 
 use crate::error::json_error;
-use crate::http::{AppState, JsonResult, require_user};
+use crate::http::{require_user, AppState, JsonResult};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -60,11 +60,7 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn create(
-    State(st): State<AppState>,
-    headers: HeaderMap,
-    req: JsonResult<ReqCreateKey>,
-) -> Response {
+pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCreateKey>) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -73,11 +69,7 @@ pub async fn create(
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st
-        .user_key
-        .create(&uid, &req.name, req.expires_in_days, &req.scope)
-        .await
-    {
+    match st.user_key.create(&uid, &req.name, req.expires_in_days, &req.scope).await {
         Ok(r) => (StatusCode::CREATED, Json(r)).into_response(),
         Err(e) => e.into_response(),
     }
@@ -93,11 +85,7 @@ pub async fn create(
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn delete(
-    State(st): State<AppState>,
-    headers: HeaderMap,
-    Path(id): Path<String>,
-) -> Response {
+pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),

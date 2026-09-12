@@ -50,13 +50,7 @@ impl SqliteUserRepo {
         Ok(row.map(Into::into))
     }
 
-    async fn update_profile(
-        &self,
-        id: &str,
-        name: &str,
-        email: &str,
-        avatar_url: &str,
-    ) -> Result<()> {
+    async fn update_profile(&self, id: &str, name: &str, email: &str, avatar_url: &str) -> Result<()> {
         sqlx::query(
             "UPDATE users SET
                 name = COALESCE(NULLIF(?, ''), name),
@@ -74,13 +68,11 @@ impl SqliteUserRepo {
     }
 
     async fn change_password(&self, id: &str, password_hash: &str) -> Result<i64> {
-        sqlx::query(
-            "UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?",
-        )
-        .bind(password_hash)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?")
+            .bind(password_hash)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         let ver: i64 = sqlx::query_scalar("SELECT token_version FROM users WHERE id = ?")
             .bind(id)
             .fetch_one(&self.pool)
@@ -112,13 +104,7 @@ impl UserRepoTrait for SqliteUserRepo {
     async fn by_id(&self, id: &str) -> Result<Option<UserRow>> {
         self.by_id(id).await
     }
-    async fn update_profile(
-        &self,
-        id: &str,
-        name: &str,
-        email: &str,
-        avatar_url: &str,
-    ) -> Result<()> {
+    async fn update_profile(&self, id: &str, name: &str, email: &str, avatar_url: &str) -> Result<()> {
         self.update_profile(id, name, email, avatar_url).await
     }
     async fn change_password(&self, id: &str, password_hash: &str) -> Result<i64> {
