@@ -107,6 +107,9 @@ async function processFile(file: File | undefined | null) {
     headers.value = parsed.headers;
     rows.value = parsed.rows;
     fileKey.value = file.name.toLowerCase().endsWith('.csv') ? csvFileKey(await file.text()) : `xlsx:${file.name}:${file.lastModified}`;
+    // Statements usually carry separate Withdrawal/Deposit columns.
+    const guesses = headers.value.map((h) => guessMapping(h));
+    formatMode.value = guesses.includes('debit') && guesses.includes('credit') ? 'split' : 'single';
     guessFields();
     step.value = 2;
   } catch {
