@@ -37,9 +37,12 @@ Before opening a pull request for a branch, run these review skills and fold any
 
 ### No noise comments
 
+**Default to no comment.** A comment is maintenance cost the moment it is written — it can go stale, and it competes with the code for attention. Before adding one, ask *does the code already say this?* If yes, don't write it. When in doubt, leave it out.
+
 Never add noise comments. A comment earns its place only when it explains something the code does not already say.
 
 - **Cut** comments that restate the code: `// increment count`, `/// Create a user`, `/// Build the X backend` above `build_x_backend()`.
+- **Cut** doc comments that rename the function/field they sit above: `/// Set the rule-resolved name on an existing row.` above `apply_rule_result(..)`, `/// Stored timestamp.` above `occurred_at`. The signature and the name are the documentation.
 - **Cut** `/// X payload.`-style doc lines that just repeat the struct/function name.
 - **Keep** a comment only when it carries non-obvious *why* or intent the code can't express: return-meaning on an opaque type, data-scoping/shape notes, security rationale, "mirrors Go's X" references, an edge-case reason, a batch-vs-N+1 query rationale.
 - **Keep** module-level (`//!`) context and section separators where they aid navigation — but terse, not prose.
