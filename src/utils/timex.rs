@@ -52,7 +52,9 @@ pub fn parse_utc(stored: &str) -> Option<DateTime<Utc>> {
             return Some(naive.and_utc());
         }
     }
-    DateTime::parse_from_rfc3339(s).ok().map(|dt| dt.with_timezone(&Utc))
+    DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.with_timezone(&Utc))
 }
 
 /// Local bucket key for a stored UTC timestamp: `YYYY-MM` (month) or
@@ -65,7 +67,9 @@ pub fn local_key(stored: &str, granularity: &str) -> String {
 /// turn an inclusive local date range into UTC bounds.
 pub fn local_date_start_utc(date: NaiveDate) -> Option<DateTime<Utc>> {
     let naive = date.and_hms_opt(0, 0, 0)?;
-    tz().from_local_datetime(&naive).earliest().map(|dt| dt.with_timezone(&Utc))
+    tz().from_local_datetime(&naive)
+        .earliest()
+        .map(|dt| dt.with_timezone(&Utc))
 }
 
 /// `go_ts` of the local day start for `YYYY-MM-DD` (inclusive lower bound).
@@ -87,7 +91,11 @@ pub fn local_day_end(date: &str) -> Option<String> {
 
 /// [`local_key`] against an explicit timezone (testable, no global state).
 pub fn local_key_in(tz: Tz, stored: &str, granularity: &str) -> String {
-    let fmt = if granularity == "month" { "%Y-%m" } else { "%Y-%m-%d" };
+    let fmt = if granularity == "month" {
+        "%Y-%m"
+    } else {
+        "%Y-%m-%d"
+    };
     match parse_utc(stored) {
         Some(dt) => dt.with_timezone(&tz).format(fmt).to_string(),
         None => String::new(),
@@ -104,7 +112,9 @@ pub fn ts_rfc3339(stored: &str) -> String {
 /// [`ts_rfc3339`] against an explicit timezone (testable, no global state).
 pub fn ts_rfc3339_in(tz: Tz, stored: &str) -> String {
     if let Some(dt) = parse_utc(stored) {
-        return dt.with_timezone(&tz).to_rfc3339_opts(SecondsFormat::Secs, false);
+        return dt
+            .with_timezone(&tz)
+            .to_rfc3339_opts(SecondsFormat::Secs, false);
     }
     stored.trim().to_string()
 }
@@ -119,34 +129,63 @@ mod tests {
 
     #[test]
     fn parse_utc_accepts_stored_and_rfc3339() {
-        assert_eq!(parse_utc("2026-09-10 20:30:00 +0000 UTC").unwrap().to_rfc3339(), "2026-09-10T20:30:00+00:00");
-        assert_eq!(parse_utc("2026-09-10T20:30:00Z").unwrap().to_rfc3339(), "2026-09-10T20:30:00+00:00");
+        assert_eq!(
+            parse_utc("2026-09-10 20:30:00 +0000 UTC")
+                .unwrap()
+                .to_rfc3339(),
+            "2026-09-10T20:30:00+00:00"
+        );
+        assert_eq!(
+            parse_utc("2026-09-10T20:30:00Z").unwrap().to_rfc3339(),
+            "2026-09-10T20:30:00+00:00"
+        );
         assert!(parse_utc("not a date").is_none());
     }
 
     #[test]
     fn ts_rfc3339_renders_the_configured_zone() {
         // Storage stays UTC; the wire value carries the local offset.
-        assert_eq!(ts_rfc3339_in(Tz::UTC, "2026-09-10 20:30:00 +0000 UTC"), "2026-09-10T20:30:00+00:00");
+        assert_eq!(
+            ts_rfc3339_in(Tz::UTC, "2026-09-10 20:30:00 +0000 UTC"),
+            "2026-09-10T20:30:00+00:00"
+        );
         let ist = tz("Asia/Kolkata");
-        assert_eq!(ts_rfc3339_in(ist, "2026-09-10 20:30:00 +0000 UTC"), "2026-09-11T02:00:00+05:30");
+        assert_eq!(
+            ts_rfc3339_in(ist, "2026-09-10 20:30:00 +0000 UTC"),
+            "2026-09-11T02:00:00+05:30"
+        );
     }
 
     #[test]
     fn local_key_shifts_across_midnight_for_ist() {
         let ist = tz("Asia/Kolkata");
         // 20:30 UTC on Sep 10 == 02:00 IST on Sep 11.
-        assert_eq!(local_key_in(ist, "2026-09-10 20:30:00 +0000 UTC", "day"), "2026-09-11");
-        assert_eq!(local_key_in(ist, "2026-09-10 20:30:00 +0000 UTC", "month"), "2026-09");
+        assert_eq!(
+            local_key_in(ist, "2026-09-10 20:30:00 +0000 UTC", "day"),
+            "2026-09-11"
+        );
+        assert_eq!(
+            local_key_in(ist, "2026-09-10 20:30:00 +0000 UTC", "month"),
+            "2026-09"
+        );
         // UTC bucket is unchanged.
-        assert_eq!(local_key_in(Tz::UTC, "2026-09-10 20:30:00 +0000 UTC", "day"), "2026-09-10");
+        assert_eq!(
+            local_key_in(Tz::UTC, "2026-09-10 20:30:00 +0000 UTC", "day"),
+            "2026-09-10"
+        );
     }
 
     #[test]
     fn local_key_is_dst_aware() {
         let ny = tz("America/New_York");
         // Mar 8 2026 is the US spring-forward day (EST -5 → EDT -4).
-        assert_eq!(local_key_in(ny, "2026-03-08 07:30:00 +0000 UTC", "day"), "2026-03-08");
-        assert_eq!(local_key_in(ny, "2026-03-09 08:30:00 +0000 UTC", "day"), "2026-03-09");
+        assert_eq!(
+            local_key_in(ny, "2026-03-08 07:30:00 +0000 UTC", "day"),
+            "2026-03-08"
+        );
+        assert_eq!(
+            local_key_in(ny, "2026-03-09 08:30:00 +0000 UTC", "day"),
+            "2026-03-09"
+        );
     }
 }

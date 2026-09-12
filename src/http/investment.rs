@@ -7,27 +7,50 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
-use crate::error::{json_error, ApiError};
-use crate::http::{require_user, AppState, JsonResult};
+use crate::error::{ApiError, json_error};
+use crate::http::{AppState, JsonResult, require_user};
 use crate::repo::traits::investment::InvestmentType;
-use crate::service::investment::{occurred_at, ImportRow};
+use crate::service::investment::{ImportRow, occurred_at};
 use std::str::FromStr;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/investments", axum::routing::get(list).post(create))
         .route("/api/investments/search", axum::routing::get(search))
-        .route("/api/investments/refresh-prices", axum::routing::post(refresh_prices))
+        .route(
+            "/api/investments/refresh-prices",
+            axum::routing::post(refresh_prices),
+        )
         .route("/api/investments/import", axum::routing::post(import))
-        .route("/api/investments/import/file", axum::routing::post(import_file))
-        .route("/api/investments/import/file/commit", axum::routing::post(import_file_commit))
-        .route("/api/investments/{id}", axum::routing::get(get).put(update).delete(delete))
-        .route("/api/investments/{id}/lots", axum::routing::get(list_lots).post(add_lot))
-        .route("/api/investments/{id}/lots/{lot_id}", axum::routing::put(update_lot).delete(delete_lot))
-        .route("/api/investments/{id}/price-history", axum::routing::get(price_history))
-        .route("/api/portfolio/summary", axum::routing::get(portfolio_summary))
+        .route(
+            "/api/investments/import/file",
+            axum::routing::post(import_file),
+        )
+        .route(
+            "/api/investments/import/file/commit",
+            axum::routing::post(import_file_commit),
+        )
+        .route(
+            "/api/investments/{id}",
+            axum::routing::get(get).put(update).delete(delete),
+        )
+        .route(
+            "/api/investments/{id}/lots",
+            axum::routing::get(list_lots).post(add_lot),
+        )
+        .route(
+            "/api/investments/{id}/lots/{lot_id}",
+            axum::routing::put(update_lot).delete(delete_lot),
+        )
+        .route(
+            "/api/investments/{id}/price-history",
+            axum::routing::get(price_history),
+        )
+        .route(
+            "/api/portfolio/summary",
+            axum::routing::get(portfolio_summary),
+        )
 }
-
 
 /// Investment create/update body: `investmentType` is required (strict).
 #[derive(Deserialize, ToSchema)]
@@ -64,7 +87,8 @@ pub struct ReqLot {
 
 fn parse_type(v: &serde_json::Value) -> Result<InvestmentType, ApiError> {
     match v {
-        serde_json::Value::String(s) => InvestmentType::from_str(s).map_err(|_| ApiError::bad_request(format!("unknown investment type {s:?}"))),
+        serde_json::Value::String(s) => InvestmentType::from_str(s)
+            .map_err(|_| ApiError::bad_request(format!("unknown investment type {s:?}"))),
         serde_json::Value::Number(n) => match n.as_i64() {
             Some(1) => Ok(InvestmentType::Stock),
             Some(2) => Ok(InvestmentType::MutualFund),
@@ -86,7 +110,11 @@ fn parse_type(v: &serde_json::Value) -> Result<InvestmentType, ApiError> {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqInvestment>) -> Response {
+pub async fn create(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqInvestment>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -95,7 +123,17 @@ pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.investment.create(&uid, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
+    match st
+        .investment
+        .create(
+            &uid,
+            &req.symbol,
+            &req.name,
+            req.investment_type,
+            req.manual_nav,
+        )
+        .await
+    {
         Ok(r) => (StatusCode::CREATED, Json(r)).into_response(),
         Err(e) => e.into_response(),
     }
@@ -132,7 +170,11 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn get(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+pub async fn get(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -156,7 +198,12 @@ pub async fn get(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqInvestment>) -> Response {
+pub async fn update(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    req: JsonResult<ReqInvestment>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -165,7 +212,18 @@ pub async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Pa
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.investment.update(&uid, &id, &req.symbol, &req.name, req.investment_type, req.manual_nav).await {
+    match st
+        .investment
+        .update(
+            &uid,
+            &id,
+            &req.symbol,
+            &req.name,
+            req.investment_type,
+            req.manual_nav,
+        )
+        .await
+    {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
@@ -182,7 +240,11 @@ pub async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Pa
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+pub async fn delete(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -206,7 +268,12 @@ pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Pa
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn add_lot(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, req: JsonResult<ReqLot>) -> Response {
+pub async fn add_lot(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    req: JsonResult<ReqLot>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -223,7 +290,11 @@ pub async fn add_lot(State(st): State<AppState>, headers: HeaderMap, Path(id): P
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    match st.investment.add_lot(&uid, &id, side, req.quantity, req.price, &occ).await {
+    match st
+        .investment
+        .add_lot(&uid, &id, side, req.quantity, req.price, &occ)
+        .await
+    {
         Ok(r) => (StatusCode::CREATED, Json(r)).into_response(),
         Err(e) => e.into_response(),
     }
@@ -250,7 +321,11 @@ fn parse_side(v: Option<i64>) -> Result<i64, ApiError> {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn delete_lot(State(st): State<AppState>, headers: HeaderMap, Path(path): Path<(String, String)>) -> Response {
+pub async fn delete_lot(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(path): Path<(String, String)>,
+) -> Response {
     let (_, lot_id) = path;
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
@@ -278,7 +353,12 @@ pub async fn delete_lot(State(st): State<AppState>, headers: HeaderMap, Path(pat
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path(path): Path<(String, String)>, req: JsonResult<ReqLot>) -> Response {
+pub async fn update_lot(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(path): Path<(String, String)>,
+    req: JsonResult<ReqLot>,
+) -> Response {
     let (id, lot_id) = path;
     let Json(req) = match req {
         Ok(r) => r,
@@ -292,7 +372,11 @@ pub async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path(pat
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    match st.investment.update_lot(&uid, &id, &lot_id, req.quantity, req.price, &occ).await {
+    match st
+        .investment
+        .update_lot(&uid, &id, &lot_id, req.quantity, req.price, &occ)
+        .await
+    {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
@@ -309,7 +393,11 @@ pub async fn update_lot(State(st): State<AppState>, headers: HeaderMap, Path(pat
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn list_lots(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+pub async fn list_lots(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -359,7 +447,11 @@ struct ReqImportRow {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn import(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ImportReq>) -> Response {
+pub async fn import(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ImportReq>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -375,7 +467,9 @@ pub async fn import(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
             Err(_) => InvestmentType::Stock,
         };
         let side = parse_import_side(&row.side).unwrap_or(1);
-        let Ok(occ) = occurred_at(&row.occurred_at) else { continue };
+        let Ok(occ) = occurred_at(&row.occurred_at) else {
+            continue;
+        };
         rows.push(ImportRow {
             symbol: row.symbol.clone(),
             name: row.name.clone(),
@@ -388,7 +482,9 @@ pub async fn import(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
         });
     }
     match st.investment.import(&uid, &rows).await {
-        Ok((created, skipped)) => Json(serde_json::json!({ "created": created, "skipped": skipped })).into_response(),
+        Ok((created, skipped)) => {
+            Json(serde_json::json!({ "created": created, "skipped": skipped })).into_response()
+        }
         Err(e) => e.into_response(),
     }
 }
@@ -406,7 +502,11 @@ pub async fn import(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp: Multipart) -> Response {
+pub async fn import_file(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    mut mp: Multipart,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -415,7 +515,8 @@ pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp:
         return ApiError::bad_request("missing 'file' field").into_response();
     };
     let Some(kind) = crate::import::kind_for(&filename) else {
-        return ApiError::bad_request("unsupported file type; expected .csv, .xlsx or .pdf").into_response();
+        return ApiError::bad_request("unsupported file type; expected .csv, .xlsx or .pdf")
+            .into_response();
     };
     let parsed = match crate::import::parse(&bytes, kind) {
         Ok(p) => p,
@@ -429,7 +530,8 @@ pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp:
         Ok((id, _hash)) => id,
         Err(e) => return e.into_response(),
     };
-    Json(serde_json::json!({ "id": id, "headers": table.headers, "rowCount": table.rows.len() })).into_response()
+    Json(serde_json::json!({ "id": id, "headers": table.headers, "rowCount": table.rows.len() }))
+        .into_response()
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -453,7 +555,11 @@ pub struct CommitImportRequest {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn import_file_commit(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<CommitImportRequest>) -> Response {
+pub async fn import_file_commit(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<CommitImportRequest>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -491,7 +597,9 @@ pub async fn import_file_commit(State(st): State<AppState>, headers: HeaderMap, 
 }
 
 /// Locate the holdings table inside a parsed file (its header row + data rows).
-fn locate_parsed_table(parsed: &crate::import::ParsedFile) -> Option<crate::import::investment::LocatedTable> {
+fn locate_parsed_table(
+    parsed: &crate::import::ParsedFile,
+) -> Option<crate::import::investment::LocatedTable> {
     let mut rows = Vec::with_capacity(parsed.rows.len() + 1);
     rows.push(parsed.headers.clone());
     rows.extend(parsed.rows.iter().cloned());
@@ -539,13 +647,22 @@ pub struct HistoryQuery {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn price_history(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Query(q): Query<HistoryQuery>) -> Response {
+pub async fn price_history(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(q): Query<HistoryQuery>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
     let force = q.refresh == "1";
-    match st.investment.get_price_history(&uid, &id, &q.range, &q.from, &q.to, force).await {
+    match st
+        .investment
+        .get_price_history(&uid, &id, &q.range, &q.from, &q.to, force)
+        .await
+    {
         Ok(points) => Json(serde_json::json!({ "points": points })).into_response(),
         Err(e) => e.into_response(),
     }
@@ -568,18 +685,27 @@ pub struct SearchQuery {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn search(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<SearchQuery>) -> Response {
+pub async fn search(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> Response {
     let _uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
     match st.investment.search_symbols(&q.query).await {
         Ok(results) => {
-            let items: Vec<_> = results.iter().map(|r| serde_json::json!({
-                "symbol": r.symbol,
-                "name": r.name,
-                "investmentType": r.investment_type.to_string(),
-            })).collect();
+            let items: Vec<_> = results
+                .iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "symbol": r.symbol,
+                        "name": r.name,
+                        "investmentType": r.investment_type.to_string(),
+                    })
+                })
+                .collect();
             Json(serde_json::json!({ "results": items })).into_response()
         }
         Err(e) => e.into_response(),

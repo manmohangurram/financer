@@ -19,7 +19,13 @@ impl SqliteAccountRepo {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    async fn create_inner(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountRow> {
+    async fn create_inner(
+        &self,
+        user_id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<AccountRow> {
         let id = Uuid::new_v4().to_string();
         let now = crate::utils::timex::now_go_ts();
         sqlx::query(
@@ -55,7 +61,14 @@ impl SqliteAccountRepo {
         Ok(row.map(Into::into))
     }
 
-    async fn update_inner(&self, user_id: &str, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<Option<AccountRow>> {
+    async fn update_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<Option<AccountRow>> {
         let result = sqlx::query(
             "UPDATE accounts SET
                 bank_name = COALESCE(NULLIF(?, ''), bank_name),
@@ -96,11 +109,13 @@ impl SqliteAccountRepo {
     }
 
     async fn update_balance_inner(&self, account_id: &str, delta: f64) -> Result<()> {
-        sqlx::query("UPDATE accounts SET balance = ROUND(COALESCE(balance, 0) + ?, 2) WHERE id = ?")
-            .bind(delta)
-            .bind(account_id)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            "UPDATE accounts SET balance = ROUND(COALESCE(balance, 0) + ?, 2) WHERE id = ?",
+        )
+        .bind(delta)
+        .bind(account_id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -120,10 +135,11 @@ impl SqliteAccountRepo {
     }
 
     async fn sum_balance_inner(&self, user_id: &str) -> Result<f64> {
-        let total: Option<f64> = sqlx::query_scalar("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ?")
-            .bind(user_id)
-            .fetch_one(&self.pool)
-            .await?;
+        let total: Option<f64> =
+            sqlx::query_scalar("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ?")
+                .bind(user_id)
+                .fetch_one(&self.pool)
+                .await?;
         Ok(total.unwrap_or(0.0))
     }
 
@@ -140,14 +156,29 @@ impl SqliteAccountRepo {
 
 #[async_trait]
 impl crate::repo::traits::AccountRepo for SqliteAccountRepo {
-    async fn create(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountRow> {
-        self.create_inner(user_id, bank_name, nickname, account_type).await
+    async fn create(
+        &self,
+        user_id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<AccountRow> {
+        self.create_inner(user_id, bank_name, nickname, account_type)
+            .await
     }
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
         self.get_by_id_inner(user_id, id).await
     }
-    async fn update(&self, user_id: &str, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<Option<AccountRow>> {
-        self.update_inner(user_id, id, bank_name, nickname, account_type).await
+    async fn update(
+        &self,
+        user_id: &str,
+        id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<Option<AccountRow>> {
+        self.update_inner(user_id, id, bank_name, nickname, account_type)
+            .await
     }
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_inner(user_id, id).await

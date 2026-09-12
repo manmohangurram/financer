@@ -8,7 +8,17 @@ use crate::utils::math::round2;
 use crate::utils::timex::ts_rfc3339;
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, ToSchema, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::EnumString,
+    ToSchema,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
@@ -108,7 +118,14 @@ pub struct Lot {
 }
 
 /// Wire investment with position filled in.
-pub fn investment_wire(r: &InvestmentRow, qty: f64, avg_cost: f64, current_value: f64, unrealized: f64, realized: f64) -> Investment {
+pub fn investment_wire(
+    r: &InvestmentRow,
+    qty: f64,
+    avg_cost: f64,
+    current_value: f64,
+    unrealized: f64,
+    realized: f64,
+) -> Investment {
     let price = effective_price(r);
     Investment {
         id: r.id.clone(),
@@ -118,7 +135,11 @@ pub fn investment_wire(r: &InvestmentRow, qty: f64, avg_cost: f64, current_value
         current_price: round2(price),
         prev_close: round2(r.prev_close),
         manual_nav: round2(r.manual_nav),
-        last_quote_at: if r.last_quote_at.is_empty() { String::new() } else { ts_rfc3339(&r.last_quote_at) },
+        last_quote_at: if r.last_quote_at.is_empty() {
+            String::new()
+        } else {
+            ts_rfc3339(&r.last_quote_at)
+        },
         created_at: ts_rfc3339(&r.created_at),
         quantity: round2(qty),
         avg_cost: round2(avg_cost),
@@ -151,19 +172,66 @@ pub fn effective_price(r: &InvestmentRow) -> f64 {
 
 #[async_trait]
 pub trait InvestmentRepo: Send + Sync {
-    async fn create_investment(&self, user_id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow>;
+    async fn create_investment(
+        &self,
+        user_id: &str,
+        symbol: &str,
+        name: &str,
+        it: InvestmentType,
+        manual_nav: f64,
+    ) -> Result<InvestmentRow>;
     async fn get_investment(&self, user_id: &str, id: &str) -> Result<Option<InvestmentRow>>;
     async fn get_by_symbol(&self, user_id: &str, symbol: &str) -> Result<Option<InvestmentRow>>;
     async fn list_investments(&self, user_id: &str) -> Result<Vec<InvestmentRow>>;
-    async fn update_investment(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow>;
+    async fn update_investment(
+        &self,
+        user_id: &str,
+        id: &str,
+        symbol: &str,
+        name: &str,
+        it: InvestmentType,
+        manual_nav: f64,
+    ) -> Result<InvestmentRow>;
     async fn delete_investment(&self, user_id: &str, id: &str) -> Result<bool>;
     async fn list_lots(&self, user_id: &str, investment_id: &str) -> Result<Vec<LotRow>>;
     async fn list_lots_by_user(&self, user_id: &str) -> Result<Vec<LotRow>>;
-    async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow>;
+    async fn create_lot(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        side: i64,
+        quantity: f64,
+        price: f64,
+        occurred_at: &str,
+    ) -> Result<LotRow>;
     async fn delete_lot(&self, user_id: &str, id: &str) -> Result<bool>;
-    async fn insert_lot(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool>;
-    async fn update_lot(&self, user_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<bool>;
+    async fn insert_lot(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        input: &LotInput,
+    ) -> Result<bool>;
+    async fn update_lot(
+        &self,
+        user_id: &str,
+        id: &str,
+        quantity: f64,
+        price: f64,
+        occurred_at: &str,
+    ) -> Result<bool>;
     async fn update_quote(&self, id: &str, current_price: f64, prev_close: f64) -> Result<()>;
-    async fn upsert_price_history(&self, investment_id: &str, range_id: &str, ts: &[i64], closes: &[f64], fetched_at: i64) -> Result<()>;
-    async fn get_price_history(&self, user_id: &str, investment_id: &str, range_id: &str) -> Result<(Vec<i64>, Vec<f64>, i64)>;
+    async fn upsert_price_history(
+        &self,
+        investment_id: &str,
+        range_id: &str,
+        ts: &[i64],
+        closes: &[f64],
+        fetched_at: i64,
+    ) -> Result<()>;
+    async fn get_price_history(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        range_id: &str,
+    ) -> Result<(Vec<i64>, Vec<f64>, i64)>;
 }

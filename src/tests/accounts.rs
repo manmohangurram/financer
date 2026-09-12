@@ -35,7 +35,14 @@ async fn account_crud_roundtrip() {
     assert_eq!(updated.0, StatusCode::OK);
 
     // Delete it.
-    let deleted = app.request("DELETE", &format!("/api/accounts/{id}"), None, Some(&app.token)).await;
+    let deleted = app
+        .request(
+            "DELETE",
+            &format!("/api/accounts/{id}"),
+            None,
+            Some(&app.token),
+        )
+        .await;
     assert_eq!(deleted.0, StatusCode::NO_CONTENT);
 
     let (_, list) = app.get_json("/api/accounts", Some(&app.token)).await;

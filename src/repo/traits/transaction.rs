@@ -2,14 +2,24 @@
 //! `TransactionRepo` trait.
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose::URL_SAFE as B64URL, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE as B64URL};
 use serde_json::json;
 
 use crate::error::Result;
 use crate::utils::timex::go_ts;
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, utoipa::ToSchema, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::EnumString,
+    utoipa::ToSchema,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
@@ -111,7 +121,8 @@ pub struct TransactionCursor {
 }
 
 pub fn encode_transaction_cursor(occurred_at: &str, id: &str) -> String {
-    let payload = json!({ "OccurredAt": crate::utils::timex::ts_rfc3339(occurred_at), "ID": id }).to_string();
+    let payload =
+        json!({ "OccurredAt": crate::utils::timex::ts_rfc3339(occurred_at), "ID": id }).to_string();
     B64URL.encode(payload.as_bytes())
 }
 
@@ -119,9 +130,14 @@ pub fn decode_transaction_cursor(token: &str) -> Option<TransactionCursor> {
     let raw = B64URL.decode(token.as_bytes()).ok()?;
     let v: serde_json::Value = serde_json::from_slice(&raw).ok()?;
     let rfc = v["OccurredAt"].as_str()?;
-    let stored = chrono::DateTime::parse_from_rfc3339(rfc)
-        .map_or_else(|_| rfc.to_string(), |dt| go_ts(dt.with_timezone(&chrono::Utc)));
-    Some(TransactionCursor { occurred_at: stored, id: v["ID"].as_str()?.to_string() })
+    let stored = chrono::DateTime::parse_from_rfc3339(rfc).map_or_else(
+        |_| rfc.to_string(),
+        |dt| go_ts(dt.with_timezone(&chrono::Utc)),
+    );
+    Some(TransactionCursor {
+        occurred_at: stored,
+        id: v["ID"].as_str()?.to_string(),
+    })
 }
 
 pub struct CreateOutcome {
@@ -131,7 +147,11 @@ pub struct CreateOutcome {
 
 #[async_trait]
 pub trait TransactionRepo: Send + Sync {
-    async fn get_by_id_for_transfer(&self, user_id: &str, id: &str) -> Result<Option<(String, f64, String)>>;
+    async fn get_by_id_for_transfer(
+        &self,
+        user_id: &str,
+        id: &str,
+    ) -> Result<Option<(String, f64, String)>>;
     async fn get_full(&self, user_id: &str, id: &str) -> Result<Option<Transaction>>;
     async fn find_transfer_counterpart(
         &self,
@@ -142,12 +162,24 @@ pub trait TransactionRepo: Send + Sync {
         around: &str,
     ) -> Result<Option<Transaction>>;
     async fn is_transfer_linked(&self, txn_id: &str) -> Result<bool>;
-    async fn create(&self, user_id: &str, inputs: &[CreateTransactionInput]) -> Result<CreateOutcome>;
-    async fn update(&self, user_id: &str, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>>;
-    async fn apply_rule_result(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()>;
+    async fn create(
+        &self,
+        user_id: &str,
+        inputs: &[CreateTransactionInput],
+    ) -> Result<CreateOutcome>;
+    async fn update(&self, user_id: &str, inputs: &[UpdateTransactionInput])
+    -> Result<Vec<String>>;
+    async fn apply_rule_result(
+        &self,
+        user_id: &str,
+        id: &str,
+        clean_name: Option<&str>,
+        category_ids: &[String],
+    ) -> Result<()>;
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
     async fn get_by_id_batch(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>>;
-    async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult>;
+    async fn list(&self, user_id: &str, f: &TransactionListFilter)
+    -> Result<ListTransactionResult>;
     async fn spending_rows(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>>;
     async fn create_links(&self, user_id: &str, links: &[(String, String)]) -> Result<Vec<String>>;
     async fn delete_links(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;

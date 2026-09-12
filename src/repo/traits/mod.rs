@@ -17,13 +17,18 @@ pub mod user_key;
 #[allow(unused_imports)]
 pub use account::{AccountRepo, AccountRow, AccountType};
 #[allow(unused_imports)]
-pub use category::{CategoryCreateInput, CategoryRepo, CategoryRow, CategoryUpdateInput, ListCategoriesResult};
+pub use category::{
+    CategoryCreateInput, CategoryRepo, CategoryRow, CategoryUpdateInput, ListCategoriesResult,
+};
 #[allow(unused_imports)]
 pub use investment::{InvestmentRepo, InvestmentRow, InvestmentType, LotInput, LotRow};
 #[allow(unused_imports)]
 pub use rule::{OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic, RuleRepo};
 #[allow(unused_imports)]
-pub use transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, SpendingFilter, SpendingTxn, Transaction, TransactionListFilter, TransactionRepo, TransactionType, UpdateTransactionInput};
+pub use transaction::{
+    CreateOutcome, CreateTransactionInput, ListTransactionResult, SpendingFilter, SpendingTxn,
+    Transaction, TransactionListFilter, TransactionRepo, TransactionType, UpdateTransactionInput,
+};
 #[allow(unused_imports)]
 pub use user::{UserRepo, UserRow};
 #[allow(unused_imports)]

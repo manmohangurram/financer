@@ -44,7 +44,9 @@ impl YahooClient {
             bases: cfg.bases.clone(),
             chart: cfg.chart.clone(),
             search: cfg.search.clone(),
-            http: reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build()?,
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()?,
         })
     }
 
@@ -101,7 +103,11 @@ impl YahooClient {
             .into_iter()
             .map(|q| SymbolResult {
                 symbol: q.symbol.clone(),
-                name: q.shortname.filter(|s| !s.is_empty()).or(q.longname.filter(|s| !s.is_empty())).unwrap_or(q.symbol),
+                name: q
+                    .shortname
+                    .filter(|s| !s.is_empty())
+                    .or(q.longname.filter(|s| !s.is_empty()))
+                    .unwrap_or(q.symbol),
                 investment_type: yahoo_quote_type(q.quotetype.as_deref().unwrap_or("")),
             })
             .collect())
@@ -125,15 +131,25 @@ impl YahooClient {
         let p2 = now;
         for base in &self.bases {
             for cand in symbol_candidates(sym) {
-                let url = Self::build_url(base, &self.chart, &[
-                    ("symbol", &cand),
-                    ("interval", "1d"),
-                    ("period1", &p1.to_string()),
-                    ("period2", &p2.to_string()),
-                ]);
-                let Ok(resp) = self.get(&url).await else { continue };
-                let Ok(payload) = resp.json::<ChartPayload>().await else { continue };
-                let Some(meta) = payload.chart.result.first().map(|r| &r.meta) else { continue };
+                let url = Self::build_url(
+                    base,
+                    &self.chart,
+                    &[
+                        ("symbol", &cand),
+                        ("interval", "1d"),
+                        ("period1", &p1.to_string()),
+                        ("period2", &p2.to_string()),
+                    ],
+                );
+                let Ok(resp) = self.get(&url).await else {
+                    continue;
+                };
+                let Ok(payload) = resp.json::<ChartPayload>().await else {
+                    continue;
+                };
+                let Some(meta) = payload.chart.result.first().map(|r| &r.meta) else {
+                    continue;
+                };
                 if meta.regular_market_price == 0.0 {
                     continue;
                 }
@@ -142,18 +158,31 @@ impl YahooClient {
                 } else {
                     meta.regular_market_previous_close
                 };
-                return Some(Quote { price: meta.regular_market_price, prev_close: prev });
+                return Some(Quote {
+                    price: meta.regular_market_price,
+                    prev_close: prev,
+                });
             }
         }
         None
     }
 
     /// Fetch chart history for period1..period2 Unix seconds.
-    pub async fn get_history(&self, symbol: &str, interval: &str, limit: usize, period1: i64, period2: i64) -> anyhow::Result<Vec<PricePoint>> {
+    pub async fn get_history(
+        &self,
+        symbol: &str,
+        interval: &str,
+        limit: usize,
+        period1: i64,
+        period2: i64,
+    ) -> anyhow::Result<Vec<PricePoint>> {
         let mut last_err: Option<anyhow::Error> = None;
         for base in &self.bases {
             for cand in symbol_candidates(symbol) {
-                match self.fetch_history(base, &cand, interval, limit, period1, period2).await {
+                match self
+                    .fetch_history(base, &cand, interval, limit, period1, period2)
+                    .await
+                {
                     Ok(points) => {
                         if !points.is_empty() || cand == symbol {
                             return Ok(points);
@@ -166,13 +195,25 @@ impl YahooClient {
         Err(last_err.unwrap_or_else(|| anyhow::anyhow!("no price data for {symbol}")))
     }
 
-    async fn fetch_history(&self, base: &str, symbol: &str, interval: &str, limit: usize, period1: i64, period2: i64) -> anyhow::Result<Vec<PricePoint>> {
-        let url = Self::build_url(base, &self.chart, &[
-            ("symbol", symbol),
-            ("interval", interval),
-            ("period1", &period1.to_string()),
-            ("period2", &period2.to_string()),
-        ]);
+    async fn fetch_history(
+        &self,
+        base: &str,
+        symbol: &str,
+        interval: &str,
+        limit: usize,
+        period1: i64,
+        period2: i64,
+    ) -> anyhow::Result<Vec<PricePoint>> {
+        let url = Self::build_url(
+            base,
+            &self.chart,
+            &[
+                ("symbol", symbol),
+                ("interval", interval),
+                ("period1", &period1.to_string()),
+                ("period2", &period2.to_string()),
+            ],
+        );
         let resp = self.get(&url).await?;
         if resp.status() != reqwest::StatusCode::OK {
             anyhow::bail!("yahoo chart {symbol} status {}", resp.status());
@@ -181,7 +222,13 @@ impl YahooClient {
         let Some(res) = payload.chart.result.first() else {
             return Ok(Vec::new());
         };
-        let closes = res.indicators.quote.first().map(|q| &q.close).cloned().unwrap_or_default();
+        let closes = res
+            .indicators
+            .quote
+            .first()
+            .map(|q| &q.close)
+            .cloned()
+            .unwrap_or_default();
         let mut points = Vec::new();
         for (i, ts) in res.timestamp.iter().enumerate() {
             if let Some(Some(c)) = closes.get(i) {
@@ -218,7 +265,9 @@ fn urlencode(v: &str) -> String {
     let mut out = String::with_capacity(v.len());
     for b in v.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
             _ => {
                 out.push('%');
                 let _ = write!(out, "{b:02X}");

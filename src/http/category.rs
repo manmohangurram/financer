@@ -9,13 +9,17 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
-use crate::http::{require_user, AppState, JsonResult};
+use crate::http::{AppState, JsonResult, require_user};
 
 pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/categories", axum::routing::get(list).post(create).put(update).delete(delete))
+    Router::new().route(
+        "/api/categories",
+        axum::routing::get(list)
+            .post(create)
+            .put(update)
+            .delete(delete),
+    )
 }
-
 
 #[derive(Deserialize, ToSchema)]
 pub struct ReqCategory {
@@ -53,14 +57,27 @@ pub struct ListQuery {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
+pub async fn list(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<ListQuery>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.category.list(&uid, i64::from(q.page_size.unwrap_or(0)), q.page_token.as_deref().unwrap_or("")).await {
+    match st
+        .category
+        .list(
+            &uid,
+            i64::from(q.page_size.unwrap_or(0)),
+            q.page_token.as_deref().unwrap_or(""),
+        )
+        .await
+    {
         Ok((categories, next_page_token)) => {
-            Json(serde_json::json!({ "categories": categories, "nextPageToken": next_page_token })).into_response()
+            Json(serde_json::json!({ "categories": categories, "nextPageToken": next_page_token }))
+                .into_response()
         }
         Err(e) => e.into_response(),
     }
@@ -77,7 +94,11 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
+pub async fn create(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqCategory>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -104,7 +125,11 @@ pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
+pub async fn update(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqCategory>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -113,7 +138,11 @@ pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let pairs: Vec<(String, String)> = req.categories.iter().map(|c| (c.id.clone(), c.name.clone())).collect();
+    let pairs: Vec<(String, String)> = req
+        .categories
+        .iter()
+        .map(|c| (c.id.clone(), c.name.clone()))
+        .collect();
     match st.category.update(&uid, &pairs).await {
         Ok(b) => Json(bulk_wire(&b)).into_response(),
         Err(e) => e.into_response(),
@@ -131,7 +160,11 @@ pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn delete(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCategory>) -> Response {
+pub async fn delete(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqCategory>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),

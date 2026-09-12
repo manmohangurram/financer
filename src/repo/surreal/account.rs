@@ -3,7 +3,7 @@
 use surrealdb::Connection;
 
 use crate::error::Result;
-use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
+use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 
 pub use crate::repo::traits::account::{AccountRow, AccountType};
 
@@ -48,7 +48,10 @@ impl<C: Connection> AccountRepo<C> {
             .into_iter()
             .next()
             .ok_or_else(|| crate::error::ApiError::internal("account create returned no row"))?;
-        Ok(AccountRow { created_at: now, ..row })
+        Ok(AccountRow {
+            created_at: now,
+            ..row
+        })
     }
 
     pub async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
@@ -148,7 +151,9 @@ impl<C: Connection> AccountRepo<C> {
             .query("SELECT math::sum(balance) AS total FROM account WHERE user = $uid GROUP ALL")
             .bind(("uid", rid("user", user_id)))
             .await?;
-        Ok(take_json::<SumRow>(&mut res, 0)?.first().map_or(0.0, |r| r.total))
+        Ok(take_json::<SumRow>(&mut res, 0)?
+            .first()
+            .map_or(0.0, |r| r.total))
     }
 
     /// Cached total credits and debits across a user's accounts.
@@ -161,7 +166,10 @@ impl<C: Connection> AccountRepo<C> {
             )
             .bind(("uid", rid("user", user_id)))
             .await?;
-        let row = take_json::<TotalsRow>(&mut res, 0)?.into_iter().next().unwrap_or_default();
+        let row = take_json::<TotalsRow>(&mut res, 0)?
+            .into_iter()
+            .next()
+            .unwrap_or_default();
         Ok((row.credit, row.debit))
     }
 }
@@ -172,14 +180,29 @@ impl<C: Connection> AccountRepo<C> {
 // recursion). SQL/query bodies stay unchanged.
 #[async_trait::async_trait]
 impl crate::repo::traits::AccountRepo for AccountRepo<DbClient> {
-    async fn create(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountRow> {
-        self.create(user_id, bank_name, nickname, account_type).await
+    async fn create(
+        &self,
+        user_id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<AccountRow> {
+        self.create(user_id, bank_name, nickname, account_type)
+            .await
     }
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
         self.get_by_id(user_id, id).await
     }
-    async fn update(&self, user_id: &str, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<Option<AccountRow>> {
-        self.update(user_id, id, bank_name, nickname, account_type).await
+    async fn update(
+        &self,
+        user_id: &str,
+        id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<Option<AccountRow>> {
+        self.update(user_id, id, bank_name, nickname, account_type)
+            .await
     }
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete(user_id, id).await
@@ -215,45 +238,63 @@ struct TotalsRow {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::float_cmp)]
-    use std::sync::Arc;
     use std::str::FromStr;
-
+    use std::sync::Arc;
 
     use super::*;
     use crate::surreal_db;
-
 
     #[test]
     fn rejects_unknown_type() {
         assert!(AccountType::from_str("bogus").is_err());
         assert_eq!(AccountType::from_str("CURRENT"), Ok(AccountType::Current));
-        assert_eq!(AccountType::from_str("CREDIT_CARD"), Ok(AccountType::CreditCard));
+        assert_eq!(
+            AccountType::from_str("CREDIT_CARD"),
+            Ok(AccountType::CreditCard)
+        );
     }
 
     #[tokio::test]
     async fn crud_scoped_to_user() {
         let db = Arc::new(surreal_db::connect_mem().await.unwrap());
         for uid in ["u1", "u2"] {
-            db.query("CREATE user CONTENT { id: $id, email: $email, passwordHash: 'h', name: $id }")
-                .bind(("id", uid.to_string()))
-                .bind(("email", format!("{uid}@x.com")))
-                .await
-                .unwrap()
-                .check()
-                .unwrap();
+            db.query(
+                "CREATE user CONTENT { id: $id, email: $email, passwordHash: 'h', name: $id }",
+            )
+            .bind(("id", uid.to_string()))
+            .bind(("email", format!("{uid}@x.com")))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         }
         let repo = AccountRepo::new(db);
-        let a = repo.create("u1", "Chase", "Main", AccountType::Current).await.unwrap();
-        repo.create("u1", "Amex", "", AccountType::CreditCard).await.unwrap();
-        repo.create("u2", "Other", "", AccountType::Savings).await.unwrap();
+        let a = repo
+            .create("u1", "Chase", "Main", AccountType::Current)
+            .await
+            .unwrap();
+        repo.create("u1", "Amex", "", AccountType::CreditCard)
+            .await
+            .unwrap();
+        repo.create("u2", "Other", "", AccountType::Savings)
+            .await
+            .unwrap();
 
         let list = repo.list("u1").await.unwrap();
         assert_eq!(list.len(), 2, "only u1's accounts");
         let mut types: Vec<String> = list.iter().map(|a| a.account_type.to_string()).collect();
         types.sort();
-        assert_eq!(types, vec!["CREDIT_CARD", "CURRENT"], "both of u1's accounts");
+        assert_eq!(
+            types,
+            vec!["CREDIT_CARD", "CURRENT"],
+            "both of u1's accounts"
+        );
 
-        let upd = repo.update("u1", &a.id, "Chase Blue", "New", AccountType::Savings).await.unwrap().unwrap();
+        let upd = repo
+            .update("u1", &a.id, "Chase Blue", "New", AccountType::Savings)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(upd.bank_name, "Chase Blue");
         assert_eq!(upd.nickname, "New");
         assert_eq!(upd.account_type, AccountType::Savings);
@@ -263,18 +304,21 @@ mod tests {
         assert_eq!(repo.list("u1").await.unwrap().len(), 1);
     }
 
-
-
     #[tokio::test]
     async fn balance_and_totals_deltas() {
         let db = Arc::new(surreal_db::connect_mem().await.unwrap());
-        db.query("CREATE user CONTENT { id: 'u1', email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
+        db.query(
+            "CREATE user CONTENT { id: 'u1', email: 'u1@x.com', passwordHash: 'h', name: 'u1' }",
+        )
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
         let repo = AccountRepo::new(db);
-        let a = repo.create("u1", "Chase", "", AccountType::Current).await.unwrap();
+        let a = repo
+            .create("u1", "Chase", "", AccountType::Current)
+            .await
+            .unwrap();
 
         repo.update_balance(&a.id, -5.5).await.unwrap();
         repo.update_balance(&a.id, 10.0).await.unwrap();

@@ -28,9 +28,18 @@ pub struct ListCategoriesResult {
 
 #[async_trait]
 pub trait CategoryRepo: Send + Sync {
-    async fn create(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>>;
+    async fn create(
+        &self,
+        user_id: &str,
+        inputs: &[CategoryCreateInput],
+    ) -> Result<Vec<CategoryRow>>;
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<CategoryRow>>;
     async fn update(&self, user_id: &str, inputs: &[CategoryUpdateInput]) -> Result<Vec<String>>;
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
-    async fn list(&self, user_id: &str, page_size: i64, page_token: &str) -> Result<ListCategoriesResult>;
+    async fn list(
+        &self,
+        user_id: &str,
+        page_size: i64,
+        page_token: &str,
+    ) -> Result<ListCategoriesResult>;
 }
