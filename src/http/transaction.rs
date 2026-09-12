@@ -39,7 +39,7 @@ pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp:
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    let Some((filename, bytes)) = read_file_field(&mut mp).await else {
+    let Some((filename, bytes)) = crate::http::read_upload_file(&mut mp).await else {
         return ApiError::bad_request("missing 'file' field").into_response();
     };
     let Some(kind) = crate::import::kind_for(&filename) else {
@@ -138,17 +138,6 @@ pub async fn import_file_commit(
     .into_response()
 }
 
-/// Read the `file` field of a multipart body as `(filename, bytes)`.
-async fn read_file_field(mp: &mut Multipart) -> Option<(String, Vec<u8>)> {
-    while let Ok(Some(field)) = mp.next_field().await {
-        if field.name() == Some("file") {
-            let filename = field.file_name().unwrap_or_default().to_string();
-            let bytes = field.bytes().await.ok()?.to_vec();
-            return Some((filename, bytes));
-        }
-    }
-    None
-}
 
 #[derive(Deserialize, ToSchema)]
 pub struct ReqTxn {
