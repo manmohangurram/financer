@@ -33,6 +33,7 @@ use crate::repo::traits::transaction::TransactionType;
         crate::http::transaction::update,
         crate::http::transaction::delete,
         crate::http::transaction::import_file,
+        crate::http::transaction::import_file_commit,
         crate::http::transfer::link,
         crate::http::transfer::unlink,
         crate::http::transfer::counterpart,

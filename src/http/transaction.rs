@@ -18,6 +18,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/transactions", axum::routing::get(list).post(create).put(update).delete(delete))
         .route("/api/transactions/import/file", axum::routing::post(import_file))
+        .route("/api/transactions/import/file/commit", axum::routing::post(import_file_commit))
 }
 
 /// Upload a CSV/XLSX/PDF for import. Parses it, stores it under an opaque id,
@@ -48,12 +49,93 @@ pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp:
         Ok(p) => p,
         Err(e) => return e.into_response(),
     };
+    // Drop uploads abandoned by earlier sessions.
+    crate::import::store::sweep(std::time::Duration::from_secs(3600));
     let ext = crate::import::store::extension_of(&filename);
     let id = match crate::import::store::save(&uid, &ext, &bytes) {
         Ok((id, _hash)) => id,
         Err(e) => return e.into_response(),
     };
     Json(serde_json::json!({ "id": id, "headers": parsed.headers, "rowCount": parsed.rows.len() })).into_response()
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
+pub struct CommitImportRequest {
+    /// Opaque id returned by the upload.
+    id: String,
+    account_id: String,
+    mapping: crate::import::mapping::Mapping,
+}
+
+/// Commit a previously-uploaded file: apply the column mapping and create the
+/// transactions. The upload is consumed (deleted) on success.
+#[utoipa::path(
+    post,
+    path = "/api/transactions/import/file/commit",
+    request_body = CommitImportRequest,
+    responses(
+        (status = 200, description = "Bulk result for the created transactions"),
+        (status = 400, description = "Unknown/expired upload or invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import_file_commit(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<CommitImportRequest>,
+) -> Response {
+    let uid = match require_user(&headers, &st.jwt) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
+    let path = match crate::import::store::load(&uid, &req.id) {
+        Ok(p) => p,
+        Err(e) => return e.into_response(),
+    };
+    let Some(kind) = crate::import::kind_for(&path.to_string_lossy()) else {
+        return ApiError::bad_request("unsupported stored file").into_response();
+    };
+    let bytes = match std::fs::read(&path) {
+        Ok(b) => b,
+        Err(e) => return ApiError::internal(format!("could not read upload: {e}")).into_response(),
+    };
+    let parsed = match crate::import::parse(&bytes, kind) {
+        Ok(p) => p,
+        Err(e) => return e.into_response(),
+    };
+    let hash = crate::import::store::sha256_hex(&bytes);
+    let txns = crate::import::mapping::to_transactions(&parsed, &req.mapping, &req.account_id, &hash);
+
+    // The service caps a single request at 1000 rows.
+    let mut created = 0i64;
+    let mut skipped = 0i64;
+    let mut failed_ids: Vec<String> = Vec::new();
+    for chunk in txns.chunks(1000) {
+        match st.transaction.create(&uid, chunk).await {
+            Ok(r) => {
+                let attempted = i64::try_from(chunk.len()).unwrap_or(0);
+                let failed = i64::try_from(r.failed_ids.len()).unwrap_or(0);
+                created += attempted - failed - r.skipped;
+                skipped += r.skipped;
+                failed_ids.extend(r.failed_ids);
+            }
+            Err(e) => return e.into_response(),
+        }
+    }
+    crate::import::store::delete(&uid, &req.id);
+    Json(serde_json::json!({
+        "created": created,
+        "skipped": skipped,
+        "failedIds": failed_ids,
+    }))
+    .into_response()
 }
 
 /// Read the `file` field of a multipart body as `(filename, bytes)`.

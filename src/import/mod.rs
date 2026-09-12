@@ -4,6 +4,7 @@
 //! here (not in the browser) so the API and MCP can reuse it.
 
 pub mod csv;
+pub mod mapping;
 pub mod pdf;
 pub mod store;
 pub mod xlsx;

@@ -8,6 +8,7 @@
 use crate::error::{ApiError, Result};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 fn dir() -> PathBuf {
     std::env::temp_dir().join("financer-uploads")
@@ -20,6 +21,40 @@ pub fn save(user_id: &str, ext: &str, bytes: &[u8]) -> Result<(String, String)> 
     let path = dir().join(format!("{user_id}_{id}.{ext}"));
     std::fs::write(&path, bytes).map_err(|e| ApiError::internal(format!("could not store upload: {e}")))?;
     Ok((id, sha256_hex(bytes)))
+}
+
+/// Read a previously-uploaded file belonging to `user_id`.
+pub fn load(user_id: &str, id: &str) -> Result<PathBuf> {
+    let prefix = format!("{user_id}_{id}.");
+    let entries = std::fs::read_dir(dir()).map_err(|_| ApiError::bad_request("upload not found or expired"))?;
+    for entry in entries.flatten() {
+        if entry.file_name().to_string_lossy().starts_with(&prefix) {
+            return Ok(entry.path());
+        }
+    }
+    Err(ApiError::bad_request("upload not found or expired"))
+}
+
+/// Delete a stored upload (after a commit).
+pub fn delete(user_id: &str, id: &str) {
+    if let Ok(path) = load(user_id, id) {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Remove uploads older than `max_age` (abandoned uploads).
+pub fn sweep(max_age: Duration) {
+    let Ok(entries) = std::fs::read_dir(dir()) else { return };
+    let now = std::time::SystemTime::now();
+    for entry in entries.flatten() {
+        let stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .is_ok_and(|t| now.duration_since(t).is_ok_and(|age| age > max_age));
+        if stale {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
 }
 
 /// Hex-encoded sha256 of the bytes — the re-import dedupe prefix.
