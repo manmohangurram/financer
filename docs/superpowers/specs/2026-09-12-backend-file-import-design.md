@@ -104,8 +104,10 @@ existing mapping UI (showing "Import N rows") → commit. Removed:
 
 - The commit takes an **opaque id**; the server maps it to its own stored file.
   A client-supplied path is never accepted (path traversal).
-- The id is scoped to the authenticated user; a commit with someone else's id
-  fails.
+- Ownership is encoded in the filename: the temp file is
+  `/<tmp>/financer-uploads/<user_id>_<uuid>.<ext>`. The commit looks up
+  `<user_id>_<id>.*` for the authenticated user, so another user's id does not
+  resolve. No sidecar/meta file and nothing extra to sweep.
 
 ## Edge cases
 
