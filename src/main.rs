@@ -5,6 +5,7 @@ mod auth;
 mod config;
 mod error;
 mod http;
+mod import;
 mod mcp;
 mod openapi;
 mod repo;

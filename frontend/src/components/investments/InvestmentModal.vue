@@ -4,8 +4,7 @@ import AppModal from '@/components/AppModal.vue';
 import AppInput from '@/components/AppInput.vue';
 import { investments } from '@/lib/api/client';
 import { roundMoney } from '@/lib/utils/money';
-import { readWorkbook } from '@/lib/utils/workbook';
-import { locateInvestmentTable, guessInvestmentMapping, mapImportRows, type InvestmentField } from '@/lib/utils/investmentImport';
+import { guessInvestmentMapping, type InvestmentField } from '@/lib/utils/investmentImport';
 import { Upload, PenLine, FileSpreadsheet } from '@lucide/vue';
 
 const props = withDefaults(defineProps<{ investment?: any | null }>(), { investment: null });
@@ -74,8 +73,8 @@ const importing = ref(false);
 const dragOver = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const headers = ref<string[]>([]);
-const dataRows = ref<string[][]>([]);
-const fileKey = ref('');
+const rowCount = ref(0);
+const importId = ref('');
 const fieldToCol = ref<Record<InvestmentField, number>>({ symbol: -1, name: -1, type: -1, side: -1, quantity: -1, price: -1, date: -1, ignore: -1 });
 
 const importFields: { key: InvestmentField; label: string }[] = [
@@ -107,18 +106,17 @@ function switchMode(m: Mode) {
 
 async function processFile(file: File | undefined | null) {
   if (!file) return;
+  importError.value = '';
   try {
-    const parsed = await readWorkbook(file);
-    if (!parsed) { importError.value = 'Need a header row and at least one data row.'; return; }
-    const table = locateInvestmentTable([parsed.headers, ...parsed.rows]);
-    if (!table) { importError.value = "Couldn't find an investments table in that file."; return; }
-    headers.value = table.headers;
-    dataRows.value = table.data;
-    fileKey.value = file.name.toLowerCase().endsWith('.csv') ? `csv:${file.name}` : `xlsx:${file.name}:${file.lastModified}`;
+    const parsed = await investments().importFile(file);
+    if (!parsed.headers.length) { importError.value = "Couldn't find an investments table in that file."; return; }
+    importId.value = parsed.id;
+    headers.value = parsed.headers;
+    rowCount.value = parsed.rowCount;
     guessFields();
     step.value = 2;
-  } catch {
-    importError.value = 'Could not read that file.';
+  } catch (err: any) {
+    importError.value = err?.message || 'Could not read that file.';
   }
 }
 
@@ -137,13 +135,7 @@ async function runImport() {
   importing.value = true;
   importError.value = '';
   try {
-    const mapping = headers.value.map((_, i) => {
-      const key = (Object.keys(fieldToCol.value) as InvestmentField[]).find((k) => fieldToCol.value[k] === i);
-      return key || 'ignore';
-    });
-    const items = mapImportRows(dataRows.value, mapping, fileKey.value);
-    if (items.length === 0) { importError.value = 'No valid rows to import — check the column mapping.'; return; }
-    const resp = await investments().importInvestments({ rows: items });
+    const resp = await investments().commitImportFile({ id: importId.value, mapping: fieldToCol.value });
     emit('imported', { created: resp?.created ?? 0, skipped: resp?.skipped ?? 0 });
     emit('close');
   } catch (e: any) {
@@ -272,7 +264,7 @@ async function runImport() {
           <div class="flex items-center justify-between mt-4">
             <button @click="step = 1" class="text-[13px] text-subtle hover:text-text">Back</button>
             <button @click="runImport" class="btn btn-primary" :disabled="importing">
-              {{ importing ? 'Importing...' : `Import ${dataRows.length} rows` }}
+              {{ importing ? 'Importing...' : `Import ${rowCount} rows` }}
             </button>
           </div>
           <p v-if="importError" class="text-[13px] text-expense mt-2">{{ importError }}</p>

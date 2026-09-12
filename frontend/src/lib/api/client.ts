@@ -27,6 +27,8 @@ export interface TransactionServiceClient {
   updateTransactions: (req: unknown) => Promise<any>;
   deleteTransactions: (req: unknown) => Promise<any>;
   listTransactions: (req: unknown) => Promise<any>;
+  importFile: (file: File) => Promise<{ id: string; headers: string[]; rowCount: number }>;
+  commitImportFile: (req: unknown) => Promise<any>;
 }
 
 export interface RuleServiceClient {
@@ -55,6 +57,8 @@ export interface InvestmentServiceClient {
   deleteLot: (req: unknown) => Promise<any>;
   listLots: (req: unknown) => Promise<any>;
   importInvestments: (req: unknown) => Promise<any>;
+  importFile: (file: File) => Promise<{ id: string; headers: string[]; rowCount: number }>;
+  commitImportFile: (req: unknown) => Promise<any>;
   searchSymbols: (req: unknown) => Promise<any>;
   refreshPrices: (req: unknown) => Promise<any>;
   getPortfolioSummary: (req: unknown) => Promise<any>;
@@ -152,13 +156,32 @@ export function categories(): CategoryServiceClient {
   return _categories;
 }
 
+/** Upload a CSV/XLSX/PDF to an import endpoint; returns headers + row count. */
+async function uploadImportFile(path: string, file: File): Promise<{ id: string; headers: string[]; rowCount: number }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const resp = await fetch(API_BASE + path, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: fd
+  });
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(body.message || 'Could not read that file');
+  return { id: body.id || '', headers: body.headers || [], rowCount: body.rowCount || 0 };
+}
+
+const importFile = (file: File) => uploadImportFile('/api/transactions/import/file', file);
+const importInvestmentFile = (file: File) => uploadImportFile('/api/investments/import/file', file);
+
 export function transactions(): TransactionServiceClient {
   if (!_transactions) {
     _transactions = {
       createTransactions: api('POST', '/api/transactions'),
       updateTransactions: api('PUT', '/api/transactions'),
       deleteTransactions: api('DELETE', '/api/transactions'),
-      listTransactions: api('GET', '/api/transactions')
+      listTransactions: api('GET', '/api/transactions'),
+      importFile,
+      commitImportFile: api('POST', '/api/transactions/import/file/commit')
     };
   }
   return _transactions;
@@ -202,6 +225,8 @@ export function investments(): InvestmentServiceClient {
       deleteLot: api('DELETE', '/api/investments/{id}/lots/{lotId}'),
       listLots: api('GET', '/api/investments/{id}/lots'),
       importInvestments: api('POST', '/api/investments/import'),
+      importFile: importInvestmentFile,
+      commitImportFile: api('POST', '/api/investments/import/file/commit'),
       searchSymbols: api('GET', '/api/investments/search'),
       refreshPrices: api('POST', '/api/investments/refresh-prices'),
       getPortfolioSummary: api('GET', '/api/portfolio/summary'),

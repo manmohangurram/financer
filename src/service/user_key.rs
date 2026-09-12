@@ -93,10 +93,10 @@ impl UserKeyService {
         let Some((user_id, id, scope)) = self.repo.by_key_hash(&hash).await? else {
             return Err(ApiError::unauthorized("invalid API key"));
         };
-        if let Some(expires) = self.repo.get_by_id(&user_id, &id).await?.and_then(|r| r.expires_at) {
-            if is_expired(&expires) {
-                return Err(ApiError::unauthorized("API key expired"));
-            }
+        if let Some(expires) = self.repo.get_by_id(&user_id, &id).await?.and_then(|r| r.expires_at)
+            && is_expired(&expires)
+        {
+            return Err(ApiError::unauthorized("API key expired"));
         }
         let _ = self.repo.touch_last_used(&id).await;
         Ok((user_id, scope))
