@@ -101,16 +101,27 @@ function switchMode(m: Mode) {
 
 async function processFile(file: File | undefined | null) {
   if (!file) return;
+  const name = file.name.toLowerCase();
+  error.value = '';
   try {
-    const parsed = await readWorkbook(file);
-    if (!parsed) { error.value = 'Need a header row and at least one data row.'; return; }
-    headers.value = parsed.headers;
-    rows.value = parsed.rows;
-    fileKey.value = file.name.toLowerCase().endsWith('.csv') ? csvFileKey(await file.text()) : `xlsx:${file.name}:${file.lastModified}`;
+    if (name.endsWith('.pdf')) {
+      // Parsed server-side: returns the PDF's first table as headers/rows.
+      const parsed = await transactions().importPdf(file);
+      if (!parsed.headers.length) { error.value = 'No table found in the PDF.'; return; }
+      headers.value = parsed.headers;
+      rows.value = parsed.rows;
+      fileKey.value = `pdf:${file.name}:${file.lastModified}`;
+    } else {
+      const parsed = await readWorkbook(file);
+      if (!parsed) { error.value = 'Need a header row and at least one data row.'; return; }
+      headers.value = parsed.headers;
+      rows.value = parsed.rows;
+      fileKey.value = name.endsWith('.csv') ? csvFileKey(await file.text()) : `xlsx:${file.name}:${file.lastModified}`;
+    }
     guessFields();
     step.value = 2;
-  } catch {
-    error.value = 'Could not read that file.';
+  } catch (err: any) {
+    error.value = err?.message || 'Could not read that file.';
   }
 }
 
@@ -184,7 +195,7 @@ async function runImport() {
           @click="switchMode('csv')"
         >
           <FileSpreadsheet class="w-4 h-4" stroke-width="1.5" />
-          Import CSV
+          Import file
         </button>
       </div>
 
@@ -211,14 +222,14 @@ async function runImport() {
             @drop.prevent="handleDrop"
           >
             <Upload class="w-10 h-10 mx-auto mb-3 text-faint" stroke-width="1.5" />
-            <p class="text-[14px] text-text-muted mb-2">Drop a CSV or Excel (.xlsx) file or click to browse</p>
+            <p class="text-[14px] text-text-muted mb-2">Drop CSV, XLSX or PDF file, or click to browse</p>
             <button type="button" class="btn btn-outline btn-sm" @click="fileInput?.click()">Choose file</button>
-            <input ref="fileInput" type="file" accept=".csv,.xlsx" class="hidden" @change="handleFile" />
+            <input ref="fileInput" type="file" accept=".csv,.xlsx,.pdf" class="hidden" @change="handleFile" />
           </div>
           <p v-if="error" class="text-[13px] text-expense mt-2">{{ error }}</p>
         </template>
         <template v-else>
-          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1 mb-4" role="group" aria-label="CSV format">
+          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1 mb-4" role="group" aria-label="Amount format">
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
@@ -232,7 +243,7 @@ async function runImport() {
               @click="switchFormat('split')"
             >Debit + Credit columns</button>
           </div>
-          <p class="text-[13px] text-text-muted mb-3">Map your columns to the CSV fields:</p>
+          <p class="text-[13px] text-text-muted mb-3">Map your columns to the transaction fields:</p>
           <div class="space-y-2 max-h-60 overflow-y-auto">
             <div v-for="f in requiredFields" :key="f.key" class="flex items-center gap-3">
               <span class="text-[13px] text-text w-36 shrink-0">{{ f.label }}</span>

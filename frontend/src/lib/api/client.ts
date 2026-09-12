@@ -27,6 +27,7 @@ export interface TransactionServiceClient {
   updateTransactions: (req: unknown) => Promise<any>;
   deleteTransactions: (req: unknown) => Promise<any>;
   listTransactions: (req: unknown) => Promise<any>;
+  importPdf: (file: File) => Promise<{ headers: string[]; rows: string[][] }>;
 }
 
 export interface RuleServiceClient {
@@ -152,13 +153,28 @@ export function categories(): CategoryServiceClient {
   return _categories;
 }
 
+/** Upload a PDF statement; the server returns its first table as headers/rows. */
+async function importPdf(file: File): Promise<{ headers: string[]; rows: string[][] }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const resp = await fetch(API_BASE + '/api/transactions/import/pdf', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: fd
+  });
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(body.message || 'Could not read the PDF');
+  return { headers: body.headers || [], rows: body.rows || [] };
+}
+
 export function transactions(): TransactionServiceClient {
   if (!_transactions) {
     _transactions = {
       createTransactions: api('POST', '/api/transactions'),
       updateTransactions: api('PUT', '/api/transactions'),
       deleteTransactions: api('DELETE', '/api/transactions'),
-      listTransactions: api('GET', '/api/transactions')
+      listTransactions: api('GET', '/api/transactions'),
+      importPdf
     };
   }
   return _transactions;
