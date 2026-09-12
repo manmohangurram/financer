@@ -39,7 +39,7 @@ Financer tracks accounts, transactions, transfers, spending, rules (auto-categor
 
 - **Auth** — signup, login, JWT access + refresh tokens.
 - **Accounts & categories** — full CRUD; account types (Current, Savings, Credit Card, Loan); balances stay in sync as transactions change.
-- **Transactions** — create (single + bulk), edit, delete, CSV/XLSX import, server-side filters (date, amount, name, category) and cursor pagination.
+- **Transactions** — create (single + bulk), edit, delete, **CSV/XLSX/PDF statement import** (upload → map columns → commit, server-parsed), server-side filters (date, amount, name, category) and cursor pagination.
 - **Transfers** — link two transactions as a transfer, unlink, or create the missing counterpart; candidate matching (±5 days, ±10% amount) and fee-tolerant amounts.
 - **Rules** — conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR) with outputs (rename, set category, transfer to account). Rules are applied **at write time** and snapshot the resolved name + category onto the transaction; the raw bank string is preserved.
 - **Spending analytics** — server-computed buckets (7D/1M/6M/1Y/custom, day or month granularity), per-category debit/credit pies with drill-down, and transfer exclusion (debt accounts count as real spending).
@@ -220,6 +220,13 @@ REST/JSON under `/api/*`.
 - `POST /api/auth/{signup,login,refresh}` are public; everything else requires `Authorization: Bearer <access-token>`.
 
 Manage personal API keys (for the MCP server and other clients) at `GET/POST /api/me/keys` and `DELETE /api/me/keys/{id}`, or in the app under **Settings → API keys**.
+
+### Statement import
+
+Importing a CSV, XLSX or PDF is a two-step flow so the column mapping happens after parsing — the client never parses the file:
+
+1. `POST /api/transactions/import/file` (multipart `file`) → `{ id, headers, rowCount }`; the file is stored server-side under an opaque id.
+2. `POST /api/transactions/import/file/commit` `{ id, accountId, mapping }` → parses, applies the mapping and creates the transactions. Columns map to `date | description | amount | type | debit | credit`; re-importing the same file is skipped (deduped by file hash + row index).
 
 ## MCP server
 
