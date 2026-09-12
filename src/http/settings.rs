@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 
 use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
-use crate::http::{require_user, AppState, JsonResult};
+use crate::http::{AppState, JsonResult, require_user};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -18,7 +18,6 @@ pub fn routes() -> Router<AppState> {
         .route("/api/me/logout-all", axum::routing::post(logout_all))
         .route("/api/me/avatar", axum::routing::post(avatar))
 }
-
 
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -74,7 +73,11 @@ pub async fn get(State(st): State<AppState>, headers: HeaderMap) -> Response {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqProfile>) -> Response {
+pub async fn update(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqProfile>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -83,7 +86,11 @@ pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.user.update_profile(&uid, &req.name, &req.email, &req.avatar_url).await {
+    match st
+        .user
+        .update_profile(&uid, &req.name, &req.email, &req.avatar_url)
+        .await
+    {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
@@ -100,7 +107,11 @@ pub async fn update(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn password(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqPassword>) -> Response {
+pub async fn password(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqPassword>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -109,7 +120,11 @@ pub async fn password(State(st): State<AppState>, headers: HeaderMap, req: JsonR
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.user.change_password(&uid, &req.current_password, &req.new_password).await {
+    match st
+        .user
+        .change_password(&uid, &req.current_password, &req.new_password)
+        .await
+    {
         Ok(r) => Json(r).into_response(),
         Err(e) => e.into_response(),
     }
@@ -161,7 +176,10 @@ pub async fn avatar(State(st): State<AppState>, headers: HeaderMap, mut mp: Mult
         if field.name() == Some("file") {
             match field.bytes().await {
                 Ok(b) => data = b.to_vec(),
-                Err(_) => return crate::error::ApiError::bad_request("failed to read avatar").into_response(),
+                Err(_) => {
+                    return crate::error::ApiError::bad_request("failed to read avatar")
+                        .into_response();
+                }
             }
             break;
         }

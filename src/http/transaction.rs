@@ -7,8 +7,8 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
-use crate::error::{json_error, ApiError};
-use crate::http::{require_user, AppState, JsonResult};
+use crate::error::{ApiError, json_error};
+use crate::http::{AppState, JsonResult, require_user};
 use crate::repo::traits::transaction::{TransactionListFilter, TransactionType};
 use crate::service::transaction::TransactionReq;
 use crate::utils::math::round2;
@@ -16,9 +16,21 @@ use crate::utils::timex::ts_rfc3339;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/transactions", axum::routing::get(list).post(create).put(update).delete(delete))
-        .route("/api/transactions/import/file", axum::routing::post(import_file))
-        .route("/api/transactions/import/file/commit", axum::routing::post(import_file_commit))
+        .route(
+            "/api/transactions",
+            axum::routing::get(list)
+                .post(create)
+                .put(update)
+                .delete(delete),
+        )
+        .route(
+            "/api/transactions/import/file",
+            axum::routing::post(import_file),
+        )
+        .route(
+            "/api/transactions/import/file/commit",
+            axum::routing::post(import_file_commit),
+        )
 }
 
 /// Upload a CSV/XLSX/PDF for import. Parses it, stores it under an opaque id,
@@ -34,7 +46,11 @@ pub fn routes() -> Router<AppState> {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp: Multipart) -> Response {
+pub async fn import_file(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    mut mp: Multipart,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -43,7 +59,8 @@ pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp:
         return ApiError::bad_request("missing 'file' field").into_response();
     };
     let Some(kind) = crate::import::kind_for(&filename) else {
-        return ApiError::bad_request("unsupported file type; expected .csv, .xlsx or .pdf").into_response();
+        return ApiError::bad_request("unsupported file type; expected .csv, .xlsx or .pdf")
+            .into_response();
     };
     let parsed = match crate::import::parse(&bytes, kind) {
         Ok(p) => p,
@@ -56,7 +73,8 @@ pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp:
         Ok((id, _hash)) => id,
         Err(e) => return e.into_response(),
     };
-    Json(serde_json::json!({ "id": id, "headers": parsed.headers, "rowCount": parsed.rows.len() })).into_response()
+    Json(serde_json::json!({ "id": id, "headers": parsed.headers, "rowCount": parsed.rows.len() }))
+        .into_response()
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -111,7 +129,8 @@ pub async fn import_file_commit(
         Err(e) => return e.into_response(),
     };
     let hash = crate::import::store::sha256_hex(&bytes);
-    let txns = crate::import::mapping::to_transactions(&parsed, &req.mapping, &req.account_id, &hash);
+    let txns =
+        crate::import::mapping::to_transactions(&parsed, &req.mapping, &req.account_id, &hash);
 
     // The service caps a single request at 1000 rows.
     let mut created = 0i64;
@@ -137,7 +156,6 @@ pub async fn import_file_commit(
     }))
     .into_response()
 }
-
 
 #[derive(Deserialize, ToSchema)]
 pub struct ReqTxn {
@@ -191,8 +209,14 @@ fn txn_occurred_at(v: &serde_json::Value) -> Result<String, ApiError> {
     match v {
         serde_json::Value::Null => Ok(String::new()),
         serde_json::Value::Object(m) => {
-            let secs = m.get("seconds").and_then(serde_json::Value::as_i64).unwrap_or(0);
-            let nanos = m.get("nanos").and_then(serde_json::Value::as_i64).unwrap_or(0);
+            let secs = m
+                .get("seconds")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0);
+            let nanos = m
+                .get("nanos")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0);
             let nanos = u32::try_from(nanos).unwrap_or(0);
             let dt = chrono::DateTime::from_timestamp(secs, nanos)
                 .map(|d| d.with_timezone(&chrono::Utc))
@@ -204,7 +228,9 @@ fn txn_occurred_at(v: &serde_json::Value) -> Result<String, ApiError> {
                 return Ok(crate::utils::timex::go_ts(dt.with_timezone(&chrono::Utc)));
             }
             if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-                return Ok(crate::utils::timex::go_ts(d.and_hms_opt(0, 0, 0).unwrap().and_utc()));
+                return Ok(crate::utils::timex::go_ts(
+                    d.and_hms_opt(0, 0, 0).unwrap().and_utc(),
+                ));
             }
             Err(ApiError::bad_request(format!("invalid date {s:?}")))
         }
@@ -231,7 +257,12 @@ fn is_zero(v: &i64) -> bool {
 }
 
 pub fn bulk_wire(b: &crate::service::transaction::BulkResult) -> WireBulk {
-    WireBulk { success: b.success, message: b.message.clone(), failed_ids: b.failed_ids.clone(), skipped: b.skipped }
+    WireBulk {
+        success: b.success,
+        message: b.message.clone(),
+        failed_ids: b.failed_ids.clone(),
+        skipped: b.skipped,
+    }
 }
 
 #[derive(Deserialize, ToSchema, IntoParams)]
@@ -277,7 +308,11 @@ pub struct ListQuery {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<ListQuery>) -> Response {
+pub async fn list(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<ListQuery>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -286,18 +321,29 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
         None | Some("") => None,
         Some(s) => match s.parse::<TransactionType>() {
             Ok(t) => Some(t),
-            Err(_) => return ApiError::bad_request(format!("unknown transaction type {s:?}")).into_response(),
+            Err(_) => {
+                return ApiError::bad_request(format!("unknown transaction type {s:?}"))
+                    .into_response();
+            }
         },
     };
     let f = TransactionListFilter {
         account_id: q.account_id.unwrap_or_default(),
-        category_ids: q.category_id.as_deref().map(|s| s.split(',').map(str::to_string).collect()).unwrap_or_default(),
+        category_ids: q
+            .category_id
+            .as_deref()
+            .map(|s| s.split(',').map(str::to_string).collect())
+            .unwrap_or_default(),
         transaction_type,
         date_from: q.date_from.unwrap_or_default(),
         date_to: q.date_to.unwrap_or_default(),
         min_amount: q.min_amount.unwrap_or(0.0),
         max_amount: q.max_amount.unwrap_or(0.0),
-        names: q.names.as_deref().map(|s| s.split(',').map(str::to_string).collect()).unwrap_or_default(),
+        names: q
+            .names
+            .as_deref()
+            .map(|s| s.split(',').map(str::to_string).collect())
+            .unwrap_or_default(),
         page_size: i64::from(q.page_size.unwrap_or(0)),
         page_token: q.page_token.unwrap_or_default(),
         sort_by: q.sort_by.unwrap_or_default(),
@@ -314,7 +360,11 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
                 .iter()
                 .map(|r| WireTxn {
                     id: r.txn.id.clone(),
-                    name: r.txn.clean_name.clone().unwrap_or_else(|| r.txn.name.clone()),
+                    name: r
+                        .txn
+                        .clean_name
+                        .clone()
+                        .unwrap_or_else(|| r.txn.name.clone()),
                     amount: round2(r.txn.amount),
                     transaction_type: r.txn.transaction_type.to_string(),
                     occurred_at: ts_rfc3339(&r.txn.occurred_at),
@@ -322,7 +372,11 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Query(q): Quer
                     created_at: ts_rfc3339(&r.txn.created_at),
                     linked_transfer_id: r.link_id.clone(),
                     // Wire contract: null (not []) when no categories.
-                    category_ids: if r.category_ids.is_empty() { None } else { Some(r.category_ids.clone()) },
+                    category_ids: if r.category_ids.is_empty() {
+                        None
+                    } else {
+                        Some(r.category_ids.clone())
+                    },
                 })
                 .collect();
             Json(serde_json::json!({
@@ -367,14 +421,22 @@ pub async fn create(
             Err(e) => return e.into_response(),
         };
         txns.push(TransactionReq {
-            id: if t.id.is_empty() { uuid::Uuid::new_v4().to_string() } else { t.id.clone() },
+            id: if t.id.is_empty() {
+                uuid::Uuid::new_v4().to_string()
+            } else {
+                t.id.clone()
+            },
             name: t.name.clone(),
             amount: t.amount,
             transaction_type: t.transaction_type,
             occurred_at: occ,
             account_id: t.account_id.clone(),
             category_ids: t.category_ids.clone(),
-            external_id: if t.external_id.is_empty() { None } else { Some(t.external_id.clone()) },
+            external_id: if t.external_id.is_empty() {
+                None
+            } else {
+                Some(t.external_id.clone())
+            },
         });
     }
     match st.transaction.create(&uid, &txns).await {

@@ -18,11 +18,26 @@ impl SqliteInvestmentRepo {
         Self { pool }
     }
 
-    async fn create_investment_inner(&self, user_id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
+    async fn create_investment_inner(
+        &self,
+        user_id: &str,
+        symbol: &str,
+        name: &str,
+        it: InvestmentType,
+        manual_nav: f64,
+    ) -> Result<InvestmentRow> {
         let id = Uuid::new_v4().to_string();
         let now = crate::utils::timex::now_go_ts();
-        let sym: Option<&str> = if symbol.is_empty() { None } else { Some(symbol) };
-        let nav: Option<f64> = if manual_nav == 0.0 { None } else { Some(manual_nav) };
+        let sym: Option<&str> = if symbol.is_empty() {
+            None
+        } else {
+            Some(symbol)
+        };
+        let nav: Option<f64> = if manual_nav == 0.0 {
+            None
+        } else {
+            Some(manual_nav)
+        };
         sqlx::query(
             "INSERT INTO investments (id, user_id, symbol, name, investment_type, current_price, prev_close, last_quote_at, manual_nav, created_at)
              VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)",
@@ -50,7 +65,11 @@ impl SqliteInvestmentRepo {
         Ok(row.map(Into::into))
     }
 
-    async fn get_by_symbol_inner(&self, user_id: &str, symbol: &str) -> Result<Option<InvestmentRow>> {
+    async fn get_by_symbol_inner(
+        &self,
+        user_id: &str,
+        symbol: &str,
+    ) -> Result<Option<InvestmentRow>> {
         if symbol.is_empty() {
             return Ok(None);
         }
@@ -74,14 +93,31 @@ impl SqliteInvestmentRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    async fn update_investment_inner(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
-        let old_sym: Option<String> = sqlx::query_scalar("SELECT symbol FROM investments WHERE id = ? AND user_id = ?")
-            .bind(id)
-            .bind(user_id)
-            .fetch_optional(&self.pool)
-            .await?;
-        let sym: Option<&str> = if symbol.is_empty() { None } else { Some(symbol) };
-        let nav: Option<f64> = if manual_nav == 0.0 { None } else { Some(manual_nav) };
+    async fn update_investment_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+        symbol: &str,
+        name: &str,
+        it: InvestmentType,
+        manual_nav: f64,
+    ) -> Result<InvestmentRow> {
+        let old_sym: Option<String> =
+            sqlx::query_scalar("SELECT symbol FROM investments WHERE id = ? AND user_id = ?")
+                .bind(id)
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        let sym: Option<&str> = if symbol.is_empty() {
+            None
+        } else {
+            Some(symbol)
+        };
+        let nav: Option<f64> = if manual_nav == 0.0 {
+            None
+        } else {
+            Some(manual_nav)
+        };
         sqlx::query("UPDATE investments SET symbol = COALESCE(?, symbol), name = ?, investment_type = ?, manual_nav = ? WHERE id = ? AND user_id = ?")
             .bind(sym)
             .bind(name)
@@ -134,7 +170,15 @@ impl SqliteInvestmentRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    async fn create_lot_inner(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
+    async fn create_lot_inner(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        side: i64,
+        quantity: f64,
+        price: f64,
+        occurred_at: &str,
+    ) -> Result<LotRow> {
         let id = Uuid::new_v4().to_string();
         let now = crate::utils::timex::now_go_ts();
         sqlx::query(
@@ -150,7 +194,15 @@ impl SqliteInvestmentRepo {
         .bind(&now)
         .execute(&self.pool)
         .await?;
-        Ok(LotRow { id, investment_id: investment_id.to_string(), side, quantity, price, occurred_at: occurred_at.to_string(), created_at: now })
+        Ok(LotRow {
+            id,
+            investment_id: investment_id.to_string(),
+            side,
+            quantity,
+            price,
+            occurred_at: occurred_at.to_string(),
+            created_at: now,
+        })
     }
 
     async fn delete_lot_inner(&self, user_id: &str, id: &str) -> Result<bool> {
@@ -162,10 +214,19 @@ impl SqliteInvestmentRepo {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn insert_lot_inner(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool> {
+    async fn insert_lot_inner(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        input: &LotInput,
+    ) -> Result<bool> {
         let id = Uuid::new_v4().to_string();
         let now = crate::utils::timex::now_go_ts();
-        let ext: Option<&str> = if input.external_id.is_empty() { None } else { Some(&input.external_id) };
+        let ext: Option<&str> = if input.external_id.is_empty() {
+            None
+        } else {
+            Some(&input.external_id)
+        };
         let result = sqlx::query(
             "INSERT OR IGNORE INTO investment_lots (id, user_id, investment_id, side, quantity, price, occurred_at, created_at, external_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
@@ -183,7 +244,14 @@ impl SqliteInvestmentRepo {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn update_lot_inner(&self, user_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<bool> {
+    async fn update_lot_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+        quantity: f64,
+        price: f64,
+        occurred_at: &str,
+    ) -> Result<bool> {
         let result = sqlx::query("UPDATE investment_lots SET quantity = ?, price = ?, occurred_at = ? WHERE id = ? AND user_id = ?")
             .bind(quantity)
             .bind(price)
@@ -195,7 +263,12 @@ impl SqliteInvestmentRepo {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn update_quote_inner(&self, id: &str, current_price: f64, prev_close: f64) -> Result<()> {
+    async fn update_quote_inner(
+        &self,
+        id: &str,
+        current_price: f64,
+        prev_close: f64,
+    ) -> Result<()> {
         sqlx::query("UPDATE investments SET current_price = ?, prev_close = ?, last_quote_at = ? WHERE id = ?")
             .bind(current_price)
             .bind(prev_close)
@@ -206,13 +279,22 @@ impl SqliteInvestmentRepo {
         Ok(())
     }
 
-    async fn upsert_price_history_inner(&self, investment_id: &str, range_id: &str, ts: &[i64], closes: &[f64], fetched_at: i64) -> Result<()> {
+    async fn upsert_price_history_inner(
+        &self,
+        investment_id: &str,
+        range_id: &str,
+        ts: &[i64],
+        closes: &[f64],
+        fetched_at: i64,
+    ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        sqlx::query("DELETE FROM investment_price_history WHERE investment_id = ? AND range_id = ?")
-            .bind(investment_id)
-            .bind(range_id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "DELETE FROM investment_price_history WHERE investment_id = ? AND range_id = ?",
+        )
+        .bind(investment_id)
+        .bind(range_id)
+        .execute(&mut *tx)
+        .await?;
         for (i, t) in ts.iter().enumerate() {
             sqlx::query("INSERT INTO investment_price_history (investment_id, range_id, t, close, fetched_at) VALUES (?, ?, ?, ?, ?)")
                 .bind(investment_id)
@@ -227,7 +309,12 @@ impl SqliteInvestmentRepo {
         Ok(())
     }
 
-    async fn get_price_history_inner(&self, user_id: &str, investment_id: &str, range_id: &str) -> Result<(Vec<i64>, Vec<f64>, i64)> {
+    async fn get_price_history_inner(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        range_id: &str,
+    ) -> Result<(Vec<i64>, Vec<f64>, i64)> {
         let rows: Vec<(i64, f64, i64)> = sqlx::query_as(
             "SELECT t, close, fetched_at FROM investment_price_history
              WHERE investment_id = ? AND range_id = ? AND investment_id IN (SELECT id FROM investments WHERE user_id = ?)
@@ -252,8 +339,16 @@ impl SqliteInvestmentRepo {
 
 #[async_trait]
 impl crate::repo::traits::InvestmentRepo for SqliteInvestmentRepo {
-    async fn create_investment(&self, user_id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
-        self.create_investment_inner(user_id, symbol, name, it, manual_nav).await
+    async fn create_investment(
+        &self,
+        user_id: &str,
+        symbol: &str,
+        name: &str,
+        it: InvestmentType,
+        manual_nav: f64,
+    ) -> Result<InvestmentRow> {
+        self.create_investment_inner(user_id, symbol, name, it, manual_nav)
+            .await
     }
     async fn get_investment(&self, user_id: &str, id: &str) -> Result<Option<InvestmentRow>> {
         self.get_investment_inner(user_id, id).await
@@ -264,8 +359,17 @@ impl crate::repo::traits::InvestmentRepo for SqliteInvestmentRepo {
     async fn list_investments(&self, user_id: &str) -> Result<Vec<InvestmentRow>> {
         self.list_investments_inner(user_id).await
     }
-    async fn update_investment(&self, user_id: &str, id: &str, symbol: &str, name: &str, it: InvestmentType, manual_nav: f64) -> Result<InvestmentRow> {
-        self.update_investment_inner(user_id, id, symbol, name, it, manual_nav).await
+    async fn update_investment(
+        &self,
+        user_id: &str,
+        id: &str,
+        symbol: &str,
+        name: &str,
+        it: InvestmentType,
+        manual_nav: f64,
+    ) -> Result<InvestmentRow> {
+        self.update_investment_inner(user_id, id, symbol, name, it, manual_nav)
+            .await
     }
     async fn delete_investment(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_investment_inner(user_id, id).await
@@ -276,26 +380,62 @@ impl crate::repo::traits::InvestmentRepo for SqliteInvestmentRepo {
     async fn list_lots_by_user(&self, user_id: &str) -> Result<Vec<LotRow>> {
         self.list_lots_by_user_inner(user_id).await
     }
-    async fn create_lot(&self, user_id: &str, investment_id: &str, side: i64, quantity: f64, price: f64, occurred_at: &str) -> Result<LotRow> {
-        self.create_lot_inner(user_id, investment_id, side, quantity, price, occurred_at).await
+    async fn create_lot(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        side: i64,
+        quantity: f64,
+        price: f64,
+        occurred_at: &str,
+    ) -> Result<LotRow> {
+        self.create_lot_inner(user_id, investment_id, side, quantity, price, occurred_at)
+            .await
     }
     async fn delete_lot(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_lot_inner(user_id, id).await
     }
-    async fn insert_lot(&self, user_id: &str, investment_id: &str, input: &LotInput) -> Result<bool> {
+    async fn insert_lot(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        input: &LotInput,
+    ) -> Result<bool> {
         self.insert_lot_inner(user_id, investment_id, input).await
     }
-    async fn update_lot(&self, user_id: &str, id: &str, quantity: f64, price: f64, occurred_at: &str) -> Result<bool> {
-        self.update_lot_inner(user_id, id, quantity, price, occurred_at).await
+    async fn update_lot(
+        &self,
+        user_id: &str,
+        id: &str,
+        quantity: f64,
+        price: f64,
+        occurred_at: &str,
+    ) -> Result<bool> {
+        self.update_lot_inner(user_id, id, quantity, price, occurred_at)
+            .await
     }
     async fn update_quote(&self, id: &str, current_price: f64, prev_close: f64) -> Result<()> {
         self.update_quote_inner(id, current_price, prev_close).await
     }
-    async fn upsert_price_history(&self, investment_id: &str, range_id: &str, ts: &[i64], closes: &[f64], fetched_at: i64) -> Result<()> {
-        self.upsert_price_history_inner(investment_id, range_id, ts, closes, fetched_at).await
+    async fn upsert_price_history(
+        &self,
+        investment_id: &str,
+        range_id: &str,
+        ts: &[i64],
+        closes: &[f64],
+        fetched_at: i64,
+    ) -> Result<()> {
+        self.upsert_price_history_inner(investment_id, range_id, ts, closes, fetched_at)
+            .await
     }
-    async fn get_price_history(&self, user_id: &str, investment_id: &str, range_id: &str) -> Result<(Vec<i64>, Vec<f64>, i64)> {
-        self.get_price_history_inner(user_id, investment_id, range_id).await
+    async fn get_price_history(
+        &self,
+        user_id: &str,
+        investment_id: &str,
+        range_id: &str,
+    ) -> Result<(Vec<i64>, Vec<f64>, i64)> {
+        self.get_price_history_inner(user_id, investment_id, range_id)
+            .await
     }
 }
 
@@ -320,7 +460,8 @@ impl From<RawInvestment> for InvestmentRow {
             id: r.id,
             symbol: r.symbol.unwrap_or_default(),
             name: r.name,
-            investment_type: InvestmentType::from_str(&r.investment_type).unwrap_or(InvestmentType::Stock),
+            investment_type: InvestmentType::from_str(&r.investment_type)
+                .unwrap_or(InvestmentType::Stock),
             current_price: r.current_price.unwrap_or(0.0),
             prev_close: r.prev_close.unwrap_or(0.0),
             manual_nav: r.manual_nav.unwrap_or(0.0),

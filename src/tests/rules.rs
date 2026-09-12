@@ -36,11 +36,22 @@ async fn rule_crud_and_preview() {
         )
         .await;
     assert_eq!(preview.0, StatusCode::OK, "preview: {}", preview.1);
-    assert!(preview.1.get("transactions").is_some() || preview.1.is_array(), "preview body: {}", preview.1);
+    assert!(
+        preview.1.get("transactions").is_some() || preview.1.is_array(),
+        "preview body: {}",
+        preview.1
+    );
 
     // Delete the rule.
     let rule_id = rules["rules"][0]["id"].as_str().unwrap().to_string();
-    let del = app.request("DELETE", &format!("/api/rules/{rule_id}"), None, Some(&app.token)).await;
+    let del = app
+        .request(
+            "DELETE",
+            &format!("/api/rules/{rule_id}"),
+            None,
+            Some(&app.token),
+        )
+        .await;
     assert_eq!(del.0, StatusCode::NO_CONTENT);
     let (_, rules) = app.get_json("/api/rules", Some(&app.token)).await;
     assert_eq!(rules["rules"].as_array().map(Vec::len), Some(0));

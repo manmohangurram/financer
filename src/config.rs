@@ -47,7 +47,11 @@ pub struct Storage {
 
 impl Default for Storage {
     fn default() -> Self {
-        Self { database: "sqlite".into(), sqlite: Sqlite::default(), surreal: Surreal::default() }
+        Self {
+            database: "sqlite".into(),
+            sqlite: Sqlite::default(),
+            surreal: Surreal::default(),
+        }
     }
 }
 
@@ -139,7 +143,9 @@ impl Config {
         let mut cfg = Config::default();
         cfg.apply_overrides_from(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
         if cfg.server.jwt_secret.is_empty() {
-            anyhow::bail!("FINANCER_JWT_SECRET is required — set it to a stable secret (e.g. `openssl rand -hex 32`)");
+            anyhow::bail!(
+                "FINANCER_JWT_SECRET is required — set it to a stable secret (e.g. `openssl rand -hex 32`)"
+            );
         }
         Ok(cfg)
     }
@@ -198,7 +204,12 @@ mod tests {
     use super::*;
 
     fn map<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
-        move |k| pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| (*v).to_string())
+        move |k| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| (*v).to_string())
+        }
     }
 
     #[test]

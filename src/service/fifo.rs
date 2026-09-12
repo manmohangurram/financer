@@ -63,9 +63,21 @@ mod tests {
     #[test]
     fn fifo_buy_sell_consumes_oldest() {
         let pos = compute_fifo(&[
-            FifoLot { side: 1, quantity: 10.0, price: 10.0 },
-            FifoLot { side: 1, quantity: 10.0, price: 20.0 },
-            FifoLot { side: -1, quantity: 15.0, price: 25.0 },
+            FifoLot {
+                side: 1,
+                quantity: 10.0,
+                price: 10.0,
+            },
+            FifoLot {
+                side: 1,
+                quantity: 10.0,
+                price: 20.0,
+            },
+            FifoLot {
+                side: -1,
+                quantity: 15.0,
+                price: 25.0,
+            },
         ]);
         assert_eq!(pos.quantity, 5.0);
         assert_eq!(pos.avg_cost, 20.0); // remaining 5 from the 20-cost lot
@@ -75,8 +87,16 @@ mod tests {
     #[test]
     fn fifo_partial_sell() {
         let pos = compute_fifo(&[
-            FifoLot { side: 1, quantity: 10.0, price: 10.0 },
-            FifoLot { side: -1, quantity: 4.0, price: 15.0 },
+            FifoLot {
+                side: 1,
+                quantity: 10.0,
+                price: 10.0,
+            },
+            FifoLot {
+                side: -1,
+                quantity: 4.0,
+                price: 15.0,
+            },
         ]);
         assert_eq!(pos.quantity, 6.0);
         assert_eq!(pos.realized_pnl, (15.0 - 10.0) * 4.0);

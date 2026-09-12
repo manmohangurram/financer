@@ -20,7 +20,13 @@ pub trait UserRepo: Send + Sync {
     async fn create(&self, email: &str, password_hash: &str, name: &str) -> Result<String>;
     async fn by_email(&self, email: &str) -> Result<Option<UserRow>>;
     async fn by_id(&self, id: &str) -> Result<Option<UserRow>>;
-    async fn update_profile(&self, id: &str, name: &str, email: &str, avatar_url: &str) -> Result<()>;
+    async fn update_profile(
+        &self,
+        id: &str,
+        name: &str,
+        email: &str,
+        avatar_url: &str,
+    ) -> Result<()>;
     async fn change_password(&self, id: &str, password_hash: &str) -> Result<i64>;
     async fn logout_all(&self, id: &str) -> Result<()>;
 }

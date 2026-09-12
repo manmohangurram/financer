@@ -16,17 +16,20 @@ fn dir() -> PathBuf {
 
 /// Persist an upload for `user_id`; returns the opaque id and the file's sha256.
 pub fn save(user_id: &str, ext: &str, bytes: &[u8]) -> Result<(String, String)> {
-    std::fs::create_dir_all(dir()).map_err(|e| ApiError::internal(format!("could not create upload dir: {e}")))?;
+    std::fs::create_dir_all(dir())
+        .map_err(|e| ApiError::internal(format!("could not create upload dir: {e}")))?;
     let id = uuid::Uuid::new_v4().to_string();
     let path = dir().join(format!("{user_id}_{id}.{ext}"));
-    std::fs::write(&path, bytes).map_err(|e| ApiError::internal(format!("could not store upload: {e}")))?;
+    std::fs::write(&path, bytes)
+        .map_err(|e| ApiError::internal(format!("could not store upload: {e}")))?;
     Ok((id, sha256_hex(bytes)))
 }
 
 /// Read a previously-uploaded file belonging to `user_id`.
 pub fn load(user_id: &str, id: &str) -> Result<PathBuf> {
     let prefix = format!("{user_id}_{id}.");
-    let entries = std::fs::read_dir(dir()).map_err(|_| ApiError::bad_request("upload not found or expired"))?;
+    let entries = std::fs::read_dir(dir())
+        .map_err(|_| ApiError::bad_request("upload not found or expired"))?;
     for entry in entries.flatten() {
         if entry.file_name().to_string_lossy().starts_with(&prefix) {
             return Ok(entry.path());
@@ -44,7 +47,9 @@ pub fn delete(user_id: &str, id: &str) {
 
 /// Remove uploads older than `max_age` (abandoned uploads).
 pub fn sweep(max_age: Duration) {
-    let Ok(entries) = std::fs::read_dir(dir()) else { return };
+    let Ok(entries) = std::fs::read_dir(dir()) else {
+        return;
+    };
     let now = std::time::SystemTime::now();
     for entry in entries.flatten() {
         let stale = entry

@@ -37,7 +37,11 @@ impl TestApp {
     pub async fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let cfg = Sqlite {
-            path: dir.path().join("financer.db").to_string_lossy().into_owned(),
+            path: dir
+                .path()
+                .join("financer.db")
+                .to_string_lossy()
+                .into_owned(),
             journal_mode: "memory".into(),
             synchronous: "off".into(),
             busy_timeout_ms: 5000,
@@ -51,11 +55,23 @@ impl TestApp {
 
         let account = AccountService::new(repos.account.clone());
         let category = CategoryService::new(repos.category.clone());
-        let rule = RuleService::new(repos.rule.clone(), repos.category.clone(), repos.transaction.clone());
-        let transfer_rule = TransferRuleService::new(repos.rule.clone(), repos.transaction.clone(), repos.account.clone());
-        let transaction = TransactionService::new(repos.transaction.clone(), repos.account.clone(), repos.category.clone())
-            .with_transfer_rule(transfer_rule.clone())
-            .with_rule(Arc::new(rule.clone()));
+        let rule = RuleService::new(
+            repos.rule.clone(),
+            repos.category.clone(),
+            repos.transaction.clone(),
+        );
+        let transfer_rule = TransferRuleService::new(
+            repos.rule.clone(),
+            repos.transaction.clone(),
+            repos.account.clone(),
+        );
+        let transaction = TransactionService::new(
+            repos.transaction.clone(),
+            repos.account.clone(),
+            repos.category.clone(),
+        )
+        .with_transfer_rule(transfer_rule.clone())
+        .with_rule(Arc::new(rule.clone()));
         let transfer = TransferService::new(repos.transaction.clone(), repos.account.clone());
 
         let state = AppState {
@@ -79,23 +95,51 @@ impl TestApp {
         };
         let router = crate::http::router(state);
 
-        let mut app = Self { router, token: String::new(), account_id: String::new(), _dir: dir };
-        let signup = app.post_json("/api/auth/signup", &serde_json::json!({
-            "email": "test@x.com", "password": "secret1", "name": "Test"
-        }), None).await;
+        let mut app = Self {
+            router,
+            token: String::new(),
+            account_id: String::new(),
+            _dir: dir,
+        };
+        let signup = app
+            .post_json(
+                "/api/auth/signup",
+                &serde_json::json!({
+                    "email": "test@x.com", "password": "secret1", "name": "Test"
+                }),
+                None,
+            )
+            .await;
         assert_eq!(signup.0, StatusCode::CREATED, "signup failed: {}", signup.1);
         app.token = signup.1["accessToken"].as_str().unwrap().to_string();
 
-        let acc = app.post_json("/api/accounts", &serde_json::json!({
-            "bankName": "Chase", "nickname": "Main", "type": "CURRENT"
-        }), Some(&app.token.clone())).await;
-        assert_eq!(acc.0, StatusCode::CREATED, "account create failed: {}", acc.1);
+        let acc = app
+            .post_json(
+                "/api/accounts",
+                &serde_json::json!({
+                    "bankName": "Chase", "nickname": "Main", "type": "CURRENT"
+                }),
+                Some(&app.token.clone()),
+            )
+            .await;
+        assert_eq!(
+            acc.0,
+            StatusCode::CREATED,
+            "account create failed: {}",
+            acc.1
+        );
         app.account_id = acc.1["id"].as_str().unwrap().to_string();
         app
     }
 
     /// Send a request; returns (status, parsed JSON body). `token` = optional bearer.
-    pub async fn request(&self, method: &str, path: &str, body: Option<Value>, token: Option<&str>) -> (StatusCode, Value) {
+    pub async fn request(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+        token: Option<&str>,
+    ) -> (StatusCode, Value) {
         let mut b = Request::builder().method(method).uri(path);
         if body.is_some() {
             b = b.header("content-type", "application/json");
@@ -103,11 +147,17 @@ impl TestApp {
         if let Some(t) = token {
             b = b.header("authorization", format!("Bearer {t}"));
         }
-        let req = b.body(body.map_or_else(Body::empty, |v| Body::from(v.to_string()))).unwrap();
+        let req = b
+            .body(body.map_or_else(Body::empty, |v| Body::from(v.to_string())))
+            .unwrap();
         let res = self.router.clone().oneshot(req).await.unwrap();
         let status = res.status();
         let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        let json = if bytes.is_empty() { Value::Null } else { serde_json::from_slice(&bytes).unwrap_or(Value::Null) };
+        let json = if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+        };
         (status, json)
     }
 
@@ -115,7 +165,12 @@ impl TestApp {
         self.request("GET", path, None, token).await
     }
 
-    pub async fn post_json(&self, path: &str, body: &Value, token: Option<&str>) -> (StatusCode, Value) {
+    pub async fn post_json(
+        &self,
+        path: &str,
+        body: &Value,
+        token: Option<&str>,
+    ) -> (StatusCode, Value) {
         self.request("POST", path, Some(body.clone()), token).await
     }
 

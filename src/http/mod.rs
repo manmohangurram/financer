@@ -12,14 +12,14 @@ pub mod transaction;
 pub mod transfer;
 pub mod user_key;
 use axum::extract::{Multipart, State};
-use axum::http::{header, HeaderMap, StatusCode, Uri};
+use axum::http::{HeaderMap, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Response};
-use utoipa::OpenApi;
 use axum::routing::get;
 use axum::{Json, Router};
+use utoipa::OpenApi;
 
 use crate::auth::Jwt;
-use crate::error::{json_error, ApiError, Result};
+use crate::error::{ApiError, Result, json_error};
 use crate::http::account::routes as account_routes;
 use crate::http::analytics::routes as analytics_routes;
 use crate::http::category::routes as category_routes;
@@ -30,13 +30,13 @@ use crate::http::transaction::routes as transaction_routes;
 use crate::http::transfer::routes as transfer_routes;
 use crate::http::user_key::routes as user_key_routes;
 use crate::service::account::AccountService;
-use crate::service::investment::InvestmentService;
-use crate::service::category::CategoryService;
-use crate::service::rule::RuleService;
-use crate::service::transfer_rule::TransferRuleService;
 use crate::service::auth::{AuthService, LoginRequest, RefreshTokenRequest, SignupRequest};
+use crate::service::category::CategoryService;
+use crate::service::investment::InvestmentService;
+use crate::service::rule::RuleService;
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
+use crate::service::transfer_rule::TransferRuleService;
 use crate::service::user::UserService;
 use crate::service::user_key::UserKeyService;
 
@@ -76,7 +76,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/signup", axum::routing::post(signup))
         .route("/api/auth/login", axum::routing::post(login))
         .route("/api/auth/refresh", axum::routing::post(refresh))
-        .merge(utoipa_swagger_ui::SwaggerUi::new("/docs").url("/openapi.json", crate::openapi::ApiDoc::openapi()))
+        .merge(
+            utoipa_swagger_ui::SwaggerUi::new("/docs")
+                .url("/openapi.json", crate::openapi::ApiDoc::openapi()),
+        )
         .merge(account_routes())
         .merge(analytics_routes())
         .merge(category_routes())
@@ -107,7 +110,12 @@ async fn avatar_file(State(s): State<AppState>, uri: Uri) -> Response {
                 "webp" => "image/webp",
                 _ => "application/octet-stream",
             };
-            (StatusCode::OK, [(header::CONTENT_TYPE, mime)], axum::body::Body::from(content)).into_response()
+            (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, mime)],
+                axum::body::Body::from(content),
+            )
+                .into_response()
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
