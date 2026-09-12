@@ -57,6 +57,8 @@ use crate::repo::traits::transaction::TransactionType;
         crate::http::investment::refresh_prices,
         crate::http::investment::portfolio_summary,
         crate::http::investment::import,
+        crate::http::investment::import_file,
+        crate::http::investment::import_file_commit,
         crate::http::settings::get,
         crate::http::settings::update,
         crate::http::settings::password,

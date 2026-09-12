@@ -1,6 +1,6 @@
 //! Investments HTTP handlers — mirroring Go's `httpserver/investment_handlers.go`.
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Multipart, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
@@ -19,6 +19,8 @@ pub fn routes() -> Router<AppState> {
         .route("/api/investments/search", axum::routing::get(search))
         .route("/api/investments/refresh-prices", axum::routing::post(refresh_prices))
         .route("/api/investments/import", axum::routing::post(import))
+        .route("/api/investments/import/file", axum::routing::post(import_file))
+        .route("/api/investments/import/file/commit", axum::routing::post(import_file_commit))
         .route("/api/investments/{id}", axum::routing::get(get).put(update).delete(delete))
         .route("/api/investments/{id}/lots", axum::routing::get(list_lots).post(add_lot))
         .route("/api/investments/{id}/lots/{lot_id}", axum::routing::put(update_lot).delete(delete_lot))
@@ -389,6 +391,111 @@ pub async fn import(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
         Ok((created, skipped)) => Json(serde_json::json!({ "created": created, "skipped": skipped })).into_response(),
         Err(e) => e.into_response(),
     }
+}
+
+/// Upload a broker export (CSV/XLSX/PDF). Locates the holdings table and
+/// returns its headers + data-row count for the mapping step.
+#[utoipa::path(
+    post,
+    path = "/api/investments/import/file",
+    request_body(content = String, content_type = "multipart/form-data"),
+    responses(
+        (status = 200, description = "Located table: id, headers and row count"),
+        (status = 400, description = "Unsupported type, unreadable file, or no holdings table"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import_file(State(st): State<AppState>, headers: HeaderMap, mut mp: Multipart) -> Response {
+    let uid = match require_user(&headers, &st.jwt) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    let Some((filename, bytes)) = crate::http::read_upload_file(&mut mp).await else {
+        return ApiError::bad_request("missing 'file' field").into_response();
+    };
+    let Some(kind) = crate::import::kind_for(&filename) else {
+        return ApiError::bad_request("unsupported file type; expected .csv, .xlsx or .pdf").into_response();
+    };
+    let parsed = match crate::import::parse(&bytes, kind) {
+        Ok(p) => p,
+        Err(e) => return e.into_response(),
+    };
+    let Some(table) = locate_parsed_table(&parsed) else {
+        return ApiError::bad_request("no holdings table found in the file").into_response();
+    };
+    let ext = crate::import::store::extension_of(&filename);
+    let id = match crate::import::store::save(&uid, &ext, &bytes) {
+        Ok((id, _hash)) => id,
+        Err(e) => return e.into_response(),
+    };
+    Json(serde_json::json!({ "id": id, "headers": table.headers, "rowCount": table.rows.len() })).into_response()
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(rename_all = "camelCase")]
+pub struct CommitImportRequest {
+    id: String,
+    mapping: crate::import::investment::Mapping,
+}
+
+/// Commit a previously-uploaded broker export: locate the table, apply the
+/// column mapping and import. The upload is consumed on success.
+#[utoipa::path(
+    post,
+    path = "/api/investments/import/file/commit",
+    request_body = CommitImportRequest,
+    responses(
+        (status = 200, description = "created/skipped counts"),
+        (status = 400, description = "Unknown/expired upload or invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn import_file_commit(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<CommitImportRequest>) -> Response {
+    let uid = match require_user(&headers, &st.jwt) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
+    let path = match crate::import::store::load(&uid, &req.id) {
+        Ok(p) => p,
+        Err(e) => return e.into_response(),
+    };
+    let Some(kind) = crate::import::kind_for(&path.to_string_lossy()) else {
+        return ApiError::bad_request("unsupported stored file").into_response();
+    };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return ApiError::internal("could not read upload").into_response();
+    };
+    let parsed = match crate::import::parse(&bytes, kind) {
+        Ok(p) => p,
+        Err(e) => return e.into_response(),
+    };
+    let Some(table) = locate_parsed_table(&parsed) else {
+        return ApiError::bad_request("no holdings table found in the file").into_response();
+    };
+    let hash = crate::import::store::sha256_hex(&bytes);
+    let rows = crate::import::investment::to_rows(&table, &req.mapping, &hash);
+    match st.investment.import(&uid, &rows).await {
+        Ok((created, skipped)) => {
+            crate::import::store::delete(&uid, &req.id);
+            Json(serde_json::json!({ "created": created, "skipped": skipped })).into_response()
+        }
+        Err(e) => e.into_response(),
+    }
+}
+
+/// Locate the holdings table inside a parsed file (its header row + data rows).
+fn locate_parsed_table(parsed: &crate::import::ParsedFile) -> Option<crate::import::investment::LocatedTable> {
+    let mut rows = Vec::with_capacity(parsed.rows.len() + 1);
+    rows.push(parsed.headers.clone());
+    rows.extend(parsed.rows.iter().cloned());
+    crate::import::investment::locate_table(&rows)
 }
 
 fn parse_import_side(v: &serde_json::Value) -> Option<i64> {

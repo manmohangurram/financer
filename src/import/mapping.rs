@@ -100,7 +100,7 @@ fn parse_type_value(v: &str) -> Option<TransactionType> {
 
 /// Parse a money cell: strips thousands separators, spaces and a leading
 /// currency symbol; blank/garbage is `0`.
-fn parse_amount(cell: &str) -> f64 {
+pub(crate) fn parse_amount(cell: &str) -> f64 {
     let cleaned: String = cell
         .trim()
         .trim_start_matches(['₹', '$', '£', '€'])
@@ -112,7 +112,7 @@ fn parse_amount(cell: &str) -> f64 {
 
 /// Day-first `DD/MM/YYYY` (also `-` separated, 2- or 4-digit year), else ISO
 /// `YYYY-MM-DD`, else "now" — same order as the old client parser.
-fn build_date(cell: &str) -> DateTime<Utc> {
+pub(crate) fn build_date(cell: &str) -> DateTime<Utc> {
     if let Some(d) = parse_dmy(cell) {
         return d.and_hms_opt(0, 0, 0).unwrap().and_utc();
     }
