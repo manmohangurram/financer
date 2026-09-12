@@ -31,3 +31,26 @@ describe('dateToUnixSeconds', () => {
     expect(d.getDate()).toBe(7);
   });
 });
+import { defaultSpendingRange } from './format';
+
+describe('defaultSpendingRange', () => {
+  const now = new Date('2026-09-12T12:00:00Z');
+
+  it('uses the smallest preset that contains the latest transaction', () => {
+    expect(defaultSpendingRange('2026-09-10T10:00:00Z', now).range).toBe('7D');
+    expect(defaultSpendingRange('2026-08-20T10:00:00Z', now).range).toBe('1M');
+    expect(defaultSpendingRange('2026-06-01T10:00:00Z', now).range).toBe('6M');
+    expect(defaultSpendingRange('2026-01-01T10:00:00Z', now).range).toBe('1Y');
+  });
+
+  it('falls back to a custom 1-year window when older than every preset', () => {
+    const r = defaultSpendingRange('2024-08-08T10:00:00Z', now);
+    expect(r.range).toBe('CUSTOM');
+    expect(r.start).toBe('2024-08-08');
+    expect(r.end).toBe('2025-08-08');
+  });
+
+  it('defaults to 7D for an unusable date', () => {
+    expect(defaultSpendingRange('nonsense', now).range).toBe('7D');
+  });
+});

@@ -7,7 +7,7 @@ import TimeRange from '@/components/TimeRange.vue';
 import DatePicker from '@/components/DatePicker.vue';
 import { accounts, categories, analytics, transactions } from '@/lib/api/client';
 import { useAccountsStore } from '@/lib/stores/accounts';
-import { toLocalDateString } from '@/lib/utils/format';
+import { defaultSpendingRange, toLocalDateString } from '@/lib/utils/format';
 
 const store = useAccountsStore();
 
@@ -122,6 +122,20 @@ watch(customEnd, async (v) => {
 watch(() => store.state.selectedAccountId, async () => { selectedKey.value = null; await refresh(); });
 watch(drillSort, refresh);
 
+async function pickDefaultRange() {
+  try {
+    const resp = await transactions().listTransactions({ pageSize: 1 });
+    const latest = resp?.transactions?.[0]?.occurredAt;
+    if (!latest) return;
+    const picked = defaultSpendingRange(latest);
+    range.value = picked.range;
+    if (picked.start && picked.end) {
+      customStart.value = picked.start;
+      customEnd.value = picked.end;
+    }
+  } catch (e) { console.error(e); }
+}
+
 async function loadAll() {
   loading.value = true;
   try {
@@ -131,6 +145,7 @@ async function loadAll() {
     ]);
     accountList.value = accResp.accounts || [];
     categoryList.value = catResp.categories || [];
+    await pickDefaultRange();
     await refresh();
   } catch (e) { console.error(e); }
   loading.value = false;
