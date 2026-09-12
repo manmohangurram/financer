@@ -202,6 +202,19 @@ impl<C: Connection> TransactionRepo<C> {
         Ok(errors)
     }
 
+    pub async fn apply_rule_result(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()> {
+        let cats: Vec<surrealdb::types::RecordId> = category_ids.iter().map(|c| rid("category", c)).collect();
+        self.db
+            .query("UPDATE $rid SET cleanName = $clean, categories = $cats WHERE user = $uid")
+            .bind(("rid", rid("transaction", id)))
+            .bind(("uid", rid("user", user_id)))
+            .bind(("clean", clean_name))
+            .bind(("cats", cats))
+            .await?
+            .check()?;
+        Ok(())
+    }
+
     /// Delete transactions by id.
     pub async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         let mut errors: Vec<String> = Vec::new();
@@ -608,6 +621,9 @@ impl crate::repo::traits::TransactionRepo for TransactionRepo<DbClient> {
     }
     async fn update(&self, user_id: &str, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>> {
         self.update(user_id, inputs).await
+    }
+    async fn apply_rule_result(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()> {
+        self.apply_rule_result(user_id, id, clean_name, category_ids).await
     }
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         self.delete(user_id, ids).await

@@ -131,7 +131,12 @@ pub async fn create(State(st): State<AppState>, headers: HeaderMap, req: JsonRes
         Err(e) => return e.into_response(),
     };
     match st.rule.create(&uid, &req.name, req.priority, req.logic, &req.conditions(), &req.actions()).await {
-        Ok(r) => (StatusCode::CREATED, Json(r)).into_response(),
+        Ok(r) => {
+            if let Err(e) = st.rule.apply_to_existing(&uid).await {
+                tracing::warn!("rule backfill failed: {}", e.message);
+            }
+            (StatusCode::CREATED, Json(r)).into_response()
+        }
         Err(e) => e.into_response(),
     }
 }
@@ -159,7 +164,12 @@ pub async fn update(State(st): State<AppState>, headers: HeaderMap, Path(id): Pa
         Err(e) => return e.into_response(),
     };
     match st.rule.update(&uid, &id, &req.name, req.priority, req.logic, &req.conditions(), &req.actions()).await {
-        Ok(r) => Json(r).into_response(),
+        Ok(r) => {
+            if let Err(e) = st.rule.apply_to_existing(&uid).await {
+                tracing::warn!("rule backfill failed: {}", e.message);
+            }
+            Json(r).into_response()
+        }
         Err(e) => e.into_response(),
     }
 }
@@ -219,6 +229,7 @@ pub async fn preview(State(st): State<AppState>, headers: HeaderMap, req: JsonRe
                 "type": v.transaction_type.to_string(),
                 "accountId": v.account_id,
                 "categoryIds": v.category_ids,
+                "occurredAt": crate::utils::timex::ts_rfc3339(&v.occurred_at),
             })).collect();
             Json(serde_json::json!({ "transactions": items })).into_response()
         }
@@ -243,8 +254,12 @@ pub async fn run(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
+    let updated = match st.rule.run(&uid, &id).await {
+        Ok(n) => n,
+        Err(e) => return e.into_response(),
+    };
     match st.transfer_rule.run_rule(&uid, &id).await {
-        Ok(r) => Json(serde_json::json!({ "matched": r.matched, "linked": r.linked, "created": r.created })).into_response(),
+        Ok(r) => Json(serde_json::json!({ "updated": updated, "matched": r.matched, "linked": r.linked, "created": r.created })).into_response(),
         Err(e) => e.into_response(),
     }
 }

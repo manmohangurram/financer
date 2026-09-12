@@ -480,5 +480,6 @@ fn txn_to_view(input: &CreateTransactionInput) -> TransactionView {
         transaction_type: t.transaction_type,
         account_id: t.account_id.clone(),
         category_ids: input.category_ids.clone(),
+        occurred_at: t.occurred_at.clone(),
     }
 }

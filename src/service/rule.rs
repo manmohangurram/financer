@@ -23,6 +23,7 @@ pub struct TransactionView {
     pub transaction_type: TransactionType,
     pub account_id: String,
     pub category_ids: Vec<String>,
+    pub occurred_at: String,
 }
 
 impl RuleService {
@@ -116,6 +117,58 @@ impl RuleService {
         Ok(out)
     }
 
+    /// Apply every rule to existing rows, persisting the resolved name + categories.
+    pub async fn apply_to_existing(&self, user_id: &str) -> Result<i64> {
+        let rules = self.rules.list_for_overlay(user_id).await?;
+        self.apply_rules(user_id, &rules).await
+    }
+
+    /// Apply one rule to existing rows — the "run now" action.
+    pub async fn run(&self, user_id: &str, rule_id: &str) -> Result<i64> {
+        let rule = self
+            .rules
+            .get_by_id(user_id, rule_id)
+            .await?
+            .ok_or_else(|| ApiError::not_found(format!("rule {rule_id} not found")))?;
+        let overlay = crate::repo::traits::rule::OverlayRule {
+            logic: rule.logic,
+            conditions: rule
+                .conditions
+                .iter()
+                .map(|c| ConditionData { match_field: c.match_field, operator: c.operator, pattern: c.pattern.clone() })
+                .collect(),
+            actions: rule.actions,
+        };
+        self.apply_rules(user_id, std::slice::from_ref(&overlay)).await
+    }
+
+    async fn apply_rules(&self, user_id: &str, rules: &[crate::repo::traits::rule::OverlayRule]) -> Result<i64> {
+        if rules.is_empty() {
+            return Ok(0);
+        }
+        let cat_names = self.category_name_by_id(user_id).await?;
+        let rows = self.transactions.list(user_id, &TransactionListFilter::default()).await?;
+        let mut changed = 0i64;
+        for row in &rows.rows {
+            let mut view = Self::row_to_view(row);
+            let data = Self::txn_match_data(&view, &cat_names);
+            for rule in rules {
+                if match_rule_data(&data, rule.logic, &rule.conditions) {
+                    apply_rule_actions(&mut view, &rule.actions);
+                }
+            }
+            // Snapshot only when a rule renamed the row.
+            let clean = (view.name != row.txn.name).then(|| view.name.clone());
+            if clean.is_some() || view.category_ids != row.category_ids {
+                self.transactions
+                    .apply_rule_result(user_id, &row.txn.id, clean.as_deref(), &view.category_ids)
+                    .await?;
+                changed += 1;
+            }
+        }
+        Ok(changed)
+    }
+
     async fn category_name_by_id(&self, user_id: &str) -> Result<std::collections::HashMap<String, String>> {
         let res = self.categories.list(user_id, 0, "").await?;
         Ok(res.categories.into_iter().map(|c| (c.id, c.name)).collect())
@@ -143,6 +196,7 @@ impl RuleService {
             transaction_type: row.txn.transaction_type,
             account_id: row.txn.account_id.clone(),
             category_ids: row.category_ids.clone(),
+            occurred_at: row.txn.occurred_at.clone(),
         }
     }
 }
@@ -300,6 +354,7 @@ mod tests {
             transaction_type: crate::repo::traits::transaction::TransactionType::Debit,
             account_id: "acc-1".to_string(),
             category_ids: vec![],
+            occurred_at: "2026-01-01 00:00:00 +0000 UTC".to_string(),
         };
         apply_rule_actions(&mut txn, &[
             RuleAction { set_name: "Netflix Subscription".to_string(), set_name_op: Some(ActionOp::Rename), ..Default::default() },
