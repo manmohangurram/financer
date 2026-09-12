@@ -68,6 +68,7 @@ pub fn json_error(e: &axum::extract::rejection::JsonRejection) -> ApiError {
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
+#[cfg(feature = "surreal")]
 impl From<surrealdb::Error> for ApiError {
     fn from(e: surrealdb::Error) -> Self {
         // Map a unique-index violation to 409; anything else is a generic 500
@@ -82,6 +83,7 @@ impl From<surrealdb::Error> for ApiError {
     }
 }
 
+#[cfg(feature = "surreal")]
 impl From<crate::repo::surreal::RepoError> for ApiError {
     fn from(e: crate::repo::surreal::RepoError) -> Self {
         tracing::error!("repo error: {e}");

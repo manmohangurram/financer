@@ -8,6 +8,12 @@ license = "0BSD"
 repository = "https://github.com/manmohangurram/financer"
 default-run = "financer"
 
+[features]
+# SurrealDB storage backend. Off by default: SQLite-only builds skip the whole
+# `surrealdb` dependency tree. Enable with `--features surreal`.
+default = []
+surreal = ["dep:surrealdb"]
+
 [lints.rust]
 unsafe_code = "warn"
 
@@ -21,7 +27,7 @@ tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "migrate"] }
-surrealdb = { version = "3", features = ["kv-mem", "protocol-http"] }
+surrealdb = { version = "3", features = ["kv-mem", "protocol-http"], optional = true }
 thiserror = "2"
 utoipa = { version = "5.5", features = ["axum_extras", "chrono"] }
 utoipa-axum = "0.2"
