@@ -10,6 +10,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::SqlitePool;
 
 use crate::error::Result;
+#[cfg(feature = "surreal")]
 use crate::repo::surreal;
 use crate::repo::traits::{AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo};
 
@@ -24,6 +25,7 @@ pub struct RepoSet {
     pub user_key: Arc<dyn UserKeyRepo>,
 }
 
+#[cfg(feature = "surreal")]
 pub async fn surreal_repo_set(
     url: &str,
     user: &str,
