@@ -6,7 +6,7 @@ use surrealdb::Connection;
 use crate::error::Result;
 use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 
-pub use crate::repo::traits::mail::{MailAccountRow, MailStatus, NewMailMessage};
+pub use crate::repo::traits::mail::{MailAccountRow, MailStatus, NewMailAccount, NewMailMessage};
 
 const ACCOUNT_FIELDS: &str = "meta::id(id) AS id, userId, label, imapHost, imapPort, username, secretEnc, \
                               senderAllowlist, enabled, lastPolledAt, lastError, createdAt";
@@ -19,6 +19,71 @@ pub struct MailRepo<C: Connection = DbClient> {
 impl<C: Connection> MailRepo<C> {
     pub fn new(db: RepoConn<C>) -> Self {
         Self { db }
+    }
+
+    pub async fn create_account(
+        &self,
+        user_id: &str,
+        input: &NewMailAccount,
+    ) -> Result<MailAccountRow> {
+        let now = crate::utils::timex::now_go_ts();
+        let mut res = self
+            .db
+            .query(format!(
+                "CREATE mail_account CONTENT {{
+                    user: $uid, userId: $userid, label: $label, imapHost: $host, imapPort: $port,
+                    username: $user, secretEnc: $secret, senderAllowlist: $allow,
+                    enabled: true, lastPolledAt: NONE, lastError: '', createdAt: $created
+                }} RETURN {ACCOUNT_FIELDS}"
+            ))
+            .bind(("uid", rid("user", user_id)))
+            .bind(("userid", user_id.to_string()))
+            .bind(("label", input.label.clone()))
+            .bind(("host", input.imap_host.clone()))
+            .bind(("port", input.imap_port))
+            .bind(("user", input.username.clone()))
+            .bind(("secret", input.secret_enc.clone()))
+            .bind(("allow", input.sender_allowlist.clone()))
+            .bind(("created", now))
+            .await?
+            .check()?;
+        take_json::<MailAccountRow>(&mut res, 0)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| crate::error::ApiError::internal("mail account create returned no row"))
+    }
+
+    pub async fn list_accounts(&self, user_id: &str) -> Result<Vec<MailAccountRow>> {
+        let mut res = self
+            .db
+            .query(format!(
+                "SELECT {ACCOUNT_FIELDS} FROM mail_account WHERE user = $uid ORDER BY createdAt"
+            ))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?)
+    }
+
+    pub async fn get_account(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>> {
+        let mut res = self
+            .db
+            .query(format!(
+                "SELECT {ACCOUNT_FIELDS} FROM mail_account WHERE id = $rid AND user = $uid LIMIT 1"
+            ))
+            .bind(("rid", rid("mail_account", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?.into_iter().next())
+    }
+
+    pub async fn delete_account(&self, user_id: &str, id: &str) -> Result<bool> {
+        let mut res = self
+            .db
+            .query("DELETE $rid WHERE user = $uid RETURN BEFORE")
+            .bind(("rid", rid("mail_account", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
     }
 
     pub async fn list_pollable_accounts(&self) -> Result<Vec<MailAccountRow>> {
@@ -113,6 +178,22 @@ impl<C: Connection> MailRepo<C> {
 
 #[async_trait::async_trait]
 impl crate::repo::traits::MailRepo for MailRepo<DbClient> {
+    async fn create_account(
+        &self,
+        user_id: &str,
+        input: &NewMailAccount,
+    ) -> Result<MailAccountRow> {
+        self.create_account(user_id, input).await
+    }
+    async fn list_accounts(&self, user_id: &str) -> Result<Vec<MailAccountRow>> {
+        self.list_accounts(user_id).await
+    }
+    async fn get_account(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>> {
+        self.get_account(user_id, id).await
+    }
+    async fn delete_account(&self, user_id: &str, id: &str) -> Result<bool> {
+        self.delete_account(user_id, id).await
+    }
     async fn list_pollable_accounts(&self) -> Result<Vec<MailAccountRow>> {
         self.list_pollable_accounts().await
     }

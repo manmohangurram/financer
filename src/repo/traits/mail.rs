@@ -37,6 +37,17 @@ pub enum MailStatus {
     Rejected,
 }
 
+/// Fields a caller supplies when linking a mailbox.
+#[derive(Debug, Clone)]
+pub struct NewMailAccount {
+    pub label: String,
+    pub imap_host: String,
+    pub imap_port: i64,
+    pub username: String,
+    pub secret_enc: String,
+    pub sender_allowlist: Vec<String>,
+}
+
 /// A message about to be stored. `message_id` is the idempotency key.
 #[derive(Debug, Clone)]
 pub struct NewMailMessage {

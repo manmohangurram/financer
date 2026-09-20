@@ -19,6 +19,81 @@ impl SqliteMailRepo {
         Self { pool }
     }
 
+    async fn create_account_inner(
+        &self,
+        user_id: &str,
+        input: &NewMailAccount,
+    ) -> Result<MailAccountRow> {
+        let id = Uuid::new_v4().to_string();
+        let now = crate::utils::timex::now_go_ts();
+        let allowlist =
+            serde_json::to_string(&input.sender_allowlist).unwrap_or_else(|_| "[]".into());
+        sqlx::query(
+            "INSERT INTO mail_accounts
+                (id, user_id, label, imap_host, imap_port, username, secret_enc, sender_allowlist, enabled, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+        )
+        .bind(&id)
+        .bind(user_id)
+        .bind(&input.label)
+        .bind(&input.imap_host)
+        .bind(input.imap_port)
+        .bind(&input.username)
+        .bind(&input.secret_enc)
+        .bind(&allowlist)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        Ok(MailAccountRow {
+            id,
+            user_id: user_id.to_string(),
+            label: input.label.clone(),
+            imap_host: input.imap_host.clone(),
+            imap_port: input.imap_port,
+            username: input.username.clone(),
+            secret_enc: input.secret_enc.clone(),
+            sender_allowlist: input.sender_allowlist.clone(),
+            enabled: true,
+            last_polled_at: None,
+            last_error: String::new(),
+            created_at: now,
+        })
+    }
+
+    async fn list_accounts_inner(&self, user_id: &str) -> Result<Vec<MailAccountRow>> {
+        let rows = sqlx::query_as::<_, RawMailAccount>(
+            "SELECT id, user_id, label, imap_host, imap_port, username, secret_enc, sender_allowlist,
+                    enabled, last_polled_at, last_error, created_at
+             FROM mail_accounts WHERE user_id = ? ORDER BY created_at",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_account_inner(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>> {
+        let row = sqlx::query_as::<_, RawMailAccount>(
+            "SELECT id, user_id, label, imap_host, imap_port, username, secret_enc, sender_allowlist,
+                    enabled, last_polled_at, last_error, created_at
+             FROM mail_accounts WHERE id = ? AND user_id = ?",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(Into::into))
+    }
+
+    async fn delete_account_inner(&self, user_id: &str, id: &str) -> Result<bool> {
+        let r = sqlx::query("DELETE FROM mail_accounts WHERE id = ? AND user_id = ?")
+            .bind(id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(r.rows_affected() > 0)
+    }
+
     async fn list_pollable_accounts_inner(&self) -> Result<Vec<MailAccountRow>> {
         let rows = sqlx::query_as::<_, RawMailAccount>(
             "SELECT id, user_id, label, imap_host, imap_port, username, secret_enc, sender_allowlist,
