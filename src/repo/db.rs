@@ -25,6 +25,25 @@ pub struct RepoSet {
     pub user_key: Arc<dyn UserKeyRepo>,
 }
 
+/// Connect to the backend named by config and return its repo set.
+///
+/// The only place the two backends are chosen between; main starts from here.
+pub async fn connect(cfg: &crate::config::Config) -> anyhow::Result<RepoSet> {
+    match cfg.database() {
+        crate::config::Database::Sqlite => sqlite_repo_set(&cfg.storage.sqlite).await.map_err(|e| anyhow::anyhow!(e.message)),
+        #[cfg(feature = "surreal")]
+        crate::config::Database::Surreal => {
+            surreal_repo_set(&cfg.storage.surreal.url, &cfg.storage.surreal.user, &cfg.storage.surreal.pass, &cfg.storage.surreal.ns, &cfg.storage.surreal.db)
+                .await
+                .map_err(|e| anyhow::anyhow!(e.message))
+        }
+        #[cfg(not(feature = "surreal"))]
+        crate::config::Database::Surreal => {
+            anyhow::bail!("FINANCER_DATABASE=surreal but this build has no SurrealDB support; rebuild with `--features surreal`")
+        }
+    }
+}
+
 #[cfg(feature = "surreal")]
 pub async fn surreal_repo_set(
     url: &str,
