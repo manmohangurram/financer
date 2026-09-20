@@ -6,6 +6,7 @@ mod config;
 mod error;
 mod http;
 mod import;
+mod mail;
 mod mcp;
 mod openapi;
 mod repo;
@@ -49,6 +50,12 @@ async fn main() -> anyhow::Result<()> {
     std::fs::create_dir_all(cfg.server.data_dir.join("avatars"))?;
 
     let repo_set: RepoSet = crate::repo::db::repo_set(&cfg).await?;
+
+    crate::mail::spawn(
+        repo_set.mail.clone(),
+        cfg.server.secret_key.clone(),
+        std::time::Duration::from_secs(cfg.server.mail_poll_secs),
+    );
 
     let jwt = Jwt::new(cfg.server.jwt_secret.clone());
     let repo = repo_set.user.clone();
