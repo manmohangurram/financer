@@ -15,7 +15,10 @@ pub(crate) const KEYWORD_GROUPS: &[(&str, &[&str])] = &[
     ("name", &["name", "scheme", "fund", "stock", "company"]),
     ("quantity", &["units", "quantity", "qty", "unit"]),
     ("price", &["price", "nav", "rate", "amount", "amt", "value"]),
-    ("side", &["side", "buy", "sell", "transaction type", "debit", "credit"]),
+    (
+        "side",
+        &["side", "buy", "sell", "transaction type", "debit", "credit"],
+    ),
     ("date", &["date", "trade date", "transaction date"]),
 ];
 
@@ -32,7 +35,10 @@ pub fn locate_table(rows: &[Vec<String>]) -> Option<LocatedTable> {
     for (i, row) in rows.iter().enumerate() {
         let matched = KEYWORD_GROUPS
             .iter()
-            .filter(|(_, kws)| row.iter().any(|c| kws.iter().any(|k| c.to_lowercase().contains(k))))
+            .filter(|(_, kws)| {
+                row.iter()
+                    .any(|c| kws.iter().any(|k| c.to_lowercase().contains(k)))
+            })
             .count();
         if matched < 2 {
             continue;
@@ -45,7 +51,10 @@ pub fn locate_table(rows: &[Vec<String>]) -> Option<LocatedTable> {
         if data.is_empty() {
             continue;
         }
-        return Some(LocatedTable { headers: row.clone(), rows: data });
+        return Some(LocatedTable {
+            headers: row.clone(),
+            rows: data,
+        });
     }
     None
 }
@@ -66,7 +75,10 @@ pub struct Mapping {
 
 /// Read a mapped cell, or `""` when the column is unmapped/missing.
 fn cell(row: &[String], index: i64) -> &str {
-    usize::try_from(index).ok().and_then(|c| row.get(c)).map_or("", String::as_str)
+    usize::try_from(index)
+        .ok()
+        .and_then(|c| row.get(c))
+        .map_or("", String::as_str)
 }
 
 /// Map the located table onto create rows, tagging each with `<hash>:<index>`.
@@ -147,7 +159,15 @@ mod tests {
             row(&["TCS", "Tata", "0", "10", "01/04/2025"]),
         ])
         .unwrap();
-        let m = Mapping { symbol: 0, name: 1, quantity: 2, price: 3, date: 4, type_col: -1, side: -1 };
+        let m = Mapping {
+            symbol: 0,
+            name: 1,
+            quantity: 2,
+            price: 3,
+            date: 4,
+            type_col: -1,
+            side: -1,
+        };
         let rows = to_rows(&t, &m, "hash");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].symbol, "INFY");

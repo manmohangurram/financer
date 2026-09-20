@@ -6,8 +6,11 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::repo::traits::rule::{ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};
-use crate::utils::timex::{ts_rfc3339};
+use crate::repo::traits::rule::{
+    ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction,
+    RuleCondition, RuleLogic,
+};
+use crate::utils::timex::ts_rfc3339;
 
 pub struct SqliteRuleRepo {
     pool: SqlitePool,
@@ -42,7 +45,15 @@ impl SqliteRuleRepo {
         insert_conditions(&mut tx, &id, conditions).await?;
         insert_actions(&mut tx, &id, actions).await?;
         tx.commit().await?;
-        Ok(Rule { id, name: name.to_string(), priority, logic, conditions: conditions.to_vec(), actions: actions.to_vec(), created_at: ts_rfc3339(&now) })
+        Ok(Rule {
+            id,
+            name: name.to_string(),
+            priority,
+            logic,
+            conditions: conditions.to_vec(),
+            actions: actions.to_vec(),
+            created_at: ts_rfc3339(&now),
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -68,8 +79,14 @@ impl SqliteRuleRepo {
         if result.rows_affected() == 0 {
             return Ok(false);
         }
-        sqlx::query("DELETE FROM rule_conditions WHERE rule_id = ?").bind(id).execute(&mut *tx).await?;
-        sqlx::query("DELETE FROM rule_actions WHERE rule_id = ?").bind(id).execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM rule_conditions WHERE rule_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM rule_actions WHERE rule_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
         insert_conditions(&mut tx, id, conditions).await?;
         insert_actions(&mut tx, id, actions).await?;
         tx.commit().await?;
@@ -86,11 +103,13 @@ impl SqliteRuleRepo {
     }
 
     async fn get_by_id_inner(&self, user_id: &str, id: &str) -> Result<Option<Rule>> {
-        let row = sqlx::query_as::<_, RawRule>("SELECT id, name, priority, logic, created_at FROM rules WHERE id = ? AND user_id = ?")
-            .bind(id)
-            .bind(user_id)
-            .fetch_optional(&self.pool)
-            .await?;
+        let row = sqlx::query_as::<_, RawRule>(
+            "SELECT id, name, priority, logic, created_at FROM rules WHERE id = ? AND user_id = ?",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
         let Some(raw) = row else { return Ok(None) };
         let conditions = self.conditions_for_rule(id).await?;
         let actions = self.actions_for_rule(id).await?;
@@ -148,11 +167,30 @@ impl SqliteRuleRepo {
 
 #[async_trait]
 impl crate::repo::traits::RuleRepo for SqliteRuleRepo {
-    async fn create(&self, user_id: &str, name: &str, priority: i64, logic: RuleLogic, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<Rule> {
-        self.create_inner(user_id, name, priority, logic, conditions, actions).await
+    async fn create(
+        &self,
+        user_id: &str,
+        name: &str,
+        priority: i64,
+        logic: RuleLogic,
+        conditions: &[RuleCondition],
+        actions: &[RuleAction],
+    ) -> Result<Rule> {
+        self.create_inner(user_id, name, priority, logic, conditions, actions)
+            .await
     }
-    async fn update(&self, user_id: &str, id: &str, name: &str, priority: i64, logic: RuleLogic, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<bool> {
-        self.update_inner(user_id, id, name, priority, logic, conditions, actions).await
+    async fn update(
+        &self,
+        user_id: &str,
+        id: &str,
+        name: &str,
+        priority: i64,
+        logic: RuleLogic,
+        conditions: &[RuleCondition],
+        actions: &[RuleAction],
+    ) -> Result<bool> {
+        self.update_inner(user_id, id, name, priority, logic, conditions, actions)
+            .await
     }
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_inner(user_id, id).await
@@ -169,10 +207,18 @@ impl crate::repo::traits::RuleRepo for SqliteRuleRepo {
 }
 
 fn cond_to_data(c: &RuleCondition) -> ConditionData {
-    ConditionData { match_field: c.match_field, operator: c.operator, pattern: c.pattern.clone() }
+    ConditionData {
+        match_field: c.match_field,
+        operator: c.operator,
+        pattern: c.pattern.clone(),
+    }
 }
 
-async fn insert_conditions(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, rule_id: &str, conditions: &[RuleCondition]) -> Result<()> {
+async fn insert_conditions(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    rule_id: &str,
+    conditions: &[RuleCondition],
+) -> Result<()> {
     for cond in conditions {
         sqlx::query("INSERT INTO rule_conditions (id, rule_id, match_field, operator, pattern) VALUES (?, ?, ?, ?, ?)")
             .bind(Uuid::new_v4().to_string())
@@ -186,7 +232,11 @@ async fn insert_conditions(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, rule_id
     Ok(())
 }
 
-async fn insert_actions(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, rule_id: &str, actions: &[RuleAction]) -> Result<()> {
+async fn insert_actions(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    rule_id: &str,
+    actions: &[RuleAction],
+) -> Result<()> {
     for act in actions {
         let (action_type, name_op, value, cat_id, transfer_id) = classify_action(act);
         sqlx::query(
@@ -207,12 +257,30 @@ async fn insert_actions(tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, rule_id: &
 
 fn classify_action(act: &RuleAction) -> (ActionType, String, String, String, String) {
     if !act.set_transfer_account_id.is_empty() {
-        (ActionType::SetTransferAccount, String::new(), String::new(), String::new(), act.set_transfer_account_id.clone())
+        (
+            ActionType::SetTransferAccount,
+            String::new(),
+            String::new(),
+            String::new(),
+            act.set_transfer_account_id.clone(),
+        )
     } else if !act.set_category_id.is_empty() {
-        (ActionType::SetCategory, String::new(), String::new(), act.set_category_id.clone(), String::new())
+        (
+            ActionType::SetCategory,
+            String::new(),
+            String::new(),
+            act.set_category_id.clone(),
+            String::new(),
+        )
     } else {
         let op = act.set_name_op.unwrap_or(ActionOp::Rename);
-        (ActionType::SetName, op.to_string(), act.set_name.clone(), String::new(), String::new())
+        (
+            ActionType::SetName,
+            op.to_string(),
+            act.set_name.clone(),
+            String::new(),
+            String::new(),
+        )
     }
 }
 
@@ -274,9 +342,19 @@ struct RawAction {
 
 impl From<RawAction> for RuleAction {
     fn from(r: RawAction) -> Self {
-        match r.action_type.parse::<ActionType>().unwrap_or(ActionType::SetName) {
-            ActionType::SetTransferAccount => RuleAction { set_transfer_account_id: r.transfer_account_id, ..Default::default() },
-            ActionType::SetCategory => RuleAction { set_category_id: r.category_id, ..Default::default() },
+        match r
+            .action_type
+            .parse::<ActionType>()
+            .unwrap_or(ActionType::SetName)
+        {
+            ActionType::SetTransferAccount => RuleAction {
+                set_transfer_account_id: r.transfer_account_id,
+                ..Default::default()
+            },
+            ActionType::SetCategory => RuleAction {
+                set_category_id: r.category_id,
+                ..Default::default()
+            },
             ActionType::SetName => RuleAction {
                 set_name: r.value,
                 set_name_op: r.name_op.parse().ok(),

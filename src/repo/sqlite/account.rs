@@ -115,11 +115,13 @@ impl SqliteAccountRepo {
     }
 
     async fn update_balance_inner(&self, account_id: &str, delta: f64) -> Result<()> {
-        sqlx::query("UPDATE accounts SET balance = ROUND(COALESCE(balance, 0) + ?, 2) WHERE id = ?")
-            .bind(delta)
-            .bind(account_id)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            "UPDATE accounts SET balance = ROUND(COALESCE(balance, 0) + ?, 2) WHERE id = ?",
+        )
+        .bind(delta)
+        .bind(account_id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -139,10 +141,11 @@ impl SqliteAccountRepo {
     }
 
     async fn sum_balance_inner(&self, user_id: &str) -> Result<f64> {
-        let total: Option<f64> = sqlx::query_scalar("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ?")
-            .bind(user_id)
-            .fetch_one(&self.pool)
-            .await?;
+        let total: Option<f64> =
+            sqlx::query_scalar("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ?")
+                .bind(user_id)
+                .fetch_one(&self.pool)
+                .await?;
         Ok(total.unwrap_or(0.0))
     }
 
@@ -167,7 +170,8 @@ impl crate::repo::traits::AccountRepo for SqliteAccountRepo {
         account_type: AccountType,
         ending_numbers: &str,
     ) -> Result<AccountRow> {
-        self.create_inner(user_id, bank_name, nickname, account_type, ending_numbers).await
+        self.create_inner(user_id, bank_name, nickname, account_type, ending_numbers)
+            .await
     }
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
         self.get_by_id_inner(user_id, id).await
@@ -181,7 +185,15 @@ impl crate::repo::traits::AccountRepo for SqliteAccountRepo {
         account_type: AccountType,
         ending_numbers: &str,
     ) -> Result<Option<AccountRow>> {
-        self.update_inner(user_id, id, bank_name, nickname, account_type, ending_numbers).await
+        self.update_inner(
+            user_id,
+            id,
+            bank_name,
+            nickname,
+            account_type,
+            ending_numbers,
+        )
+        .await
     }
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_inner(user_id, id).await

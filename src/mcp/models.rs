@@ -210,4 +210,3 @@ pub struct LotInputReq {
     #[serde(default)]
     pub occurred_at: String,
 }
-

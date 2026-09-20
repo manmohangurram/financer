@@ -8,8 +8,11 @@ use chrono::Datelike;
 use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
+use crate::repo::traits::transaction::{
+    CreateOutcome, CreateTransactionInput, ListTransactionResult, Transaction,
+    TransactionListFilter, TransactionType, UpdateTransactionInput,
+};
 use crate::repo::traits::{AccountRepo, CategoryRepo, TransactionRepo};
-use crate::repo::traits::transaction::{CreateOutcome, CreateTransactionInput, ListTransactionResult, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput};
 use crate::service::rule::{RuleService, TransactionView};
 use crate::service::transfer_rule::TransferRuleService;
 use crate::utils::math::round2;
@@ -44,8 +47,18 @@ pub struct BulkResult {
 }
 
 impl TransactionService {
-    pub fn new(transaction_repo: Arc<dyn TransactionRepo>, account_repo: Arc<dyn AccountRepo>, category_repo: Arc<dyn CategoryRepo>) -> Self {
-        Self { transaction_repo, account_repo, category_repo, transfer_rule: None, rule: None }
+    pub fn new(
+        transaction_repo: Arc<dyn TransactionRepo>,
+        account_repo: Arc<dyn AccountRepo>,
+        category_repo: Arc<dyn CategoryRepo>,
+    ) -> Self {
+        Self {
+            transaction_repo,
+            account_repo,
+            category_repo,
+            transfer_rule: None,
+            rule: None,
+        }
     }
 
     pub fn with_transfer_rule(mut self, transfer_rule: TransferRuleService) -> Self {
@@ -79,7 +92,12 @@ impl TransactionService {
     /// Reject the request with 400 unless the account and every category
     /// referenced by `t` belong to `user_id`.
     async fn verify_ownership(&self, user_id: &str, t: &TransactionReq) -> Result<()> {
-        if self.account_repo.get_by_id(user_id, &t.account_id).await?.is_none() {
+        if self
+            .account_repo
+            .get_by_id(user_id, &t.account_id)
+            .await?
+            .is_none()
+        {
             return Err(ApiError::bad_request("account does not belong to user"));
         }
         for cat in &t.category_ids {
@@ -90,7 +108,11 @@ impl TransactionService {
         Ok(())
     }
 
-    pub async fn list(&self, user_id: &str, mut f: TransactionListFilter) -> Result<ListTransactionResult> {
+    pub async fn list(
+        &self,
+        user_id: &str,
+        mut f: TransactionListFilter,
+    ) -> Result<ListTransactionResult> {
         // dateFrom/dateTo arrive as local dates; convert to UTC bounds for the
         // storage filter (matching how spending interprets its ranges).
         if !f.date_from.is_empty() {
@@ -108,8 +130,14 @@ impl TransactionService {
 
     // Snapshot rule-resolved name into clean_name + category at write; raw name is untouched.
     // No rule wired, or no match, leaves clean_name None.
-    async fn apply_rules_on_create(&self, user_id: &str, inputs: &mut [CreateTransactionInput]) -> Result<()> {
-        let Some(rule) = &self.rule else { return Ok(()) };
+    async fn apply_rules_on_create(
+        &self,
+        user_id: &str,
+        inputs: &mut [CreateTransactionInput],
+    ) -> Result<()> {
+        let Some(rule) = &self.rule else {
+            return Ok(());
+        };
         let mut views: Vec<TransactionView> = inputs.iter().map(txn_to_view).collect();
         rule.overlay(user_id, &mut views).await?;
         for (input, view) in inputs.iter_mut().zip(views) {
@@ -124,23 +152,35 @@ impl TransactionService {
 
     pub async fn create(&self, user_id: &str, reqs: &[TransactionReq]) -> Result<BulkResult> {
         if reqs.len() > 1000 {
-            return Err(ApiError::bad_request("too many transactions in one request (max 1000)"));
+            return Err(ApiError::bad_request(
+                "too many transactions in one request (max 1000)",
+            ));
         }
         let now = crate::utils::timex::now_go_ts();
         let mut txns: Vec<Transaction> = Vec::new();
         let mut inputs: Vec<CreateTransactionInput> = Vec::new();
         for t in reqs {
             if t.name.is_empty() {
-                return Err(ApiError::bad_request("invalid transaction: name is required"));
+                return Err(ApiError::bad_request(
+                    "invalid transaction: name is required",
+                ));
             }
             if t.amount <= 0.0 {
-                return Err(ApiError::bad_request("invalid transaction: amount must be greater than zero"));
+                return Err(ApiError::bad_request(
+                    "invalid transaction: amount must be greater than zero",
+                ));
             }
             if t.account_id.is_empty() {
-                return Err(ApiError::bad_request("invalid transaction: account_id is required"));
+                return Err(ApiError::bad_request(
+                    "invalid transaction: account_id is required",
+                ));
             }
             self.verify_ownership(user_id, t).await?;
-            let occurred_at = if t.occurred_at.is_empty() { now.clone() } else { t.occurred_at.clone() };
+            let occurred_at = if t.occurred_at.is_empty() {
+                now.clone()
+            } else {
+                t.occurred_at.clone()
+            };
             let txn = Transaction {
                 id: t.id.clone(),
                 name: t.name.clone(),
@@ -153,7 +193,10 @@ impl TransactionService {
                 external_id: t.external_id.clone(),
                 transfer_linked: false,
             };
-            inputs.push(CreateTransactionInput { txn: txn.clone(), category_ids: t.category_ids.clone() });
+            inputs.push(CreateTransactionInput {
+                txn: txn.clone(),
+                category_ids: t.category_ids.clone(),
+            });
             txns.push(txn);
         }
 
@@ -171,7 +214,9 @@ impl TransactionService {
             }
             inserted_txns.push(t.clone());
             let (c, d) = Self::totals(t.transaction_type, t.amount);
-            let e = deltas.entry(t.account_id.clone()).or_insert((0.0, 0.0, 0.0));
+            let e = deltas
+                .entry(t.account_id.clone())
+                .or_insert((0.0, 0.0, 0.0));
             e.0 += Self::delta(t.transaction_type, t.amount);
             e.1 += c;
             e.2 += d;
@@ -192,17 +237,35 @@ impl TransactionService {
 
         let failed_ids: Vec<String> = outcome.errors.clone();
         if !failed_ids.is_empty() {
-            return Ok(BulkResult { success: false, message: "some transactions failed".to_string(), failed_ids, skipped });
+            return Ok(BulkResult {
+                success: false,
+                message: "some transactions failed".to_string(),
+                failed_ids,
+                skipped,
+            });
         }
-        Ok(BulkResult { success: true, message: "transactions created successfully".to_string(), failed_ids: Vec::new(), skipped })
+        Ok(BulkResult {
+            success: true,
+            message: "transactions created successfully".to_string(),
+            failed_ids: Vec::new(),
+            skipped,
+        })
     }
 
     pub async fn update(&self, user_id: &str, reqs: &[TransactionReq]) -> Result<BulkResult> {
         if reqs.len() > 1000 {
-            return Err(ApiError::bad_request("too many transactions in one request (max 1000)"));
+            return Err(ApiError::bad_request(
+                "too many transactions in one request (max 1000)",
+            ));
         }
         for t in reqs {
-            if !t.account_id.is_empty() && self.account_repo.get_by_id(user_id, &t.account_id).await?.is_none() {
+            if !t.account_id.is_empty()
+                && self
+                    .account_repo
+                    .get_by_id(user_id, &t.account_id)
+                    .await?
+                    .is_none()
+            {
                 return Err(ApiError::bad_request("account does not belong to user"));
             }
             for cat in &t.category_ids {
@@ -213,7 +276,8 @@ impl TransactionService {
         }
         let ids: Vec<String> = reqs.iter().map(|t| t.id.clone()).collect();
         let old_txns = self.transaction_repo.get_by_id_batch(user_id, &ids).await?;
-        let old_map: HashMap<String, Transaction> = old_txns.into_iter().map(|t| (t.id.clone(), t)).collect();
+        let old_map: HashMap<String, Transaction> =
+            old_txns.into_iter().map(|t| (t.id.clone(), t)).collect();
 
         let mut inputs: Vec<UpdateTransactionInput> = Vec::new();
         for t in reqs {
@@ -243,10 +307,18 @@ impl TransactionService {
             if failed.contains(&t.id) {
                 continue;
             }
-            let Some(old) = old_map.get(&t.id) else { continue };
-            let acc_id = if t.account_id.is_empty() { old.account_id.clone() } else { t.account_id.clone() };
+            let Some(old) = old_map.get(&t.id) else {
+                continue;
+            };
+            let acc_id = if t.account_id.is_empty() {
+                old.account_id.clone()
+            } else {
+                t.account_id.clone()
+            };
             let (oc, od) = Self::totals(old.transaction_type, old.amount);
-            let e = deltas.entry(old.account_id.clone()).or_insert((0.0, 0.0, 0.0));
+            let e = deltas
+                .entry(old.account_id.clone())
+                .or_insert((0.0, 0.0, 0.0));
             e.0 -= Self::delta(old.transaction_type, old.amount);
             e.1 -= oc;
             e.2 -= od;
@@ -266,9 +338,19 @@ impl TransactionService {
         }
 
         if !errs.is_empty() {
-            return Ok(BulkResult { success: false, message: "some updates failed".to_string(), failed_ids: errs, skipped: 0 });
+            return Ok(BulkResult {
+                success: false,
+                message: "some updates failed".to_string(),
+                failed_ids: errs,
+                skipped: 0,
+            });
         }
-        Ok(BulkResult { success: true, message: "transactions updated successfully".to_string(), failed_ids: Vec::new(), skipped: 0 })
+        Ok(BulkResult {
+            success: true,
+            message: "transactions updated successfully".to_string(),
+            failed_ids: Vec::new(),
+            skipped: 0,
+        })
     }
 
     pub async fn delete(&self, user_id: &str, ids: &[String]) -> Result<BulkResult> {
@@ -285,7 +367,9 @@ impl TransactionService {
             if failed.contains(&t.id) {
                 continue;
             }
-            let e = deltas.entry(t.account_id.clone()).or_insert((0.0, 0.0, 0.0));
+            let e = deltas
+                .entry(t.account_id.clone())
+                .or_insert((0.0, 0.0, 0.0));
             let (c, d) = Self::totals(t.transaction_type, t.amount);
             e.0 -= Self::delta(t.transaction_type, t.amount);
             e.1 -= c;
@@ -301,21 +385,42 @@ impl TransactionService {
         }
 
         if !errs.is_empty() {
-            return Ok(BulkResult { success: false, message: "some deletions failed".to_string(), failed_ids: errs, skipped: 0 });
+            return Ok(BulkResult {
+                success: false,
+                message: "some deletions failed".to_string(),
+                failed_ids: errs,
+                skipped: 0,
+            });
         }
-        Ok(BulkResult { success: true, message: "transactions deleted successfully".to_string(), failed_ids: Vec::new(), skipped: 0 })
+        Ok(BulkResult {
+            success: true,
+            message: "transactions deleted successfully".to_string(),
+            failed_ids: Vec::new(),
+            skipped: 0,
+        })
     }
 
     /// Dashboard: total balance, income, expenses (from cached account totals).
     pub async fn dashboard(&self, user_id: &str) -> Result<Dashboard> {
         let balance = self.account_repo.sum_balance(user_id).await?;
         let (credit, debit) = self.account_repo.sum_totals(user_id).await?;
-        Ok(Dashboard { total_balance: balance, total_income: credit, total_expenses: debit })
+        Ok(Dashboard {
+            total_balance: balance,
+            total_income: credit,
+            total_expenses: debit,
+        })
     }
 
     /// Spending buckets + categories for a range. Rows are aggregated in Rust
     /// so day/month buckets use the configured timezone.
-    pub async fn spending(&self, user_id: &str, range: &str, from: &str, to: &str, account_id: &str) -> Result<SpendingResult> {
+    pub async fn spending(
+        &self,
+        user_id: &str,
+        range: &str,
+        from: &str,
+        to: &str,
+        account_id: &str,
+    ) -> Result<SpendingResult> {
         let now = crate::utils::timex::now_utc();
         let mut gran = "day";
         let mut from_ts: Option<String> = None;
@@ -346,10 +451,14 @@ impl TransactionService {
             let f = chrono::NaiveDate::parse_from_str(from, "%Y-%m-%d").ok();
             let t = chrono::NaiveDate::parse_from_str(to, "%Y-%m-%d").ok();
             // The dates are local; convert local midnight to the UTC instant.
-            from_ts = f.and_then(crate::utils::timex::local_date_start_utc).map(go_ts);
+            from_ts = f
+                .and_then(crate::utils::timex::local_date_start_utc)
+                .map(go_ts);
             // `to` is inclusive, so the end bound is local midnight of the next day.
             to_ts = t
-                .and_then(|d| crate::utils::timex::local_date_start_utc(d + chrono::Duration::days(1)))
+                .and_then(|d| {
+                    crate::utils::timex::local_date_start_utc(d + chrono::Duration::days(1))
+                })
                 .map(go_ts);
             if let (Some(fd), Some(td)) = (f, t)
                 && (td - fd).num_days() > 30
@@ -363,12 +472,17 @@ impl TransactionService {
             to: to_ts.unwrap_or_default(),
             account_id: account_id.to_string(),
         };
-        let rows = self.transaction_repo.spending_rows(user_id, &filter).await?;
+        let rows = self
+            .transaction_repo
+            .spending_rows(user_id, &filter)
+            .await?;
 
         // Bucket in the configured timezone (a DST-correct local bucket can't be
         // expressed in SQL — the offset varies per row).
-        let mut bucket_map: std::collections::BTreeMap<String, f64> = std::collections::BTreeMap::new();
-        let mut cat_map: std::collections::HashMap<String, (String, f64, f64)> = std::collections::HashMap::new();
+        let mut bucket_map: std::collections::BTreeMap<String, f64> =
+            std::collections::BTreeMap::new();
+        let mut cat_map: std::collections::HashMap<String, (String, f64, f64)> =
+            std::collections::HashMap::new();
         // One row per (transaction, category): count each transaction once per bucket.
         let mut bucketed: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for r in &rows {
@@ -392,14 +506,31 @@ impl TransactionService {
 
         let bucket_items: Vec<SpendingBucket> = bucket_map
             .iter()
-            .map(|(k, amount)| SpendingBucket { key: k.clone(), label: bucket_label(k, gran), amount: *amount })
+            .map(|(k, amount)| SpendingBucket {
+                key: k.clone(),
+                label: bucket_label(k, gran),
+                amount: *amount,
+            })
             .collect();
         let mut category_items: Vec<SpendingCategory> = cat_map
             .into_iter()
-            .map(|(id, (name, debit, credit))| SpendingCategory { id, name, debit, credit, net: debit - credit })
+            .map(|(id, (name, debit, credit))| SpendingCategory {
+                id,
+                name,
+                debit,
+                credit,
+                net: debit - credit,
+            })
             .collect();
-        category_items.sort_by(|a, b| b.debit.partial_cmp(&a.debit).unwrap_or(std::cmp::Ordering::Equal));
-        Ok(SpendingResult { buckets: bucket_items, categories: category_items })
+        category_items.sort_by(|a, b| {
+            b.debit
+                .partial_cmp(&a.debit)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        Ok(SpendingResult {
+            buckets: bucket_items,
+            categories: category_items,
+        })
     }
 }
 
@@ -408,7 +539,12 @@ impl TransactionService {
 fn failed_ids(errs: &[String]) -> HashSet<String> {
     errs.iter()
         .filter_map(|e| {
-            for prefix in ["failed to update ", "failed to delete ", "failed to create ", "transaction "] {
+            for prefix in [
+                "failed to update ",
+                "failed to delete ",
+                "failed to create ",
+                "transaction ",
+            ] {
                 if let Some(rest) = e.strip_prefix(prefix) {
                     return Some(rest.split(' ').next().unwrap_or("").to_string());
                 }

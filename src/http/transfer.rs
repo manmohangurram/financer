@@ -9,8 +9,7 @@ use utoipa::ToSchema;
 
 use crate::error::json_error;
 use crate::http::transaction::bulk_wire;
-use crate::http::{require_user, AppState, JsonResult};
-
+use crate::http::{AppState, JsonResult, require_user};
 
 #[derive(Deserialize, ToSchema)]
 pub struct ReqTransfer {
@@ -42,8 +41,14 @@ pub struct ReqCreateCounterpart {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/transfer-links", axum::routing::post(link).delete(unlink))
-        .route("/api/transfer-links/counterpart", axum::routing::post(counterpart))
+        .route(
+            "/api/transfer-links",
+            axum::routing::post(link).delete(unlink),
+        )
+        .route(
+            "/api/transfer-links/counterpart",
+            axum::routing::post(counterpart),
+        )
 }
 
 #[utoipa::path(
@@ -57,7 +62,11 @@ pub fn routes() -> Router<AppState> {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn link(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqTransfer>) -> Response {
+pub async fn link(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqTransfer>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -69,7 +78,12 @@ pub async fn link(State(st): State<AppState>, headers: HeaderMap, req: JsonResul
     let links: Vec<(String, String)> = req
         .links
         .iter()
-        .map(|l| (l.debit_transaction_id.clone(), l.credit_transaction_id.clone()))
+        .map(|l| {
+            (
+                l.debit_transaction_id.clone(),
+                l.credit_transaction_id.clone(),
+            )
+        })
         .collect();
     match st.transfer.link_transfers(&uid, &links).await {
         Ok(b) => (StatusCode::CREATED, Json(bulk_wire(&b))).into_response(),
@@ -88,7 +102,11 @@ pub async fn link(State(st): State<AppState>, headers: HeaderMap, req: JsonResul
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn counterpart(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqCreateCounterpart>) -> Response {
+pub async fn counterpart(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqCreateCounterpart>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),
@@ -97,7 +115,11 @@ pub async fn counterpart(State(st): State<AppState>, headers: HeaderMap, req: Js
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.transfer.create_counterpart(&uid, &req.transaction_id, &req.to_account_id).await {
+    match st
+        .transfer
+        .create_counterpart(&uid, &req.transaction_id, &req.to_account_id)
+        .await
+    {
         Ok(r) => (
             StatusCode::CREATED,
             Json(serde_json::json!({
@@ -121,7 +143,11 @@ pub async fn counterpart(State(st): State<AppState>, headers: HeaderMap, req: Js
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn unlink(State(st): State<AppState>, headers: HeaderMap, req: JsonResult<ReqTransfer>) -> Response {
+pub async fn unlink(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<ReqTransfer>,
+) -> Response {
     let Json(req) = match req {
         Ok(r) => r,
         Err(e) => return json_error(&e).into_response(),

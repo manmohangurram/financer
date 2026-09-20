@@ -51,7 +51,11 @@ pub struct Storage {
 
 impl Default for Storage {
     fn default() -> Self {
-        Self { database: "sqlite".into(), sqlite: Sqlite::default(), surreal: Surreal::default() }
+        Self {
+            database: "sqlite".into(),
+            sqlite: Sqlite::default(),
+            surreal: Surreal::default(),
+        }
     }
 }
 
@@ -154,7 +158,9 @@ impl Config {
         let mut cfg = Config::default();
         cfg.apply_overrides_from(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
         if cfg.server.jwt_secret.is_empty() {
-            anyhow::bail!("FINANCER_JWT_SECRET is required — set it to a stable secret (e.g. `openssl rand -hex 32`)");
+            anyhow::bail!(
+                "FINANCER_JWT_SECRET is required — set it to a stable secret (e.g. `openssl rand -hex 32`)"
+            );
         }
         if let Some(k) = validate_secret_key(cfg.server.secret_key.as_deref())? {
             cfg.server.secret_key = Some(k);
@@ -219,7 +225,12 @@ mod tests {
     use super::*;
 
     fn map<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
-        move |k| pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| (*v).to_string())
+        move |k| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| (*v).to_string())
+        }
     }
 
     #[test]
@@ -249,9 +260,15 @@ mod tests {
     fn secret_key_is_optional_but_must_be_32_bytes_of_hex() {
         assert_eq!(validate_secret_key(None).unwrap(), None);
         let ok = "A".repeat(64);
-        assert_eq!(validate_secret_key(Some(&ok)).unwrap().unwrap(), "a".repeat(64));
+        assert_eq!(
+            validate_secret_key(Some(&ok)).unwrap().unwrap(),
+            "a".repeat(64)
+        );
         for bad in ["", "abcd", &"z".repeat(64), &"a".repeat(63)] {
-            assert!(validate_secret_key(Some(bad)).is_err(), "should reject {bad:?}");
+            assert!(
+                validate_secret_key(Some(bad)).is_err(),
+                "should reject {bad:?}"
+            );
         }
     }
 

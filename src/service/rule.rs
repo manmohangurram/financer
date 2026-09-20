@@ -4,9 +4,11 @@
 use std::sync::Arc;
 
 use crate::error::{ApiError, Result};
-use crate::repo::traits::rule::{ActionOp, ConditionData, MatchField, MatchOperator, Rule, RuleAction, RuleCondition, RuleLogic};
-use crate::repo::traits::{CategoryRepo as CatTrait, RuleRepo, TransactionRepo as TxnTrait};
+use crate::repo::traits::rule::{
+    ActionOp, ConditionData, MatchField, MatchOperator, Rule, RuleAction, RuleCondition, RuleLogic,
+};
 use crate::repo::traits::transaction::{ListRow, TransactionListFilter, TransactionType};
+use crate::repo::traits::{CategoryRepo as CatTrait, RuleRepo, TransactionRepo as TxnTrait};
 
 #[derive(Clone)]
 pub struct RuleService {
@@ -27,27 +29,60 @@ pub struct TransactionView {
 }
 
 impl RuleService {
-    pub fn new(rule_repo: Arc<dyn RuleRepo>, cat_repo: Arc<dyn CatTrait>, txn_repo: Arc<dyn TxnTrait>) -> Self {
-        Self { rules: rule_repo, categories: cat_repo, transactions: txn_repo }
+    pub fn new(
+        rule_repo: Arc<dyn RuleRepo>,
+        cat_repo: Arc<dyn CatTrait>,
+        txn_repo: Arc<dyn TxnTrait>,
+    ) -> Self {
+        Self {
+            rules: rule_repo,
+            categories: cat_repo,
+            transactions: txn_repo,
+        }
     }
 
-    pub async fn create(&self, user_id: &str, name: &str, priority: i64, logic: RuleLogic, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<Rule> {
+    pub async fn create(
+        &self,
+        user_id: &str,
+        name: &str,
+        priority: i64,
+        logic: RuleLogic,
+        conditions: &[RuleCondition],
+        actions: &[RuleAction],
+    ) -> Result<Rule> {
         if name.is_empty() {
             return Err(ApiError::bad_request("name is required"));
         }
         if conditions.is_empty() {
             return Err(ApiError::bad_request("at least one condition is required"));
         }
-        self.rules.create(user_id, name, priority, logic, conditions, actions).await
+        self.rules
+            .create(user_id, name, priority, logic, conditions, actions)
+            .await
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn update(&self, user_id: &str, id: &str, name: &str, priority: i64, logic: RuleLogic, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<Rule> {
-        let updated = self.rules.update(user_id, id, name, priority, logic, conditions, actions).await?;
+    pub async fn update(
+        &self,
+        user_id: &str,
+        id: &str,
+        name: &str,
+        priority: i64,
+        logic: RuleLogic,
+        conditions: &[RuleCondition],
+        actions: &[RuleAction],
+    ) -> Result<Rule> {
+        let updated = self
+            .rules
+            .update(user_id, id, name, priority, logic, conditions, actions)
+            .await?;
         if !updated {
             return Err(ApiError::not_found(format!("rule {id} not found")));
         }
-        self.rules.get_by_id(user_id, id).await?.ok_or_else(|| ApiError::internal("fetching updated rule"))
+        self.rules
+            .get_by_id(user_id, id)
+            .await?
+            .ok_or_else(|| ApiError::internal("fetching updated rule"))
     }
 
     pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {
@@ -89,19 +124,33 @@ impl RuleService {
 
     /// Preview: match rules' conditions against existing transactions
     /// (no type filter — mirrors Go's `SearchByRule`).
-    pub async fn preview(&self, user_id: &str, logic: RuleLogic, conditions: &[RuleCondition], limit: i64) -> Result<Vec<TransactionView>> {
-        let conds: Vec<ConditionData> = conditions.iter().map(|c| ConditionData {
-            match_field: c.match_field,
-            operator: c.operator,
-            pattern: c.pattern.clone(),
-        }).collect();
+    pub async fn preview(
+        &self,
+        user_id: &str,
+        logic: RuleLogic,
+        conditions: &[RuleCondition],
+        limit: i64,
+    ) -> Result<Vec<TransactionView>> {
+        let conds: Vec<ConditionData> = conditions
+            .iter()
+            .map(|c| ConditionData {
+                match_field: c.match_field,
+                operator: c.operator,
+                pattern: c.pattern.clone(),
+            })
+            .collect();
         for c in &conds {
             if c.operator == MatchOperator::Regex {
-                compile_rule_regex(&c.pattern).map_err(|e| ApiError::bad_request(format!("invalid regex in condition: {e}")))?;
+                compile_rule_regex(&c.pattern).map_err(|e| {
+                    ApiError::bad_request(format!("invalid regex in condition: {e}"))
+                })?;
             }
         }
         let limit = if limit <= 0 || limit > 20 { 20 } else { limit };
-        let rows = self.transactions.list(user_id, &TransactionListFilter::default()).await?;
+        let rows = self
+            .transactions
+            .list(user_id, &TransactionListFilter::default())
+            .await?;
         let cat_names = self.category_name_by_id(user_id).await?;
         let mut out = Vec::new();
         for row in &rows.rows {
@@ -135,19 +184,31 @@ impl RuleService {
             conditions: rule
                 .conditions
                 .iter()
-                .map(|c| ConditionData { match_field: c.match_field, operator: c.operator, pattern: c.pattern.clone() })
+                .map(|c| ConditionData {
+                    match_field: c.match_field,
+                    operator: c.operator,
+                    pattern: c.pattern.clone(),
+                })
                 .collect(),
             actions: rule.actions,
         };
-        self.apply_rules(user_id, std::slice::from_ref(&overlay)).await
+        self.apply_rules(user_id, std::slice::from_ref(&overlay))
+            .await
     }
 
-    async fn apply_rules(&self, user_id: &str, rules: &[crate::repo::traits::rule::OverlayRule]) -> Result<i64> {
+    async fn apply_rules(
+        &self,
+        user_id: &str,
+        rules: &[crate::repo::traits::rule::OverlayRule],
+    ) -> Result<i64> {
         if rules.is_empty() {
             return Ok(0);
         }
         let cat_names = self.category_name_by_id(user_id).await?;
-        let rows = self.transactions.list(user_id, &TransactionListFilter::default()).await?;
+        let rows = self
+            .transactions
+            .list(user_id, &TransactionListFilter::default())
+            .await?;
         let mut changed = 0i64;
         for row in &rows.rows {
             let mut view = Self::row_to_view(row);
@@ -169,12 +230,18 @@ impl RuleService {
         Ok(changed)
     }
 
-    async fn category_name_by_id(&self, user_id: &str) -> Result<std::collections::HashMap<String, String>> {
+    async fn category_name_by_id(
+        &self,
+        user_id: &str,
+    ) -> Result<std::collections::HashMap<String, String>> {
         let res = self.categories.list(user_id, 0, "").await?;
         Ok(res.categories.into_iter().map(|c| (c.id, c.name)).collect())
     }
 
-    fn txn_match_data(txn: &TransactionView, cat_names: &std::collections::HashMap<String, String>) -> TransactionMatchData {
+    fn txn_match_data(
+        txn: &TransactionView,
+        cat_names: &std::collections::HashMap<String, String>,
+    ) -> TransactionMatchData {
         let categories: Vec<String> = txn
             .category_ids
             .iter()
@@ -223,7 +290,11 @@ fn apply_rule_actions(txn: &mut TransactionView, actions: &[RuleAction]) {
         if act.set_name.is_empty() {
             continue;
         }
-        txn.name = apply_name_op(&txn.name, &act.set_name, act.set_name_op.unwrap_or(ActionOp::Rename));
+        txn.name = apply_name_op(
+            &txn.name,
+            &act.set_name,
+            act.set_name_op.unwrap_or(ActionOp::Rename),
+        );
     }
 }
 
@@ -235,7 +306,11 @@ fn apply_name_op(current: &str, value: &str, op: ActionOp) -> String {
     }
 }
 
-pub fn match_rule_data(txn: &TransactionMatchData, logic: RuleLogic, conditions: &[ConditionData]) -> bool {
+pub fn match_rule_data(
+    txn: &TransactionMatchData,
+    logic: RuleLogic,
+    conditions: &[ConditionData],
+) -> bool {
     if conditions.is_empty() {
         return false;
     }
@@ -301,7 +376,11 @@ fn cmp_float(value: &str, pattern: &str, f: fn(f64, f64) -> bool) -> bool {
 
 /// Compile a rule regex case-insensitively unless it sets its own flags.
 fn compile_rule_regex(pattern: &str) -> std::result::Result<regex::Regex, regex::Error> {
-    let pat = if pattern.starts_with("(?") { pattern.to_string() } else { format!("(?i){pattern}") };
+    let pat = if pattern.starts_with("(?") {
+        pattern.to_string()
+    } else {
+        format!("(?i){pattern}")
+    };
     regex::Regex::new(&pat)
 }
 
@@ -325,24 +404,50 @@ mod tests {
     #[test]
     fn name_ops() {
         assert_eq!(apply_name_op("Netflix", "Fee", ActionOp::Rename), "Fee");
-        assert_eq!(apply_name_op("Netflix", "Fee", ActionOp::AddPrefix), "FeeNetflix");
-        assert_eq!(apply_name_op("Netflix", "-Sub", ActionOp::AddSuffix), "Netflix-Sub");
+        assert_eq!(
+            apply_name_op("Netflix", "Fee", ActionOp::AddPrefix),
+            "FeeNetflix"
+        );
+        assert_eq!(
+            apply_name_op("Netflix", "-Sub", ActionOp::AddSuffix),
+            "Netflix-Sub"
+        );
         assert_eq!(apply_name_op("Netflix", "", ActionOp::AddSuffix), "Netflix");
     }
 
     #[test]
     fn match_conditions() {
         let data = match_data();
-        let contains = ConditionData { match_field: MatchField::Name, operator: MatchOperator::Contains, pattern: "netflix".to_string() };
-        assert!(match_rule_data(&data, RuleLogic::Or, std::slice::from_ref(&contains)));
+        let contains = ConditionData {
+            match_field: MatchField::Name,
+            operator: MatchOperator::Contains,
+            pattern: "netflix".to_string(),
+        };
+        assert!(match_rule_data(
+            &data,
+            RuleLogic::Or,
+            std::slice::from_ref(&contains)
+        ));
 
-        let gt = ConditionData { match_field: MatchField::Amount, operator: MatchOperator::GreaterThan, pattern: "100".to_string() };
+        let gt = ConditionData {
+            match_field: MatchField::Amount,
+            operator: MatchOperator::GreaterThan,
+            pattern: "100".to_string(),
+        };
         assert!(!match_rule_data(&data, RuleLogic::Or, &[gt]));
 
-        let regex = ConditionData { match_field: MatchField::Name, operator: MatchOperator::Regex, pattern: "NETFLIX".to_string() };
+        let regex = ConditionData {
+            match_field: MatchField::Name,
+            operator: MatchOperator::Regex,
+            pattern: "NETFLIX".to_string(),
+        };
         assert!(match_rule_data(&data, RuleLogic::Or, &[regex]));
 
-        let cat_eq = ConditionData { match_field: MatchField::Category, operator: MatchOperator::Equals, pattern: "Entertainment".to_string() };
+        let cat_eq = ConditionData {
+            match_field: MatchField::Category,
+            operator: MatchOperator::Equals,
+            pattern: "Entertainment".to_string(),
+        };
         assert!(match_rule_data(&data, RuleLogic::And, &[cat_eq, contains]));
     }
 
@@ -356,10 +461,20 @@ mod tests {
             category_ids: vec![],
             occurred_at: "2026-01-01 00:00:00 +0000 UTC".to_string(),
         };
-        apply_rule_actions(&mut txn, &[
-            RuleAction { set_name: "Netflix Subscription".to_string(), set_name_op: Some(ActionOp::Rename), ..Default::default() },
-            RuleAction { set_category_id: "cat-1".to_string(), ..Default::default() },
-        ]);
+        apply_rule_actions(
+            &mut txn,
+            &[
+                RuleAction {
+                    set_name: "Netflix Subscription".to_string(),
+                    set_name_op: Some(ActionOp::Rename),
+                    ..Default::default()
+                },
+                RuleAction {
+                    set_category_id: "cat-1".to_string(),
+                    ..Default::default()
+                },
+            ],
+        );
         assert_eq!(txn.name, "Netflix Subscription");
         assert_eq!(txn.category_ids, vec!["cat-1"]);
     }

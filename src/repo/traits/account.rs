@@ -6,7 +6,17 @@ use crate::error::Result;
 
 /// Account type. Wire value is the uppercase string (`CURRENT`/`CREDIT_CARD`).
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, utoipa::ToSchema, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::EnumString,
+    utoipa::ToSchema,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]

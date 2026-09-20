@@ -33,11 +33,25 @@ impl Mapping {
 
 /// Build one create request per usable row, tagging each with `<hash>:<index>`
 /// so re-importing the same file skips duplicates.
-pub fn to_transactions(parsed: &ParsedFile, m: &Mapping, account_id: &str, hash: &str) -> Vec<TransactionReq> {
+pub fn to_transactions(
+    parsed: &ParsedFile,
+    m: &Mapping,
+    account_id: &str,
+    hash: &str,
+) -> Vec<TransactionReq> {
     let mut out = Vec::with_capacity(parsed.rows.len());
     for (i, row) in parsed.rows.iter().enumerate() {
-        let cell = |idx: i64| Mapping::col(idx).and_then(|c| row.get(c)).map_or("", String::as_str);
-        let (amount, transaction_type) = amount_and_type(cell(m.debit), cell(m.credit), cell(m.type_col), cell(m.amount));
+        let cell = |idx: i64| {
+            Mapping::col(idx)
+                .and_then(|c| row.get(c))
+                .map_or("", String::as_str)
+        };
+        let (amount, transaction_type) = amount_and_type(
+            cell(m.debit),
+            cell(m.credit),
+            cell(m.type_col),
+            cell(m.amount),
+        );
         if amount <= 0.0 {
             continue;
         }
@@ -45,7 +59,11 @@ pub fn to_transactions(parsed: &ParsedFile, m: &Mapping, account_id: &str, hash:
             "" => "Imported".to_string(),
             s => s.to_string(),
         };
-        let occurred_at = if cell(m.date).trim().is_empty() { now_utc() } else { build_date(cell(m.date)) };
+        let occurred_at = if cell(m.date).trim().is_empty() {
+            now_utc()
+        } else {
+            build_date(cell(m.date))
+        };
         out.push(TransactionReq {
             id: uuid::Uuid::new_v4().to_string(),
             name,
@@ -64,14 +82,22 @@ pub fn to_transactions(parsed: &ParsedFile, m: &Mapping, account_id: &str, hash:
 fn amount_and_type(debit: &str, credit: &str, kind: &str, amount: &str) -> (f64, TransactionType) {
     let debit_v = parse_amount(debit);
     let credit_v = parse_amount(credit);
-    let mut hint = if kind.is_empty() { None } else { parse_type_value(kind) };
+    let mut hint = if kind.is_empty() {
+        None
+    } else {
+        parse_type_value(kind)
+    };
 
     let amt;
     if debit_v != 0.0 || credit_v != 0.0 {
         if debit_v != 0.0 && credit_v != 0.0 {
             let is_credit = hint.map_or(credit_v >= debit_v, |t| t == TransactionType::Credit);
             amt = if is_credit { credit_v } else { debit_v };
-            hint = Some(if is_credit { TransactionType::Credit } else { TransactionType::Debit });
+            hint = Some(if is_credit {
+                TransactionType::Credit
+            } else {
+                TransactionType::Debit
+            });
         } else if credit_v != 0.0 {
             amt = credit_v;
             hint = Some(TransactionType::Credit);
@@ -82,17 +108,29 @@ fn amount_and_type(debit: &str, credit: &str, kind: &str, amount: &str) -> (f64,
     } else {
         amt = parse_amount(amount);
     }
-    let transaction_type = hint.unwrap_or(if amt < 0.0 { TransactionType::Debit } else { TransactionType::Credit });
+    let transaction_type = hint.unwrap_or(if amt < 0.0 {
+        TransactionType::Debit
+    } else {
+        TransactionType::Credit
+    });
     (amt.abs(), transaction_type)
 }
 
 /// `CREDIT`/`DEBIT` hint from a free-text type column.
 fn parse_type_value(v: &str) -> Option<TransactionType> {
     let s = v.to_lowercase();
-    if ["credit", "cr", "deposit", "received", "income", "refund"].iter().any(|k| s.contains(k)) || s.contains('+') {
+    if ["credit", "cr", "deposit", "received", "income", "refund"]
+        .iter()
+        .any(|k| s.contains(k))
+        || s.contains('+')
+    {
         return Some(TransactionType::Credit);
     }
-    if ["debit", "dr", "withdraw", "payment", "expense", "fee"].iter().any(|k| s.contains(k)) || s.contains('-') {
+    if ["debit", "dr", "withdraw", "payment", "expense", "fee"]
+        .iter()
+        .any(|k| s.contains(k))
+        || s.contains('-')
+    {
         return Some(TransactionType::Debit);
     }
     None
@@ -143,15 +181,33 @@ mod tests {
 
     fn parsed(rows: Vec<Vec<&str>>) -> ParsedFile {
         ParsedFile {
-            headers: vec!["Date".into(), "Narration".into(), "Withdrawal".into(), "Deposit".into()],
-            rows: rows.into_iter().map(|r| r.into_iter().map(str::to_string).collect()).collect(),
+            headers: vec![
+                "Date".into(),
+                "Narration".into(),
+                "Withdrawal".into(),
+                "Deposit".into(),
+            ],
+            rows: rows
+                .into_iter()
+                .map(|r| r.into_iter().map(str::to_string).collect())
+                .collect(),
         }
     }
 
     #[test]
     fn split_columns_become_the_matching_type() {
-        let m = Mapping { date: 0, description: 1, debit: 2, credit: 3, amount: -1, type_col: -1 };
-        let p = parsed(vec![vec!["24/08/2021", "Coffee", "0.00", "4,000.00"], vec!["25/08/2021", "Rent", "599.00", "0.00"]]);
+        let m = Mapping {
+            date: 0,
+            description: 1,
+            debit: 2,
+            credit: 3,
+            amount: -1,
+            type_col: -1,
+        };
+        let p = parsed(vec![
+            vec!["24/08/2021", "Coffee", "0.00", "4,000.00"],
+            vec!["25/08/2021", "Rent", "599.00", "0.00"],
+        ]);
         let txns = to_transactions(&p, &m, "acc", "hash");
         assert_eq!(txns.len(), 2);
         assert_eq!(txns[0].transaction_type, TransactionType::Credit);
@@ -163,7 +219,14 @@ mod tests {
 
     #[test]
     fn single_amount_column_uses_the_type_hint() {
-        let m = Mapping { date: 0, description: 1, amount: 2, type_col: -1, debit: -1, credit: -1 };
+        let m = Mapping {
+            date: 0,
+            description: 1,
+            amount: 2,
+            type_col: -1,
+            debit: -1,
+            credit: -1,
+        };
         let p = parsed(vec![vec!["24/08/2021", "Coffee", "-120.50"]]);
         let txns = to_transactions(&p, &m, "acc", "h");
         assert_eq!(txns[0].transaction_type, TransactionType::Debit);
@@ -172,7 +235,10 @@ mod tests {
 
     #[test]
     fn dates_are_day_first() {
-        assert_eq!(parse_dmy("31/12/2026"), NaiveDate::from_ymd_opt(2026, 12, 31));
+        assert_eq!(
+            parse_dmy("31/12/2026"),
+            NaiveDate::from_ymd_opt(2026, 12, 31)
+        );
         assert_eq!(parse_dmy("01-04-21"), NaiveDate::from_ymd_opt(2021, 4, 1));
         assert_eq!(parse_dmy("nonsense"), None);
     }

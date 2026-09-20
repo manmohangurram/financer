@@ -15,8 +15,8 @@ COPY frontend/ ./
 RUN VITE_API_URL= npm run build
 
 # We only pay the cargo-chef install cost once (cached from the second build).
-# Pinned to the same Rust as local dev (rustc 1.97.1).
-FROM --platform=$BUILDPLATFORM rust:1.97.1 AS chef
+# Pinned to the same Rust as local dev (rustc 1.98).
+FROM --platform=$BUILDPLATFORM rust:1.98 AS chef
 RUN cargo install --locked cargo-chef
 WORKDIR /app
 

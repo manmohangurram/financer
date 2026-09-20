@@ -6,8 +6,8 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
-use crate::repo::traits::account::{AccountRow, AccountType};
 use crate::repo::traits::AccountRepo;
+use crate::repo::traits::account::{AccountRow, AccountType};
 use crate::utils::timex::ts_rfc3339;
 
 #[derive(Clone)]
@@ -32,7 +32,10 @@ impl AccountService {
             return Err(ApiError::bad_request("bank_name is required"));
         }
         validate_ending_numbers(ending_numbers)?;
-        let row = self.repo.create(user_id, bank_name, nickname, account_type, ending_numbers).await?;
+        let row = self
+            .repo
+            .create(user_id, bank_name, nickname, account_type, ending_numbers)
+            .await?;
         Ok(AccountResponse::from_row(row))
     }
 
@@ -50,7 +53,14 @@ impl AccountService {
         }
         let row = self
             .repo
-            .update(user_id, id, bank_name, nickname, account_type, ending_numbers)
+            .update(
+                user_id,
+                id,
+                bank_name,
+                nickname,
+                account_type,
+                ending_numbers,
+            )
             .await?
             .ok_or_else(|| ApiError::not_found(format!("account {id} not found")))?;
         Ok(AccountResponse::from_row(row))
@@ -64,7 +74,13 @@ impl AccountService {
     }
 
     pub async fn list(&self, user_id: &str) -> Result<Vec<AccountResponse>> {
-        Ok(self.repo.list(user_id).await?.into_iter().map(AccountResponse::from_row).collect())
+        Ok(self
+            .repo
+            .list(user_id)
+            .await?
+            .into_iter()
+            .map(AccountResponse::from_row)
+            .collect())
     }
 }
 
@@ -74,7 +90,9 @@ fn validate_ending_numbers(v: &str) -> Result<()> {
     if v.len() == 4 && v.bytes().all(|b| b.is_ascii_digit()) {
         Ok(())
     } else {
-        Err(ApiError::bad_request("endingNumbers must be exactly 4 digits"))
+        Err(ApiError::bad_request(
+            "endingNumbers must be exactly 4 digits",
+        ))
     }
 }
 

@@ -38,7 +38,14 @@ async fn account_crud_roundtrip() {
     assert_eq!(updated.1["endingNumbers"], "5678");
 
     // Delete it.
-    let deleted = app.request("DELETE", &format!("/api/accounts/{id}"), None, Some(&app.token)).await;
+    let deleted = app
+        .request(
+            "DELETE",
+            &format!("/api/accounts/{id}"),
+            None,
+            Some(&app.token),
+        )
+        .await;
     assert_eq!(deleted.0, StatusCode::NO_CONTENT);
 
     let (_, list) = app.get_json("/api/accounts", Some(&app.token)).await;
@@ -60,8 +67,14 @@ async fn ending_numbers_is_required_and_four_digits() {
         if !value.is_null() {
             body["endingNumbers"] = value.clone();
         }
-        let (status, _) = app.post_json("/api/accounts", &body, Some(&app.token)).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "create should reject {why}");
+        let (status, _) = app
+            .post_json("/api/accounts", &body, Some(&app.token))
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "create should reject {why}"
+        );
     }
 
     let ok = app
@@ -71,7 +84,11 @@ async fn ending_numbers_is_required_and_four_digits() {
             Some(&app.token),
         )
         .await;
-    assert_eq!(ok.0, StatusCode::CREATED, "card accounts use the same field");
+    assert_eq!(
+        ok.0,
+        StatusCode::CREATED,
+        "card accounts use the same field"
+    );
     let id = ok.1["id"].as_str().unwrap().to_string();
 
     // An update cannot clear it.
