@@ -13,15 +13,34 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 const form = ref({
   bankName: props.account?.bankName || '',
   nickname: props.account?.nickname || '',
+  endingNumbers: props.account?.endingNumbers || '',
   type: props.account?.type || 'CURRENT'
 });
 const saving = ref(false);
 const error = ref('');
+const endingError = ref('');
 const confirmDelete = ref(false);
 
+function validate() {
+  endingError.value = '';
+  const v = form.value.endingNumbers.trim();
+  // Accounts created before this field existed must supply it before being edited.
+  const required = !props.account || !props.account.endingNumbers;
+  if (required && !v) {
+    endingError.value = 'Last 4 digits are required';
+    return false;
+  }
+  if (v && !/^\d{4}$/.test(v)) {
+    endingError.value = 'Enter exactly 4 digits';
+    return false;
+  }
+  return true;
+}
+
 async function submit() {
-  saving.value = true;
   error.value = '';
+  if (!validate()) return;
+  saving.value = true;
   try {
     if (props.account) await accounts().updateAccount({ id: props.account.id, ...form.value });
     else await accounts().createAccount(form.value);
@@ -48,6 +67,14 @@ async function remove() {
       <p v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</p>
       <AppInput v-model="form.bankName" label="Bank Name" placeholder="e.g. Chase" />
       <AppInput v-model="form.nickname" label="Nickname" placeholder="e.g. Main Checking" />
+      <AppInput
+        v-model="form.endingNumbers"
+        label="Account / Card Ending"
+        placeholder="1234"
+        hint="Last 4 digits, used to match bank alerts from email"
+        :error="endingError"
+        required
+      />
       <AppSelect v-model="form.type" label="Account Type">
         <option v-for="opt in ACCOUNT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.name }}</option>
       </AppSelect>
