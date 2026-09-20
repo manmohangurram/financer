@@ -56,7 +56,9 @@ csv = "1.4.0"
 calamine = { version = "0.36.1", features = ["dates"] }
 pdfsink-rs = "0.2.19"
 imap = { version = "2.4", default-features = false }
-rustls-connector = "0.23"
+# rustls (not native-tls: the runtime image has no OpenSSL). Roots are bundled
+# at compile time so TLS does not depend on the OS trust store existing.
+rustls-connector = { version = "0.23", default-features = false, features = ["rustls--aws_lc_rs", "webpki-root-certs"] }
 chacha20poly1305 = "0.10"
 
 [dev-dependencies]

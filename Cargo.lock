@@ -4364,8 +4364,8 @@ dependencies = [
  "log",
  "rustls",
  "rustls-pki-types",
- "rustls-platform-verifier",
  "rustls-webpki",
+ "webpki-root-certs",
 ]
 
 [[package]]

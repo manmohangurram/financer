@@ -16,14 +16,14 @@ use crate::repo::traits::mail::MailAccountRow;
 type Stream = rustls_connector::TlsStream<TcpStream>;
 
 pub struct ImapSource {
-    /// `Session` needs `&mut`, and the trait takes `&self`, so the borrow is
-    /// taken per call. Plain `Mutex` is fine: the guard never crosses an await.
+    /// `Session` needs `&mut` but the trait takes `&self`. Plain `Mutex` is
+    /// fine: the guard never crosses an await.
     session: std::sync::Mutex<Session<Stream>>,
     senders: Vec<String>,
 }
 
 impl ImapSource {
-    /// Connect and select `INBOX`. Blocking; callers run it on a blocking thread.
+    /// Connect and select `INBOX`. Blocking — call via `block_in_place`.
     pub fn connect(account: &MailAccountRow, password: &str) -> Result<Self> {
         let host = account.imap_host.clone();
         let port = u16::try_from(account.imap_port).map_err(|_| {
@@ -32,7 +32,7 @@ impl ImapSource {
 
         let tcp = TcpStream::connect((host.as_str(), port))
             .map_err(|e| ApiError::bad_gateway(format!("imap TCP to {host}:{port} failed: {e}")))?;
-        let connector = rustls_connector::RustlsConnector::new_with_platform_verifier()
+        let connector = rustls_connector::RustlsConnector::new_with_webpki_root_certs()
             .map_err(|e| ApiError::bad_gateway(format!("imap TLS setup failed: {e}")))?;
         let tls = connector
             .connect(&host, tcp)
@@ -55,7 +55,6 @@ impl ImapSource {
         })
     }
 
-    /// `SINCE` wants `DD-Mon-YYYY`, and it is UTC-relative.
     fn since_clause(days: u32) -> String {
         let since = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
         since.format("SINCE %d-%b-%Y").to_string()
@@ -91,42 +90,45 @@ impl MailSource for ImapSource {
             .lock()
             .map_err(|_| ApiError::internal("imap session poisoned"))?;
 
-        let uids = session
-            .uid_search(&query)
-            .map_err(|e| ApiError::bad_gateway(format!("imap SEARCH failed: {e}")))?;
-        if uids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let set = uids
-            .iter()
-            .map(u32::to_string)
-            .collect::<Vec<_>>()
-            .join(",");
-        let fetches = session
-            .uid_fetch(
-                &set,
-                "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM SUBJECT DATE)])",
-            )
-            .map_err(|e| ApiError::bad_gateway(format!("imap FETCH headers failed: {e}")))?;
+        let out = tokio::task::block_in_place(|| -> Result<Vec<MailHeader>> {
+            let uids = session
+                .uid_search(&query)
+                .map_err(|e| ApiError::bad_gateway(format!("imap SEARCH failed: {e}")))?;
+            if uids.is_empty() {
+                return Ok(Vec::new());
+            }
+            let set = uids
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            let fetches = session
+                .uid_fetch(
+                    &set,
+                    "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM SUBJECT DATE)])",
+                )
+                .map_err(|e| ApiError::bad_gateway(format!("imap FETCH headers failed: {e}")))?;
 
-        let mut out = Vec::with_capacity(fetches.len());
-        for fetch in &fetches {
-            let (Some(uid), Some(raw)) = (fetch.uid, fetch.header()) else {
-                continue;
-            };
-            // No Message-ID means no idempotency key, so the message cannot be
-            // deduped; skipping is safer than ingesting it repeatedly.
-            let Some(message_id) = parse_message_id(raw) else {
-                continue;
-            };
-            out.push(MailHeader {
-                uid,
-                message_id,
-                from_addr: parse_header_value(raw, "From").unwrap_or_default(),
-                subject: parse_header_value(raw, "Subject").unwrap_or_default(),
-                received_at: parse_header_value(raw, "Date"),
-            });
-        }
+            let mut out = Vec::with_capacity(fetches.len());
+            for fetch in &fetches {
+                let (Some(uid), Some(raw)) = (fetch.uid, fetch.header()) else {
+                    continue;
+                };
+                // No Message-ID means no idempotency key, so the message cannot
+                // be deduped; skipping beats ingesting it repeatedly.
+                let Some(message_id) = parse_message_id(raw) else {
+                    continue;
+                };
+                out.push(MailHeader {
+                    uid,
+                    message_id,
+                    from_addr: parse_header_value(raw, "From").unwrap_or_default(),
+                    subject: parse_header_value(raw, "Subject").unwrap_or_default(),
+                    received_at: parse_header_value(raw, "Date"),
+                });
+            }
+            Ok(out)
+        })?;
         Ok(out)
     }
 
@@ -135,19 +137,19 @@ impl MailSource for ImapSource {
             .session
             .lock()
             .map_err(|_| ApiError::internal("imap session poisoned"))?;
-        let fetches = session
-            .uid_fetch(uid.to_string(), "(BODY.PEEK[])")
-            .map_err(|e| ApiError::bad_gateway(format!("imap FETCH body failed: {e}")))?;
-        let raw = fetches
-            .iter()
-            .find_map(imap::types::Fetch::body)
-            .ok_or_else(|| ApiError::bad_gateway("imap returned no body"))?;
-        Ok(String::from_utf8_lossy(raw).into_owned())
+        tokio::task::block_in_place(|| -> Result<String> {
+            let fetches = session
+                .uid_fetch(uid.to_string(), "(BODY.PEEK[])")
+                .map_err(|e| ApiError::bad_gateway(format!("imap FETCH body failed: {e}")))?;
+            let raw = fetches
+                .iter()
+                .find_map(imap::types::Fetch::body)
+                .ok_or_else(|| ApiError::bad_gateway("imap returned no body"))?;
+            Ok(String::from_utf8_lossy(raw).into_owned())
+        })
     }
 }
 
-/// Kept separate so the header-decoding rules are unit-testable without a
-/// server: raw RFC822 header bytes -> the fields the poll needs.
 pub fn parse_message_id(raw: &[u8]) -> Option<String> {
     let text = String::from_utf8_lossy(raw);
     for line in text.lines() {
