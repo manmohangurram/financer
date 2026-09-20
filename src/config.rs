@@ -22,6 +22,9 @@ pub struct Server {
     pub jwt_secret: String,
     /// IANA timezone used for all date/time interpretation (e.g. "Asia/Kolkata").
     pub timezone: String,
+    /// 32-byte hex key encrypting stored mailbox credentials. Absent means the
+    /// mail feature is unavailable, never that secrets are stored in the clear.
+    pub secret_key: Option<String>,
 }
 
 impl Default for Server {
@@ -33,6 +36,7 @@ impl Default for Server {
             domain_url: String::new(),
             jwt_secret: String::new(),
             timezone: "Asia/Kolkata".into(),
+            secret_key: None,
         }
     }
 }
@@ -124,6 +128,17 @@ impl Default for YahooConfigSection {
     }
 }
 
+/// Fails at boot on a malformed key rather than at first use, when a user is
+/// already mid-flow setting up a mailbox.
+fn validate_secret_key(key: Option<&str>) -> anyhow::Result<Option<String>> {
+    let Some(k) = key else { return Ok(None) };
+    if k.len() == 64 && k.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok(Some(k.to_ascii_lowercase()))
+    } else {
+        anyhow::bail!("FINANCER_SECRET_KEY must be 32 bytes of hex (64 characters)")
+    }
+}
+
 /// Storage database choice, derived from `Storage.database`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Database {
@@ -140,6 +155,9 @@ impl Config {
         cfg.apply_overrides_from(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
         if cfg.server.jwt_secret.is_empty() {
             anyhow::bail!("FINANCER_JWT_SECRET is required — set it to a stable secret (e.g. `openssl rand -hex 32`)");
+        }
+        if let Some(k) = validate_secret_key(cfg.server.secret_key.as_deref())? {
+            cfg.server.secret_key = Some(k);
         }
         Ok(cfg)
     }
@@ -159,6 +177,9 @@ impl Config {
         }
         if let Some(v) = get("FINANCER_TIMEZONE") {
             self.server.timezone = v;
+        }
+        if let Some(v) = get("FINANCER_SECRET_KEY") {
+            self.server.secret_key = Some(v);
         }
         if let Some(v) = get("FINANCER_DATABASE") {
             self.storage.database = v;
@@ -222,6 +243,16 @@ mod tests {
         assert_eq!(cfg.storage.surreal.user, "root");
         assert_eq!(cfg.storage.sqlite.path, "/data/financer.db");
         assert_eq!(cfg.database(), Database::Surreal);
+    }
+
+    #[test]
+    fn secret_key_is_optional_but_must_be_32_bytes_of_hex() {
+        assert_eq!(validate_secret_key(None).unwrap(), None);
+        let ok = "A".repeat(64);
+        assert_eq!(validate_secret_key(Some(&ok)).unwrap().unwrap(), "a".repeat(64));
+        for bad in ["", "abcd", &"z".repeat(64), &"a".repeat(63)] {
+            assert!(validate_secret_key(Some(bad)).is_err(), "should reject {bad:?}");
+        }
     }
 
     #[test]
