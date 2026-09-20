@@ -399,10 +399,10 @@ mod tests {
 
 
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db as db;
 
     async fn repo() -> (InvestmentRepo<surrealdb::engine::local::Db>, Arc<surrealdb::Surreal<surrealdb::engine::local::Db>>) {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query("CREATE user CONTENT { id: 'u1', email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
             .await
             .unwrap()

@@ -656,7 +656,7 @@ mod tests {
 
 
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db as db;
 
     #[test]
     fn rejects_unknown_type() {
@@ -666,7 +666,7 @@ mod tests {
     }
 
     async fn setup() -> (Arc<surrealdb::Surreal<surrealdb::engine::local::Db>>, TransactionRepo<surrealdb::engine::local::Db>) {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query("CREATE user CONTENT { email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
             .await
             .unwrap()
@@ -837,10 +837,10 @@ mod spending_tests {
     #![allow(clippy::float_cmp)]
     use std::sync::Arc;
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db as db;
 
     async fn setup() -> (Arc<surrealdb::Surreal<surrealdb::engine::local::Db>>, TransactionRepo<surrealdb::engine::local::Db>) {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query("CREATE user CONTENT { email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
             .await
             .unwrap()

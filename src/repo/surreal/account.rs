@@ -241,7 +241,7 @@ mod tests {
 
 
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db as db;
 
 
     #[test]
@@ -253,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     async fn crud_scoped_to_user() {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         for uid in ["u1", "u2"] {
             db.query("CREATE user CONTENT { id: $id, email: $email, passwordHash: 'h', name: $id }")
                 .bind(("id", uid.to_string()))
@@ -289,7 +289,7 @@ mod tests {
 
     #[tokio::test]
     async fn balance_and_totals_deltas() {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query("CREATE user CONTENT { id: 'u1', email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
             .await
             .unwrap()

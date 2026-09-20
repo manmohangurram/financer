@@ -169,10 +169,10 @@ mod tests {
 
 
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db as db;
 
     async fn repo() -> CategoryRepo<surrealdb::engine::local::Db> {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query("CREATE user CONTENT { email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
             .await
             .unwrap()
