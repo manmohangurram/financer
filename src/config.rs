@@ -143,8 +143,9 @@ fn validate_secret_key(key: Option<&str>) -> anyhow::Result<Option<String>> {
     }
 }
 
-/// Storage database choice, derived from `Storage.database`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Storage backend, chosen by `FINANCER_DATABASE`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumString)]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum Database {
     Surreal,
     Sqlite,
@@ -212,11 +213,7 @@ impl Config {
 
     /// Choose the database from `[storage] database` value.
     pub fn database(&self) -> Database {
-        if self.storage.database.eq_ignore_ascii_case("surreal") {
-            Database::Surreal
-        } else {
-            Database::Sqlite
-        }
+        std::str::FromStr::from_str(&self.storage.database).unwrap_or(Database::Sqlite)
     }
 }
 
