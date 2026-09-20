@@ -86,12 +86,11 @@ impl SqliteUserKeyRepo {
     }
 
     async fn by_key_hash_inner(&self, key_hash: &str) -> Result<Option<(String, String, String)>> {
-        let row: Option<(String, String, String)> = sqlx::query_as(
-            "SELECT user_id, id, scope FROM user_keys WHERE key_hash = ?",
-        )
-        .bind(key_hash)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(String, String, String)> =
+            sqlx::query_as("SELECT user_id, id, scope FROM user_keys WHERE key_hash = ?")
+                .bind(key_hash)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(row)
     }
 
@@ -107,8 +106,17 @@ impl SqliteUserKeyRepo {
 
 #[async_trait]
 impl UserKeyRepoTrait for SqliteUserKeyRepo {
-    async fn create(&self, user_id: &str, name: &str, key_hash: &str, key_prefix: &str, expires_at: Option<String>, scope: &str) -> Result<String> {
-        self.create_inner(user_id, name, key_hash, key_prefix, expires_at, scope).await
+    async fn create(
+        &self,
+        user_id: &str,
+        name: &str,
+        key_hash: &str,
+        key_prefix: &str,
+        expires_at: Option<String>,
+        scope: &str,
+    ) -> Result<String> {
+        self.create_inner(user_id, name, key_hash, key_prefix, expires_at, scope)
+            .await
     }
     async fn list(&self, user_id: &str) -> Result<Vec<UserKeyRow>> {
         self.list_inner(user_id).await

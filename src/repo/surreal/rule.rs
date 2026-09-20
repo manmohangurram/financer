@@ -5,11 +5,14 @@
 use surrealdb::Connection;
 
 use crate::error::Result;
-use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
-use crate::utils::timex::{ts_rfc3339};
+use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
+use crate::utils::timex::ts_rfc3339;
 
 #[allow(unused_imports)]
-pub use crate::repo::traits::rule::{ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};
+pub use crate::repo::traits::rule::{
+    ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction,
+    RuleCondition, RuleLogic,
+};
 
 #[derive(Clone)]
 pub struct RuleRepo<C: Connection = DbClient> {
@@ -148,7 +151,11 @@ impl<C: Connection> RuleRepo<C> {
 }
 
 fn cond_to_data(c: &RuleCondition) -> ConditionData {
-    ConditionData { match_field: c.match_field, operator: c.operator, pattern: c.pattern.clone() }
+    ConditionData {
+        match_field: c.match_field,
+        operator: c.operator,
+        pattern: c.pattern.clone(),
+    }
 }
 
 // Backend-agnostic `RuleRepo` trait impl (forwarders → inherent methods).
@@ -163,7 +170,8 @@ impl crate::repo::traits::RuleRepo for RuleRepo<DbClient> {
         conditions: &[RuleCondition],
         actions: &[RuleAction],
     ) -> Result<Rule> {
-        self.create(user_id, name, priority, logic, conditions, actions).await
+        self.create(user_id, name, priority, logic, conditions, actions)
+            .await
     }
     async fn update(
         &self,
@@ -175,7 +183,8 @@ impl crate::repo::traits::RuleRepo for RuleRepo<DbClient> {
         conditions: &[RuleCondition],
         actions: &[RuleAction],
     ) -> Result<bool> {
-        self.update(user_id, id, name, priority, logic, conditions, actions).await
+        self.update(user_id, id, name, priority, logic, conditions, actions)
+            .await
     }
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete(user_id, id).await
@@ -194,7 +203,6 @@ impl crate::repo::traits::RuleRepo for RuleRepo<DbClient> {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-
 
     use super::*;
     use crate::surreal_db;
@@ -225,7 +233,17 @@ mod tests {
             set_name_op: Some(ActionOp::Rename),
             ..Default::default()
         };
-        let created = repo.create("u1", "Renamer", 5, RuleLogic::And, &[cond()], std::slice::from_ref(&action)).await.unwrap();
+        let created = repo
+            .create(
+                "u1",
+                "Renamer",
+                5,
+                RuleLogic::And,
+                &[cond()],
+                std::slice::from_ref(&action),
+            )
+            .await
+            .unwrap();
         assert_eq!(created.name, "Renamer");
         assert_eq!(created.logic, RuleLogic::And);
         assert_eq!(created.conditions.len(), 1);
@@ -235,7 +253,18 @@ mod tests {
         assert_eq!(fetched.conditions[0].pattern, "netflix");
         assert_eq!(fetched.actions[0].set_name, "Netflix Sub");
 
-        let updated = repo.update("u1", &created.id, "Renamer2", 9, RuleLogic::Or, &[cond()], &[]).await.unwrap();
+        let updated = repo
+            .update(
+                "u1",
+                &created.id,
+                "Renamer2",
+                9,
+                RuleLogic::Or,
+                &[cond()],
+                &[],
+            )
+            .await
+            .unwrap();
         assert!(updated);
         let after = repo.get_by_id("u1", &created.id).await.unwrap().unwrap();
         assert_eq!(after.name, "Renamer2");
@@ -246,7 +275,10 @@ mod tests {
         assert!(repo.get_by_id("u1", &created.id).await.unwrap().is_none());
 
         // cross-user
-        let r2 = repo.create("u1", "Other", 1, RuleLogic::Or, &[], &[]).await.unwrap();
+        let r2 = repo
+            .create("u1", "Other", 1, RuleLogic::Or, &[], &[])
+            .await
+            .unwrap();
         assert!(repo.get_by_id("u2", &r2.id).await.unwrap().is_none());
     }
 }

@@ -20,12 +20,25 @@ async fn create_list_returns_merged_name() {
             Some(&app.token),
         )
         .await;
-    assert_eq!(rule.0, StatusCode::CREATED, "rule create failed: {}", rule.1);
+    assert_eq!(
+        rule.0,
+        StatusCode::CREATED,
+        "rule create failed: {}",
+        rule.1
+    );
 
-    assert_eq!(app.create_txn("ZOMATO-123", 100.0, "DEBIT").await.0, StatusCode::CREATED);
-    assert_eq!(app.create_txn("Plain Shop", 5.0, "DEBIT").await.0, StatusCode::CREATED);
+    assert_eq!(
+        app.create_txn("ZOMATO-123", 100.0, "DEBIT").await.0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        app.create_txn("Plain Shop", 5.0, "DEBIT").await.0,
+        StatusCode::CREATED
+    );
 
-    let (status, list) = app.get_json("/api/transactions?pageSize=10", Some(&app.token)).await;
+    let (status, list) = app
+        .get_json("/api/transactions?pageSize=10", Some(&app.token))
+        .await;
     assert_eq!(status, StatusCode::OK);
     let txns = list["transactions"].as_array().unwrap();
     assert_eq!(txns.len(), 2);
@@ -34,7 +47,10 @@ async fn create_list_returns_merged_name() {
     let names: Vec<&str> = txns.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"Zomato Food"), "got {names:?}");
     assert!(names.contains(&"Plain Shop"), "got {names:?}");
-    assert!(txns.iter().all(|t| t.get("cleanName").is_none()), "cleanName must not be on the wire");
+    assert!(
+        txns.iter().all(|t| t.get("cleanName").is_none()),
+        "cleanName must not be on the wire"
+    );
 }
 
 #[tokio::test]
@@ -65,7 +81,9 @@ async fn update_clears_rule_name() {
     .await;
     app.create_txn("ZOMATO-123", 100.0, "DEBIT").await;
 
-    let (_, list) = app.get_json("/api/transactions?pageSize=10", Some(&app.token)).await;
+    let (_, list) = app
+        .get_json("/api/transactions?pageSize=10", Some(&app.token))
+        .await;
     let id = list["transactions"][0]["id"].as_str().unwrap().to_string();
 
     let upd = app
@@ -80,7 +98,9 @@ async fn update_clears_rule_name() {
         .await;
     assert_eq!(upd.0, StatusCode::OK, "update failed: {}", upd.1);
 
-    let (_, list) = app.get_json("/api/transactions?pageSize=10", Some(&app.token)).await;
+    let (_, list) = app
+        .get_json("/api/transactions?pageSize=10", Some(&app.token))
+        .await;
     assert_eq!(list["transactions"][0]["name"].as_str(), Some("My Dinner"));
 }
 
@@ -89,11 +109,18 @@ async fn delete_restores_balance() {
     let app = TestApp::new().await;
     app.create_txn("Rent", 400.0, "DEBIT").await;
 
-    let (_, list) = app.get_json("/api/transactions?pageSize=10", Some(&app.token)).await;
+    let (_, list) = app
+        .get_json("/api/transactions?pageSize=10", Some(&app.token))
+        .await;
     let id = list["transactions"][0]["id"].as_str().unwrap().to_string();
 
     let del = app
-        .request("DELETE", "/api/transactions", Some(serde_json::json!({ "ids": [id] })), Some(&app.token))
+        .request(
+            "DELETE",
+            "/api/transactions",
+            Some(serde_json::json!({ "ids": [id] })),
+            Some(&app.token),
+        )
         .await;
     assert_eq!(del.0, StatusCode::NO_CONTENT);
 

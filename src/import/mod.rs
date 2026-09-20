@@ -29,7 +29,10 @@ pub enum FileKind {
 
 /// Pick a parser from the uploaded filename's extension (case-insensitive).
 pub fn kind_for(filename: &str) -> Option<FileKind> {
-    let ext = std::path::Path::new(filename).extension()?.to_str()?.to_ascii_lowercase();
+    let ext = std::path::Path::new(filename)
+        .extension()?
+        .to_str()?
+        .to_ascii_lowercase();
     match ext.as_str() {
         "csv" => Some(FileKind::Csv),
         "xlsx" | "xls" | "ods" => Some(FileKind::Xlsx),
@@ -77,14 +80,19 @@ pub(crate) fn merge_tables(mut tables: Vec<Table>) -> Result<ParsedFile> {
             merged.rows.push(row);
         }
     }
-    Ok(ParsedFile { headers: merged.headers, rows: merged.rows })
+    Ok(ParsedFile {
+        headers: merged.headers,
+        rows: merged.rows,
+    })
 }
 
 /// Drop fully-blank rows, then split the first row off as headers.
 pub(crate) fn split_rows(mut rows: Vec<Vec<String>>) -> Result<ParsedFile> {
     rows.retain(|r| r.iter().any(|c| !c.is_empty()));
     if rows.len() < 2 {
-        return Err(ApiError::bad_request("need a header row and at least one data row"));
+        return Err(ApiError::bad_request(
+            "need a header row and at least one data row",
+        ));
     }
     let headers = rows.remove(0);
     Ok(ParsedFile { headers, rows })

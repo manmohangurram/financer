@@ -1,9 +1,9 @@
 //! API error envelope, mirroring the Go backend's `{code, message}` shape and
 //! status-code mapping in `httpserver/server.go`.
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
@@ -14,22 +14,40 @@ pub struct ApiError {
 
 impl ApiError {
     pub fn bad_request(msg: impl Into<String>) -> Self {
-        Self { status: 400, message: msg.into() }
+        Self {
+            status: 400,
+            message: msg.into(),
+        }
     }
     pub fn unauthorized(msg: impl Into<String>) -> Self {
-        Self { status: 401, message: msg.into() }
+        Self {
+            status: 401,
+            message: msg.into(),
+        }
     }
     pub fn not_found(msg: impl Into<String>) -> Self {
-        Self { status: 404, message: msg.into() }
+        Self {
+            status: 404,
+            message: msg.into(),
+        }
     }
     pub fn conflict(msg: impl Into<String>) -> Self {
-        Self { status: 409, message: msg.into() }
+        Self {
+            status: 409,
+            message: msg.into(),
+        }
     }
     pub fn internal(msg: impl Into<String>) -> Self {
-        Self { status: 500, message: msg.into() }
+        Self {
+            status: 500,
+            message: msg.into(),
+        }
     }
     pub fn bad_gateway(msg: impl Into<String>) -> Self {
-        Self { status: 502, message: msg.into() }
+        Self {
+            status: 502,
+            message: msg.into(),
+        }
     }
 
     pub fn status(&self) -> StatusCode {
@@ -57,7 +75,14 @@ struct ErrorBody {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status(), Json(ErrorBody { code: self.code_name(), message: self.message })).into_response()
+        (
+            self.status(),
+            Json(ErrorBody {
+                code: self.code_name(),
+                message: self.message,
+            }),
+        )
+            .into_response()
     }
 }
 

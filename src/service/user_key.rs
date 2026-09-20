@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use base64::{engine::general_purpose::URL_SAFE as B64URL, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE as B64URL};
 use sha2::{Digest, Sha256};
 
 use crate::error::{ApiError, Result};
@@ -51,18 +51,35 @@ impl UserKeyService {
 
     /// Create a key. `expires_in_days` of 0 leaves it non-expiring. `scope` is
     /// `read` (default) or `read_write`.
-    pub async fn create(&self, user_id: &str, name: &str, expires_in_days: i64, scope: &str) -> Result<UserKeyView> {
+    pub async fn create(
+        &self,
+        user_id: &str,
+        name: &str,
+        expires_in_days: i64,
+        scope: &str,
+    ) -> Result<UserKeyView> {
         if self.repo.count(user_id).await? >= MAX_KEYS_PER_USER {
-            return Err(ApiError::bad_request(format!("max {MAX_KEYS_PER_USER} keys per user")));
+            return Err(ApiError::bad_request(format!(
+                "max {MAX_KEYS_PER_USER} keys per user"
+            )));
         }
-        let scope = if scope.eq_ignore_ascii_case("read_write") { "read_write" } else { "read" };
+        let scope = if scope.eq_ignore_ascii_case("read_write") {
+            "read_write"
+        } else {
+            "read"
+        };
         let (key, hash, prefix) = generate_key();
         let expires_at = if expires_in_days > 0 {
-            Some(go_ts(crate::utils::timex::now_utc() + chrono::Duration::days(expires_in_days)))
+            Some(go_ts(
+                crate::utils::timex::now_utc() + chrono::Duration::days(expires_in_days),
+            ))
         } else {
             None
         };
-        let id = self.repo.create(user_id, name, &hash, &prefix, expires_at.clone(), scope).await?;
+        let id = self
+            .repo
+            .create(user_id, name, &hash, &prefix, expires_at.clone(), scope)
+            .await?;
         Ok(UserKeyView {
             id,
             name: name.to_string(),
@@ -93,7 +110,11 @@ impl UserKeyService {
         let Some((user_id, id, scope)) = self.repo.by_key_hash(&hash).await? else {
             return Err(ApiError::unauthorized("invalid API key"));
         };
-        if let Some(expires) = self.repo.get_by_id(&user_id, &id).await?.and_then(|r| r.expires_at)
+        if let Some(expires) = self
+            .repo
+            .get_by_id(&user_id, &id)
+            .await?
+            .and_then(|r| r.expires_at)
             && is_expired(&expires)
         {
             return Err(ApiError::unauthorized("API key expired"));

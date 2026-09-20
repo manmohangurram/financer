@@ -6,7 +6,17 @@ use crate::error::Result;
 
 /// Account type. Wire value is the uppercase string (`CURRENT`/`CREDIT_CARD`).
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, strum::Display, strum::EnumString, utoipa::ToSchema, schemars::JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::EnumString,
+    utoipa::ToSchema,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
@@ -33,9 +43,22 @@ pub struct AccountRow {
 
 #[async_trait]
 pub trait AccountRepo: Send + Sync {
-    async fn create(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountRow>;
+    async fn create(
+        &self,
+        user_id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<AccountRow>;
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>>;
-    async fn update(&self, user_id: &str, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<Option<AccountRow>>;
+    async fn update(
+        &self,
+        user_id: &str,
+        id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<Option<AccountRow>>;
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool>;
     async fn list(&self, user_id: &str) -> Result<Vec<AccountRow>>;
     async fn update_balance(&self, account_id: &str, delta: f64) -> Result<()>;

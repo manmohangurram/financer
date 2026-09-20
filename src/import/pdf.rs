@@ -3,9 +3,9 @@
 //! Encrypted PDFs are rejected. Table detection uses `pdfsink-rs`'s default
 //! line-based settings — the same ones the `pdfsink-rs` CLI uses.
 
-use super::{merge_tables, ParsedFile, Table};
+use super::{ParsedFile, Table, merge_tables};
 use crate::error::{ApiError, Result};
-use pdfsink_rs::{open_pdf_bytes, TableSettings};
+use pdfsink_rs::{TableSettings, open_pdf_bytes};
 
 /// Parse the PDF's tables into one import-ready `{headers, rows}`.
 pub fn parse(bytes: &[u8]) -> Result<ParsedFile> {
@@ -16,9 +16,12 @@ pub fn parse(bytes: &[u8]) -> Result<ParsedFile> {
 /// becomes its headers; blank header cells are named `column1`, `column2`, …
 fn extract_tables(bytes: &[u8]) -> Result<Vec<Table>> {
     if is_encrypted(bytes) {
-        return Err(ApiError::bad_request("PDF is encrypted; password-protected PDFs are not supported"));
+        return Err(ApiError::bad_request(
+            "PDF is encrypted; password-protected PDFs are not supported",
+        ));
     }
-    let doc = open_pdf_bytes(bytes).map_err(|e| ApiError::bad_request(format!("could not read PDF: {e}")))?;
+    let doc = open_pdf_bytes(bytes)
+        .map_err(|e| ApiError::bad_request(format!("could not read PDF: {e}")))?;
     let mut tables = Vec::new();
     for number in 1..=doc.len() {
         let page = doc
@@ -48,7 +51,9 @@ fn is_encrypted(bytes: &[u8]) -> bool {
 /// First row -> headers; remaining rows -> data, trimmed, newlines folded to
 /// spaces and every row padded/truncated to the header width.
 fn normalise(table: Vec<Vec<Option<String>>>) -> Table {
-    let mut rows = table.into_iter().map(|r| r.into_iter().map(cell).collect::<Vec<String>>());
+    let mut rows = table
+        .into_iter()
+        .map(|r| r.into_iter().map(cell).collect::<Vec<String>>());
     let mut headers = rows.next().unwrap_or_default();
     for (i, h) in headers.iter_mut().enumerate() {
         if h.is_empty() {
@@ -63,7 +68,10 @@ fn normalise(table: Vec<Vec<Option<String>>>) -> Table {
             r
         })
         .collect();
-    Table { headers, rows: data }
+    Table {
+        headers,
+        rows: data,
+    }
 }
 
 fn cell(c: Option<String>) -> String {
@@ -84,7 +92,11 @@ mod tests {
     fn normalise_names_blank_headers_and_squares_rows() {
         let table = vec![
             vec![Some("Date".into()), Some("Amount".into()), None],
-            vec![Some("1 Jan".into()), Some("10.00".into()), Some("a\nb".into())],
+            vec![
+                Some("1 Jan".into()),
+                Some("10.00".into()),
+                Some("a\nb".into()),
+            ],
             vec![Some("2 Jan".into())], // short row is padded
         ];
         let out = normalise(table);

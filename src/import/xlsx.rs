@@ -1,8 +1,8 @@
 //! XLSX / XLS / ODS parsing via `calamine` (first sheet).
 
-use super::{merge_tables, ParsedFile, Table};
+use super::{ParsedFile, Table, merge_tables};
 use crate::error::{ApiError, Result};
-use calamine::{open_workbook_from_rs, Data, Reader};
+use calamine::{Data, Reader, open_workbook_from_rs};
 
 /// Parse every sheet of a workbook, merged into one `{headers, rows}`.
 ///
@@ -18,8 +18,11 @@ pub fn parse(bytes: &[u8]) -> Result<ParsedFile> {
     }
     let mut tables: Vec<Table> = Vec::new();
     for sheet in sheets {
-        let Ok(range) = workbook.worksheet_range(&sheet) else { continue };
-        let mut rows: Vec<Vec<String>> = range.rows().map(|r| r.iter().map(cell).collect()).collect();
+        let Ok(range) = workbook.worksheet_range(&sheet) else {
+            continue;
+        };
+        let mut rows: Vec<Vec<String>> =
+            range.rows().map(|r| r.iter().map(cell).collect()).collect();
         rows.retain(|r| r.iter().any(|c| !c.is_empty()));
         if rows.is_empty() {
             continue;
@@ -40,7 +43,9 @@ fn cell(c: &Data) -> String {
         // Display prints 1500.0 as "1500" and 15.5 as "15.5".
         Data::Float(f) => f.to_string(),
         Data::Bool(b) => b.to_string(),
-        Data::DateTime(d) => d.as_datetime().map_or_else(String::new, |dt| dt.format("%Y-%m-%d").to_string()),
+        Data::DateTime(d) => d
+            .as_datetime()
+            .map_or_else(String::new, |dt| dt.format("%Y-%m-%d").to_string()),
         other => other.to_string(),
     }
 }

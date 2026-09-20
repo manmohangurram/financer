@@ -32,7 +32,9 @@ async fn category_crud_and_transaction_assignment() {
     )
     .await;
 
-    let (_, txns) = app.get_json("/api/transactions?pageSize=10", Some(&app.token)).await;
+    let (_, txns) = app
+        .get_json("/api/transactions?pageSize=10", Some(&app.token))
+        .await;
     let cats = txns["transactions"][0]["categoryIds"].as_array().unwrap();
     assert_eq!(cats.len(), 1);
     assert_eq!(cats[0].as_str(), Some(cat_id.as_str()));

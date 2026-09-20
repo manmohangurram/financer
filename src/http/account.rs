@@ -7,13 +7,16 @@ use axum::{Json, Router};
 use utoipa::ToSchema;
 
 use crate::error::json_error;
-use crate::http::{require_user, AppState, JsonResult};
+use crate::http::{AppState, JsonResult, require_user};
 use crate::repo::traits::account::AccountType;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/accounts", axum::routing::get(list).post(create))
-        .route("/api/accounts/{id}", axum::routing::put(update).delete(delete))
+        .route(
+            "/api/accounts/{id}",
+            axum::routing::put(update).delete(delete),
+        )
 }
 
 #[derive(serde::Deserialize, ToSchema)]
@@ -32,7 +35,6 @@ pub struct ReqAccount {
     #[serde(rename = "type")]
     account_type: AccountType,
 }
-
 
 #[utoipa::path(
     post,
@@ -58,7 +60,11 @@ pub async fn create(
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.account.create(&uid, &req.bank_name, &req.nickname, req.account_type).await {
+    match st
+        .account
+        .create(&uid, &req.bank_name, &req.nickname, req.account_type)
+        .await
+    {
         Ok(a) => (StatusCode::CREATED, Json(a)).into_response(),
         Err(e) => e.into_response(),
     }
@@ -91,7 +97,11 @@ pub async fn update(
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.account.update(&uid, &id, &req.bank_name, &req.nickname, req.account_type).await {
+    match st
+        .account
+        .update(&uid, &id, &req.bank_name, &req.nickname, req.account_type)
+        .await
+    {
         Ok(a) => Json(a).into_response(),
         Err(e) => e.into_response(),
     }
@@ -108,7 +118,11 @@ pub async fn update(
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn delete(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+pub async fn delete(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
@@ -138,4 +152,3 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> Response {
         Err(e) => e.into_response(),
     }
 }
-

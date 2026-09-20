@@ -6,13 +6,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use sqlx::SqlitePool;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 use crate::error::Result;
 #[cfg(feature = "surreal")]
 use crate::repo::surreal;
-use crate::repo::traits::{AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo};
+use crate::repo::traits::{
+    AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo,
+};
 
 /// All repositories, type-erased so the service layer is backend-agnostic.
 pub struct RepoSet {
@@ -54,11 +56,19 @@ pub async fn sqlite_repo_set(cfg: &crate::config::Sqlite) -> Result<RepoSet> {
     let pool = db.write.clone();
     Ok(RepoSet {
         user: Arc::new(crate::repo::sqlite::user::SqliteUserRepo::new(pool.clone())),
-        account: Arc::new(crate::repo::sqlite::account::SqliteAccountRepo::new(pool.clone())),
-        category: Arc::new(crate::repo::sqlite::category::SqliteCategoryRepo::new(pool.clone())),
+        account: Arc::new(crate::repo::sqlite::account::SqliteAccountRepo::new(
+            pool.clone(),
+        )),
+        category: Arc::new(crate::repo::sqlite::category::SqliteCategoryRepo::new(
+            pool.clone(),
+        )),
         rule: Arc::new(crate::repo::sqlite::rule::SqliteRuleRepo::new(pool.clone())),
-        investment: Arc::new(crate::repo::sqlite::investment::SqliteInvestmentRepo::new(pool.clone())),
-        transaction: Arc::new(crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool.clone())),
+        investment: Arc::new(crate::repo::sqlite::investment::SqliteInvestmentRepo::new(
+            pool.clone(),
+        )),
+        transaction: Arc::new(
+            crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool.clone()),
+        ),
         user_key: Arc::new(crate::repo::sqlite::user_key::SqliteUserKeyRepo::new(pool)),
     })
 }

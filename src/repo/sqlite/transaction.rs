@@ -9,9 +9,9 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::transaction::{
-    decode_transaction_cursor, encode_transaction_cursor, CreateOutcome, CreateTransactionInput, ListRow,
-    ListTransactionResult, SpendingFilter, SpendingTxn, Transaction,
-    TransactionListFilter, TransactionType, UpdateTransactionInput,
+    CreateOutcome, CreateTransactionInput, ListRow, ListTransactionResult, SpendingFilter,
+    SpendingTxn, Transaction, TransactionListFilter, TransactionType, UpdateTransactionInput,
+    decode_transaction_cursor, encode_transaction_cursor,
 };
 
 pub struct SqliteTransactionRepo {
@@ -23,7 +23,11 @@ impl SqliteTransactionRepo {
         Self { pool }
     }
 
-    async fn get_by_id_for_transfer_inner(&self, user_id: &str, id: &str) -> Result<Option<(String, f64, String)>> {
+    async fn get_by_id_for_transfer_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+    ) -> Result<Option<(String, f64, String)>> {
         let row = sqlx::query_as::<_, (String, f64, String)>(
             "SELECT type, amount, account_id FROM transactions WHERE id = ? AND user_id = ?",
         )
@@ -91,7 +95,11 @@ impl SqliteTransactionRepo {
         Ok(one.is_some())
     }
 
-    async fn create_inner(&self, user_id: &str, inputs: &[CreateTransactionInput]) -> Result<CreateOutcome> {
+    async fn create_inner(
+        &self,
+        user_id: &str,
+        inputs: &[CreateTransactionInput],
+    ) -> Result<CreateOutcome> {
         let mut inserted = std::collections::HashSet::new();
         let mut errors: Vec<String> = Vec::new();
         if inputs.is_empty() {
@@ -144,7 +152,11 @@ impl SqliteTransactionRepo {
         Ok(CreateOutcome { inserted, errors })
     }
 
-    async fn update_inner(&self, user_id: &str, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>> {
+    async fn update_inner(
+        &self,
+        user_id: &str,
+        inputs: &[UpdateTransactionInput],
+    ) -> Result<Vec<String>> {
         let mut errors: Vec<String> = Vec::new();
         if inputs.is_empty() {
             return Ok(errors);
@@ -176,10 +188,11 @@ impl SqliteTransactionRepo {
             .await;
             match res {
                 Ok(r) if r.rows_affected() > 0 => {
-                    if let Err(e) = sqlx::query("DELETE FROM transaction_categories WHERE transaction_id = ?")
-                        .bind(&t.id)
-                        .execute(&mut *tx)
-                        .await
+                    if let Err(e) =
+                        sqlx::query("DELETE FROM transaction_categories WHERE transaction_id = ?")
+                            .bind(&t.id)
+                            .execute(&mut *tx)
+                            .await
                     {
                         errors.push(format!("failed to clear categories for {}", t.id));
                         tracing::error!("failed to clear categories for {}: {e}", t.id);
@@ -210,7 +223,13 @@ impl SqliteTransactionRepo {
         Ok(errors)
     }
 
-    async fn apply_rule_result_inner(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()> {
+    async fn apply_rule_result_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+        clean_name: Option<&str>,
+        category_ids: &[String],
+    ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         sqlx::query("UPDATE transactions SET clean_name = ? WHERE id = ? AND user_id = ?")
             .bind(clean_name)
@@ -258,7 +277,11 @@ impl SqliteTransactionRepo {
         Ok(errors)
     }
 
-    async fn get_by_id_batch_inner(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>> {
+    async fn get_by_id_batch_inner(
+        &self,
+        user_id: &str,
+        ids: &[String],
+    ) -> Result<Vec<Transaction>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -275,7 +298,11 @@ impl SqliteTransactionRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    async fn list_inner(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult> {
+    async fn list_inner(
+        &self,
+        user_id: &str,
+        f: &TransactionListFilter,
+    ) -> Result<ListTransactionResult> {
         let (where_sql, filter_args) = build_txn_where(f);
 
         let mut query = String::from(
@@ -306,7 +333,11 @@ impl SqliteTransactionRepo {
                 let _ = write!(query, " LIMIT {}", f.page_size + 1);
             }
         } else {
-            let primary = if f.sort_by == "credit" { "CREDIT" } else { "DEBIT" };
+            let primary = if f.sort_by == "credit" {
+                "CREDIT"
+            } else {
+                "DEBIT"
+            };
             let dir = if f.sort_dir == "asc" { "ASC" } else { "DESC" };
             let _ = write!(
                 query,
@@ -332,7 +363,11 @@ impl SqliteTransactionRepo {
             if let Some(g) = &r.2 {
                 category_ids = g.split(',').map(str::to_string).collect();
             }
-            items.push(ListRow { txn: r.0.into(), link_id: r.1.unwrap_or_default(), category_ids });
+            items.push(ListRow {
+                txn: r.0.into(),
+                link_id: r.1.unwrap_or_default(),
+                category_ids,
+            });
         }
 
         let mut next_token = String::new();
@@ -343,10 +378,18 @@ impl SqliteTransactionRepo {
             next_token = encode_transaction_cursor(&last.txn.occurred_at, &last.txn.id);
         }
 
-        Ok(ListTransactionResult { rows: items, next_page_token: next_token, total_count: total })
+        Ok(ListTransactionResult {
+            rows: items,
+            next_page_token: next_token,
+            total_count: total,
+        })
     }
 
-    async fn spending_rows_inner(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>> {
+    async fn spending_rows_inner(
+        &self,
+        user_id: &str,
+        f: &SpendingFilter,
+    ) -> Result<Vec<SpendingTxn>> {
         let (range, range_args) = spending_range_clause(f);
         let query = format!(
             "SELECT t.id, t.occurred_at, t.amount, t.type, c.id, c.name
@@ -360,25 +403,34 @@ impl SqliteTransactionRepo {
         );
         let mut bind_args: Vec<String> = vec![user_id.to_string()];
         bind_args.extend(range_args);
-        let mut q = sqlx::query_as::<_, (String, String, f64, String, Option<String>, Option<String>)>(&query);
+        let mut q = sqlx::query_as::<
+            _,
+            (String, String, f64, String, Option<String>, Option<String>),
+        >(&query);
         for a in &bind_args {
             q = q.bind(a);
         }
         let rows = q.fetch_all(&self.pool).await?;
         Ok(rows
             .into_iter()
-            .map(|(id, occurred_at, amount, ty, category_id, category_name)| SpendingTxn {
-                id,
-                occurred_at,
-                amount,
-                transaction_type: ty.parse().unwrap_or(TransactionType::Debit),
-                category_id,
-                category_name,
-            })
+            .map(
+                |(id, occurred_at, amount, ty, category_id, category_name)| SpendingTxn {
+                    id,
+                    occurred_at,
+                    amount,
+                    transaction_type: ty.parse().unwrap_or(TransactionType::Debit),
+                    category_id,
+                    category_name,
+                },
+            )
             .collect())
     }
 
-    async fn create_links_inner(&self, user_id: &str, links: &[(String, String)]) -> Result<Vec<String>> {
+    async fn create_links_inner(
+        &self,
+        user_id: &str,
+        links: &[(String, String)],
+    ) -> Result<Vec<String>> {
         let mut errors: Vec<String> = Vec::new();
         if links.is_empty() {
             return Ok(errors);
@@ -444,26 +496,53 @@ impl SqliteTransactionRepo {
 
 #[async_trait]
 impl crate::repo::traits::TransactionRepo for SqliteTransactionRepo {
-    async fn get_by_id_for_transfer(&self, user_id: &str, id: &str) -> Result<Option<(String, f64, String)>> {
+    async fn get_by_id_for_transfer(
+        &self,
+        user_id: &str,
+        id: &str,
+    ) -> Result<Option<(String, f64, String)>> {
         self.get_by_id_for_transfer_inner(user_id, id).await
     }
     async fn get_full(&self, user_id: &str, id: &str) -> Result<Option<Transaction>> {
         self.get_full_inner(user_id, id).await
     }
-    async fn find_transfer_counterpart(&self, user_id: &str, account_id: &str, transaction_type: TransactionType, amount: f64, around: &str) -> Result<Option<Transaction>> {
-        self.find_transfer_counterpart_inner(user_id, account_id, transaction_type, amount, around).await
+    async fn find_transfer_counterpart(
+        &self,
+        user_id: &str,
+        account_id: &str,
+        transaction_type: TransactionType,
+        amount: f64,
+        around: &str,
+    ) -> Result<Option<Transaction>> {
+        self.find_transfer_counterpart_inner(user_id, account_id, transaction_type, amount, around)
+            .await
     }
     async fn is_transfer_linked(&self, txn_id: &str) -> Result<bool> {
         self.is_transfer_linked_inner(txn_id).await
     }
-    async fn create(&self, user_id: &str, inputs: &[CreateTransactionInput]) -> Result<CreateOutcome> {
+    async fn create(
+        &self,
+        user_id: &str,
+        inputs: &[CreateTransactionInput],
+    ) -> Result<CreateOutcome> {
         self.create_inner(user_id, inputs).await
     }
-    async fn update(&self, user_id: &str, inputs: &[UpdateTransactionInput]) -> Result<Vec<String>> {
+    async fn update(
+        &self,
+        user_id: &str,
+        inputs: &[UpdateTransactionInput],
+    ) -> Result<Vec<String>> {
         self.update_inner(user_id, inputs).await
     }
-    async fn apply_rule_result(&self, user_id: &str, id: &str, clean_name: Option<&str>, category_ids: &[String]) -> Result<()> {
-        self.apply_rule_result_inner(user_id, id, clean_name, category_ids).await
+    async fn apply_rule_result(
+        &self,
+        user_id: &str,
+        id: &str,
+        clean_name: Option<&str>,
+        category_ids: &[String],
+    ) -> Result<()> {
+        self.apply_rule_result_inner(user_id, id, clean_name, category_ids)
+            .await
     }
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         self.delete_inner(user_id, ids).await
@@ -471,7 +550,11 @@ impl crate::repo::traits::TransactionRepo for SqliteTransactionRepo {
     async fn get_by_id_batch(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>> {
         self.get_by_id_batch_inner(user_id, ids).await
     }
-    async fn list(&self, user_id: &str, f: &TransactionListFilter) -> Result<ListTransactionResult> {
+    async fn list(
+        &self,
+        user_id: &str,
+        f: &TransactionListFilter,
+    ) -> Result<ListTransactionResult> {
         self.list_inner(user_id, f).await
     }
     async fn spending_rows(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>> {
@@ -565,11 +648,18 @@ fn spending_range_clause(f: &SpendingFilter) -> (String, Vec<String>) {
 }
 
 fn like_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 /// The full row shape returned by the list query: txn, link id, category group.
-struct RawListTxn(pub RawTransaction, pub Option<String>, pub Option<String>, pub i64);
+struct RawListTxn(
+    pub RawTransaction,
+    pub Option<String>,
+    pub Option<String>,
+    pub i64,
+);
 
 impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for RawListTxn {
     fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> std::result::Result<Self, sqlx::Error> {
@@ -613,7 +703,8 @@ impl From<RawTransaction> for Transaction {
             name: r.name,
             clean_name: r.clean_name,
             amount: r.amount,
-            transaction_type: TransactionType::from_str(&r.transaction_type).unwrap_or(TransactionType::Debit),
+            transaction_type: TransactionType::from_str(&r.transaction_type)
+                .unwrap_or(TransactionType::Debit),
             occurred_at: r.occurred_at,
             account_id: r.account_id,
             created_at: r.created_at,

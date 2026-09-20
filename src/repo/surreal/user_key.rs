@@ -4,7 +4,7 @@
 use surrealdb::Connection;
 
 use crate::error::Result;
-use crate::repo::surreal::{rid, DbClient, RepoConn};
+use crate::repo::surreal::{DbClient, RepoConn, rid};
 
 pub use crate::repo::traits::user_key::UserKeyRow;
 
@@ -142,8 +142,17 @@ struct AuthRow {
 // Backend-agnostic `UserKeyRepo` trait impl (forwarders → inherent methods).
 #[async_trait::async_trait]
 impl crate::repo::traits::UserKeyRepo for UserKeyRepo<DbClient> {
-    async fn create(&self, user_id: &str, name: &str, key_hash: &str, key_prefix: &str, expires_at: Option<String>, scope: &str) -> Result<String> {
-        self.create(user_id, name, key_hash, key_prefix, expires_at, scope).await
+    async fn create(
+        &self,
+        user_id: &str,
+        name: &str,
+        key_hash: &str,
+        key_prefix: &str,
+        expires_at: Option<String>,
+        scope: &str,
+    ) -> Result<String> {
+        self.create(user_id, name, key_hash, key_prefix, expires_at, scope)
+            .await
     }
     async fn list(&self, user_id: &str) -> Result<Vec<UserKeyRow>> {
         self.list(user_id).await

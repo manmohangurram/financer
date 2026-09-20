@@ -1,13 +1,15 @@
 //! Categories repository — CRUD on `SurrealDB`, mirroring the Go backend semantics.
 
-use base64::{engine::general_purpose::URL_SAFE as B64URL, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE as B64URL};
 use serde_json::json;
 use surrealdb::Connection;
 
 use crate::error::Result;
-use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
+use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 
-pub use crate::repo::traits::category::{CategoryCreateInput, CategoryRow, CategoryUpdateInput, ListCategoriesResult};
+pub use crate::repo::traits::category::{
+    CategoryCreateInput, CategoryRow, CategoryUpdateInput, ListCategoriesResult,
+};
 
 #[derive(Clone)]
 pub struct CategoryRepo<C: Connection = DbClient> {
@@ -19,7 +21,11 @@ impl<C: Connection> CategoryRepo<C> {
         Self { db }
     }
 
-    pub async fn create(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>> {
+    pub async fn create(
+        &self,
+        user_id: &str,
+        inputs: &[CategoryCreateInput],
+    ) -> Result<Vec<CategoryRow>> {
         let mut rows = Vec::new();
         for input in inputs {
             let now = crate::utils::timex::now_go_ts();
@@ -37,8 +43,13 @@ impl<C: Connection> CategoryRepo<C> {
             let row = take_json::<CategoryRow>(&mut res, 0)?
                 .into_iter()
                 .next()
-                .ok_or_else(|| crate::error::ApiError::internal("category create returned no row"))?;
-            rows.push(CategoryRow { created_at: now, ..row });
+                .ok_or_else(|| {
+                    crate::error::ApiError::internal("category create returned no row")
+                })?;
+            rows.push(CategoryRow {
+                created_at: now,
+                ..row
+            });
         }
         Ok(rows)
     }
@@ -57,7 +68,11 @@ impl<C: Connection> CategoryRepo<C> {
         Ok(take_json(&mut res, 0)?.into_iter().next())
     }
 
-    pub async fn update(&self, user_id: &str, inputs: &[CategoryUpdateInput]) -> Result<Vec<String>> {
+    pub async fn update(
+        &self,
+        user_id: &str,
+        inputs: &[CategoryUpdateInput],
+    ) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         for input in inputs {
             let mut res = self
@@ -93,7 +108,12 @@ impl<C: Connection> CategoryRepo<C> {
         Ok(errors)
     }
 
-    pub async fn list(&self, user_id: &str, page_size: i64, page_token: &str) -> Result<ListCategoriesResult> {
+    pub async fn list(
+        &self,
+        user_id: &str,
+        page_size: i64,
+        page_token: &str,
+    ) -> Result<ListCategoriesResult> {
         let mut query = String::from(
             "SELECT meta::id(id) AS id, name, createdAt FROM category WHERE user = $uid",
         );
@@ -104,12 +124,15 @@ impl<C: Connection> CategoryRepo<C> {
         }
         query.push_str(" ORDER BY name ASC, id ASC");
         if page_size > 0 {
-            let _ = std::fmt::Write::write_fmt(&mut query, format_args!(" LIMIT {}", page_size + 1));
+            let _ =
+                std::fmt::Write::write_fmt(&mut query, format_args!(" LIMIT {}", page_size + 1));
         }
 
         let mut q = self.db.query(&query).bind(("uid", rid("user", user_id)));
         if let Some(cur) = &cursor {
-            q = q.bind(("name", cur.name.as_str())).bind(("rid", rid("category", &cur.id)));
+            q = q
+                .bind(("name", cur.name.as_str()))
+                .bind(("rid", rid("category", &cur.id)));
         }
         let mut res = q.await?;
         let mut categories: Vec<CategoryRow> = take_json(&mut res, 0)?;
@@ -122,7 +145,10 @@ impl<C: Connection> CategoryRepo<C> {
             next_token = encode_cat_cursor(&last.name, &last.id);
         }
 
-        Ok(ListCategoriesResult { categories, next_page_token: next_token })
+        Ok(ListCategoriesResult {
+            categories,
+            next_page_token: next_token,
+        })
     }
 }
 
@@ -130,7 +156,11 @@ impl<C: Connection> CategoryRepo<C> {
 // Backend-agnostic `CategoryRepo` trait impl (forwarders → inherent methods).
 #[async_trait::async_trait]
 impl crate::repo::traits::CategoryRepo for CategoryRepo<DbClient> {
-    async fn create(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>> {
+    async fn create(
+        &self,
+        user_id: &str,
+        inputs: &[CategoryCreateInput],
+    ) -> Result<Vec<CategoryRow>> {
         self.create(user_id, inputs).await
     }
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<CategoryRow>> {
@@ -142,7 +172,12 @@ impl crate::repo::traits::CategoryRepo for CategoryRepo<DbClient> {
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         self.delete(user_id, ids).await
     }
-    async fn list(&self, user_id: &str, page_size: i64, page_token: &str) -> Result<ListCategoriesResult> {
+    async fn list(
+        &self,
+        user_id: &str,
+        page_size: i64,
+        page_token: &str,
+    ) -> Result<ListCategoriesResult> {
         self.list(user_id, page_size, page_token).await
     }
 }
@@ -155,7 +190,10 @@ fn encode_cat_cursor(name: &str, id: &str) -> String {
 fn decode_cat_cursor(token: &str) -> Option<CatCursor> {
     let raw = B64URL.decode(token.as_bytes()).ok()?;
     let v: serde_json::Value = serde_json::from_slice(&raw).ok()?;
-    Some(CatCursor { name: v["n"].as_str()?.to_string(), id: v["id"].as_str()?.to_string() })
+    Some(CatCursor {
+        name: v["n"].as_str()?.to_string(),
+        id: v["id"].as_str()?.to_string(),
+    })
 }
 
 struct CatCursor {
@@ -166,7 +204,6 @@ struct CatCursor {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-
 
     use super::*;
     use crate::surreal_db;
@@ -184,22 +221,54 @@ mod tests {
     #[tokio::test]
     async fn create_list_update_delete() {
         let repo = repo().await;
-        let created = repo.create("u1", &[CategoryCreateInput { name: "Food".into() }, CategoryCreateInput { name: "Travel".into() }]).await.unwrap();
+        let created = repo
+            .create(
+                "u1",
+                &[
+                    CategoryCreateInput {
+                        name: "Food".into(),
+                    },
+                    CategoryCreateInput {
+                        name: "Travel".into(),
+                    },
+                ],
+            )
+            .await
+            .unwrap();
         assert_eq!(created.len(), 2);
         assert!(!created[0].id.is_empty());
 
         let listed = repo.list("u1", 0, "").await.unwrap();
         assert_eq!(listed.categories.len(), 2);
 
-        let errs = repo.update("u1", &[CategoryUpdateInput { id: created[0].id.clone(), name: "Groceries".into() }]).await.unwrap();
+        let errs = repo
+            .update(
+                "u1",
+                &[CategoryUpdateInput {
+                    id: created[0].id.clone(),
+                    name: "Groceries".into(),
+                }],
+            )
+            .await
+            .unwrap();
         assert!(errs.is_empty());
         let by_id = repo.get_by_id("u1", &created[0].id).await.unwrap().unwrap();
         assert_eq!(by_id.name, "Groceries");
 
         // cross-user scoping: u2 (no account) sees nothing
-        assert!(repo.get_by_id("u2", &created[0].id).await.unwrap().is_none());
+        assert!(
+            repo.get_by_id("u2", &created[0].id)
+                .await
+                .unwrap()
+                .is_none()
+        );
         let errs = repo.delete("u1", &[created[0].id.clone()]).await.unwrap();
         assert!(errs.is_empty());
-        assert!(repo.get_by_id("u1", &created[0].id).await.unwrap().is_none());
+        assert!(
+            repo.get_by_id("u1", &created[0].id)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

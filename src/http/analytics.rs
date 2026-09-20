@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
-use crate::http::{require_user, AppState};
+use crate::http::{AppState, require_user};
 use crate::utils::math::round2;
 
 pub fn routes() -> Router<AppState> {
@@ -84,16 +84,30 @@ pub async fn dashboard(State(st): State<AppState>, headers: HeaderMap) -> Respon
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn spending(State(st): State<AppState>, headers: HeaderMap, Query(q): Query<SpendingQuery>) -> Response {
+pub async fn spending(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<SpendingQuery>,
+) -> Response {
     let uid = match require_user(&headers, &st.jwt) {
         Ok(u) => u,
         Err(e) => return e.into_response(),
     };
-    match st.transaction.spending(&uid, &q.range, &q.from, &q.to, &q.account_id).await {
+    match st
+        .transaction
+        .spending(&uid, &q.range, &q.from, &q.to, &q.account_id)
+        .await
+    {
         Ok(res) => {
-            let buckets: Vec<_> = res.buckets.iter().map(|b| serde_json::json!({
-                "key": b.key, "label": b.label, "amount": round2(b.amount),
-            })).collect();
+            let buckets: Vec<_> = res
+                .buckets
+                .iter()
+                .map(|b| {
+                    serde_json::json!({
+                        "key": b.key, "label": b.label, "amount": round2(b.amount),
+                    })
+                })
+                .collect();
             let cats: Vec<_> = res.categories.iter().map(|c| serde_json::json!({
                 "id": c.id, "name": c.name, "debit": round2(c.debit), "credit": round2(c.credit), "net": round2(c.net),
             })).collect();

@@ -52,17 +52,22 @@ impl AuthService {
 
     pub async fn signup(&self, req: SignupRequest) -> Result<AuthResponse> {
         if req.email.is_empty() || req.password.is_empty() || req.name.is_empty() {
-            return Err(ApiError::bad_request("email, password, and name are required"));
+            return Err(ApiError::bad_request(
+                "email, password, and name are required",
+            ));
         }
         if req.password.len() < 6 {
-            return Err(ApiError::bad_request("password must be at least 6 characters"));
+            return Err(ApiError::bad_request(
+                "password must be at least 6 characters",
+            ));
         }
 
         let req_password = req.password.clone();
-        let hash = tokio::task::spawn_blocking(move || bcrypt::hash(&req_password, bcrypt::DEFAULT_COST))
-            .await
-            .map_err(|_| ApiError::internal("internal error"))?
-            .map_err(|_| ApiError::internal("internal error"))?;
+        let hash =
+            tokio::task::spawn_blocking(move || bcrypt::hash(&req_password, bcrypt::DEFAULT_COST))
+                .await
+                .map_err(|_| ApiError::internal("internal error"))?
+                .map_err(|_| ApiError::internal("internal error"))?;
 
         // Go's Signup returns Conflict("email already exists") on the unique
         // email constraint violation (mapped from sqlx::Error via From).
@@ -76,7 +81,10 @@ impl AuthService {
             return Err(ApiError::bad_request("email and password are required"));
         }
 
-        let user = self.repo.by_email(&req.email).await?
+        let user = self
+            .repo
+            .by_email(&req.email)
+            .await?
             .ok_or_else(|| ApiError::unauthorized("invalid credentials"))?;
         let stored = user.password_hash.unwrap_or_default();
         let password = req.password.clone();
@@ -88,7 +96,8 @@ impl AuthService {
             return Err(ApiError::unauthorized("invalid credentials"));
         }
 
-        self.issue_tokens(&user.id, &user.email, user.name.as_deref().unwrap_or("")).await
+        self.issue_tokens(&user.id, &user.email, user.name.as_deref().unwrap_or(""))
+            .await
     }
 
     pub async fn refresh_token(&self, req: RefreshTokenRequest) -> Result<AuthResponse> {
@@ -100,17 +109,24 @@ impl AuthService {
             return Err(ApiError::unauthorized("invalid refresh token"));
         }
 
-        let user = self.repo.by_id(&claims.user_id).await?
+        let user = self
+            .repo
+            .by_id(&claims.user_id)
+            .await?
             .ok_or_else(|| ApiError::unauthorized("user not found"))?;
         if claims.token_version != user.token_version {
             return Err(ApiError::unauthorized("session has been revoked"));
         }
 
-        self.issue_tokens(&user.id, &user.email, user.name.as_deref().unwrap_or("")).await
+        self.issue_tokens(&user.id, &user.email, user.name.as_deref().unwrap_or(""))
+            .await
     }
 
     async fn issue_tokens(&self, user_id: &str, email: &str, name: &str) -> Result<AuthResponse> {
-        let user = self.repo.by_id(user_id).await?
+        let user = self
+            .repo
+            .by_id(user_id)
+            .await?
             .ok_or_else(|| ApiError::internal("failed to read user"))?;
         let ver = user.token_version;
         let access = self.jwt.access_token(user_id, email, ver)?;

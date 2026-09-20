@@ -2,13 +2,15 @@
 //! `crate::repo::traits::CategoryRepo` over an `sqlx::SqlitePool`.
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose::URL_SAFE as B64URL, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE as B64URL};
 use serde_json::json;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::repo::traits::category::{CategoryCreateInput, CategoryRow, CategoryUpdateInput, ListCategoriesResult};
+use crate::repo::traits::category::{
+    CategoryCreateInput, CategoryRow, CategoryUpdateInput, ListCategoriesResult,
+};
 
 pub struct SqliteCategoryRepo {
     pool: SqlitePool,
@@ -19,19 +21,29 @@ impl SqliteCategoryRepo {
         Self { pool }
     }
 
-    async fn create_inner(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>> {
+    async fn create_inner(
+        &self,
+        user_id: &str,
+        inputs: &[CategoryCreateInput],
+    ) -> Result<Vec<CategoryRow>> {
         let mut rows = Vec::new();
         for input in inputs {
             let id = Uuid::new_v4().to_string();
             let now = crate::utils::timex::now_go_ts();
-            sqlx::query("INSERT INTO categories (id, user_id, name, created_at) VALUES (?, ?, ?, ?)")
-                .bind(&id)
-                .bind(user_id)
-                .bind(input.name.as_str())
-                .bind(&now)
-                .execute(&self.pool)
-                .await?;
-            rows.push(CategoryRow { id, name: input.name.clone(), created_at: now });
+            sqlx::query(
+                "INSERT INTO categories (id, user_id, name, created_at) VALUES (?, ?, ?, ?)",
+            )
+            .bind(&id)
+            .bind(user_id)
+            .bind(input.name.as_str())
+            .bind(&now)
+            .execute(&self.pool)
+            .await?;
+            rows.push(CategoryRow {
+                id,
+                name: input.name.clone(),
+                created_at: now,
+            });
         }
         Ok(rows)
     }
@@ -47,7 +59,11 @@ impl SqliteCategoryRepo {
         Ok(row.map(Into::into))
     }
 
-    async fn update_inner(&self, user_id: &str, inputs: &[CategoryUpdateInput]) -> Result<Vec<String>> {
+    async fn update_inner(
+        &self,
+        user_id: &str,
+        inputs: &[CategoryUpdateInput],
+    ) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         for input in inputs {
             let result = sqlx::query("UPDATE categories SET name = COALESCE(NULLIF(?, ''), name) WHERE id = ? AND user_id = ?")
@@ -78,7 +94,12 @@ impl SqliteCategoryRepo {
         Ok(errors)
     }
 
-    async fn list_inner(&self, user_id: &str, page_size: i64, page_token: &str) -> Result<ListCategoriesResult> {
+    async fn list_inner(
+        &self,
+        user_id: &str,
+        page_size: i64,
+        page_token: &str,
+    ) -> Result<ListCategoriesResult> {
         let cursor = decode_cat_cursor(page_token);
         let mut sql = String::from("SELECT id, name, created_at FROM categories WHERE user_id = ?");
         if let Some(_cur) = &cursor {
@@ -92,7 +113,10 @@ impl SqliteCategoryRepo {
         let page_size_usize = usize::try_from(page_size).unwrap_or(0);
         let mut q = sqlx::query_as::<_, RawCat>(&sql).bind(user_id);
         if let Some(cur) = &cursor {
-            q = q.bind(cur.name.as_str()).bind(cur.name.as_str()).bind(cur.id.as_str());
+            q = q
+                .bind(cur.name.as_str())
+                .bind(cur.name.as_str())
+                .bind(cur.id.as_str());
         }
         if page_size > 0 {
             q = q.bind(page_size + 1);
@@ -107,13 +131,20 @@ impl SqliteCategoryRepo {
                 next_token = encode_cat_cursor(&last.name, &last.id);
             }
         }
-        Ok(ListCategoriesResult { categories, next_page_token: next_token })
+        Ok(ListCategoriesResult {
+            categories,
+            next_page_token: next_token,
+        })
     }
 }
 
 #[async_trait]
 impl crate::repo::traits::CategoryRepo for SqliteCategoryRepo {
-    async fn create(&self, user_id: &str, inputs: &[CategoryCreateInput]) -> Result<Vec<CategoryRow>> {
+    async fn create(
+        &self,
+        user_id: &str,
+        inputs: &[CategoryCreateInput],
+    ) -> Result<Vec<CategoryRow>> {
         self.create_inner(user_id, inputs).await
     }
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<CategoryRow>> {
@@ -125,7 +156,12 @@ impl crate::repo::traits::CategoryRepo for SqliteCategoryRepo {
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         self.delete_inner(user_id, ids).await
     }
-    async fn list(&self, user_id: &str, page_size: i64, page_token: &str) -> Result<ListCategoriesResult> {
+    async fn list(
+        &self,
+        user_id: &str,
+        page_size: i64,
+        page_token: &str,
+    ) -> Result<ListCategoriesResult> {
         self.list_inner(user_id, page_size, page_token).await
     }
 }
@@ -139,7 +175,11 @@ struct RawCat {
 
 impl From<RawCat> for CategoryRow {
     fn from(r: RawCat) -> Self {
-        Self { id: r.id, name: r.name, created_at: r.created_at }
+        Self {
+            id: r.id,
+            name: r.name,
+            created_at: r.created_at,
+        }
     }
 }
 
@@ -151,7 +191,10 @@ fn encode_cat_cursor(name: &str, id: &str) -> String {
 fn decode_cat_cursor(token: &str) -> Option<CatCursor> {
     let raw = B64URL.decode(token.as_bytes()).ok()?;
     let v: serde_json::Value = serde_json::from_slice(&raw).ok()?;
-    Some(CatCursor { name: v["n"].as_str()?.to_string(), id: v["id"].as_str()?.to_string() })
+    Some(CatCursor {
+        name: v["n"].as_str()?.to_string(),
+        id: v["id"].as_str()?.to_string(),
+    })
 }
 
 struct CatCursor {

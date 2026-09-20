@@ -3,7 +3,7 @@
 use surrealdb::Connection;
 
 use crate::error::{ApiError, Result};
-use crate::repo::surreal::{rid, DbClient, RepoConn};
+use crate::repo::surreal::{DbClient, RepoConn, rid};
 
 pub use crate::repo::traits::user::UserRow;
 
@@ -50,9 +50,7 @@ impl<C: Connection> UserRepo<C> {
             )
             .bind(("email", email))
             .await?;
-        Ok(super::take_json(&mut res, 0)?
-            .into_iter()
-            .next())
+        Ok(super::take_json(&mut res, 0)?.into_iter().next())
     }
 
     pub async fn by_id(&self, id: &str) -> Result<Option<UserRow>> {
@@ -64,13 +62,17 @@ impl<C: Connection> UserRepo<C> {
             )
             .bind(("rid", rid("user", id)))
             .await?;
-        Ok(super::take_json(&mut res, 0)?
-            .into_iter()
-            .next())
+        Ok(super::take_json(&mut res, 0)?.into_iter().next())
     }
 
     /// Update `name`/`email`/`avatar_url` (empty means unchanged).
-    pub async fn update_profile(&self, id: &str, name: &str, email: &str, avatar_url: &str) -> Result<()> {
+    pub async fn update_profile(
+        &self,
+        id: &str,
+        name: &str,
+        email: &str,
+        avatar_url: &str,
+    ) -> Result<()> {
         self.db
             .query(
                 "UPDATE $rid SET
@@ -140,7 +142,13 @@ impl crate::repo::traits::UserRepo for UserRepo<DbClient> {
     async fn by_id(&self, id: &str) -> Result<Option<UserRow>> {
         self.by_id(id).await
     }
-    async fn update_profile(&self, id: &str, name: &str, email: &str, avatar_url: &str) -> Result<()> {
+    async fn update_profile(
+        &self,
+        id: &str,
+        name: &str,
+        email: &str,
+        avatar_url: &str,
+    ) -> Result<()> {
         self.update_profile(id, name, email, avatar_url).await
     }
     async fn change_password(&self, id: &str, password_hash: &str) -> Result<i64> {
@@ -162,9 +170,9 @@ fn map_repo_err(e: &surrealdb::Error) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use super::*;
     use crate::surreal_db;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn user_crud() {
@@ -183,7 +191,10 @@ mod tests {
         assert_eq!(by_id.email, "a@b.c");
 
         repo.update_profile(&id, "B", "", "").await.unwrap();
-        assert_eq!(repo.by_id(&id).await.unwrap().unwrap().name.as_deref(), Some("B"));
+        assert_eq!(
+            repo.by_id(&id).await.unwrap().unwrap().name.as_deref(),
+            Some("B")
+        );
         assert_eq!(repo.by_id(&id).await.unwrap().unwrap().email, "a@b.c");
 
         let ver = repo.change_password(&id, "h2").await.unwrap();

@@ -6,8 +6,8 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
-use crate::repo::traits::account::{AccountRow, AccountType};
 use crate::repo::traits::AccountRepo;
+use crate::repo::traits::account::{AccountRow, AccountType};
 use crate::utils::timex::ts_rfc3339;
 
 #[derive(Clone)]
@@ -20,15 +20,31 @@ impl AccountService {
         Self { repo }
     }
 
-    pub async fn create(&self, user_id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountResponse> {
+    pub async fn create(
+        &self,
+        user_id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<AccountResponse> {
         if bank_name.is_empty() {
             return Err(ApiError::bad_request("bank_name is required"));
         }
-        let row = self.repo.create(user_id, bank_name, nickname, account_type).await?;
+        let row = self
+            .repo
+            .create(user_id, bank_name, nickname, account_type)
+            .await?;
         Ok(AccountResponse::from_row(row))
     }
 
-    pub async fn update(&self, user_id: &str, id: &str, bank_name: &str, nickname: &str, account_type: AccountType) -> Result<AccountResponse> {
+    pub async fn update(
+        &self,
+        user_id: &str,
+        id: &str,
+        bank_name: &str,
+        nickname: &str,
+        account_type: AccountType,
+    ) -> Result<AccountResponse> {
         let row = self
             .repo
             .update(user_id, id, bank_name, nickname, account_type)
@@ -45,7 +61,13 @@ impl AccountService {
     }
 
     pub async fn list(&self, user_id: &str) -> Result<Vec<AccountResponse>> {
-        Ok(self.repo.list(user_id).await?.into_iter().map(AccountResponse::from_row).collect())
+        Ok(self
+            .repo
+            .list(user_id)
+            .await?
+            .into_iter()
+            .map(AccountResponse::from_row)
+            .collect())
     }
 }
 
