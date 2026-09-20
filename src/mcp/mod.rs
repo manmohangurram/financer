@@ -253,13 +253,13 @@ impl FinancerHandler {
         }
     }
 
-    #[tool(description = "Create an account. Example args: {\"bankName\":\"Chase\",\"type\":\"CURRENT\"}.")]
+    #[tool(description = "Create an account. Example args: {\"bankName\":\"Chase\",\"endingNumbers\":\"1234\",\"type\":\"CURRENT\"}.")]
     async fn create_account(&self, ctx: RequestContext<RoleServer>, Parameters(req): Parameters<CreateAccountReq>) -> String {
         let uid = uid!(&ctx);
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot create accounts");
         }
-        match self.account.create(&uid, &req.bank_name, &req.nickname, req.account_type).await {
+        match self.account.create(&uid, &req.bank_name, &req.nickname, req.account_type, &req.ending_numbers).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
             Err(e) => err_json(e.message),
         }
@@ -271,7 +271,7 @@ impl FinancerHandler {
         if !Self::can_write(&ctx) {
             return err_json("read-only API key; cannot update accounts");
         }
-        match self.account.update(&uid, &req.id, &req.bank_name, &req.nickname, req.account_type).await {
+        match self.account.update(&uid, &req.id, &req.bank_name, &req.nickname, req.account_type, &req.ending_numbers).await {
             Ok(r) => serde_json::to_string(&r).unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
             Err(e) => err_json(e.message),
         }

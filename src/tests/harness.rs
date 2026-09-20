@@ -87,7 +87,7 @@ impl TestApp {
         app.token = signup.1["accessToken"].as_str().unwrap().to_string();
 
         let acc = app.post_json("/api/accounts", &serde_json::json!({
-            "bankName": "Chase", "nickname": "Main", "type": "CURRENT"
+            "bankName": "Chase", "nickname": "Main", "endingNumbers": "1234", "type": "CURRENT"
         }), Some(&app.token.clone())).await;
         assert_eq!(acc.0, StatusCode::CREATED, "account create failed: {}", acc.1);
         app.account_id = acc.1["id"].as_str().unwrap().to_string();

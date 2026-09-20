@@ -48,6 +48,7 @@ pub async fn define_tables<C: Connection>(client: &Surreal<C>) -> Result<()> {
 
             DEFINE TABLE IF NOT EXISTS account;
             DEFINE INDEX IF NOT EXISTS account_user ON TABLE account COLUMNS user;
+            DEFINE INDEX IF NOT EXISTS account_user_ending ON TABLE account COLUMNS user, endingNumbers;
 
             DEFINE TABLE IF NOT EXISTS transaction;
             DEFINE INDEX IF NOT EXISTS txn_account ON TABLE transaction COLUMNS account;
