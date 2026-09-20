@@ -22,7 +22,6 @@ use crate::repo::traits::mail::{MailAccountRow, MailRepo, MailStatus, NewMailMes
 /// and clock skew; the `Message-ID` check makes the overlap free.
 pub const WINDOW_DAYS: u32 = 2;
 
-/// One message's envelope, fetched without downloading the body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MailHeader {
     pub uid: u32,
@@ -34,26 +33,21 @@ pub struct MailHeader {
 
 #[async_trait]
 pub trait MailSource: Send + Sync {
-    /// Envelopes for messages from `senders` within the last `since_days`.
-    /// Headers only — bodies are fetched per message, and only for ones we
-    /// have not already stored.
+    /// Headers only — bodies are fetched per message, and only for ones we have
+    /// not already stored.
     async fn headers(&self, senders: &[String], since_days: u32) -> Result<Vec<MailHeader>>;
     async fn body(&self, uid: u32) -> Result<String>;
 }
 
-/// What one account's tick did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PollSummary {
-    /// Envelopes the server returned.
     pub matched: usize,
-    /// Messages stored this tick.
     pub stored: usize,
-    /// Envelopes skipped because their `Message-ID` was already known.
+    /// Skipped because the `Message-ID` was already known.
     pub skipped: usize,
 }
 
-/// Poll one mailbox: headers, dedupe against what we have, then bodies for the
-/// unknown ones only.
+/// Headers, dedupe, then bodies for the unknown ones only.
 pub async fn poll_account(
     source: &dyn MailSource,
     repo: &dyn MailRepo,
@@ -103,14 +97,14 @@ pub async fn poll_account(
     Ok(summary)
 }
 
-/// Poll every enabled mailbox once, then sweep resolved bodies.
 pub async fn poll_once(repo: &Arc<dyn MailRepo>, key: Option<&str>) -> Result<usize> {
     let accounts = repo.list_pollable_accounts().await?;
     let mut polled = 0;
     for account in accounts {
         let result = async {
             let password = decrypt_password(key, &account.secret_enc)?;
-            let source = imap::ImapSource::connect(&account, &password)?;
+            let source =
+                tokio::task::block_in_place(|| imap::ImapSource::connect(&account, &password))?;
             poll_account(&source, repo.as_ref(), &account).await
         }
         .await;
@@ -134,8 +128,6 @@ fn decrypt_password(key: Option<&str>, secret_enc: &str) -> Result<String> {
     crypto::decrypt(key, secret_enc)
 }
 
-/// Start the background poll loop. Ticks are jittered so restarts do not
-/// synchronise every mailbox onto the same second.
 pub fn spawn(repo: Arc<dyn MailRepo>, key: Option<String>, interval: Duration) {
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(interval);
@@ -151,16 +143,14 @@ pub fn spawn(repo: Arc<dyn MailRepo>, key: Option<String>, interval: Duration) {
     });
 }
 
-/// In-memory source for tests: no socket, no TLS.
 #[cfg(test)]
 #[derive(Default)]
 pub struct FakeSource {
     envelopes: Vec<MailHeader>,
     bodies: std::collections::HashMap<u32, String>,
-    /// UIDs whose body fetch should fail.
     pub failing_uids: HashSet<u32>,
-    /// Records the order of calls, so tests can assert bodies are only fetched
-    /// for unknown messages.
+    /// Records call order so tests can assert bodies are only fetched for
+    /// unknown messages.
     pub fetched: std::sync::Mutex<Vec<u32>>,
 }
 

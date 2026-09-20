@@ -1,8 +1,7 @@
 //! Credential encryption for linked mailboxes.
 //!
-//! The stored secret is the IMAP password, so it never sits in the clear. The
-//! key is `FINANCER_SECRET_KEY` — deliberately **not** the JWT signing secret,
-//! so rotating tokens cannot lock anyone out of their mailbox.
+//! The key is `FINANCER_SECRET_KEY`, deliberately **not** the JWT signing
+//! secret: rotating tokens must not lock anyone out of their mailbox.
 
 use base64::Engine;
 use chacha20poly1305::aead::{Aead, AeadCore, KeyInit, OsRng};
@@ -35,8 +34,7 @@ fn cipher(key_hex: &str) -> Result<ChaCha20Poly1305> {
     Ok(ChaCha20Poly1305::new((&key).into()))
 }
 
-/// 32 bytes of hex. Config validates this at boot, so a failure here means the
-/// key was changed under a running process.
+/// Only fails if the key changed while running; config validated it at boot.
 fn decode_key(key_hex: &str) -> Result<[u8; 32]> {
     if key_hex.len() != 64 {
         return Err(ApiError::bad_request(
@@ -55,7 +53,7 @@ fn decode_key(key_hex: &str) -> Result<[u8; 32]> {
 mod tests {
     use super::*;
 
-    /// `nonce || ciphertext`, base64. A fresh random nonce per call.
+    /// `nonce || ciphertext`, base64.
     pub fn encrypt(key_hex: &str, plaintext: &str) -> Result<String> {
         let cipher = cipher(key_hex)?;
         let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
