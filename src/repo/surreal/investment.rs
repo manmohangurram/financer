@@ -5,8 +5,7 @@ use surrealdb::Connection;
 use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
 
-#[allow(unused_imports)]
-pub use crate::repo::traits::investment::{effective_price, investment_wire, lot_wire, Investment, InvestmentRow, InvestmentType, Lot, LotInput, LotRow};
+pub use crate::repo::traits::investment::{InvestmentRow, InvestmentType, LotInput, LotRow};
 
 #[derive(Clone)]
 pub struct InvestmentRepo<C: Connection = DbClient> {

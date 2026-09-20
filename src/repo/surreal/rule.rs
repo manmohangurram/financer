@@ -8,8 +8,7 @@ use crate::error::Result;
 use crate::repo::surreal::{rid, take_json, DbClient, RepoConn};
 use crate::utils::timex::{ts_rfc3339};
 
-#[allow(unused_imports)]
-pub use crate::repo::traits::rule::{ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};
+pub use crate::repo::traits::rule::{ConditionData, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic};
 
 #[derive(Clone)]
 pub struct RuleRepo<C: Connection = DbClient> {
@@ -198,6 +197,7 @@ mod tests {
 
     use super::*;
     use crate::repo::db as db;
+    use crate::repo::traits::rule::ActionOp;
 
     async fn repo() -> RuleRepo<surrealdb::engine::local::Db> {
         let db = Arc::new(db::surreal_connect_mem().await.unwrap());

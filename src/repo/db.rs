@@ -126,6 +126,16 @@ pub async fn define_tables<C: Connection>(client: &Surreal<C>) -> anyhow::Result
             DEFINE TABLE IF NOT EXISTS user_key;
             DEFINE INDEX IF NOT EXISTS user_key_user ON TABLE user_key COLUMNS user;
             DEFINE INDEX IF NOT EXISTS user_key_hash ON TABLE user_key COLUMNS keyHash UNIQUE;
+
+            DEFINE TABLE IF NOT EXISTS mail_account;
+            DEFINE INDEX IF NOT EXISTS mail_account_user ON TABLE mail_account COLUMNS user;
+
+            DEFINE TABLE IF NOT EXISTS mail_rule;
+            DEFINE INDEX IF NOT EXISTS mail_rule_user ON TABLE mail_rule COLUMNS user, position;
+
+            DEFINE TABLE IF NOT EXISTS mail_message;
+            DEFINE INDEX IF NOT EXISTS mail_message_user_message ON TABLE mail_message COLUMNS user, messageId UNIQUE;
+            DEFINE INDEX IF NOT EXISTS mail_message_user_status ON TABLE mail_message COLUMNS user, status;
             ",
         )
         .await?
