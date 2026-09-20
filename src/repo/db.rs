@@ -1,18 +1,26 @@
-//! Backend bootstrapping: `SQLite` pool + migrations, and runtime repo-set
-//! selection (`SurrealDB` or `SQLite`).
+//! Backend bootstrapping: repo-set selection, plus each backend's connection
+//! and schema setup (`SQLite` pool + migrations; `SurrealDB` client + tables).
 
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use sqlx::SqlitePool;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+#[cfg(all(test, feature = "surreal"))]
+use surrealdb::engine::local::{Db as SurrealDb, Mem};
+#[cfg(feature = "surreal")]
+use surrealdb::engine::remote::http::{Client as HttpClient, Http};
+#[cfg(feature = "surreal")]
+use surrealdb::{Connection, Surreal};
 
 use crate::error::Result;
 #[cfg(feature = "surreal")]
 use crate::repo::surreal;
-use crate::repo::traits::{AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo};
+use crate::repo::traits::{
+    AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo,
+};
 
 /// All repositories, type-erased so the service layer is backend-agnostic.
 pub struct RepoSet {
@@ -28,20 +36,101 @@ pub struct RepoSet {
 /// Connect to the backend named by config and return its repo set.
 ///
 /// The only place the two backends are chosen between; main starts from here.
-pub async fn connect(cfg: &crate::config::Config) -> anyhow::Result<RepoSet> {
+pub async fn repo_set(cfg: &crate::config::Config) -> anyhow::Result<RepoSet> {
     match cfg.database() {
-        crate::config::Database::Sqlite => sqlite_repo_set(&cfg.storage.sqlite).await.map_err(|e| anyhow::anyhow!(e.message)),
+        crate::config::Database::Sqlite => sqlite_repo_set(&cfg.storage.sqlite)
+            .await
+            .map_err(|e| anyhow::anyhow!(e.message)),
         #[cfg(feature = "surreal")]
-        crate::config::Database::Surreal => {
-            surreal_repo_set(&cfg.storage.surreal.url, &cfg.storage.surreal.user, &cfg.storage.surreal.pass, &cfg.storage.surreal.ns, &cfg.storage.surreal.db)
-                .await
-                .map_err(|e| anyhow::anyhow!(e.message))
-        }
+        crate::config::Database::Surreal => surreal_repo_set(
+            &cfg.storage.surreal.url,
+            &cfg.storage.surreal.user,
+            &cfg.storage.surreal.pass,
+            &cfg.storage.surreal.ns,
+            &cfg.storage.surreal.db,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!(e.message)),
         #[cfg(not(feature = "surreal"))]
         crate::config::Database::Surreal => {
-            anyhow::bail!("FINANCER_DATABASE=surreal but this build has no SurrealDB support; rebuild with `--features surreal`")
+            anyhow::bail!(
+                "FINANCER_DATABASE=surreal but this build has no SurrealDB support; rebuild with `--features surreal`"
+            )
         }
     }
+}
+
+/// Connect to a `SurrealDB` server over `HTTP-RPC`, sign in, select ns/db, and
+/// ensure the schema (tables + indexes) exists.
+#[cfg(feature = "surreal")]
+pub async fn surreal_connect(
+    url: &str,
+    user: &str,
+    pass: &str,
+    ns: &str,
+    db: &str,
+) -> anyhow::Result<Surreal<HttpClient>> {
+    let client = Surreal::new::<Http>(url).await?;
+    client
+        .signin(surrealdb::opt::auth::Root {
+            username: user.to_string(),
+            password: pass.to_string(),
+        })
+        .await?;
+    client.use_ns(ns).use_db(db).await?;
+    define_tables(&client).await?;
+    Ok(client)
+}
+
+/// Embedded in-memory `SurrealDB` for tests.
+#[cfg(all(test, feature = "surreal"))]
+pub async fn surreal_connect_mem() -> anyhow::Result<Surreal<SurrealDb>> {
+    let client = Surreal::new::<Mem>(()).await?;
+    client.use_ns("financer").use_db("financer").await?;
+    define_tables(&client).await?;
+    Ok(client)
+}
+
+/// Idempotent schema setup: tables + indexes. Runs at boot and in tests.
+#[cfg(feature = "surreal")]
+pub async fn define_tables<C: Connection>(client: &Surreal<C>) -> anyhow::Result<()> {
+    client
+        .query(
+            r"
+            DEFINE TABLE IF NOT EXISTS user;
+            DEFINE INDEX IF NOT EXISTS user_email ON TABLE user COLUMNS email UNIQUE;
+
+            DEFINE TABLE IF NOT EXISTS account;
+            DEFINE INDEX IF NOT EXISTS account_user ON TABLE account COLUMNS user;
+
+            DEFINE TABLE IF NOT EXISTS transaction;
+            DEFINE INDEX IF NOT EXISTS txn_account ON TABLE transaction COLUMNS account;
+            DEFINE INDEX IF NOT EXISTS txn_user ON TABLE transaction COLUMNS user;
+            DEFINE INDEX IF NOT EXISTS txn_external ON TABLE transaction COLUMNS user, externalId;
+
+            DEFINE TABLE IF NOT EXISTS category;
+            DEFINE INDEX IF NOT EXISTS cat_user ON TABLE category COLUMNS user;
+
+            DEFINE TABLE IF NOT EXISTS rule;
+            DEFINE INDEX IF NOT EXISTS rule_user ON TABLE rule COLUMNS user;
+
+            DEFINE TABLE IF NOT EXISTS investment;
+            DEFINE INDEX IF NOT EXISTS inv_symbol ON TABLE investment COLUMNS user, symbol;
+
+            DEFINE TABLE IF NOT EXISTS investment_lot;
+            DEFINE INDEX IF NOT EXISTS lot_external ON TABLE investment_lot COLUMNS user, externalId;
+
+            DEFINE TABLE IF NOT EXISTS investment_price_history;
+            DEFINE TABLE IF NOT EXISTS transfer_link;
+
+            DEFINE TABLE IF NOT EXISTS user_key;
+            DEFINE INDEX IF NOT EXISTS user_key_user ON TABLE user_key COLUMNS user;
+            DEFINE INDEX IF NOT EXISTS user_key_hash ON TABLE user_key COLUMNS keyHash UNIQUE;
+            ",
+        )
+        .await?
+        .check()?;
+    Ok(())
 }
 
 #[cfg(feature = "surreal")]
@@ -52,7 +141,7 @@ pub async fn surreal_repo_set(
     ns: &str,
     db: &str,
 ) -> Result<RepoSet> {
-    let client = crate::surreal_db::connect(url, user, pass, ns, db).await?;
+    let client = surreal_connect(url, user, pass, ns, db).await?;
     let c = Arc::new(client);
     tracing::info!("connected to SurrealDB at {url}");
     Ok(RepoSet {
@@ -73,11 +162,19 @@ pub async fn sqlite_repo_set(cfg: &crate::config::Sqlite) -> Result<RepoSet> {
     let pool = db.write.clone();
     Ok(RepoSet {
         user: Arc::new(crate::repo::sqlite::user::SqliteUserRepo::new(pool.clone())),
-        account: Arc::new(crate::repo::sqlite::account::SqliteAccountRepo::new(pool.clone())),
-        category: Arc::new(crate::repo::sqlite::category::SqliteCategoryRepo::new(pool.clone())),
+        account: Arc::new(crate::repo::sqlite::account::SqliteAccountRepo::new(
+            pool.clone(),
+        )),
+        category: Arc::new(crate::repo::sqlite::category::SqliteCategoryRepo::new(
+            pool.clone(),
+        )),
         rule: Arc::new(crate::repo::sqlite::rule::SqliteRuleRepo::new(pool.clone())),
-        investment: Arc::new(crate::repo::sqlite::investment::SqliteInvestmentRepo::new(pool.clone())),
-        transaction: Arc::new(crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool.clone())),
+        investment: Arc::new(crate::repo::sqlite::investment::SqliteInvestmentRepo::new(
+            pool.clone(),
+        )),
+        transaction: Arc::new(
+            crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool.clone()),
+        ),
         user_key: Arc::new(crate::repo::sqlite::user_key::SqliteUserKeyRepo::new(pool)),
     })
 }

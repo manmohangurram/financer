@@ -164,11 +164,11 @@ fn map_repo_err(e: &surrealdb::Error) -> ApiError {
 mod tests {
     use std::sync::Arc;
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db as db;
 
     #[tokio::test]
     async fn user_crud() {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         let repo = UserRepo::new(db);
 
         let id = repo.create("a@b.c", "h1", "A").await.unwrap();
