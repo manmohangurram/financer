@@ -10,8 +10,6 @@ mod mcp;
 mod openapi;
 mod repo;
 mod service;
-#[cfg(feature = "surreal")]
-mod surreal_db;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -24,9 +22,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::auth::Jwt;
 use crate::config::Config;
-#[cfg(feature = "surreal")]
-use crate::repo::db::surreal_repo_set;
-use crate::repo::db::{RepoSet, sqlite_repo_set};
+use crate::repo::db::RepoSet;
 use crate::service::account::AccountService;
 use crate::service::auth::AuthService;
 use crate::service::category::CategoryService;
@@ -52,28 +48,7 @@ async fn main() -> anyhow::Result<()> {
     crate::utils::timex::init_tz(&cfg.server.timezone);
     std::fs::create_dir_all(cfg.server.data_dir.join("avatars"))?;
 
-    // Build the repo set for the selected database.
-    let repo_set: RepoSet = match cfg.database() {
-        crate::config::Database::Sqlite => sqlite_repo_set(&cfg.storage.sqlite)
-            .await
-            .map_err(|e| anyhow::anyhow!(e.message))?,
-        #[cfg(feature = "surreal")]
-        crate::config::Database::Surreal => surreal_repo_set(
-            &cfg.storage.surreal.url,
-            &cfg.storage.surreal.user,
-            &cfg.storage.surreal.pass,
-            &cfg.storage.surreal.ns,
-            &cfg.storage.surreal.db,
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!(e.message))?,
-        #[cfg(not(feature = "surreal"))]
-        crate::config::Database::Surreal => {
-            anyhow::bail!(
-                "FINANCER_DATABASE=surreal but this build has no SurrealDB support; rebuild with `--features surreal`"
-            )
-        }
-    };
+    let repo_set: RepoSet = crate::repo::db::repo_set(&cfg).await?;
 
     let jwt = Jwt::new(cfg.server.jwt_secret.clone());
     let repo = repo_set.user.clone();

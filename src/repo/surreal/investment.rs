@@ -5,11 +5,7 @@ use crate::error::Result;
 use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 use surrealdb::Connection;
 
-#[allow(unused_imports)]
-pub use crate::repo::traits::investment::{
-    Investment, InvestmentRow, InvestmentType, Lot, LotInput, LotRow, effective_price,
-    investment_wire, lot_wire,
-};
+pub use crate::repo::traits::investment::{InvestmentRow, InvestmentType, LotInput, LotRow};
 
 #[derive(Clone)]
 pub struct InvestmentRepo<C: Connection = DbClient> {
@@ -526,13 +522,13 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db;
 
     async fn repo() -> (
         InvestmentRepo<surrealdb::engine::local::Db>,
         Arc<surrealdb::Surreal<surrealdb::engine::local::Db>>,
     ) {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query(
             "CREATE user CONTENT { id: 'u1', email: 'u1@x.com', passwordHash: 'h', name: 'u1' }",
         )

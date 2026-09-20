@@ -38,6 +38,7 @@ pub struct AccountRow {
     pub balance: f64,
     #[serde(rename = "type")]
     pub account_type: AccountType,
+    pub ending_numbers: Option<String>,
     pub created_at: String,
 }
 
@@ -49,6 +50,7 @@ pub trait AccountRepo: Send + Sync {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<AccountRow>;
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>>;
     async fn update(
@@ -58,6 +60,7 @@ pub trait AccountRepo: Send + Sync {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<Option<AccountRow>>;
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool>;
     async fn list(&self, user_id: &str) -> Result<Vec<AccountRow>>;

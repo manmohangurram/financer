@@ -25,6 +25,7 @@ impl<C: Connection> AccountRepo<C> {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<AccountRow> {
         let now = crate::utils::timex::now_go_ts();
 
@@ -33,13 +34,15 @@ impl<C: Connection> AccountRepo<C> {
             .query(
                 "CREATE account CONTENT {
                     user: $uid, bankName: $bank, nickname: $nick, balance: 0.0,
-                    totalCredit: 0.0, totalDebit: 0.0, type: $type, createdAt: $created
-                } RETURN meta::id(id) AS id, bankName, nickname, balance, type, createdAt",
+                    totalCredit: 0.0, totalDebit: 0.0, type: $type, endingNumbers: $last4,
+                    createdAt: $created
+                } RETURN meta::id(id) AS id, bankName, nickname, balance, type, endingNumbers, createdAt",
             )
             .bind(("uid", rid("user", user_id)))
             .bind(("bank", bank_name))
             .bind(("nick", nickname))
             .bind(("type", account_type.to_string()))
+            .bind(("last4", ending_numbers))
             .bind(("created", now.as_str()))
             .await?
             .check()?;
@@ -58,7 +61,7 @@ impl<C: Connection> AccountRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, bankName, nickname, balance, type, createdAt
+                "SELECT meta::id(id) AS id, bankName, nickname, balance, type, endingNumbers, createdAt
                  FROM account WHERE id = $rid AND user = $uid LIMIT 1",
             )
             .bind(("rid", rid("account", id)))
@@ -74,6 +77,7 @@ impl<C: Connection> AccountRepo<C> {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<Option<AccountRow>> {
         let mut res = self
             .db
@@ -81,15 +85,17 @@ impl<C: Connection> AccountRepo<C> {
                 "UPDATE $rid SET
                     bankName = IF $bank != '' THEN $bank ELSE bankName END,
                     nickname = IF $nick != '' THEN $nick ELSE nickname END,
-                    type = $type
+                    type = $type,
+                    endingNumbers = IF $last4 != '' THEN $last4 ELSE endingNumbers END
                  WHERE user = $uid
-                 RETURN meta::id(id) AS id, bankName, nickname, balance, type, createdAt",
+                 RETURN meta::id(id) AS id, bankName, nickname, balance, type, endingNumbers, createdAt",
             )
             .bind(("rid", rid("account", id)))
             .bind(("uid", rid("user", user_id)))
             .bind(("bank", bank_name))
             .bind(("nick", nickname))
             .bind(("type", account_type.to_string()))
+            .bind(("last4", ending_numbers))
             .await?;
         let rows = take_json::<AccountRow>(&mut res, 0)?;
         Ok(rows.into_iter().next())
@@ -109,7 +115,7 @@ impl<C: Connection> AccountRepo<C> {
         let mut res = self
             .db
             .query(
-                "SELECT meta::id(id) AS id, bankName, nickname, balance, type, createdAt
+                "SELECT meta::id(id) AS id, bankName, nickname, balance, type, endingNumbers, createdAt
                  FROM account WHERE user = $uid ORDER BY createdAt DESC",
             )
             .bind(("uid", rid("user", user_id)))
@@ -186,8 +192,9 @@ impl crate::repo::traits::AccountRepo for AccountRepo<DbClient> {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<AccountRow> {
-        self.create(user_id, bank_name, nickname, account_type)
+        self.create(user_id, bank_name, nickname, account_type, ending_numbers)
             .await
     }
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
@@ -200,9 +207,17 @@ impl crate::repo::traits::AccountRepo for AccountRepo<DbClient> {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<Option<AccountRow>> {
-        self.update(user_id, id, bank_name, nickname, account_type)
-            .await
+        self.update(
+            user_id,
+            id,
+            bank_name,
+            nickname,
+            account_type,
+            ending_numbers,
+        )
+        .await
     }
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete(user_id, id).await
@@ -242,7 +257,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db;
 
     #[test]
     fn rejects_unknown_type() {
@@ -256,7 +271,7 @@ mod tests {
 
     #[tokio::test]
     async fn crud_scoped_to_user() {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         for uid in ["u1", "u2"] {
             db.query(
                 "CREATE user CONTENT { id: $id, email: $email, passwordHash: 'h', name: $id }",
@@ -270,13 +285,13 @@ mod tests {
         }
         let repo = AccountRepo::new(db);
         let a = repo
-            .create("u1", "Chase", "Main", AccountType::Current)
+            .create("u1", "Chase", "Main", AccountType::Current, "1234")
             .await
             .unwrap();
-        repo.create("u1", "Amex", "", AccountType::CreditCard)
+        repo.create("u1", "Amex", "", AccountType::CreditCard, "5678")
             .await
             .unwrap();
-        repo.create("u2", "Other", "", AccountType::Savings)
+        repo.create("u2", "Other", "", AccountType::Savings, "9012")
             .await
             .unwrap();
 
@@ -291,13 +306,21 @@ mod tests {
         );
 
         let upd = repo
-            .update("u1", &a.id, "Chase Blue", "New", AccountType::Savings)
+            .update(
+                "u1",
+                &a.id,
+                "Chase Blue",
+                "New",
+                AccountType::Savings,
+                "4321",
+            )
             .await
             .unwrap()
             .unwrap();
         assert_eq!(upd.bank_name, "Chase Blue");
         assert_eq!(upd.nickname, "New");
         assert_eq!(upd.account_type, AccountType::Savings);
+        assert_eq!(upd.ending_numbers.as_deref(), Some("4321"));
 
         assert!(repo.delete("u1", &a.id).await.unwrap());
         assert!(!repo.delete("u1", &a.id).await.unwrap());
@@ -306,7 +329,7 @@ mod tests {
 
     #[tokio::test]
     async fn balance_and_totals_deltas() {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query(
             "CREATE user CONTENT { id: 'u1', email: 'u1@x.com', passwordHash: 'h', name: 'u1' }",
         )
@@ -316,7 +339,7 @@ mod tests {
         .unwrap();
         let repo = AccountRepo::new(db);
         let a = repo
-            .create("u1", "Chase", "", AccountType::Current)
+            .create("u1", "Chase", "", AccountType::Current, "1234")
             .await
             .unwrap();
 

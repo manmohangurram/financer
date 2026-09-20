@@ -26,13 +26,15 @@ impl AccountService {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<AccountResponse> {
         if bank_name.is_empty() {
             return Err(ApiError::bad_request("bank_name is required"));
         }
+        validate_ending_numbers(ending_numbers)?;
         let row = self
             .repo
-            .create(user_id, bank_name, nickname, account_type)
+            .create(user_id, bank_name, nickname, account_type, ending_numbers)
             .await?;
         Ok(AccountResponse::from_row(row))
     }
@@ -44,10 +46,21 @@ impl AccountService {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<AccountResponse> {
+        if !ending_numbers.is_empty() {
+            validate_ending_numbers(ending_numbers)?;
+        }
         let row = self
             .repo
-            .update(user_id, id, bank_name, nickname, account_type)
+            .update(
+                user_id,
+                id,
+                bank_name,
+                nickname,
+                account_type,
+                ending_numbers,
+            )
             .await?
             .ok_or_else(|| ApiError::not_found(format!("account {id} not found")))?;
         Ok(AccountResponse::from_row(row))
@@ -71,6 +84,18 @@ impl AccountService {
     }
 }
 
+/// Trailing digits of the account or card number: exactly 4, digits only.
+/// Card alerts name the card, not the account, so this is not account-specific.
+fn validate_ending_numbers(v: &str) -> Result<()> {
+    if v.len() == 4 && v.bytes().all(|b| b.is_ascii_digit()) {
+        Ok(())
+    } else {
+        Err(ApiError::bad_request(
+            "endingNumbers must be exactly 4 digits",
+        ))
+    }
+}
+
 /// Wire response, serialized directly (Rust serde covers Go's wire mapping).
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -83,6 +108,7 @@ pub struct AccountResponse {
     pub account_type: AccountType,
     #[serde(serialize_with = "round2")]
     pub balance: f64,
+    pub ending_numbers: Option<String>,
     pub created_at: String,
 }
 
@@ -100,6 +126,7 @@ impl AccountResponse {
             nickname: r.nickname,
             account_type: r.account_type,
             balance: r.balance,
+            ending_numbers: r.ending_numbers,
             created_at: ts_rfc3339(&r.created_at),
         }
     }

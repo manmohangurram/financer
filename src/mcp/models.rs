@@ -97,6 +97,7 @@ pub struct CreateAccountReq {
     pub bank_name: String,
     #[serde(default)]
     pub nickname: String,
+    pub ending_numbers: String,
     #[serde(rename = "type")]
     pub account_type: crate::repo::traits::account::AccountType,
 }
@@ -109,6 +110,8 @@ pub struct UpdateAccountReq {
     pub bank_name: String,
     #[serde(default)]
     pub nickname: String,
+    #[serde(default)]
+    pub ending_numbers: String,
     #[serde(rename = "type")]
     pub account_type: crate::repo::traits::account::AccountType,
 }

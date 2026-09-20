@@ -31,6 +31,8 @@ pub struct ReqAccount {
     bank_name: String,
     #[serde(default)]
     nickname: String,
+    #[serde(default)]
+    ending_numbers: String,
     /// Strict: missing/unknown value → serde rejection → 400.
     #[serde(rename = "type")]
     account_type: AccountType,
@@ -62,7 +64,13 @@ pub async fn create(
     };
     match st
         .account
-        .create(&uid, &req.bank_name, &req.nickname, req.account_type)
+        .create(
+            &uid,
+            &req.bank_name,
+            &req.nickname,
+            req.account_type,
+            &req.ending_numbers,
+        )
         .await
     {
         Ok(a) => (StatusCode::CREATED, Json(a)).into_response(),
@@ -99,7 +107,14 @@ pub async fn update(
     };
     match st
         .account
-        .update(&uid, &id, &req.bank_name, &req.nickname, req.account_type)
+        .update(
+            &uid,
+            &id,
+            &req.bank_name,
+            &req.nickname,
+            req.account_type,
+            &req.ending_numbers,
+        )
         .await
     {
         Ok(a) => Json(a).into_response(),

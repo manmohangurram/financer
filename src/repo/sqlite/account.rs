@@ -25,11 +25,12 @@ impl SqliteAccountRepo {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<AccountRow> {
         let id = Uuid::new_v4().to_string();
         let now = crate::utils::timex::now_go_ts();
         sqlx::query(
-            "INSERT INTO accounts (id, user_id, bank_name, nickname, balance, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO accounts (id, user_id, bank_name, nickname, balance, type, ending_numbers, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(user_id)
@@ -37,6 +38,7 @@ impl SqliteAccountRepo {
         .bind(nickname)
         .bind(0.0f64)
         .bind(account_type.to_string())
+        .bind(ending_numbers)
         .bind(&now)
         .execute(&self.pool)
         .await?;
@@ -46,13 +48,14 @@ impl SqliteAccountRepo {
             nickname: nickname.to_string(),
             balance: 0.0,
             account_type,
+            ending_numbers: Some(ending_numbers.to_string()),
             created_at: now,
         })
     }
 
     async fn get_by_id_inner(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
         let row = sqlx::query_as::<_, RawAccount>(
-            "SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE id = ? AND user_id = ?",
+            "SELECT id, bank_name, nickname, balance, type, ending_numbers, created_at FROM accounts WHERE id = ? AND user_id = ?",
         )
         .bind(id)
         .bind(user_id)
@@ -68,17 +71,20 @@ impl SqliteAccountRepo {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<Option<AccountRow>> {
         let result = sqlx::query(
             "UPDATE accounts SET
                 bank_name = COALESCE(NULLIF(?, ''), bank_name),
                 nickname = COALESCE(NULLIF(?, ''), nickname),
-                type = ?
+                type = ?,
+                ending_numbers = COALESCE(NULLIF(?, ''), ending_numbers)
              WHERE id = ? AND user_id = ?",
         )
         .bind(bank_name)
         .bind(nickname)
         .bind(account_type.to_string())
+        .bind(ending_numbers)
         .bind(id)
         .bind(user_id)
         .execute(&self.pool)
@@ -100,7 +106,7 @@ impl SqliteAccountRepo {
 
     async fn list_inner(&self, user_id: &str) -> Result<Vec<AccountRow>> {
         let rows = sqlx::query_as::<_, RawAccount>(
-            "SELECT id, bank_name, nickname, balance, type, created_at FROM accounts WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT id, bank_name, nickname, balance, type, ending_numbers, created_at FROM accounts WHERE user_id = ? ORDER BY created_at DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -162,8 +168,9 @@ impl crate::repo::traits::AccountRepo for SqliteAccountRepo {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<AccountRow> {
-        self.create_inner(user_id, bank_name, nickname, account_type)
+        self.create_inner(user_id, bank_name, nickname, account_type, ending_numbers)
             .await
     }
     async fn get_by_id(&self, user_id: &str, id: &str) -> Result<Option<AccountRow>> {
@@ -176,9 +183,17 @@ impl crate::repo::traits::AccountRepo for SqliteAccountRepo {
         bank_name: &str,
         nickname: &str,
         account_type: AccountType,
+        ending_numbers: &str,
     ) -> Result<Option<AccountRow>> {
-        self.update_inner(user_id, id, bank_name, nickname, account_type)
-            .await
+        self.update_inner(
+            user_id,
+            id,
+            bank_name,
+            nickname,
+            account_type,
+            ending_numbers,
+        )
+        .await
     }
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_inner(user_id, id).await
@@ -208,6 +223,7 @@ struct RawAccount {
     balance: f64,
     #[sqlx(rename = "type")]
     account_type: String,
+    ending_numbers: Option<String>,
     created_at: String,
 }
 
@@ -219,6 +235,7 @@ impl From<RawAccount> for AccountRow {
             nickname: r.nickname,
             balance: r.balance,
             account_type: AccountType::from_str(&r.account_type).unwrap_or(AccountType::Current),
+            ending_numbers: r.ending_numbers,
             created_at: r.created_at,
         }
     }

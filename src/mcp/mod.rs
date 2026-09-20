@@ -335,7 +335,7 @@ impl FinancerHandler {
     }
 
     #[tool(
-        description = "Create an account. Example args: {\"bankName\":\"Chase\",\"type\":\"CURRENT\"}."
+        description = "Create an account. Example args: {\"bankName\":\"Chase\",\"endingNumbers\":\"1234\",\"type\":\"CURRENT\"}."
     )]
     async fn create_account(
         &self,
@@ -348,7 +348,13 @@ impl FinancerHandler {
         }
         match self
             .account
-            .create(&uid, &req.bank_name, &req.nickname, req.account_type)
+            .create(
+                &uid,
+                &req.bank_name,
+                &req.nickname,
+                req.account_type,
+                &req.ending_numbers,
+            )
             .await
         {
             Ok(r) => serde_json::to_string(&r)
@@ -377,6 +383,7 @@ impl FinancerHandler {
                 &req.bank_name,
                 &req.nickname,
                 req.account_type,
+                &req.ending_numbers,
             )
             .await
         {

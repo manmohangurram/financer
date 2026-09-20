@@ -8,10 +8,8 @@ use crate::error::Result;
 use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 use crate::utils::timex::ts_rfc3339;
 
-#[allow(unused_imports)]
 pub use crate::repo::traits::rule::{
-    ActionOp, ActionType, ConditionData, MatchField, MatchOperator, OverlayRule, Rule, RuleAction,
-    RuleCondition, RuleLogic,
+    ConditionData, OverlayRule, Rule, RuleAction, RuleCondition, RuleLogic,
 };
 
 #[derive(Clone)]
@@ -205,10 +203,11 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::surreal_db;
+    use crate::repo::db;
+    use crate::repo::traits::rule::ActionOp;
 
     async fn repo() -> RuleRepo<surrealdb::engine::local::Db> {
-        let db = Arc::new(surreal_db::connect_mem().await.unwrap());
+        let db = Arc::new(db::surreal_connect_mem().await.unwrap());
         db.query("CREATE user CONTENT { email: 'u1@x.com', passwordHash: 'h', name: 'u1' }")
             .await
             .unwrap()
