@@ -7,6 +7,7 @@
 pub mod account;
 pub mod category;
 pub mod investment;
+pub mod mail;
 pub mod rule;
 pub mod transaction;
 pub mod user;
@@ -17,6 +18,7 @@ pub mod user_key;
 pub use account::AccountRepo;
 pub use category::CategoryRepo;
 pub use investment::InvestmentRepo;
+pub use mail::MailRepo;
 pub use rule::RuleRepo;
 pub use transaction::TransactionRepo;
 pub use user::UserRepo;
