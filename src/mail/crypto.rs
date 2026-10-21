@@ -2,14 +2,37 @@
 //!
 //! The key is `FINANCER_SECRET_KEY`, deliberately **not** the JWT signing
 //! secret: rotating tokens must not lock anyone out of their mailbox.
+//!
+//! Uses `ring` rather than a `RustCrypto` AEAD because `ring` is already compiled
+//! into this binary (`jsonwebtoken` and `reqwest` both pull it), so it adds no
+//! dependency while the `RustCrypto` crate would be a new one.
 
 use base64::Engine;
-use chacha20poly1305::aead::{Aead, AeadCore, KeyInit, OsRng};
-use chacha20poly1305::{ChaCha20Poly1305, Nonce};
+use ring::aead::{Aad, CHACHA20_POLY1305, LessSafeKey, NONCE_LEN, Nonce, UnboundKey};
+use ring::rand::{SecureRandom, SystemRandom};
 
 use crate::error::{ApiError, Result};
 
-const NONCE_LEN: usize = 12;
+/// `nonce || ciphertext`, base64.
+pub fn encrypt(key_hex: &str, plaintext: &str) -> Result<String> {
+    let key = key(key_hex)?;
+    let mut nonce = [0u8; NONCE_LEN];
+    SystemRandom::new()
+        .fill(&mut nonce)
+        .map_err(|_| ApiError::internal("could not generate a nonce"))?;
+
+    let mut in_out = plaintext.as_bytes().to_vec();
+    key.seal_in_place_append_tag(
+        Nonce::assume_unique_for_key(nonce),
+        Aad::empty(),
+        &mut in_out,
+    )
+    .map_err(|_| ApiError::internal("credential encryption failed"))?;
+
+    let mut blob = nonce.to_vec();
+    blob.extend_from_slice(&in_out);
+    Ok(base64::engine::general_purpose::STANDARD.encode(blob))
+}
 
 pub fn decrypt(key_hex: &str, stored: &str) -> Result<String> {
     let blob = base64::engine::general_purpose::STANDARD
@@ -19,19 +42,26 @@ pub fn decrypt(key_hex: &str, stored: &str) -> Result<String> {
         return Err(ApiError::internal("stored credential is truncated"));
     }
     let (nonce, ciphertext) = blob.split_at(NONCE_LEN);
-    let plaintext = cipher(key_hex)?
-        .decrypt(Nonce::from_slice(nonce), ciphertext)
+    let nonce = Nonce::try_assume_unique_for_key(nonce)
+        .map_err(|_| ApiError::internal("stored credential has a bad nonce"))?;
+
+    let mut in_out = ciphertext.to_vec();
+    let plaintext = key(key_hex)?
+        .open_in_place(nonce, Aad::empty(), &mut in_out)
         .map_err(|_| {
             ApiError::bad_request(
                 "could not decrypt the stored credential (wrong FINANCER_SECRET_KEY?)",
             )
         })?;
-    String::from_utf8(plaintext).map_err(|_| ApiError::internal("stored credential is not UTF-8"))
+    String::from_utf8(plaintext.to_vec())
+        .map_err(|_| ApiError::internal("stored credential is not UTF-8"))
 }
 
-fn cipher(key_hex: &str) -> Result<ChaCha20Poly1305> {
-    let key = decode_key(key_hex)?;
-    Ok(ChaCha20Poly1305::new((&key).into()))
+fn key(key_hex: &str) -> Result<LessSafeKey> {
+    let bytes = decode_key(key_hex)?;
+    let unbound = UnboundKey::new(&CHACHA20_POLY1305, &bytes)
+        .map_err(|_| ApiError::bad_request("FINANCER_SECRET_KEY is not a valid key"))?;
+    Ok(LessSafeKey::new(unbound))
 }
 
 /// Only fails if the key changed while running; config validated it at boot.
@@ -52,18 +82,6 @@ fn decode_key(key_hex: &str) -> Result<[u8; 32]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// `nonce || ciphertext`, base64.
-    pub fn encrypt(key_hex: &str, plaintext: &str) -> Result<String> {
-        let cipher = cipher(key_hex)?;
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let ciphertext = cipher
-            .encrypt(&nonce, plaintext.as_bytes())
-            .map_err(|_| ApiError::internal("credential encryption failed"))?;
-        let mut blob = nonce.to_vec();
-        blob.extend_from_slice(&ciphertext);
-        Ok(base64::engine::general_purpose::STANDARD.encode(blob))
-    }
 
     const KEY: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
     const OTHER: &str = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100";

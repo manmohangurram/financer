@@ -65,7 +65,6 @@ pub trait MailRepo: Send + Sync {
     async fn create_account(&self, user_id: &str, input: &NewMailAccount)
     -> Result<MailAccountRow>;
     async fn list_accounts(&self, user_id: &str) -> Result<Vec<MailAccountRow>>;
-    async fn get_account(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>>;
     async fn delete_account(&self, user_id: &str, id: &str) -> Result<bool>;
     /// Every enabled mailbox, across users — what the poll tick iterates.
     async fn list_pollable_accounts(&self) -> Result<Vec<MailAccountRow>>;
