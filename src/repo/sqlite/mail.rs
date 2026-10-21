@@ -72,19 +72,6 @@ impl SqliteMailRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    async fn get_account_inner(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>> {
-        let row = sqlx::query_as::<_, RawMailAccount>(
-            "SELECT id, user_id, label, imap_host, imap_port, username, secret_enc, sender_allowlist,
-                    enabled, last_polled_at, last_error, created_at
-             FROM mail_accounts WHERE id = ? AND user_id = ?",
-        )
-        .bind(id)
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row.map(Into::into))
-    }
-
     async fn delete_account_inner(&self, user_id: &str, id: &str) -> Result<bool> {
         let r = sqlx::query("DELETE FROM mail_accounts WHERE id = ? AND user_id = ?")
             .bind(id)
@@ -177,9 +164,6 @@ impl MailRepoTrait for SqliteMailRepo {
     }
     async fn list_accounts(&self, user_id: &str) -> Result<Vec<MailAccountRow>> {
         self.list_accounts_inner(user_id).await
-    }
-    async fn get_account(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>> {
-        self.get_account_inner(user_id, id).await
     }
     async fn delete_account(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_account_inner(user_id, id).await
@@ -313,8 +297,8 @@ mod tests {
         let (repo, uid) = repo_with_user().await;
         let other = repo.create_account("u2", &account_input()).await;
         assert!(other.is_err(), "u2 does not exist, FK must reject");
-        let a = repo.create_account(&uid, &account_input()).await.unwrap();
-        assert!(repo.get_account("u2", &a.id).await.unwrap().is_none());
+        repo.create_account(&uid, &account_input()).await.unwrap();
+        assert!(repo.list_accounts("u2").await.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -391,7 +375,13 @@ mod tests {
         let (repo, uid) = repo_with_user().await;
         let acc = repo.create_account(&uid, &account_input()).await.unwrap();
         repo.mark_polled(&acc.id, "auth failed").await.unwrap();
-        let after = repo.get_account(&uid, &acc.id).await.unwrap().unwrap();
+        let after = repo
+            .list_accounts(&uid)
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         assert_eq!(after.last_error, "auth failed");
         assert!(after.last_polled_at.is_some());
     }

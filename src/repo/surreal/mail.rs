@@ -6,7 +6,7 @@ use surrealdb::Connection;
 use crate::error::Result;
 use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 
-pub use crate::repo::traits::mail::{MailAccountRow, MailStatus, NewMailAccount, NewMailMessage};
+pub use crate::repo::traits::mail::{MailAccountRow, NewMailAccount, NewMailMessage};
 
 const ACCOUNT_FIELDS: &str = "meta::id(id) AS id, userId, label, imapHost, imapPort, username, secretEnc, \
                               senderAllowlist, enabled, lastPolledAt, lastError, createdAt";
@@ -62,18 +62,6 @@ impl<C: Connection> MailRepo<C> {
             .bind(("uid", rid("user", user_id)))
             .await?;
         Ok(take_json(&mut res, 0)?)
-    }
-
-    pub async fn get_account(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>> {
-        let mut res = self
-            .db
-            .query(format!(
-                "SELECT {ACCOUNT_FIELDS} FROM mail_account WHERE id = $rid AND user = $uid LIMIT 1"
-            ))
-            .bind(("rid", rid("mail_account", id)))
-            .bind(("uid", rid("user", user_id)))
-            .await?;
-        Ok(take_json(&mut res, 0)?.into_iter().next())
     }
 
     pub async fn delete_account(&self, user_id: &str, id: &str) -> Result<bool> {
@@ -188,9 +176,6 @@ impl crate::repo::traits::MailRepo for MailRepo<DbClient> {
     async fn list_accounts(&self, user_id: &str) -> Result<Vec<MailAccountRow>> {
         self.list_accounts(user_id).await
     }
-    async fn get_account(&self, user_id: &str, id: &str) -> Result<Option<MailAccountRow>> {
-        self.get_account(user_id, id).await
-    }
     async fn delete_account(&self, user_id: &str, id: &str) -> Result<bool> {
         self.delete_account(user_id, id).await
     }
@@ -217,6 +202,7 @@ mod tests {
 
     use super::*;
     use crate::repo::db;
+    use crate::repo::traits::mail::MailStatus;
 
     async fn repo() -> MailRepo<surrealdb::engine::local::Db> {
         let db = Arc::new(db::surreal_connect_mem().await.unwrap());

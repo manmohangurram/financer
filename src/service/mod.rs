@@ -3,6 +3,7 @@ pub mod auth;
 pub mod category;
 pub mod fifo;
 pub mod investment;
+pub mod mail;
 pub mod rule;
 pub mod transaction;
 pub mod transfer;

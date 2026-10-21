@@ -25,6 +25,12 @@ impl ApiError {
             message: msg.into(),
         }
     }
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        Self {
+            status: 403,
+            message: msg.into(),
+        }
+    }
     pub fn not_found(msg: impl Into<String>) -> Self {
         Self {
             status: 404,
@@ -59,6 +65,7 @@ impl ApiError {
         match self.status {
             400 => "invalid_argument",
             401 => "unauthenticated",
+            403 => "permission_denied",
             404 => "not_found",
             409 => "already_exists",
             502 => "upstream_unavailable",

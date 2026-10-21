@@ -4,6 +4,7 @@
 #![allow(clippy::float_cmp)] // exact round-number amounts are the point of these assertions
 
 pub mod harness;
+pub mod https;
 
 pub mod accounts;
 pub mod analytics;

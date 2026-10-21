@@ -28,6 +28,7 @@ use crate::service::account::AccountService;
 use crate::service::auth::AuthService;
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
+use crate::service::mail::MailService;
 use crate::service::rule::RuleService;
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
@@ -45,6 +46,12 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = Config::from_env()?;
+    crate::http::https::configure(cfg.server.allow_insecure_http);
+    if cfg.server.allow_insecure_http {
+        tracing::warn!(
+            "FINANCER_ALLOW_INSECURE_HTTP is set: credentials may cross the network in plaintext"
+        );
+    }
     // Set the process timezone once, before any date/time work.
     crate::utils::timex::init_tz(&cfg.server.timezone);
     std::fs::create_dir_all(cfg.server.data_dir.join("avatars"))?;
@@ -73,6 +80,7 @@ async fn main() -> anyhow::Result<()> {
     let account_svc = AccountService::new(account_repo.clone());
     let category_svc = CategoryService::new(category_repo.clone());
     let investment_svc = InvestmentService::new(investment_repo, YahooClient::new(&cfg.yahoo)?);
+    let mail_svc = MailService::new(repo_set.mail.clone(), cfg.server.secret_key.clone());
     let rule_svc = RuleService::new(
         rule_repo.clone(),
         category_repo.clone(),
@@ -96,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
         auth: auth_svc,
         user: user_svc,
         user_key: user_key_svc,
+        mail: mail_svc,
         account: account_svc,
         investment: investment_svc,
         category: category_svc,
@@ -128,6 +137,10 @@ async fn main() -> anyhow::Result<()> {
             .with_timezone(&crate::utils::timex::tz())
             .format("%Y-%m-%d %H:%M:%S %Z")
     );
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }

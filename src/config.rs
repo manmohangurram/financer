@@ -27,6 +27,9 @@ pub struct Server {
     pub secret_key: Option<String>,
     /// Seconds between mail polls.
     pub mail_poll_secs: u64,
+    /// Accept credentials over plain HTTP. Off by default; turning it on
+    /// exposes bearer tokens to anyone on the network.
+    pub allow_insecure_http: bool,
 }
 
 impl Default for Server {
@@ -40,6 +43,7 @@ impl Default for Server {
             timezone: "Asia/Kolkata".into(),
             secret_key: None,
             mail_poll_secs: 300,
+            allow_insecure_http: false,
         }
     }
 }
@@ -190,6 +194,10 @@ impl Config {
         }
         if let Some(v) = get("FINANCER_SECRET_KEY") {
             self.server.secret_key = Some(v);
+        }
+        if let Some(v) = get("FINANCER_ALLOW_INSECURE_HTTP") {
+            self.server.allow_insecure_http =
+                matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes");
         }
         if let Some(v) = get("FINANCER_MAIL_POLL_SECS")
             && let Ok(secs) = v.parse::<u64>()
