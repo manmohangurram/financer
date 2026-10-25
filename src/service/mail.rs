@@ -63,7 +63,6 @@ impl MailService {
             .collect())
     }
 
-    /// Newest first. `status` is `pending|unparsed|ignored|auto|rejected`.
     pub async fn messages(
         &self,
         user_id: &str,
@@ -91,7 +90,6 @@ impl MailService {
     }
 }
 
-/// Link a mailbox. `password` is the IMAP/app password and is never returned.
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 #[schema(rename_all = "camelCase")]
@@ -106,7 +104,6 @@ pub struct CreateMailAccountReq {
     pub sender_allowlist: Vec<String>,
 }
 
-/// Wire shape: no secret, no ciphertext.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 #[schema(rename_all = "camelCase")]
@@ -138,9 +135,7 @@ impl From<MailAccountRow> for MailAccount {
     }
 }
 
-/// `imap_host` causes an outbound connection, so it is an SSRF surface.
 /// Link-local and metadata addresses are refused; private ranges are allowed
-/// because a self-hoster may run their own IMAP on the LAN.
 fn validate_host(host: &str) -> Result<String> {
     let host = host.trim().to_ascii_lowercase();
     if host.is_empty() {
@@ -164,7 +159,6 @@ fn validate_host(host: &str) -> Result<String> {
 
 fn is_blocked(ip: &IpAddr) -> bool {
     match ip {
-        // 169.254.0.0/16 — link-local, including 169.254.169.254 instance metadata.
         IpAddr::V4(v4) => v4.octets()[..2] == [169, 254],
         IpAddr::V6(v6) => {
             let seg = v6.segments()[0];

@@ -13,7 +13,6 @@ use ring::rand::{SecureRandom, SystemRandom};
 
 use crate::error::{ApiError, Result};
 
-/// `nonce || ciphertext`, base64.
 pub fn encrypt(key_hex: &str, plaintext: &str) -> Result<String> {
     let key = key(key_hex)?;
     let mut nonce = [0u8; NONCE_LEN];
@@ -64,7 +63,6 @@ fn key(key_hex: &str) -> Result<LessSafeKey> {
     Ok(LessSafeKey::new(unbound))
 }
 
-/// Only fails if the key changed while running; config validated it at boot.
 fn decode_key(key_hex: &str) -> Result<[u8; 32]> {
     if key_hex.len() != 64 {
         return Err(ApiError::bad_request(

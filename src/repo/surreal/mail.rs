@@ -115,9 +115,6 @@ impl<C: Connection> MailRepo<C> {
             .collect())
     }
 
-    /// `false` when the `Message-ID` was already stored. The unique index on
-    /// `(user, messageId)` is the backstop; this check makes the common case
-    /// silent instead of an error.
     pub async fn insert_message(&self, user_id: &str, msg: &NewMailMessage) -> Result<bool> {
         let mut existing = self
             .db
@@ -258,8 +255,6 @@ mod tests {
         MailRepo::new(db)
     }
 
-    /// The mailbox-management surface arrives with the mailbox API; tests seed
-    /// the row directly.
     async fn seed_account(repo: &MailRepo<surrealdb::engine::local::Db>) {
         repo.db
             .query(

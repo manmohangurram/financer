@@ -1,39 +1,18 @@
-# cargo-audit configuration.
+# cargo-audit configuration. Every ignore is transitive, pinned by an upstream
+# we cannot bump. Revisit when a parent drops it.
 #
 # Run: `cargo audit`
 
 [advisories]
-# Reviewed exceptions. Every entry is a *transitive* crate pinned by an upstream
-# we cannot bump; none of them is a vulnerability we can act on. Revisit when the
-# parent crate picks up a maintained dependency.
 ignore = [
-    # rsa 0.9.x "Marvin Attack" — timing side-channel in RSA *decryption*. No
-    # fixed release exists. Pulled unconditionally by surrealdb-core ->
-    # jsonwebtoken, which uses RSA only for JWT *signature verification*
-    # (public-key operation), not decryption — the vulnerable path is not
-    # exercised. Revisit when surrealdb drops `rsa`.
-    "RUSTSEC-2023-0071",
-    # Unmaintained notices (no vulnerability, no upgrade path from us):
-    "RUSTSEC-2024-0436", # paste       <- utoipa-axum 0.2.0 (latest)
-    "RUSTSEC-2026-0192", # ttf-parser  <- lopdf 0.42, pinned by pdfsink-rs 0.2.19 (latest)
-    "RUSTSEC-2025-0141", # bincode     <- surrealmx (surrealdb storage engine)
-    "RUSTSEC-2023-0089", # atomic-polyfill <- heapless 0.7 (surrealdb)
-    # zip < 9.0.0: symlink/SUID handling in `ZipArchive::extract()`. Needs a
-    # major bump neither parent allows. Unreachable here: calamine reads xlsx
-    # entries in memory (never `extract()`), and utoipa-swagger-ui is a
-    # *build*-dependency, absent from the runtime binary.
-    "RUSTSEC-2026-0367",
-    "RUSTSEC-2026-0368",
-    "RUSTSEC-2026-0369",
-    # async-std is discontinued. Pulled by async-imap, which is the only client
-    # that reaches imap-proto 0.16 (the sync `imap` 2.4 crate pins 0.10, which
-    # cargo flags as future-incompatible). Neither reaches 0.17. Trade-off:
-    # async IMAP + 0.16 + a discontinued dep, versus sync IMAP + 0.10 + a
-    # future-incompat warning. Revisit when imap 3.0 leaves alpha.
-    "RUSTSEC-2025-0052",
-    # crypto-bigint 0.5.5 constant-time timing variability. Transitive (P-256
-    # stack) and needs a major bump its parent does not allow; used for
-    # signature verification over public data, so the timing channel is not a
-    # practical risk in this app.
-    "RUSTSEC-2026-0387",
+    "RUSTSEC-2023-0071", # rsa decryption timing; surrealdb -> jsonwebtoken verifies only
+    "RUSTSEC-2024-0436", # paste, unmaintained (utoipa-axum)
+    "RUSTSEC-2026-0192", # ttf-parser, unmaintained (lopdf via pdfsink-rs)
+    "RUSTSEC-2025-0141", # bincode, unmaintained (surrealmx)
+    "RUSTSEC-2023-0089", # atomic-polyfill, unmaintained (heapless via surrealdb)
+    "RUSTSEC-2026-0367", # zip extract() only; calamine reads entries in memory
+    "RUSTSEC-2026-0368", # zip extract() only
+    "RUSTSEC-2026-0369", # zip extract() only
+    "RUSTSEC-2025-0052", # async-std discontinued; async-imap needs it for imap-proto 0.16
+    "RUSTSEC-2026-0387", # crypto-bigint timing; verify-only path, no bump available
 ]

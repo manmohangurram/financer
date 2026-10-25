@@ -19,8 +19,6 @@ use async_trait::async_trait;
 use crate::error::Result;
 use crate::repo::traits::mail::{MailAccountRow, MailRepo, MailStatus, NewMailMessage};
 
-/// How far back each tick looks. Wide enough to survive provider indexing lag
-/// and clock skew; the `Message-ID` check makes the overlap free.
 pub const WINDOW_DAYS: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,8 +32,6 @@ pub struct MailHeader {
 
 #[async_trait]
 pub trait MailSource: Send + Sync {
-    /// Headers only — bodies are fetched per message, and only for ones we have
-    /// not already stored.
     async fn headers(&self, senders: &[String], since_days: u32) -> Result<Vec<MailHeader>>;
     async fn body(&self, uid: u32) -> Result<String>;
 }
@@ -44,11 +40,9 @@ pub trait MailSource: Send + Sync {
 pub struct PollSummary {
     pub matched: usize,
     pub stored: usize,
-    /// Skipped because the `Message-ID` was already known.
     pub skipped: usize,
 }
 
-/// Headers, dedupe, then bodies for the unknown ones only.
 pub async fn poll_account(
     source: &dyn MailSource,
     repo: &dyn MailRepo,
@@ -104,7 +98,6 @@ pub async fn poll_account(
         if stored {
             summary.stored += 1;
         } else {
-            // Lost a race with another tick for the same Message-ID.
             summary.skipped += 1;
         }
     }
@@ -168,8 +161,6 @@ pub struct FakeSource {
     envelopes: Vec<MailHeader>,
     bodies: std::collections::HashMap<u32, String>,
     pub failing_uids: HashSet<u32>,
-    /// Records call order so tests can assert bodies are only fetched for
-    /// unknown messages.
     pub fetched: std::sync::Mutex<Vec<u32>>,
 }
 
@@ -294,7 +285,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Same window, same message — the whole point of the Message-ID check.
         let again = FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")])
             .with_body(1, "INR 100.00 debited at SHOP on 01/09/2026");
         let summary = poll_account(&again, &repo, &acc, &extract::TemplateExtractor)
@@ -403,9 +393,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(summary.matched, 1);
-        // An empty Message-ID still inserts (the column is NOT NULL, not UNIQUE
-        // against empty), but it will never dedupe — hence the extractor stage
-        // drops such messages at the source.
         assert!(summary.stored <= 1);
     }
 }

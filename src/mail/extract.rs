@@ -8,7 +8,6 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-/// What an alert said, before anything is written to the ledger.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Extraction {
@@ -16,7 +15,6 @@ pub struct Extraction {
     pub direction: Direction,
     pub occurred_at: Option<String>,
     pub merchant: String,
-    /// Trailing digits of the account/card named in the mail, if any.
     pub account_hint: Option<String>,
     pub confidence: f32,
 }
@@ -43,7 +41,6 @@ static CREDIT_VERB: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(?:credited|deposited|received|refund(?:ed)?)\b").expect("credit verb")
 });
 /// Amounts appear before *or* after the verb depending on the bank, so the
-/// verb is matched separately and the first currency amount is taken.
 static AMOUNT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)").expect("amount pattern")
 });
@@ -58,7 +55,6 @@ static MERCHANT: LazyLock<Regex> = LazyLock::new(|| {
 static DATE_DMY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b").expect("date pattern"));
 
-/// Regex templates for the senders we recognise.
 pub struct TemplateExtractor;
 
 impl Extractor for TemplateExtractor {
@@ -90,7 +86,6 @@ impl Extractor for TemplateExtractor {
             .captures(&text)
             .and_then(|c| build_date(&c[1], &c[2], &c[3]));
 
-        // A partial parse is still useful, but only a full one may auto-create.
         let confidence = match (account_hint.is_some(), occurred_at.is_some()) {
             (true, true) => 1.0,
             (true, false) | (false, true) => 0.6,
@@ -120,12 +115,10 @@ fn trim_merchant(raw: &str) -> String {
     cut.trim().trim_end_matches(['.', ',', ' ']).to_string()
 }
 
-/// `1,234.56` / `1234` -> 1234.56. Also used as the "any amount" fallback.
 fn parse_amount(raw: &str) -> Option<f64> {
     raw.replace(',', "").parse::<f64>().ok()
 }
 
-/// Normalises `DD/MM/YYYY`, `D-M-YY` etc. to `YYYY-MM-DD`.
 fn build_date(d: &str, m: &str, y: &str) -> Option<String> {
     let day: u32 = d.parse().ok()?;
     let month: u32 = m.parse().ok()?;
@@ -183,7 +176,6 @@ mod tests {
     fn non_transactions_return_none() {
         assert!(extract("Your OTP", "Use 123456 to log in").is_none());
         assert!(extract("Statement ready", "Your statement for August is attached").is_none());
-        // Amount but no direction verb: ambiguous, so no extraction.
         assert!(extract("Alert", "INR 500 at some shop on 12/09/2026").is_none());
     }
 
