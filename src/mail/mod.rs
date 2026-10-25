@@ -17,7 +17,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::repo::traits::mail::{MailAccountRow, MailRepo, MailStatus, NewMailMessage};
+use crate::repo::traits::mail::{
+    MailAccountRow, MailRepo, MailRuleAction, MailRuleRow, MailStatus, NewMailMessage,
+};
 
 pub const WINDOW_DAYS: u32 = 2;
 
@@ -43,6 +45,16 @@ pub struct PollSummary {
     pub skipped: usize,
 }
 
+/// Every non-empty condition must hold; empty means "don't care".
+fn rule_matches(rule: &MailRuleRow, header: &MailHeader, body: &str) -> bool {
+    let hits = |haystack: &str, needle: &str| {
+        needle.is_empty() || haystack.to_lowercase().contains(&needle.to_lowercase())
+    };
+    hits(&header.from_addr, &rule.from_pattern)
+        && hits(&header.subject, &rule.subject_contains)
+        && hits(body, &rule.body_contains)
+}
+
 pub async fn poll_account(
     source: &dyn MailSource,
     repo: &dyn MailRepo,
@@ -59,6 +71,7 @@ pub async fn poll_account(
         .into_iter()
         .collect();
 
+    let rules = repo.list_rules(&account.user_id).await?;
     let mut summary = PollSummary {
         matched: headers.len(),
         ..PollSummary::default()
@@ -70,14 +83,27 @@ pub async fn poll_account(
         }
         let raw_text = source.body(header.uid).await?;
         let extraction = extractor.extract(&header.subject, &raw_text);
-        let (status, parsed_json, confidence) = match &extraction {
-            Some(e) => (
-                MailStatus::Pending,
-                Some(serde_json::to_string(e).unwrap_or_default()),
-                f64::from(e.confidence),
-            ),
-            None => (MailStatus::Unparsed, None, 0.0),
+        let mut status = if extraction.is_some() {
+            MailStatus::Pending
+        } else {
+            MailStatus::Unparsed
         };
+        // The first enabled rule whose conditions all hold decides the disposition.
+        if let Some(rule) = rules
+            .iter()
+            .find(|r| r.enabled && rule_matches(r, header, &raw_text))
+        {
+            status = match rule.action {
+                MailRuleAction::Ignore => MailStatus::Ignored,
+                // shortcut: AUTO reviews instead of creating; the poll has no
+                // TransactionService yet. Becomes real when poll_once gets it.
+                MailRuleAction::Auto | MailRuleAction::Review => status,
+            };
+        }
+        let parsed_json = extraction
+            .as_ref()
+            .and_then(|e| serde_json::to_string(e).ok());
+        let confidence = extraction.as_ref().map_or(0.0, |e| f64::from(e.confidence));
         let stored = repo
             .insert_message(
                 &account.user_id,
@@ -380,6 +406,74 @@ mod tests {
         assert!(body.as_deref().unwrap_or_default().contains("INR 500.00"));
         assert_eq!(subject, "Alert");
         assert_eq!(from, "alerts@bank.com");
+    }
+
+    #[tokio::test]
+    async fn a_matching_rule_decides_the_disposition() {
+        let repo = repo().await;
+        let acc = account(&repo).await;
+        repo.create_rule(
+            "u1",
+            &crate::repo::traits::mail::MailRuleInput {
+                position: 0,
+                enabled: true,
+                from_pattern: "alerts@bank.com".into(),
+                subject_contains: String::new(),
+                body_contains: String::new(),
+                action: MailRuleAction::Ignore,
+                account_id: None,
+                category_ids: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        let source = FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")])
+            .with_body(1, "INR 500.00 debited at SHOP on 12/09/2026");
+        poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
+
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM mail_messages WHERE message_id = '<a>'")
+                .fetch_one(&repo.pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "IGNORED", "the rule wins over the extractor");
+    }
+
+    #[tokio::test]
+    async fn a_non_matching_rule_leaves_the_message_pending() {
+        let repo = repo().await;
+        let acc = account(&repo).await;
+        repo.create_rule(
+            "u1",
+            &crate::repo::traits::mail::MailRuleInput {
+                position: 0,
+                enabled: true,
+                from_pattern: "someone-else@bank.com".into(),
+                subject_contains: String::new(),
+                body_contains: String::new(),
+                action: MailRuleAction::Ignore,
+                account_id: None,
+                category_ids: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        let source = FakeSource::new(vec![header(1, "<b>", "alerts@bank.com")])
+            .with_body(1, "INR 500.00 debited at SHOP on 12/09/2026");
+        poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
+
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM mail_messages WHERE message_id = '<b>'")
+                .fetch_one(&repo.pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "PENDING");
     }
 
     #[tokio::test]
