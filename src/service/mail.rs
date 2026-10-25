@@ -339,7 +339,212 @@ fn validate_allowlist(senders: &[String]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
+    use crate::repo::sqlite::account::SqliteAccountRepo;
+    use crate::repo::sqlite::category::SqliteCategoryRepo;
+    use crate::repo::sqlite::mail::SqliteMailRepo;
+    use crate::repo::sqlite::transaction::SqliteTransactionRepo;
+    use crate::repo::traits::account::AccountType;
+    use crate::repo::traits::mail::MailRepo;
+    use crate::repo::traits::{AccountRepo, CategoryRepo, TransactionRepo};
+    use crate::service::transaction::TransactionService;
+
+    const KEY: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+
+    struct Fixture {
+        pool: sqlx::SqlitePool,
+        mail: Arc<SqliteMailRepo>,
+        account_repo: Arc<dyn AccountRepo>,
+        transactions: TransactionService,
+        accounts: AccountService,
+    }
+
+    async fn fixture() -> Fixture {
+        let pool: sqlx::SqlitePool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        crate::repo::db::run_migrations(&pool).await.unwrap();
+        sqlx::query("INSERT INTO users (id, email, password_hash, name, created_at) VALUES ('u1','u1@x.com','h','U','2026-01-01 00:00:00 +0000 UTC')")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let account_repo: Arc<dyn AccountRepo> = Arc::new(SqliteAccountRepo::new(pool.clone()));
+        let txn_repo: Arc<dyn TransactionRepo> = Arc::new(SqliteTransactionRepo::new(pool.clone()));
+        let cat_repo: Arc<dyn CategoryRepo> = Arc::new(SqliteCategoryRepo::new(pool.clone()));
+        Fixture {
+            mail: Arc::new(SqliteMailRepo::new(pool.clone())),
+            transactions: TransactionService::new(txn_repo, account_repo.clone(), cat_repo),
+            accounts: AccountService::new(account_repo.clone()),
+            account_repo,
+            pool,
+        }
+    }
+
+    /// A pending message whose extraction points at `hint`.
+    async fn seed(f: &Fixture, ending: &str, hint: &str, message_id: &str) -> String {
+        f.account_repo
+            .create("u1", "Bank", "Main", AccountType::Current, ending)
+            .await
+            .unwrap();
+        let acc = f
+            .mail
+            .create_account(
+                "u1",
+                &NewMailAccount {
+                    label: "P".into(),
+                    imap_host: "imap.x.com".into(),
+                    imap_port: 993,
+                    username: "a@x.com".into(),
+                    secret_enc: "x".into(),
+                    sender_allowlist: vec!["alerts@bank.com".into()],
+                },
+            )
+            .await
+            .unwrap();
+        let extraction = crate::mail::extract::Extraction {
+            amount: 500.0,
+            direction: crate::mail::extract::Direction::Debit,
+            occurred_at: Some("2026-09-12".into()),
+            merchant: "SHOP".into(),
+            account_hint: Some(hint.into()),
+            confidence: 1.0,
+        };
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO mail_messages (id, user_id, mail_account_id, message_id, status, parsed_json, confidence, created_at)
+             VALUES (?, 'u1', ?, ?, 'PENDING', ?, 1.0, '2026-09-12 00:00:00 +0000 UTC')",
+        )
+        .bind(&id)
+        .bind(&acc.id)
+        .bind(message_id)
+        .bind(serde_json::to_string(&extraction).unwrap())
+        .execute(&f.pool)
+        .await
+        .unwrap();
+        id
+    }
+
+    fn approve(id: &str) -> MailActionItem {
+        MailActionItem {
+            id: id.into(),
+            action: MailActionKind::Approve,
+            account_id: None,
+            category_ids: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn approve_creates_the_transaction_and_marks_the_row() {
+        let f = fixture().await;
+        let msg = seed(&f, "1234", "1234", "<m1>").await;
+        let svc = MailService::new(f.mail.clone(), Some(KEY.to_string()));
+
+        let out = svc
+            .act("u1", vec![approve(&msg)], &f.transactions, &f.accounts)
+            .await
+            .unwrap();
+        assert_eq!(out.succeeded, vec![msg.clone()]);
+        assert!(out.failed.is_empty(), "{:?}", out.failed);
+
+        let (status, txn): (String, Option<String>) =
+            sqlx::query_as("SELECT status, transaction_id FROM mail_messages WHERE id = ?")
+                .bind(&msg)
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "AUTO");
+        assert!(txn.is_some(), "transaction id recorded on the row");
+
+        let ext: Option<String> =
+            sqlx::query_scalar("SELECT external_id FROM transactions LIMIT 1")
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            ext.as_deref(),
+            Some("mail:<m1>"),
+            "dedupe rides on Message-ID"
+        );
+    }
+
+    #[tokio::test]
+    async fn reject_marks_the_row_and_creates_nothing() {
+        let f = fixture().await;
+        let msg = seed(&f, "1234", "1234", "<m2>").await;
+        let svc = MailService::new(f.mail.clone(), Some(KEY.to_string()));
+
+        svc.act(
+            "u1",
+            vec![MailActionItem {
+                id: msg.clone(),
+                action: MailActionKind::Reject,
+                account_id: None,
+                category_ids: vec![],
+            }],
+            &f.transactions,
+            &f.accounts,
+        )
+        .await
+        .unwrap();
+
+        let status: String = sqlx::query_scalar("SELECT status FROM mail_messages WHERE id = ?")
+            .bind(&msg)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "REJECTED");
+        let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions")
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+        assert_eq!(n, 0);
+    }
+
+    #[tokio::test]
+    async fn an_ambiguous_hint_fails_the_row_instead_of_guessing() {
+        let f = fixture().await;
+        let first = seed(&f, "1234", "1234", "<m3>").await;
+        let second = seed(&f, "1234", "1234", "<m4>").await;
+        let svc = MailService::new(f.mail.clone(), Some(KEY.to_string()));
+
+        let out = svc
+            .act(
+                "u1",
+                vec![approve(&first), approve(&second)],
+                &f.transactions,
+                &f.accounts,
+            )
+            .await
+            .unwrap();
+        assert!(
+            out.succeeded.is_empty(),
+            "two accounts end in 1234, so neither may be guessed"
+        );
+        assert_eq!(out.failed.len(), 2);
+        assert!(out.failed[0].error.contains("no account matches"));
+    }
+
+    #[tokio::test]
+    async fn an_already_decided_row_is_refused() {
+        let f = fixture().await;
+        let msg = seed(&f, "1234", "1234", "<m5>").await;
+        let svc = MailService::new(f.mail.clone(), Some(KEY.to_string()));
+
+        svc.act("u1", vec![approve(&msg)], &f.transactions, &f.accounts)
+            .await
+            .unwrap();
+        let again = svc
+            .act("u1", vec![approve(&msg)], &f.transactions, &f.accounts)
+            .await
+            .unwrap();
+        assert_eq!(again.failed.len(), 1);
+        assert!(again.failed[0].error.contains("already decided"));
+    }
 
     #[test]
     fn refuses_metadata_and_link_local_hosts() {
