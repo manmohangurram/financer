@@ -22,7 +22,18 @@ pub struct MailAccountRow {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display, strum::EnumString)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::EnumString,
+)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MailStatus {
     /// Extracted, awaiting review.
@@ -63,6 +74,23 @@ pub struct NewMailMessage {
     pub extractor_source: String,
 }
 
+/// A stored message as the review UI sees it: no secret, body optional
+/// (it is pruned once the row is resolved).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MailMessageRow {
+    pub id: String,
+    pub message_id: String,
+    pub from_addr: String,
+    pub subject: String,
+    pub received_at: Option<String>,
+    pub status: MailStatus,
+    pub parsed_json: Option<String>,
+    pub confidence: f64,
+    pub raw_text: Option<String>,
+    pub transaction_id: Option<String>,
+}
+
 #[async_trait]
 pub trait MailRepo: Send + Sync {
     async fn create_account(&self, user_id: &str, input: &NewMailAccount)
@@ -77,6 +105,13 @@ pub trait MailRepo: Send + Sync {
     async fn known_message_ids(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
     /// Store a message; `false` when its `message_id` was already present.
     async fn insert_message(&self, user_id: &str, msg: &NewMailMessage) -> Result<bool>;
+    /// Newest first. `status` filters; `None` returns everything.
+    async fn list_messages(
+        &self,
+        user_id: &str,
+        status: Option<MailStatus>,
+        limit: i64,
+    ) -> Result<Vec<MailMessageRow>>;
     /// Drop bodies of resolved rows; returns how many were cleared.
     async fn sweep_bodies(&self) -> Result<u64>;
 }

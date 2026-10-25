@@ -8,7 +8,8 @@ use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
 use crate::mail::crypto;
-use crate::repo::traits::mail::{MailAccountRow, MailRepo, NewMailAccount};
+use crate::repo::traits::mail::{MailAccountRow, MailMessageRow, MailRepo, NewMailAccount};
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct MailService {
@@ -60,6 +61,26 @@ impl MailService {
             .into_iter()
             .map(Into::into)
             .collect())
+    }
+
+    /// Newest first. `status` is `pending|unparsed|ignored|auto|rejected`.
+    pub async fn messages(
+        &self,
+        user_id: &str,
+        status: Option<&str>,
+        limit: i64,
+    ) -> Result<Vec<MailMessageRow>> {
+        let status = match status {
+            None => None,
+            Some(raw) if raw.is_empty() || raw == "all" => None,
+            Some(raw) => Some(
+                crate::repo::traits::mail::MailStatus::from_str(raw)
+                    .map_err(|_| ApiError::bad_request(format!("unknown status {raw:?}")))?,
+            ),
+        };
+        self.repo
+            .list_messages(user_id, status, limit.clamp(1, 500))
+            .await
     }
 
     pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {

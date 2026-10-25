@@ -6,7 +6,9 @@ use surrealdb::Connection;
 use crate::error::Result;
 use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 
-pub use crate::repo::traits::mail::{MailAccountRow, NewMailAccount, NewMailMessage};
+pub use crate::repo::traits::mail::{
+    MailAccountRow, MailMessageRow, MailStatus, NewMailAccount, NewMailMessage,
+};
 
 const ACCOUNT_FIELDS: &str = "meta::id(id) AS id, userId, label, imapHost, imapPort, username, secretEnc, \
                               senderAllowlist, enabled, lastPolledAt, lastError, createdAt";
@@ -154,6 +156,35 @@ impl<C: Connection> MailRepo<C> {
         Ok(true)
     }
 
+    pub async fn list_messages(
+        &self,
+        user_id: &str,
+        status: Option<MailStatus>,
+        limit: i64,
+    ) -> Result<Vec<MailMessageRow>> {
+        let filter = if status.is_some() {
+            "AND status = $status"
+        } else {
+            ""
+        };
+        let query = format!(
+            "SELECT meta::id(id) AS id, messageId, fromAddr, subject, receivedAt, status,
+                    parsedJson, confidence, rawText, transactionId
+             FROM mail_message WHERE user = $uid {filter}
+             ORDER BY createdAt DESC LIMIT $limit"
+        );
+        let mut req = self
+            .db
+            .query(query)
+            .bind(("uid", rid("user", user_id)))
+            .bind(("limit", limit));
+        if let Some(st) = status {
+            req = req.bind(("status", st.to_string()));
+        }
+        let mut res = req.await?;
+        Ok(take_json(&mut res, 0)?)
+    }
+
     pub async fn sweep_bodies(&self) -> Result<u64> {
         let mut res = self
             .db
@@ -193,6 +224,14 @@ impl crate::repo::traits::MailRepo for MailRepo<DbClient> {
     }
     async fn insert_message(&self, user_id: &str, msg: &NewMailMessage) -> Result<bool> {
         self.insert_message(user_id, msg).await
+    }
+    async fn list_messages(
+        &self,
+        user_id: &str,
+        status: Option<MailStatus>,
+        limit: i64,
+    ) -> Result<Vec<MailMessageRow>> {
+        self.list_messages(user_id, status, limit).await
     }
     async fn sweep_bodies(&self) -> Result<u64> {
         self.sweep_bodies().await
