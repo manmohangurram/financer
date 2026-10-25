@@ -184,6 +184,33 @@ impl MailService {
         Ok(())
     }
 
+    /// Poll one mailbox immediately instead of waiting for the ticker.
+    pub async fn poll_now(&self, user_id: &str, id: &str) -> Result<crate::mail::PollSummary> {
+        let account = self
+            .repo
+            .list_accounts(user_id)
+            .await?
+            .into_iter()
+            .find(|a| a.id == id)
+            .ok_or_else(|| ApiError::not_found(format!("mail account {id} not found")))?;
+        let key = self
+            .secret_key
+            .as_deref()
+            .ok_or_else(|| ApiError::internal("FINANCER_SECRET_KEY is not set"))?;
+
+        let password = crate::mail::crypto::decrypt(key, &account.secret_enc)?;
+        let source = crate::mail::imap::ImapSource::connect(&account, &password).await?;
+        let summary = crate::mail::poll_account(
+            &source,
+            self.repo.as_ref(),
+            &account,
+            &crate::mail::extract::TemplateExtractor,
+        )
+        .await?;
+        self.repo.mark_polled(&account.id, "").await?;
+        Ok(summary)
+    }
+
     pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {
         if !self.repo.delete_account(user_id, id).await? {
             return Err(ApiError::not_found(format!("mail account {id} not found")));
