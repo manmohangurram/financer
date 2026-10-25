@@ -258,7 +258,7 @@ pub struct CreateMailAccountReq {
     pub sender_allowlist: Vec<String>,
 }
 
-#[derive(Debug, serde::Deserialize, ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MailRuleReq {
     #[serde(default)]
@@ -523,6 +523,81 @@ mod tests {
         .await
         .unwrap();
         id
+    }
+
+    fn rule(position: i64, from: &str, action: MailRuleAction) -> MailRuleReq {
+        MailRuleReq {
+            position,
+            enabled: None,
+            from_pattern: from.into(),
+            subject_contains: String::new(),
+            body_contains: String::new(),
+            action,
+            account_id: None,
+            category_ids: vec![],
+        }
+    }
+
+    #[test]
+    fn a_rule_with_no_conditions_is_rejected() {
+        let mut req = rule(0, "", MailRuleAction::Review);
+        assert!(req.clone().into_input().is_err(), "no conditions at all");
+
+        req.from_pattern = "  ".into();
+        req.subject_contains = " ".into();
+        assert!(
+            req.clone().into_input().is_err(),
+            "whitespace is not a condition"
+        );
+
+        req.subject_contains = "debited".into();
+        assert!(req.into_input().is_ok(), "one real condition is enough");
+    }
+
+    #[tokio::test]
+    async fn rule_crud_roundtrip_is_ordered_and_scoped() {
+        let f = fixture().await;
+        let svc = MailService::new(f.mail.clone(), Some(KEY.to_string()));
+
+        svc.create_rule("u1", rule(20, "later@bank.com", MailRuleAction::Review))
+            .await
+            .unwrap();
+        let first = svc
+            .create_rule("u1", rule(10, "otp@bank.com", MailRuleAction::Ignore))
+            .await
+            .unwrap();
+
+        let listed = svc.rules("u1").await.unwrap();
+        assert_eq!(listed.len(), 2);
+        assert_eq!(
+            listed[0].from_pattern, "otp@bank.com",
+            "position 10 runs first"
+        );
+        assert_eq!(listed[1].from_pattern, "later@bank.com");
+        assert_eq!(listed[0].action, MailRuleAction::Ignore);
+        assert!(listed[0].enabled, "enabled defaults to true");
+
+        svc.update_rule(
+            "u1",
+            &first.id,
+            rule(5, "otp2@bank.com", MailRuleAction::Auto),
+        )
+        .await
+        .unwrap();
+        let listed = svc.rules("u1").await.unwrap();
+        assert_eq!(listed[0].from_pattern, "otp2@bank.com");
+        assert_eq!(listed[0].action, MailRuleAction::Auto);
+
+        svc.delete_rule("u1", &first.id).await.unwrap();
+        assert_eq!(svc.rules("u1").await.unwrap().len(), 1);
+        assert!(
+            svc.delete_rule("u1", &first.id).await.is_err(),
+            "second delete is a 404"
+        );
+        assert!(
+            svc.rules("u2").await.unwrap().is_empty(),
+            "scoped to the owner"
+        );
     }
 
     fn approve(id: &str) -> MailActionItem {
