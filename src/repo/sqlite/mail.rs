@@ -1,13 +1,16 @@
 //! `SQLite` mail-ingest repository, implementing `crate::repo::traits::MailRepo`
 //! over an `sqlx::SqlitePool`.
 
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::mail::{
-    MailAccountRow, MailRepo as MailRepoTrait, NewMailAccount, NewMailMessage,
+    MailAccountRow, MailMessageRow, MailRepo as MailRepoTrait, MailStatus, NewMailAccount,
+    NewMailMessage,
 };
 
 pub struct SqliteMailRepo {
@@ -145,6 +148,28 @@ impl SqliteMailRepo {
         Ok(r.rows_affected() > 0)
     }
 
+    async fn list_messages_inner(
+        &self,
+        user_id: &str,
+        status: Option<MailStatus>,
+        limit: i64,
+    ) -> Result<Vec<MailMessageRow>> {
+        let rows = sqlx::query_as::<_, RawMailMessage>(
+            "SELECT id, message_id, from_addr, subject, received_at, status, parsed_json,
+                    COALESCE(confidence, 0) AS confidence, raw_text, transaction_id
+             FROM mail_messages
+             WHERE user_id = ? AND (?1 IS NULL OR status = ?2)
+             ORDER BY created_at DESC LIMIT ?3",
+        )
+        .bind(user_id)
+        .bind(status.map(|s| s.to_string()))
+        .bind(status.map(|s| s.to_string()))
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
     async fn sweep_bodies_inner(&self) -> Result<u64> {
         let r = sqlx::query(
             "UPDATE mail_messages SET raw_text = NULL
@@ -183,8 +208,47 @@ impl MailRepoTrait for SqliteMailRepo {
     async fn insert_message(&self, user_id: &str, msg: &NewMailMessage) -> Result<bool> {
         self.insert_message_inner(user_id, msg).await
     }
+    async fn list_messages(
+        &self,
+        user_id: &str,
+        status: Option<MailStatus>,
+        limit: i64,
+    ) -> Result<Vec<MailMessageRow>> {
+        self.list_messages_inner(user_id, status, limit).await
+    }
     async fn sweep_bodies(&self) -> Result<u64> {
         self.sweep_bodies_inner().await
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct RawMailMessage {
+    id: String,
+    message_id: String,
+    from_addr: String,
+    subject: String,
+    received_at: Option<String>,
+    status: String,
+    parsed_json: Option<String>,
+    confidence: f64,
+    raw_text: Option<String>,
+    transaction_id: Option<String>,
+}
+
+impl From<RawMailMessage> for MailMessageRow {
+    fn from(r: RawMailMessage) -> Self {
+        Self {
+            id: r.id,
+            message_id: r.message_id,
+            from_addr: r.from_addr,
+            subject: r.subject,
+            received_at: r.received_at,
+            status: MailStatus::from_str(&r.status).unwrap_or(MailStatus::Unparsed),
+            parsed_json: r.parsed_json,
+            confidence: r.confidence,
+            raw_text: r.raw_text,
+            transaction_id: r.transaction_id,
+        }
     }
 }
 

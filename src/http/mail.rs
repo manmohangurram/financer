@@ -1,6 +1,6 @@
 //! Mailbox HTTP handlers: link, list and remove IMAP mailboxes.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
@@ -13,6 +13,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/mail/accounts", axum::routing::get(list).post(create))
         .route("/api/mail/accounts/{id}", axum::routing::delete(delete))
+        .route("/api/mail/messages", axum::routing::get(messages))
         .route_layer(axum::middleware::from_fn(crate::http::https::require_https))
 }
 
@@ -43,6 +44,44 @@ pub async fn create(
     };
     match st.mail.create(&uid, req).await {
         Ok(a) => (StatusCode::CREATED, Json(a)).into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct MessagesQuery {
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    limit: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/mail/messages",
+    params(("status" = Option<String>, Query, description = "pending|unparsed|ignored|auto|rejected|all")),
+    responses(
+        (status = 200, description = "Stored messages"),
+        (status = 400, description = "Unknown status"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn messages(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<MessagesQuery>,
+) -> Response {
+    let uid = match require_user(&headers, &st.jwt) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    match st
+        .mail
+        .messages(&uid, q.status.as_deref(), q.limit.unwrap_or(100))
+        .await
+    {
+        Ok(items) => Json(serde_json::json!({ "messages": items })).into_response(),
         Err(e) => e.into_response(),
     }
 }
