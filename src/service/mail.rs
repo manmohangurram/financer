@@ -8,7 +8,11 @@ use utoipa::ToSchema;
 
 use crate::error::{ApiError, Result};
 use crate::mail::crypto;
-use crate::repo::traits::mail::{MailAccountRow, MailMessageRow, MailRepo, NewMailAccount};
+use crate::repo::traits::mail::{
+    MailAccountRow, MailMessageRow, MailRepo, MailStatus, NewMailAccount,
+};
+use crate::repo::traits::transaction::TransactionType;
+use crate::service::account::AccountService;
 use std::str::FromStr;
 
 #[derive(Clone)]
@@ -82,6 +86,104 @@ impl MailService {
             .await
     }
 
+    /// Approve or reject a batch. Per row, so a failure reports exactly which
+    /// one and why instead of rolling the good ones back.
+    pub async fn act(
+        &self,
+        user_id: &str,
+        items: Vec<MailActionItem>,
+        transactions: &crate::service::transaction::TransactionService,
+        accounts: &AccountService,
+    ) -> Result<MailActionOutcome> {
+        let mut out = MailActionOutcome::default();
+        for item in items {
+            let result = self.act_one(user_id, &item, transactions, accounts).await;
+            match result {
+                Ok(()) => out.succeeded.push(item.id),
+                Err(e) => out.failed.push(MailActionFailure {
+                    id: item.id,
+                    error: e.message,
+                }),
+            }
+        }
+        Ok(out)
+    }
+
+    async fn act_one(
+        &self,
+        user_id: &str,
+        item: &MailActionItem,
+        transactions: &crate::service::transaction::TransactionService,
+        accounts: &AccountService,
+    ) -> Result<()> {
+        let msg = self
+            .repo
+            .get_message(user_id, &item.id)
+            .await?
+            .ok_or_else(|| ApiError::not_found(format!("message {} not found", item.id)))?;
+        if !matches!(msg.status, MailStatus::Pending | MailStatus::Unparsed) {
+            return Err(ApiError::conflict("message already decided"));
+        }
+
+        if item.action == MailActionKind::Reject {
+            self.repo
+                .resolve_message(user_id, &item.id, MailStatus::Rejected, None, None)
+                .await?;
+            return Ok(());
+        }
+
+        let parsed = msg
+            .parsed_json
+            .as_deref()
+            .ok_or_else(|| ApiError::bad_request("nothing was extracted from this mail"))?;
+        let extraction: crate::mail::extract::Extraction = serde_json::from_str(parsed)
+            .map_err(|_| ApiError::internal("stored extraction is not readable"))?;
+
+        let account_id = if let Some(id) = &item.account_id {
+            id.clone()
+        } else {
+            let owned = accounts.list(user_id).await?;
+            let pairs: Vec<(String, Option<String>)> = owned
+                .into_iter()
+                .map(|a| (a.id, a.ending_numbers))
+                .collect();
+            crate::mail::extract::resolve_account(extraction.account_hint.as_deref(), &pairs)
+                .ok_or_else(|| {
+                    ApiError::bad_request("no account matches this mail; pass accountId")
+                })?
+        };
+
+        let txn_id = uuid::Uuid::new_v4().to_string();
+        let req = crate::service::transaction::TransactionReq {
+            id: txn_id.clone(),
+            name: extraction.merchant.clone(),
+            amount: extraction.amount,
+            transaction_type: match extraction.direction {
+                crate::mail::extract::Direction::Debit => TransactionType::Debit,
+                crate::mail::extract::Direction::Credit => TransactionType::Credit,
+            },
+            occurred_at: extraction.occurred_at.clone().unwrap_or_default(),
+            account_id,
+            category_ids: item.category_ids.clone(),
+            external_id: Some(format!("mail:{}", msg.message_id)),
+        };
+        let result = transactions.create(user_id, &[req]).await?;
+        if !result.success {
+            return Err(ApiError::bad_request(result.message));
+        }
+
+        self.repo
+            .resolve_message(
+                user_id,
+                &item.id,
+                MailStatus::Auto,
+                Some(parsed),
+                Some(&txn_id),
+            )
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {
         if !self.repo.delete_account(user_id, id).await? {
             return Err(ApiError::not_found(format!("mail account {id} not found")));
@@ -102,6 +204,45 @@ pub struct CreateMailAccountReq {
     pub password: String,
     #[serde(default)]
     pub sender_allowlist: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MailActionReq {
+    pub messages: Vec<MailActionItem>,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MailActionItem {
+    pub id: String,
+    pub action: MailActionKind,
+    /// Overrides the account resolved from the mail's trailing digits.
+    #[serde(default)]
+    pub account_id: Option<String>,
+    #[serde(default)]
+    pub category_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, ToSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MailActionKind {
+    Approve,
+    Reject,
+}
+
+#[derive(Debug, Default, serde::Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MailActionOutcome {
+    pub succeeded: Vec<String>,
+    pub failed: Vec<MailActionFailure>,
+}
+
+#[derive(Debug, serde::Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MailActionFailure {
+    pub id: String,
+    pub error: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

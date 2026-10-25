@@ -170,6 +170,42 @@ impl SqliteMailRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    async fn get_message_inner(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>> {
+        let row = sqlx::query_as::<_, RawMailMessage>(
+            "SELECT id, message_id, from_addr, subject, received_at, status, parsed_json,
+                    COALESCE(confidence, 0) AS confidence, raw_text, transaction_id FROM mail_messages WHERE id = ? AND user_id = ?",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(Into::into))
+    }
+
+    async fn resolve_message_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool> {
+        let r = sqlx::query(
+            "UPDATE mail_messages
+             SET status = ?, approved_json = COALESCE(?, approved_json),
+                 transaction_id = COALESCE(?, transaction_id)
+             WHERE id = ? AND user_id = ?",
+        )
+        .bind(status.to_string())
+        .bind(approved_json)
+        .bind(transaction_id)
+        .bind(id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(r.rows_affected() > 0)
+    }
+
     async fn sweep_bodies_inner(&self) -> Result<u64> {
         let r = sqlx::query(
             "UPDATE mail_messages SET raw_text = NULL
@@ -215,6 +251,20 @@ impl MailRepoTrait for SqliteMailRepo {
         limit: i64,
     ) -> Result<Vec<MailMessageRow>> {
         self.list_messages_inner(user_id, status, limit).await
+    }
+    async fn get_message(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>> {
+        self.get_message_inner(user_id, id).await
+    }
+    async fn resolve_message(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool> {
+        self.resolve_message_inner(user_id, id, status, approved_json, transaction_id)
+            .await
     }
     async fn sweep_bodies(&self) -> Result<u64> {
         self.sweep_bodies_inner().await

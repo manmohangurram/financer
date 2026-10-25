@@ -120,6 +120,22 @@ fn trim_merchant(raw: &str) -> String {
     cut.trim().trim_end_matches(['.', ',', ' ']).to_string()
 }
 
+/// The account whose stored trailing digits match the alert, or `None` when
+/// none matches or more than one does — two accounts ending 1234 is exactly
+/// where guessing would post to the wrong one.
+pub fn resolve_account(
+    hint: Option<&str>,
+    accounts: &[(String, Option<String>)],
+) -> Option<String> {
+    let hint = hint?;
+    let mut matches = accounts
+        .iter()
+        .filter(|(_, ending)| ending.as_deref() == Some(hint))
+        .map(|(id, _)| id.clone());
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
+}
+
 fn parse_amount(raw: &str) -> Option<f64> {
     raw.replace(',', "").parse::<f64>().ok()
 }

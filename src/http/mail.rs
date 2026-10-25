@@ -7,13 +7,13 @@ use axum::{Json, Router};
 
 use crate::error::json_error;
 use crate::http::{AppState, JsonResult, require_user};
-use crate::service::mail::CreateMailAccountReq;
+use crate::service::mail::{CreateMailAccountReq, MailActionReq};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/mail/accounts", axum::routing::get(list).post(create))
         .route("/api/mail/accounts/{id}", axum::routing::delete(delete))
-        .route("/api/mail/messages", axum::routing::get(messages))
+        .route("/api/mail/messages", axum::routing::get(messages).post(act))
         .route_layer(axum::middleware::from_fn(crate::http::https::require_https))
 }
 
@@ -82,6 +82,40 @@ pub async fn messages(
         .await
     {
         Ok(items) => Json(serde_json::json!({ "messages": items })).into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/mail/messages",
+    request_body = MailActionReq,
+    responses(
+        (status = 200, description = "Per-row outcome", body = crate::service::mail::MailActionOutcome),
+        (status = 400, description = "Invalid input"),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn act(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    req: JsonResult<MailActionReq>,
+) -> Response {
+    let Json(req) = match req {
+        Ok(r) => r,
+        Err(e) => return json_error(&e).into_response(),
+    };
+    let uid = match require_user(&headers, &st.jwt) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    match st
+        .mail
+        .act(&uid, req.messages, &st.transaction, &st.account)
+        .await
+    {
+        Ok(outcome) => Json(outcome).into_response(),
         Err(e) => e.into_response(),
     }
 }

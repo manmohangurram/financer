@@ -182,6 +182,45 @@ impl<C: Connection> MailRepo<C> {
         Ok(take_json(&mut res, 0)?)
     }
 
+    pub async fn get_message(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>> {
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, messageId, fromAddr, subject, receivedAt, status,
+                        parsedJson, confidence, rawText, transactionId
+                 FROM mail_message WHERE id = $rid AND user = $uid LIMIT 1",
+            )
+            .bind(("rid", rid("mail_message", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?.into_iter().next())
+    }
+
+    pub async fn resolve_message(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool> {
+        let mut res = self
+            .db
+            .query(
+                "UPDATE $rid SET status = $status,
+                    approvedJson = IF $approved != NONE THEN $approved ELSE approvedJson END,
+                    transaction = IF $txn != NONE THEN $txn ELSE transaction END
+                 WHERE user = $uid RETURN AFTER",
+            )
+            .bind(("rid", rid("mail_message", id)))
+            .bind(("uid", rid("user", user_id)))
+            .bind(("status", status.to_string()))
+            .bind(("approved", approved_json.map(str::to_string)))
+            .bind(("txn", transaction_id.map(|t| rid("transaction", t))))
+            .await?;
+        Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
+    }
+
     pub async fn sweep_bodies(&self) -> Result<u64> {
         let mut res = self
             .db
@@ -229,6 +268,20 @@ impl crate::repo::traits::MailRepo for MailRepo<DbClient> {
         limit: i64,
     ) -> Result<Vec<MailMessageRow>> {
         self.list_messages(user_id, status, limit).await
+    }
+    async fn get_message(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>> {
+        self.get_message(user_id, id).await
+    }
+    async fn resolve_message(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool> {
+        self.resolve_message(user_id, id, status, approved_json, transaction_id)
+            .await
     }
     async fn sweep_bodies(&self) -> Result<u64> {
         self.sweep_bodies().await
