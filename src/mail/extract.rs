@@ -11,11 +11,16 @@ use regex::Regex;
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Extraction {
+    /// As written in the alert; the currency is the account's.
     pub amount: f64,
     pub direction: Direction,
+    /// `YYYY-MM-DD`, or `None` when the alert names no date.
     pub occurred_at: Option<String>,
+    /// Best-effort; `Unknown` when no "at/to/from" phrase was found.
     pub merchant: String,
+    /// Trailing digits of the account or card named in the alert.
     pub account_hint: Option<String>,
+    /// `1.0` only for a full match; anything lower must not auto-create.
     pub confidence: f32,
 }
 
