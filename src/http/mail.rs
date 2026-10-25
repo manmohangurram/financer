@@ -13,6 +13,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/mail/accounts", axum::routing::get(list).post(create))
         .route("/api/mail/accounts/{id}", axum::routing::delete(delete))
+        .route("/api/mail/accounts/{id}/poll", axum::routing::post(poll))
         .route("/api/mail/messages", axum::routing::get(messages).post(act))
         .route_layer(axum::middleware::from_fn(crate::http::https::require_https))
 }
@@ -82,6 +83,38 @@ pub async fn messages(
         .await
     {
         Ok(items) => Json(serde_json::json!({ "messages": items })).into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/mail/accounts/{id}/poll",
+    params(("id", description = "Mailbox id")),
+    responses(
+        (status = 200, description = "Poll summary"),
+        (status = 400, description = "Credentials could not be decrypted or login failed"),
+        (status = 401, description = "Unauthenticated"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("bearer_auth" = []))
+)]
+pub async fn poll(
+    State(st): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let uid = match require_user(&headers, &st.jwt) {
+        Ok(u) => u,
+        Err(e) => return e.into_response(),
+    };
+    match st.mail.poll_now(&uid, &id).await {
+        Ok(summary) => Json(serde_json::json!({
+            "matched": summary.matched,
+            "stored": summary.stored,
+            "skipped": summary.skipped,
+        }))
+        .into_response(),
         Err(e) => e.into_response(),
     }
 }
