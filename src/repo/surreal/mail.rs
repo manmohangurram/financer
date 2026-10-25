@@ -133,8 +133,8 @@ impl<C: Connection> MailRepo<C> {
                 "CREATE mail_message CONTENT {
                     user: $uid, account: $acc, messageId: $mid, fromAddr: $from,
                     receivedAt: $recv, subject: $subject, rawText: $body,
-                    parsedJson: NONE, approvedJson: NONE, status: $status,
-                    extractorSource: '', confidence: NONE, transaction: NONE, createdAt: $created
+                    parsedJson: $parsed, approvedJson: NONE, status: $status,
+                    extractorSource: $source, confidence: $confidence, transaction: NONE, createdAt: $created
                 }",
             )
             .bind(("uid", rid("user", user_id)))
@@ -145,6 +145,9 @@ impl<C: Connection> MailRepo<C> {
             .bind(("subject", msg.subject.clone()))
             .bind(("body", msg.raw_text.clone()))
             .bind(("status", msg.status.to_string()))
+            .bind(("parsed", msg.parsed_json.clone()))
+            .bind(("source", msg.extractor_source.clone()))
+            .bind(("confidence", msg.confidence))
             .bind(("created", now))
             .await?
             .check()?;
@@ -244,6 +247,9 @@ mod tests {
             subject: "Debited".into(),
             raw_text: "body".into(),
             status,
+            parsed_json: None,
+            confidence: 0.0,
+            extractor_source: "template".into(),
         }
     }
 

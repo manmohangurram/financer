@@ -7,6 +7,7 @@
 //! `UIDVALIDITY` class of bug.
 
 pub mod crypto;
+pub mod extract;
 pub mod imap;
 
 use std::collections::HashSet;
@@ -52,6 +53,7 @@ pub async fn poll_account(
     source: &dyn MailSource,
     repo: &dyn MailRepo,
     account: &MailAccountRow,
+    extractor: &dyn extract::Extractor,
 ) -> Result<PollSummary> {
     let headers = source
         .headers(&account.sender_allowlist, WINDOW_DAYS)
@@ -73,6 +75,15 @@ pub async fn poll_account(
             continue;
         }
         let raw_text = source.body(header.uid).await?;
+        let extraction = extractor.extract(&header.subject, &raw_text);
+        let (status, parsed_json, confidence) = match &extraction {
+            Some(e) => (
+                MailStatus::Pending,
+                Some(serde_json::to_string(e).unwrap_or_default()),
+                f64::from(e.confidence),
+            ),
+            None => (MailStatus::Unparsed, None, 0.0),
+        };
         let stored = repo
             .insert_message(
                 &account.user_id,
@@ -83,7 +94,10 @@ pub async fn poll_account(
                     received_at: header.received_at.clone(),
                     subject: header.subject.clone(),
                     raw_text,
-                    status: MailStatus::Pending,
+                    status,
+                    parsed_json,
+                    confidence,
+                    extractor_source: extractor.source().to_string(),
                 },
             )
             .await?;
@@ -103,9 +117,14 @@ pub async fn poll_once(repo: &Arc<dyn MailRepo>, key: Option<&str>) -> Result<us
     for account in accounts {
         let result = async {
             let password = decrypt_password(key, &account.secret_enc)?;
-            let source =
-                tokio::task::block_in_place(|| imap::ImapSource::connect(&account, &password))?;
-            poll_account(&source, repo.as_ref(), &account).await
+            let source = imap::ImapSource::connect(&account, &password).await?;
+            poll_account(
+                &source,
+                repo.as_ref(),
+                &account,
+                &extract::TemplateExtractor,
+            )
+            .await
         }
         .await;
         match result {
@@ -253,10 +272,12 @@ mod tests {
             header(1, "<a>", "alerts@bank.com"),
             header(2, "<b>", "alerts@bank.com"),
         ])
-        .with_body(1, "debited 500")
-        .with_body(2, "debited 900");
+        .with_body(1, "INR 500.00 debited at SHOP on 12/09/2026")
+        .with_body(2, "INR 900.00 debited at SHOP on 12/09/2026");
 
-        let summary = poll_account(&source, &repo, &acc).await.unwrap();
+        let summary = poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
         assert_eq!(summary.matched, 2);
         assert_eq!(summary.stored, 2);
         assert_eq!(summary.skipped, 0);
@@ -267,14 +288,18 @@ mod tests {
     async fn a_second_poll_fetches_no_bodies_at_all() {
         let repo = repo().await;
         let acc = account(&repo).await;
-        let source =
-            FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")]).with_body(1, "first");
-        poll_account(&source, &repo, &acc).await.unwrap();
+        let source = FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")])
+            .with_body(1, "INR 100.00 debited at SHOP on 01/09/2026");
+        poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
 
         // Same window, same message — the whole point of the Message-ID check.
-        let again =
-            FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")]).with_body(1, "first");
-        let summary = poll_account(&again, &repo, &acc).await.unwrap();
+        let again = FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")])
+            .with_body(1, "INR 100.00 debited at SHOP on 01/09/2026");
+        let summary = poll_account(&again, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
         assert_eq!(summary.matched, 1);
         assert_eq!(summary.stored, 0);
         assert_eq!(summary.skipped, 1);
@@ -288,16 +313,21 @@ mod tests {
     async fn one_unknown_among_knowns_fetches_only_the_unknown() {
         let repo = repo().await;
         let acc = account(&repo).await;
-        let first = FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")]).with_body(1, "old");
-        poll_account(&first, &repo, &acc).await.unwrap();
+        let first = FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")])
+            .with_body(1, "INR 100.00 debited at SHOP on 01/09/2026");
+        poll_account(&first, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
 
         let source = FakeSource::new(vec![
             header(1, "<a>", "alerts@bank.com"),
             header(2, "<b>", "alerts@bank.com"),
         ])
-        .with_body(1, "old")
-        .with_body(2, "new");
-        let summary = poll_account(&source, &repo, &acc).await.unwrap();
+        .with_body(1, "INR 100.00 debited at SHOP on 01/09/2026")
+        .with_body(2, "INR 200.00 debited at SHOP on 02/09/2026");
+        let summary = poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
         assert_eq!(summary.stored, 1);
         assert_eq!(summary.skipped, 1);
         assert_eq!(
@@ -315,10 +345,12 @@ mod tests {
             header(1, "<a>", "alerts@bank.com"),
             header(2, "<spam>", "promo@elsewhere.com"),
         ])
-        .with_body(1, "real")
-        .with_body(2, "spam");
+        .with_body(1, "INR 300.00 debited at SHOP on 03/09/2026")
+        .with_body(2, "INR 400.00 debited at SHOP on 04/09/2026");
 
-        let summary = poll_account(&source, &repo, &acc).await.unwrap();
+        let summary = poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
         assert_eq!(summary.matched, 1);
         assert_eq!(summary.stored, 1);
         assert_eq!(source.fetched_uids(), vec![1]);
@@ -331,16 +363,22 @@ mod tests {
         let mut source = FakeSource::new(vec![header(7, "<a>", "alerts@bank.com")]);
         source.failing_uids.insert(7);
 
-        assert!(poll_account(&source, &repo, &acc).await.is_err());
+        assert!(
+            poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
     async fn stored_rows_start_pending_and_keep_their_envelope() {
         let repo = repo().await;
         let acc = account(&repo).await;
-        let source =
-            FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")]).with_body(1, "debited 500");
-        poll_account(&source, &repo, &acc).await.unwrap();
+        let source = FakeSource::new(vec![header(1, "<a>", "alerts@bank.com")])
+            .with_body(1, "INR 500.00 debited at SHOP on 12/09/2026");
+        poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
 
         let (status, body, subject, from): (String, Option<String>, String, String) = sqlx::query_as(
             "SELECT status, raw_text, subject, from_addr FROM mail_messages WHERE message_id = '<a>'",
@@ -349,7 +387,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(status, "PENDING");
-        assert_eq!(body.as_deref(), Some("debited 500"));
+        assert!(body.as_deref().unwrap_or_default().contains("INR 500.00"));
         assert_eq!(subject, "Alert");
         assert_eq!(from, "alerts@bank.com");
     }
@@ -361,7 +399,9 @@ mod tests {
         let mut bad = header(1, "", "alerts@bank.com");
         bad.message_id.clear();
         let source = FakeSource::new(vec![bad]).with_body(1, "x");
-        let summary = poll_account(&source, &repo, &acc).await.unwrap();
+        let summary = poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
         assert_eq!(summary.matched, 1);
         // An empty Message-ID still inserts (the column is NOT NULL, not UNIQUE
         // against empty), but it will never dedupe — hence the extractor stage

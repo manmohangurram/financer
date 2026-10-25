@@ -58,6 +58,9 @@ pub struct NewMailMessage {
     pub subject: String,
     pub raw_text: String,
     pub status: MailStatus,
+    pub parsed_json: Option<String>,
+    pub confidence: f64,
+    pub extractor_source: String,
 }
 
 #[async_trait]

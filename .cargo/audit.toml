@@ -25,4 +25,15 @@ ignore = [
     "RUSTSEC-2026-0367",
     "RUSTSEC-2026-0368",
     "RUSTSEC-2026-0369",
+    # async-std is discontinued. Pulled by async-imap, which is the only client
+    # that reaches imap-proto 0.16 (the sync `imap` 2.4 crate pins 0.10, which
+    # cargo flags as future-incompatible). Neither reaches 0.17. Trade-off:
+    # async IMAP + 0.16 + a discontinued dep, versus sync IMAP + 0.10 + a
+    # future-incompat warning. Revisit when imap 3.0 leaves alpha.
+    "RUSTSEC-2025-0052",
+    # crypto-bigint 0.5.5 constant-time timing variability. Transitive (P-256
+    # stack) and needs a major bump its parent does not allow; used for
+    # signature verification over public data, so the timing channel is not a
+    # practical risk in this app.
+    "RUSTSEC-2026-0387",
 ]

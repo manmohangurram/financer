@@ -124,8 +124,8 @@ impl SqliteMailRepo {
         let r = sqlx::query(
             "INSERT OR IGNORE INTO mail_messages
                 (id, user_id, mail_account_id, message_id, from_addr, received_at, subject,
-                 raw_text, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 raw_text, status, parsed_json, confidence, extractor_source, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&id)
         .bind(user_id)
@@ -136,6 +136,9 @@ impl SqliteMailRepo {
         .bind(&msg.subject)
         .bind(&msg.raw_text)
         .bind(msg.status.to_string())
+        .bind(&msg.parsed_json)
+        .bind(msg.confidence)
+        .bind(&msg.extractor_source)
         .bind(&now)
         .execute(&self.pool)
         .await?;
@@ -273,6 +276,9 @@ mod tests {
             subject: "Debited".into(),
             raw_text: "body".into(),
             status,
+            parsed_json: None,
+            confidence: 0.0,
+            extractor_source: "template".into(),
         }
     }
 
