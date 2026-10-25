@@ -44,6 +44,7 @@ const error = ref('');
 const selected = ref<Set<string>>(new Set());
 const expanded = ref<string | null>(null);
 const showMailboxForm = ref(false);
+const pickAccount = ref<Record<string, string>>({});
 
 const FILTERS = ['pending', 'unparsed', 'all'] as const;
 const filter = ref<(typeof FILTERS)[number]>('pending');
@@ -100,12 +101,14 @@ function toggleAll() {
   selected.value = selected.value.size === actionable.value.length ? new Set() : new Set(actionable.value.map((m) => m.id));
 }
 
-async function act(action: 'APPROVE' | 'REJECT', ids: string[]) {
+async function act(action: 'APPROVE' | 'REJECT', ids: string[], accountId?: string) {
   if (!ids.length) return;
   busy.value = true;
   error.value = '';
   try {
-    const res = await mail().act({ messages: ids.map((id) => ({ id, action })) });
+    const res = await mail().act({
+      messages: ids.map((id) => ({ id, action, accountId: accountId || pickAccount.value[id] || undefined }))
+    });
     if (res.failed?.length) {
       error.value = `${res.failed.length} could not be ${action === 'APPROVE' ? 'approved' : 'rejected'}: ${res.failed[0].error}`;
     }
@@ -269,9 +272,21 @@ onMounted(load);
           </span>
         </div>
 
-        <div v-if="expanded === m.id" class="px-5 pb-4">
+        <div v-if="expanded === m.id" class="px-5 pb-4 space-y-3">
           <pre v-if="m.rawText" class="whitespace-pre-wrap rounded-xl bg-surface p-3 text-[12px] text-subtle max-h-64 overflow-auto">{{ m.rawText }}</pre>
           <p v-else class="text-[12px] text-faint">The message body was pruned once this row was resolved.</p>
+
+          <div v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex flex-wrap items-center gap-2">
+            <span class="text-[12.5px] text-subtle">
+              Account
+              <span v-if="parsed(m)?.accountHint" class="text-faint">(mail says …{{ parsed(m)?.accountHint }})</span>
+            </span>
+            <select v-model="pickAccount[m.id]" class="select select-sm bg-surface border-border text-[13px]">
+              <option value="">From the last 4 digits</option>
+              <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.label || a.username }}</option>
+            </select>
+            <button class="btn btn-primary btn-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
+          </div>
         </div>
       </template>
     </div>
