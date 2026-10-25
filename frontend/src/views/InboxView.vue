@@ -48,6 +48,22 @@ const pickAccount = ref<Record<string, string>>({});
 const rules = ref<any[]>([]);
 const rulesOpen = ref(false);
 const newRule = ref({ fromPattern: '', subjectContains: '', action: 'REVIEW' });
+const allMessages = ref<MailMessage[]>([]);
+
+/// Senders that have earned an AUTO rule: several created, none rejected, and
+/// no AUTO rule for them yet.
+const suggestions = computed(() => {
+  const stats: Record<string, { created: number; rejected: number }> = {};
+  for (const m of allMessages.value) {
+    const s = (stats[m.fromAddr] ||= { created: 0, rejected: 0 });
+    if (m.status === 'AUTO') s.created += 1;
+    if (m.status === 'REJECTED') s.rejected += 1;
+  }
+  const already = new Set(rules.value.filter((r) => r.action === 'AUTO').map((r) => String(r.fromPattern).toLowerCase()));
+  return Object.entries(stats)
+    .filter(([from, s]) => s.created >= 3 && s.rejected === 0 && !already.has(from.toLowerCase()))
+    .map(([from, s]) => ({ from, created: s.created }));
+});
 
 const FILTERS = ['pending', 'unparsed', 'all'] as const;
 const filter = ref<(typeof FILTERS)[number]>('pending');
@@ -84,14 +100,16 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [acc, msgs, rl] = await Promise.all([
+    const [acc, msgs, rl, all] = await Promise.all([
       mail().listAccounts({}),
       mail().listMessages({ status: filter.value }),
-      mail().listRules({})
+      mail().listRules({}),
+      mail().listMessages({ status: 'all', limit: 500 })
     ]);
     accounts.value = acc.accounts || [];
     messages.value = msgs.messages || [];
     rules.value = rl.rules || [];
+    allMessages.value = all.messages || [];
     selected.value = new Set();
   } catch (e: any) {
     error.value = e?.message || 'Failed to load the inbox';
@@ -171,6 +189,17 @@ async function addRule() {
   try {
     await mail().createRule(body);
     newRule.value = { fromPattern: '', subjectContains: '', action: 'REVIEW' };
+    await load();
+  } catch (e: any) {
+    error.value = e?.message || 'Could not create the rule';
+  }
+  busy.value = false;
+}
+
+async function createAutoRule(from: string) {
+  busy.value = true;
+  try {
+    await mail().createRule({ fromPattern: from, action: 'AUTO', position: rules.value.length });
     await load();
   } catch (e: any) {
     error.value = e?.message || 'Could not create the rule';
@@ -270,6 +299,14 @@ onMounted(load);
           <button class="btn btn-ghost btn-xs text-expense shrink-0" :disabled="busy" @click="deleteRule(r.id)">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
+        </div>
+
+        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-xl border border-success/30 bg-success/10 px-3 py-2">
+          <span class="text-[12.5px] text-text">
+            Auto-create for <span class="font-medium">{{ sugg.from }}</span>?
+            <span class="text-subtle">{{ sugg.created }} created, 0 rejected</span>
+          </span>
+          <button class="btn btn-success btn-xs shrink-0" :disabled="busy" @click="createAutoRule(sugg.from)">Create rule</button>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 pt-2">
