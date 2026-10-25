@@ -104,5 +104,16 @@ pub trait MailRepo: Send + Sync {
         status: Option<MailStatus>,
         limit: i64,
     ) -> Result<Vec<MailMessageRow>>;
+    async fn get_message(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>>;
+    /// Record a decision: the new status, the values approved, and the
+    /// transaction it produced. `false` when the row is not this user's.
+    async fn resolve_message(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool>;
     async fn sweep_bodies(&self) -> Result<u64>;
 }
