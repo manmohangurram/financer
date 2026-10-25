@@ -6,6 +6,7 @@ import AccountsView from '@/views/AccountsView.vue';
 import AccountsManageView from '@/views/AccountsManageView.vue';
 import SpendingView from '@/views/SpendingView.vue';
 import RulesView from '@/views/RulesView.vue';
+import InboxView from '@/views/InboxView.vue';
 import CategoriesView from '@/views/CategoriesView.vue';
 import InvestmentsView from '@/views/InvestmentsView.vue';
 import InvestmentDetailView from '@/views/InvestmentDetailView.vue';
@@ -26,6 +27,7 @@ const router = createRouter({
         { path: 'accounts/manage', name: 'accounts-manage', component: AccountsManageView },
         { path: 'accounts/spending', name: 'spending', component: SpendingView },
         { path: 'accounts/rules', name: 'rules', component: RulesView },
+        { path: 'inbox', name: 'inbox', component: InboxView },
         { path: 'accounts/categories', name: 'categories', component: CategoriesView },
         { path: 'investments', name: 'investments', component: InvestmentsView },
         { path: 'investments/:id', name: 'investment-detail', component: InvestmentDetailView },
