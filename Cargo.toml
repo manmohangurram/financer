@@ -18,8 +18,11 @@ surreal = ["dep:surrealdb"]
 unsafe_code = "warn"
 
 [lints.clippy]
-all = "warn"
-pedantic = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# 1.99 wants `assert_eq!(x, vec![])` over `assert!(x.is_empty())`; the suggested
+# form is noisier and shows nothing extra.
+assert_is_empty = "allow"
 
 [dependencies]
 axum = { version = "0.8", features = ["macros", "multipart"] }
@@ -55,6 +58,15 @@ chrono-tz = "0.10.4"
 csv = "1.4.0"
 calamine = { version = "0.36.1", features = ["dates"] }
 pdfsink-rs = "0.2.19"
+async-imap = "0.11"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+# rustls, not native-tls: the runtime image has no OpenSSL. Roots are bundled
+# at compile time so TLS does not depend on the OS trust store existing.
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
+tokio-rustls = "0.26"
+webpki-roots = "1.0"
+ring = "0.17"
 
 [dev-dependencies]
 tempfile = "3"

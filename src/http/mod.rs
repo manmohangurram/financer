@@ -5,7 +5,9 @@
 pub mod account;
 pub mod analytics;
 pub mod category;
+pub mod https;
 pub mod investment;
+pub mod mail;
 pub mod rule;
 pub mod settings;
 pub mod transaction;
@@ -24,6 +26,7 @@ use crate::http::account::routes as account_routes;
 use crate::http::analytics::routes as analytics_routes;
 use crate::http::category::routes as category_routes;
 use crate::http::investment::routes as investment_routes;
+use crate::http::mail::routes as mail_routes;
 use crate::http::rule::routes as rule_routes;
 use crate::http::settings::routes as settings_routes;
 use crate::http::transaction::routes as transaction_routes;
@@ -33,6 +36,7 @@ use crate::service::account::AccountService;
 use crate::service::auth::{AuthService, LoginRequest, RefreshTokenRequest, SignupRequest};
 use crate::service::category::CategoryService;
 use crate::service::investment::InvestmentService;
+use crate::service::mail::MailService;
 use crate::service::rule::RuleService;
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
@@ -45,6 +49,7 @@ pub struct AppState {
     pub auth: AuthService,
     pub user: UserService,
     pub user_key: UserKeyService,
+    pub mail: MailService,
     pub account: AccountService,
     pub investment: InvestmentService,
     pub category: CategoryService,
@@ -72,10 +77,13 @@ pub(crate) async fn read_upload_file(mp: &mut Multipart) -> Option<(String, Vec<
 
 pub fn router(state: AppState) -> Router {
     let mcp = crate::mcp::mcp_router(&state).with_state(());
-    Router::new()
+    let auth = Router::new()
         .route("/api/auth/signup", axum::routing::post(signup))
         .route("/api/auth/login", axum::routing::post(login))
         .route("/api/auth/refresh", axum::routing::post(refresh))
+        .route_layer(axum::middleware::from_fn(crate::http::https::require_https));
+    Router::new()
+        .merge(auth)
         .merge(
             utoipa_swagger_ui::SwaggerUi::new("/docs")
                 .url("/openapi.json", crate::openapi::ApiDoc::openapi()),
@@ -89,6 +97,7 @@ pub fn router(state: AppState) -> Router {
         .merge(transfer_routes())
         .merge(settings_routes())
         .merge(user_key_routes())
+        .merge(mail_routes())
         .merge(mcp)
         .route("/avatars/{name}", get(avatar_file))
         .fallback(spa)

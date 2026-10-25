@@ -19,7 +19,8 @@ use crate::error::Result;
 #[cfg(feature = "surreal")]
 use crate::repo::surreal;
 use crate::repo::traits::{
-    AccountRepo, CategoryRepo, InvestmentRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo,
+    AccountRepo, CategoryRepo, InvestmentRepo, MailRepo, RuleRepo, TransactionRepo, UserKeyRepo,
+    UserRepo,
 };
 
 /// All repositories, type-erased so the service layer is backend-agnostic.
@@ -31,6 +32,7 @@ pub struct RepoSet {
     pub investment: Arc<dyn InvestmentRepo>,
     pub transaction: Arc<dyn TransactionRepo>,
     pub user_key: Arc<dyn UserKeyRepo>,
+    pub mail: Arc<dyn MailRepo>,
 }
 
 /// Connect to the backend named by config and return its repo set.
@@ -162,6 +164,7 @@ pub async fn surreal_repo_set(
         investment: Arc::new(surreal::investment::InvestmentRepo::new(c.clone())),
         transaction: Arc::new(surreal::transaction::TransactionRepo::new(c.clone())),
         user_key: Arc::new(surreal::user_key::UserKeyRepo::new(c.clone())),
+        mail: Arc::new(surreal::mail::MailRepo::new(c.clone())),
     })
 }
 
@@ -185,6 +188,7 @@ pub async fn sqlite_repo_set(cfg: &crate::config::Sqlite) -> Result<RepoSet> {
         transaction: Arc::new(
             crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool.clone()),
         ),
+        mail: Arc::new(crate::repo::sqlite::mail::SqliteMailRepo::new(pool.clone())),
         user_key: Arc::new(crate::repo::sqlite::user_key::SqliteUserKeyRepo::new(pool)),
     })
 }

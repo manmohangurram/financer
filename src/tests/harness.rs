@@ -78,6 +78,7 @@ impl TestApp {
             auth: AuthService::new(repos.user.clone(), jwt.clone()),
             user: UserService::new(repos.user.clone(), jwt.clone(), dir.path().join("avatars")),
             user_key: UserKeyService::new(repos.user_key.clone()),
+            mail: crate::service::mail::MailService::new(repos.mail.clone(), Some("00".repeat(32))),
             account,
             investment: InvestmentService::new(
                 repos.investment.clone(),
@@ -134,7 +135,10 @@ impl TestApp {
         body: Option<Value>,
         token: Option<&str>,
     ) -> (StatusCode, Value) {
-        let mut b = Request::builder().method(method).uri(path);
+        let mut b = Request::builder()
+            .method(method)
+            .uri(path)
+            .header("x-forwarded-proto", "https");
         if body.is_some() {
             b = b.header("content-type", "application/json");
         }
