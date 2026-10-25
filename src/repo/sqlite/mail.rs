@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::error::Result;
 use crate::repo::traits::mail::{
-    MailAccountRow, MailMessageRow, MailRepo as MailRepoTrait, MailStatus, NewMailAccount,
-    NewMailMessage,
+    MailAccountRow, MailMessageRow, MailRepo as MailRepoTrait, MailRuleAction, MailRuleInput,
+    MailRuleRow, MailStatus, NewMailAccount, NewMailMessage,
 };
 
 pub struct SqliteMailRepo {
@@ -170,6 +170,129 @@ impl SqliteMailRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    async fn get_message_inner(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>> {
+        let row = sqlx::query_as::<_, RawMailMessage>(
+            "SELECT id, message_id, from_addr, subject, received_at, status, parsed_json,
+                    COALESCE(confidence, 0) AS confidence, raw_text, transaction_id FROM mail_messages WHERE id = ? AND user_id = ?",
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(Into::into))
+    }
+
+    async fn resolve_message_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool> {
+        let r = sqlx::query(
+            "UPDATE mail_messages
+             SET status = ?, approved_json = COALESCE(?, approved_json),
+                 transaction_id = COALESCE(?, transaction_id)
+             WHERE id = ? AND user_id = ?",
+        )
+        .bind(status.to_string())
+        .bind(approved_json)
+        .bind(transaction_id)
+        .bind(id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    fn rule_columns() -> &'static str {
+        "id, position, enabled, from_pattern, subject_contains, body_contains, action, account_id, category_ids"
+    }
+
+    async fn list_rules_inner(&self, user_id: &str) -> Result<Vec<MailRuleRow>> {
+        let sql = format!(
+            "SELECT {} FROM mail_rules WHERE user_id = ? ORDER BY position, created_at",
+            Self::rule_columns()
+        );
+        let rows = sqlx::query_as::<_, RawMailRule>(&sql)
+            .bind(user_id)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn create_rule_inner(&self, user_id: &str, input: &MailRuleInput) -> Result<MailRuleRow> {
+        let id = Uuid::new_v4().to_string();
+        let now = crate::utils::timex::now_go_ts();
+        let cats = serde_json::to_string(&input.category_ids).unwrap_or_else(|_| "[]".into());
+        sqlx::query(
+            "INSERT INTO mail_rules
+                (id, user_id, position, enabled, from_pattern, subject_contains, body_contains, action, account_id, category_ids, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(user_id)
+        .bind(input.position)
+        .bind(i64::from(input.enabled))
+        .bind(&input.from_pattern)
+        .bind(&input.subject_contains)
+        .bind(&input.body_contains)
+        .bind(input.action.to_string())
+        .bind(&input.account_id)
+        .bind(&cats)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        Ok(MailRuleRow {
+            id,
+            position: input.position,
+            enabled: input.enabled,
+            from_pattern: input.from_pattern.clone(),
+            subject_contains: input.subject_contains.clone(),
+            body_contains: input.body_contains.clone(),
+            action: input.action,
+            account_id: input.account_id.clone(),
+            category_ids: input.category_ids.clone(),
+        })
+    }
+
+    async fn update_rule_inner(
+        &self,
+        user_id: &str,
+        id: &str,
+        input: &MailRuleInput,
+    ) -> Result<bool> {
+        let cats = serde_json::to_string(&input.category_ids).unwrap_or_else(|_| "[]".into());
+        let r = sqlx::query(
+            "UPDATE mail_rules SET position = ?, enabled = ?, from_pattern = ?, subject_contains = ?,
+                body_contains = ?, action = ?, account_id = ?, category_ids = ?
+             WHERE id = ? AND user_id = ?",
+        )
+        .bind(input.position)
+        .bind(i64::from(input.enabled))
+        .bind(&input.from_pattern)
+        .bind(&input.subject_contains)
+        .bind(&input.body_contains)
+        .bind(input.action.to_string())
+        .bind(&input.account_id)
+        .bind(&cats)
+        .bind(id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn delete_rule_inner(&self, user_id: &str, id: &str) -> Result<bool> {
+        let r = sqlx::query("DELETE FROM mail_rules WHERE id = ? AND user_id = ?")
+            .bind(id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(r.rows_affected() > 0)
+    }
+
     async fn sweep_bodies_inner(&self) -> Result<u64> {
         let r = sqlx::query(
             "UPDATE mail_messages SET raw_text = NULL
@@ -216,8 +339,63 @@ impl MailRepoTrait for SqliteMailRepo {
     ) -> Result<Vec<MailMessageRow>> {
         self.list_messages_inner(user_id, status, limit).await
     }
+    async fn get_message(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>> {
+        self.get_message_inner(user_id, id).await
+    }
+    async fn resolve_message(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool> {
+        self.resolve_message_inner(user_id, id, status, approved_json, transaction_id)
+            .await
+    }
+    async fn list_rules(&self, user_id: &str) -> Result<Vec<MailRuleRow>> {
+        self.list_rules_inner(user_id).await
+    }
+    async fn create_rule(&self, user_id: &str, input: &MailRuleInput) -> Result<MailRuleRow> {
+        self.create_rule_inner(user_id, input).await
+    }
+    async fn update_rule(&self, user_id: &str, id: &str, input: &MailRuleInput) -> Result<bool> {
+        self.update_rule_inner(user_id, id, input).await
+    }
+    async fn delete_rule(&self, user_id: &str, id: &str) -> Result<bool> {
+        self.delete_rule_inner(user_id, id).await
+    }
     async fn sweep_bodies(&self) -> Result<u64> {
         self.sweep_bodies_inner().await
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct RawMailRule {
+    id: String,
+    position: i64,
+    enabled: i64,
+    from_pattern: String,
+    subject_contains: String,
+    body_contains: String,
+    action: String,
+    account_id: Option<String>,
+    category_ids: String,
+}
+
+impl From<RawMailRule> for MailRuleRow {
+    fn from(r: RawMailRule) -> Self {
+        Self {
+            id: r.id,
+            position: r.position,
+            enabled: r.enabled != 0,
+            from_pattern: r.from_pattern,
+            subject_contains: r.subject_contains,
+            body_contains: r.body_contains,
+            action: MailRuleAction::from_str(&r.action).unwrap_or(MailRuleAction::Review),
+            account_id: r.account_id,
+            category_ids: serde_json::from_str(&r.category_ids).unwrap_or_default(),
+        }
     }
 }
 

@@ -87,6 +87,57 @@ pub struct MailMessageRow {
     pub transaction_id: Option<String>,
 }
 
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::EnumString,
+    utoipa::ToSchema,
+)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[schema(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MailRuleAction {
+    Ignore,
+    Review,
+    Auto,
+}
+
+/// A disposition rule. Conditions combine; first match wins.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MailRuleRow {
+    pub id: String,
+    /// Lower runs first.
+    pub position: i64,
+    pub enabled: bool,
+    /// Address or domain, contains-match.
+    pub from_pattern: String,
+    pub subject_contains: String,
+    pub body_contains: String,
+    pub action: MailRuleAction,
+    /// Forced account; counts as resolved for auto-create.
+    pub account_id: Option<String>,
+    pub category_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MailRuleInput {
+    pub position: i64,
+    pub enabled: bool,
+    pub from_pattern: String,
+    pub subject_contains: String,
+    pub body_contains: String,
+    pub action: MailRuleAction,
+    pub account_id: Option<String>,
+    pub category_ids: Vec<String>,
+}
+
 #[async_trait]
 pub trait MailRepo: Send + Sync {
     async fn create_account(&self, user_id: &str, input: &NewMailAccount)
@@ -104,5 +155,21 @@ pub trait MailRepo: Send + Sync {
         status: Option<MailStatus>,
         limit: i64,
     ) -> Result<Vec<MailMessageRow>>;
+    async fn get_message(&self, user_id: &str, id: &str) -> Result<Option<MailMessageRow>>;
+    /// Record a decision: the new status, the values approved, and the
+    /// transaction it produced. `false` when the row is not this user's.
+    async fn resolve_message(
+        &self,
+        user_id: &str,
+        id: &str,
+        status: MailStatus,
+        approved_json: Option<&str>,
+        transaction_id: Option<&str>,
+    ) -> Result<bool>;
+    /// Ordered by position, first match wins.
+    async fn list_rules(&self, user_id: &str) -> Result<Vec<MailRuleRow>>;
+    async fn create_rule(&self, user_id: &str, input: &MailRuleInput) -> Result<MailRuleRow>;
+    async fn update_rule(&self, user_id: &str, id: &str, input: &MailRuleInput) -> Result<bool>;
+    async fn delete_rule(&self, user_id: &str, id: &str) -> Result<bool>;
     async fn sweep_bodies(&self) -> Result<u64>;
 }
