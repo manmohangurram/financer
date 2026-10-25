@@ -18,3 +18,10 @@ Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue
 - **Architecture:** repo → service → http layering; SurrealDB (server-mode HTTP-RPC client, embedded `Mem` in tests); schema via idempotent `define_tables()` at boot; record ids (`table:<id>`) with plain-string wire ids; per-user scoping via `user` record links (details in [architecture/](architecture/)).
 - **API docs:** Swagger UI at `/docs` (utoipa-generated), spec at `/openapi.json`.
 - **Deployment:** see [DEPLOY.md](DEPLOY.md).
+
+## Workflow rules
+
+- **Stacks, not one-off branches.** Multi-stage work ships as a GitHub stack via `gh stack` (`init` / `add` / `submit`), one branch per stage, each PR based on the one below. Never a bare `git checkout -b` inside a stack. Simple single-commit changes stay a plain branch + PR.
+- **Never force-push.** No `gh stack rebase`, no `--force`/`--force-with-lease`. Update a branch by merging `main` into it. `gh stack submit` only for creating PRs on branches that have not been pushed yet.
+- **After creating a branch, refresh the code graph before reading code:** run `graphify . --update` (the wrapper enriches it with function end lines), then locate code with `semble` / the `code-read` skill rather than reading whole files.
+- **Gates before a PR:** `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and with `--features surreal`, `cargo test` both feature sets, `cargo audit`, plus frontend `vue-tsc` / `npm test` / `npm run build` when the UI changed.
