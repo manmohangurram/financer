@@ -58,12 +58,6 @@ async fn main() -> anyhow::Result<()> {
 
     let repo_set: RepoSet = crate::repo::db::repo_set(&cfg).await?;
 
-    crate::mail::spawn(
-        repo_set.mail.clone(),
-        cfg.server.secret_key.clone(),
-        std::time::Duration::from_secs(cfg.server.mail_poll_secs),
-    );
-
     let jwt = Jwt::new(cfg.server.jwt_secret.clone());
     let repo = repo_set.user.clone();
     let account_repo = repo_set.account.clone();
@@ -99,6 +93,14 @@ async fn main() -> anyhow::Result<()> {
     .with_transfer_rule(transfer_rule_svc.clone())
     .with_rule(Arc::new(rule_svc.clone()));
     let transfer_svc = TransferService::new(transaction_repo, account_repo);
+
+    crate::mail::spawn(
+        repo_set.mail.clone(),
+        cfg.server.secret_key.clone(),
+        std::time::Duration::from_secs(cfg.server.mail_poll_secs),
+        transaction_svc.clone(),
+        account_svc.clone(),
+    );
 
     let state = http::AppState {
         auth: auth_svc,
