@@ -45,6 +45,9 @@ const selected = ref<Set<string>>(new Set());
 const expanded = ref<string | null>(null);
 const showMailboxForm = ref(false);
 const pickAccount = ref<Record<string, string>>({});
+const rules = ref<any[]>([]);
+const rulesOpen = ref(false);
+const newRule = ref({ fromPattern: '', subjectContains: '', action: 'REVIEW' });
 
 const FILTERS = ['pending', 'unparsed', 'all'] as const;
 const filter = ref<(typeof FILTERS)[number]>('pending');
@@ -81,9 +84,14 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [acc, msgs] = await Promise.all([mail().listAccounts({}), mail().listMessages({ status: filter.value })]);
+    const [acc, msgs, rl] = await Promise.all([
+      mail().listAccounts({}),
+      mail().listMessages({ status: filter.value }),
+      mail().listRules({})
+    ]);
     accounts.value = acc.accounts || [];
     messages.value = msgs.messages || [];
+    rules.value = rl.rules || [];
     selected.value = new Set();
   } catch (e: any) {
     error.value = e?.message || 'Failed to load the inbox';
@@ -139,6 +147,44 @@ async function removeAccount(id: string) {
     await load();
   } catch (e: any) {
     error.value = e?.message || 'Could not remove the mailbox';
+  }
+  busy.value = false;
+}
+
+function ruleLabel(r: any): string {
+  const parts: string[] = [];
+  if (r.fromPattern) parts.push(`from ${r.fromPattern}`);
+  if (r.subjectContains) parts.push(`subject has "${r.subjectContains}"`);
+  if (r.bodyContains) parts.push(`body has "${r.bodyContains}"`);
+  return parts.join(' · ') || '(no conditions)';
+}
+
+async function addRule() {
+  const body: Record<string, unknown> = { action: newRule.value.action, position: rules.value.length };
+  if (newRule.value.fromPattern.trim()) body.fromPattern = newRule.value.fromPattern.trim();
+  if (newRule.value.subjectContains.trim()) body.subjectContains = newRule.value.subjectContains.trim();
+  if (!body.fromPattern && !body.subjectContains) {
+    error.value = 'A rule needs a sender or a subject match';
+    return;
+  }
+  busy.value = true;
+  try {
+    await mail().createRule(body);
+    newRule.value = { fromPattern: '', subjectContains: '', action: 'REVIEW' };
+    await load();
+  } catch (e: any) {
+    error.value = e?.message || 'Could not create the rule';
+  }
+  busy.value = false;
+}
+
+async function deleteRule(id: string) {
+  busy.value = true;
+  try {
+    await mail().deleteRule({ id });
+    await load();
+  } catch (e: any) {
+    error.value = e?.message || 'Could not delete the rule';
   }
   busy.value = false;
 }
@@ -204,6 +250,42 @@ onMounted(load);
     </div>
 
     <MailboxFormModal v-if="showMailboxForm" @close="showMailboxForm = false" @saved="load" />
+
+    <div class="rounded-2xl border border-border bg-base-200">
+      <button class="w-full flex items-center justify-between px-5 py-3.5" @click="rulesOpen = !rulesOpen">
+        <span class="text-[14px] font-semibold text-text">Rules <span class="text-faint font-normal">({{ rules.length }})</span></span>
+        <ChevronDown class="w-4 h-4 text-subtle transition-transform" :class="rulesOpen ? 'rotate-180' : ''" />
+      </button>
+      <div v-if="rulesOpen" class="border-t border-border px-5 py-3 space-y-2">
+        <p v-if="!rules.length" class="text-[13px] text-subtle">
+          No rules. Everything is reviewed by hand until you add one.
+        </p>
+        <div v-for="r in rules" :key="r.id" class="flex items-center justify-between gap-3 text-[13px]">
+          <span class="min-w-0">
+            <span class="badge badge-xs mr-2" :class="r.action === 'AUTO' ? 'badge-success' : r.action === 'IGNORE' ? 'badge-ghost' : 'badge-warning'">
+              {{ r.action.toLowerCase() }}
+            </span>
+            <span class="text-text-muted">{{ ruleLabel(r) }}</span>
+          </span>
+          <button class="btn btn-ghost btn-xs text-expense shrink-0" :disabled="busy" @click="deleteRule(r.id)">
+            <Trash2 class="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 pt-2">
+          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="input input-sm bg-surface border-border text-[13px] flex-1 min-w-[180px]" />
+          <input v-model="newRule.subjectContains" placeholder="subject contains" class="input input-sm bg-surface border-border text-[13px] flex-1 min-w-[150px]" />
+          <select v-model="newRule.action" class="select select-sm bg-surface border-border text-[13px]">
+            <option value="REVIEW">review</option>
+            <option value="IGNORE">ignore</option>
+            <option value="AUTO">auto</option>
+          </select>
+          <button class="btn btn-ghost btn-sm border border-track gap-1" :disabled="busy" @click="addRule">
+            <Plus class="w-3.5 h-3.5" /> Add
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div v-if="selected.size" class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-2.5">
       <span class="text-[13px] font-medium text-text">{{ selected.size }} selected</span>
