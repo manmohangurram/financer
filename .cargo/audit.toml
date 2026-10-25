@@ -1,11 +1,9 @@
-# cargo-audit configuration.
+# cargo-audit configuration. Every ignore is transitive, pinned by an upstream
+# we cannot bump. Revisit when a parent drops it.
 #
 # Run: `cargo audit`
 
 [advisories]
-# Reviewed exceptions. Every entry is a *transitive* crate pinned by an upstream
-# we cannot bump; none of them is a vulnerability we can act on. Revisit when the
-# parent crate picks up a maintained dependency.
 ignore = [
     # SQLite < 3.54.0 can return stale page-cache bytes when a crafted db + `-wal`
     # sibling pair is opened. Local vector only: it needs someone able to write

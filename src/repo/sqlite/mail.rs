@@ -293,8 +293,6 @@ mod tests {
     use crate::repo::traits::MailRepo;
     use crate::repo::traits::mail::MailStatus;
 
-    // One connection: an in-memory DB is per-connection, so a pool would give
-    // each connection its own empty database.
     async fn pool() -> SqlitePool {
         sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
@@ -303,7 +301,6 @@ mod tests {
             .unwrap()
     }
 
-    /// Minimal user row so the FK on `mail_accounts` holds.
     async fn seed_user(pool: &SqlitePool, id: &str) {
         sqlx::query("INSERT INTO users (id, email, password_hash, name, created_at) VALUES (?, ?, 'h', 'U', '2026-01-01 00:00:00 +0000 UTC')")
             .bind(id)

@@ -125,7 +125,6 @@ impl MailSource for ImapSource {
                 continue;
             };
             // No Message-ID means no idempotency key, so the message cannot be
-            // deduped; skipping beats ingesting it repeatedly.
             let Some(message_id) = parse_message_id(raw) else {
                 continue;
             };

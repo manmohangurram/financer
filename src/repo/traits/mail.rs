@@ -4,7 +4,6 @@ use async_trait::async_trait;
 
 use crate::error::Result;
 
-/// A linked mailbox. `secret_enc` is ciphertext, never a plain credential.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MailAccountRow {
@@ -36,19 +35,13 @@ pub struct MailAccountRow {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MailStatus {
-    /// Extracted, awaiting review.
     Pending,
-    /// Sender matched but nothing extractable came out.
     Unparsed,
-    /// Deliberately not a transaction.
     Ignored,
-    /// Created by an `auto` rule.
     Auto,
-    /// Rejected by the user; kept for audit.
     Rejected,
 }
 
-/// Fields a caller supplies when linking a mailbox.
 #[derive(Debug, Clone)]
 pub struct NewMailAccount {
     pub label: String,
@@ -75,7 +68,6 @@ pub struct NewMailMessage {
 }
 
 /// A stored message as the review UI sees it: no secret, body optional
-/// (it is pruned once the row is resolved).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MailMessageRow {
@@ -97,21 +89,16 @@ pub trait MailRepo: Send + Sync {
     -> Result<MailAccountRow>;
     async fn list_accounts(&self, user_id: &str) -> Result<Vec<MailAccountRow>>;
     async fn delete_account(&self, user_id: &str, id: &str) -> Result<bool>;
-    /// Every enabled mailbox, across users — what the poll tick iterates.
     async fn list_pollable_accounts(&self) -> Result<Vec<MailAccountRow>>;
-    /// Record a poll attempt: `error` empty on success.
     async fn mark_polled(&self, account_id: &str, error: &str) -> Result<()>;
-    /// Which of `ids` this user has already seen.
     async fn known_message_ids(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
     /// Store a message; `false` when its `message_id` was already present.
     async fn insert_message(&self, user_id: &str, msg: &NewMailMessage) -> Result<bool>;
-    /// Newest first. `status` filters; `None` returns everything.
     async fn list_messages(
         &self,
         user_id: &str,
         status: Option<MailStatus>,
         limit: i64,
     ) -> Result<Vec<MailMessageRow>>;
-    /// Drop bodies of resolved rows; returns how many were cleared.
     async fn sweep_bodies(&self) -> Result<u64>;
 }
