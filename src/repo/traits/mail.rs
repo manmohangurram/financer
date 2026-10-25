@@ -14,9 +14,11 @@ pub struct MailAccountRow {
     pub imap_port: i64,
     pub username: String,
     pub secret_enc: String,
+    /// Exact addresses; the IMAP `FROM` search is built from these.
     pub sender_allowlist: Vec<String>,
     pub enabled: bool,
     pub last_polled_at: Option<String>,
+    /// Last poll failure, empty on success.
     pub last_error: String,
     pub created_at: String,
 }
@@ -77,8 +79,10 @@ pub struct MailMessageRow {
     pub subject: String,
     pub received_at: Option<String>,
     pub status: MailStatus,
+    /// Serialised [`crate::mail::extract::Extraction`]; `None` when unparsed.
     pub parsed_json: Option<String>,
     pub confidence: f64,
+    /// Pruned once the row is resolved.
     pub raw_text: Option<String>,
     pub transaction_id: Option<String>,
 }
