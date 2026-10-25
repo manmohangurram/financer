@@ -122,7 +122,10 @@ impl MailService {
             .get_message(user_id, &item.id)
             .await?
             .ok_or_else(|| ApiError::not_found(format!("message {} not found", item.id)))?;
-        if !matches!(msg.status, MailStatus::Pending | MailStatus::Unparsed) {
+        // An AUTO row with no transaction yet is the poll's handoff to us.
+        let actionable = matches!(msg.status, MailStatus::Pending | MailStatus::Unparsed)
+            || (msg.status == MailStatus::Auto && msg.transaction_id.is_none());
+        if !actionable {
             return Err(ApiError::conflict("message already decided"));
         }
 
@@ -698,6 +701,33 @@ mod tests {
         );
         assert_eq!(out.failed.len(), 2);
         assert!(out.failed[0].error.contains("no account matches"));
+    }
+
+    #[tokio::test]
+    async fn an_auto_row_without_a_transaction_can_be_approved() {
+        let f = fixture().await;
+        let msg = seed(&f, "1234", "1234", "<auto>").await;
+        // What poll_account leaves behind when an AUTO rule matches.
+        sqlx::query("UPDATE mail_messages SET status = 'AUTO' WHERE id = ?")
+            .bind(&msg)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+
+        let svc = MailService::new(f.mail.clone(), Some(KEY.to_string()));
+        let out = svc
+            .act("u1", vec![approve(&msg)], &f.transactions, &f.accounts)
+            .await
+            .unwrap();
+        assert_eq!(out.succeeded, vec![msg.clone()], "{:?}", out.failed);
+
+        let txn: Option<String> =
+            sqlx::query_scalar("SELECT transaction_id FROM mail_messages WHERE id = ?")
+                .bind(&msg)
+                .fetch_one(&f.pool)
+                .await
+                .unwrap();
+        assert!(txn.is_some(), "the row now points at its transaction");
     }
 
     #[tokio::test]
