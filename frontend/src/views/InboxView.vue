@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown } from '@lucide/vue';
+import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus } from '@lucide/vue';
+import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
 import { mail } from '@/lib/api/client';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 
@@ -42,6 +43,7 @@ const busy = ref(false);
 const error = ref('');
 const selected = ref<Set<string>>(new Set());
 const expanded = ref<string | null>(null);
+const showMailboxForm = ref(false);
 
 const FILTERS = ['pending', 'unparsed', 'all'] as const;
 const filter = ref<(typeof FILTERS)[number]>('pending');
@@ -174,7 +176,7 @@ onMounted(load);
       </button>
       <div v-if="accountsOpen" class="border-t border-border px-5 py-3 space-y-2">
         <p v-if="!accounts.length" class="text-[13px] text-subtle">
-          No mailbox linked yet. Add one over the API (<code class="text-[12px]">POST /api/mail/accounts</code>) with an app password.
+          No mailbox linked yet. Add one with an app password and the senders that send your bank alerts.
         </p>
         <div v-for="a in accounts" :key="a.id" class="flex items-center justify-between gap-3 text-[13px]">
           <span class="min-w-0">
@@ -192,8 +194,13 @@ onMounted(load);
             </button>
           </span>
         </div>
+        <button class="btn btn-ghost btn-xs gap-1 mt-1" @click="showMailboxForm = true">
+          <Plus class="w-3.5 h-3.5" /> Add mailbox
+        </button>
       </div>
     </div>
+
+    <MailboxFormModal v-if="showMailboxForm" @close="showMailboxForm = false" @saved="load" />
 
     <div v-if="selected.size" class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-2.5">
       <span class="text-[13px] font-medium text-text">{{ selected.size }} selected</span>
