@@ -40,6 +40,19 @@ export interface RuleServiceClient {
   runRule: (req: unknown) => Promise<any>;
 }
 
+export interface MailServiceClient {
+  listAccounts: (req: unknown) => Promise<any>;
+  createAccount: (req: unknown) => Promise<any>;
+  deleteAccount: (req: unknown) => Promise<any>;
+  pollAccount: (req: unknown) => Promise<any>;
+  listMessages: (req: unknown) => Promise<any>;
+  act: (req: unknown) => Promise<any>;
+  listRules: (req: unknown) => Promise<any>;
+  createRule: (req: unknown) => Promise<any>;
+  updateRule: (req: unknown) => Promise<any>;
+  deleteRule: (req: unknown) => Promise<any>;
+}
+
 export interface TransferServiceClient {
   linkTransfers: (req: unknown) => Promise<any>;
   unlinkTransfers: (req: unknown) => Promise<any>;
@@ -87,6 +100,7 @@ let _accounts: AccountServiceClient | null = null;
 let _categories: CategoryServiceClient | null = null;
 let _transactions: TransactionServiceClient | null = null;
 let _rules: RuleServiceClient | null = null;
+let _mail: MailServiceClient | null = null;
 let _transfers: TransferServiceClient | null = null;
 let _investments: InvestmentServiceClient | null = null;
 let _analytics: AnalyticsServiceClient | null = null;
@@ -185,6 +199,24 @@ export function transactions(): TransactionServiceClient {
     };
   }
   return _transactions;
+}
+
+export function mail(): MailServiceClient {
+  if (!_mail) {
+    _mail = {
+      listAccounts: api('GET', '/api/mail/accounts'),
+      createAccount: api('POST', '/api/mail/accounts'),
+      deleteAccount: api('DELETE', '/api/mail/accounts/{id}'),
+      pollAccount: api('POST', '/api/mail/accounts/{id}/poll'),
+      listMessages: api('GET', '/api/mail/messages'),
+      act: api('POST', '/api/mail/messages'),
+      listRules: api('GET', '/api/mail/rules'),
+      createRule: api('POST', '/api/mail/rules'),
+      updateRule: api('PUT', '/api/mail/rules/{id}'),
+      deleteRule: api('DELETE', '/api/mail/rules/{id}')
+    };
+  }
+  return _mail;
 }
 
 export function rules(): RuleServiceClient {
