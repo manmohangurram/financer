@@ -9,7 +9,8 @@ use utoipa::ToSchema;
 use crate::error::{ApiError, Result};
 use crate::mail::crypto;
 use crate::repo::traits::mail::{
-    MailAccountRow, MailMessageRow, MailRepo, MailStatus, NewMailAccount,
+    MailAccountRow, MailMessageRow, MailRepo, MailRuleAction, MailRuleInput, MailRuleRow,
+    MailStatus, NewMailAccount,
 };
 use crate::repo::traits::transaction::TransactionType;
 use crate::service::account::AccountService;
@@ -211,6 +212,30 @@ impl MailService {
         Ok(summary)
     }
 
+    pub async fn rules(&self, user_id: &str) -> Result<Vec<MailRuleRow>> {
+        self.repo.list_rules(user_id).await
+    }
+
+    pub async fn create_rule(&self, user_id: &str, req: MailRuleReq) -> Result<MailRuleRow> {
+        let input = req.into_input()?;
+        self.repo.create_rule(user_id, &input).await
+    }
+
+    pub async fn update_rule(&self, user_id: &str, id: &str, req: MailRuleReq) -> Result<()> {
+        let input = req.into_input()?;
+        if !self.repo.update_rule(user_id, id, &input).await? {
+            return Err(ApiError::not_found(format!("mail rule {id} not found")));
+        }
+        Ok(())
+    }
+
+    pub async fn delete_rule(&self, user_id: &str, id: &str) -> Result<()> {
+        if !self.repo.delete_rule(user_id, id).await? {
+            return Err(ApiError::not_found(format!("mail rule {id} not found")));
+        }
+        Ok(())
+    }
+
     pub async fn delete(&self, user_id: &str, id: &str) -> Result<()> {
         if !self.repo.delete_account(user_id, id).await? {
             return Err(ApiError::not_found(format!("mail account {id} not found")));
@@ -231,6 +256,50 @@ pub struct CreateMailAccountReq {
     pub password: String,
     #[serde(default)]
     pub sender_allowlist: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MailRuleReq {
+    #[serde(default)]
+    pub position: i64,
+    /// Defaults to on.
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub from_pattern: String,
+    #[serde(default)]
+    pub subject_contains: String,
+    #[serde(default)]
+    pub body_contains: String,
+    pub action: MailRuleAction,
+    #[serde(default)]
+    pub account_id: Option<String>,
+    #[serde(default)]
+    pub category_ids: Vec<String>,
+}
+
+impl MailRuleReq {
+    fn into_input(self) -> Result<MailRuleInput> {
+        let from_pattern = self.from_pattern.trim().to_string();
+        let subject_contains = self.subject_contains.trim().to_string();
+        let body_contains = self.body_contains.trim().to_string();
+        // A rule with no conditions matches every mail, which would make an
+        // AUTO rule ingest the whole mailbox.
+        if from_pattern.is_empty() && subject_contains.is_empty() && body_contains.is_empty() {
+            return Err(ApiError::bad_request("a rule needs at least one condition"));
+        }
+        Ok(MailRuleInput {
+            position: self.position,
+            enabled: self.enabled.unwrap_or(true),
+            from_pattern,
+            subject_contains,
+            body_contains,
+            action: self.action,
+            account_id: self.account_id.filter(|a| !a.is_empty()),
+            category_ids: self.category_ids,
+        })
+    }
 }
 
 #[derive(Debug, serde::Deserialize, ToSchema)]

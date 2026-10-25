@@ -7,7 +7,8 @@ use crate::error::Result;
 use crate::repo::surreal::{DbClient, RepoConn, rid, take_json};
 
 pub use crate::repo::traits::mail::{
-    MailAccountRow, MailMessageRow, MailStatus, NewMailAccount, NewMailMessage,
+    MailAccountRow, MailMessageRow, MailRuleInput, MailRuleRow, MailStatus, NewMailAccount,
+    NewMailMessage,
 };
 
 const ACCOUNT_FIELDS: &str = "meta::id(id) AS id, userId, label, imapHost, imapPort, username, secretEnc, \
@@ -221,6 +222,87 @@ impl<C: Connection> MailRepo<C> {
         Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
     }
 
+    pub async fn list_rules(&self, user_id: &str) -> Result<Vec<MailRuleRow>> {
+        let mut res = self
+            .db
+            .query(
+                "SELECT meta::id(id) AS id, position, enabled, fromPattern, subjectContains,
+                        bodyContains, action, accountId, categoryIds
+                 FROM mail_rule WHERE user = $uid ORDER BY position, createdAt",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(take_json(&mut res, 0)?)
+    }
+
+    pub async fn create_rule(&self, user_id: &str, input: &MailRuleInput) -> Result<MailRuleRow> {
+        let now = crate::utils::timex::now_go_ts();
+        let mut res = self
+            .db
+            .query(
+                "CREATE mail_rule CONTENT {
+                    user: $uid, position: $position, enabled: $enabled,
+                    fromPattern: $from, subjectContains: $subject, bodyContains: $body,
+                    action: $action, accountId: $account, categoryIds: $cats, createdAt: $created
+                } RETURN meta::id(id) AS id, position, enabled, fromPattern, subjectContains,
+                          bodyContains, action, accountId, categoryIds",
+            )
+            .bind(("uid", rid("user", user_id)))
+            .bind(("position", input.position))
+            .bind(("enabled", input.enabled))
+            .bind(("from", input.from_pattern.clone()))
+            .bind(("subject", input.subject_contains.clone()))
+            .bind(("body", input.body_contains.clone()))
+            .bind(("action", input.action.to_string()))
+            .bind(("account", input.account_id.clone()))
+            .bind(("cats", input.category_ids.clone()))
+            .bind(("created", now))
+            .await?
+            .check()?;
+        take_json::<MailRuleRow>(&mut res, 0)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| crate::error::ApiError::internal("mail rule create returned no row"))
+    }
+
+    pub async fn update_rule(
+        &self,
+        user_id: &str,
+        id: &str,
+        input: &MailRuleInput,
+    ) -> Result<bool> {
+        let mut res = self
+            .db
+            .query(
+                "UPDATE $rid SET position = $position, enabled = $enabled, fromPattern = $from,
+                    subjectContains = $subject, bodyContains = $body, action = $action,
+                    accountId = $account, categoryIds = $cats
+                 WHERE user = $uid RETURN AFTER",
+            )
+            .bind(("rid", rid("mail_rule", id)))
+            .bind(("uid", rid("user", user_id)))
+            .bind(("position", input.position))
+            .bind(("enabled", input.enabled))
+            .bind(("from", input.from_pattern.clone()))
+            .bind(("subject", input.subject_contains.clone()))
+            .bind(("body", input.body_contains.clone()))
+            .bind(("action", input.action.to_string()))
+            .bind(("account", input.account_id.clone()))
+            .bind(("cats", input.category_ids.clone()))
+            .await?;
+        Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
+    }
+
+    pub async fn delete_rule(&self, user_id: &str, id: &str) -> Result<bool> {
+        let mut res = self
+            .db
+            .query("DELETE $rid WHERE user = $uid RETURN BEFORE")
+            .bind(("rid", rid("mail_rule", id)))
+            .bind(("uid", rid("user", user_id)))
+            .await?;
+        Ok(!take_json::<serde_json::Value>(&mut res, 0)?.is_empty())
+    }
+
     pub async fn sweep_bodies(&self) -> Result<u64> {
         let mut res = self
             .db
@@ -282,6 +364,18 @@ impl crate::repo::traits::MailRepo for MailRepo<DbClient> {
     ) -> Result<bool> {
         self.resolve_message(user_id, id, status, approved_json, transaction_id)
             .await
+    }
+    async fn list_rules(&self, user_id: &str) -> Result<Vec<MailRuleRow>> {
+        self.list_rules(user_id).await
+    }
+    async fn create_rule(&self, user_id: &str, input: &MailRuleInput) -> Result<MailRuleRow> {
+        self.create_rule(user_id, input).await
+    }
+    async fn update_rule(&self, user_id: &str, id: &str, input: &MailRuleInput) -> Result<bool> {
+        self.update_rule(user_id, id, input).await
+    }
+    async fn delete_rule(&self, user_id: &str, id: &str) -> Result<bool> {
+        self.delete_rule(user_id, id).await
     }
     async fn sweep_bodies(&self) -> Result<u64> {
         self.sweep_bodies().await
