@@ -58,7 +58,6 @@ jobs:
                   raw = v["metadata"]["container"].get("tags") or []
                   versions.append({"id": v["id"],
                                    "at": datetime.strptime(v["updated_at"], "%Y-%m-%dT%H:%M:%SZ"),
-                                   # buildcache* tags are not releases; the cache is kept, not pruned.
                                    "tags": [t for t in raw if not t.startswith("buildcache")]})
           if not versions:
               sys.exit("no versions read")
@@ -76,8 +75,7 @@ jobs:
                   current.append(v)
           clusters.append(current)
 
-          # A buildcache version is the live registry build cache (see docker-publish.yml) and
-          # must never be deleted on its own; it is pruned only when the release it belongs to is.
+          # A buildcache version is the live cache; it only goes with its own release.
           releases = [c for c in clusters if any(v["tags"] for v in c)]
           if len(releases) <= keep:
               print(f"{len(releases)} release image(s) — nothing to prune")
