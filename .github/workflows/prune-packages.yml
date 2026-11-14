@@ -58,8 +58,6 @@ jobs:
                   raw = v["metadata"]["container"].get("tags") or []
                   versions.append({"id": v["id"],
                                    "at": datetime.strptime(v["updated_at"], "%Y-%m-%dT%H:%M:%SZ"),
-                                   # buildcache* tags are not releases; see `cache_only` below.
-                                   "cache": any(t.startswith("buildcache") for t in raw),
                                    "tags": [t for t in raw if not t.startswith("buildcache")]})
           if not versions:
               sys.exit("no versions read")
@@ -77,26 +75,15 @@ jobs:
                   current.append(v)
           clusters.append(current)
 
+          # A buildcache version is the live cache; it only goes with its own release.
           releases = [c for c in clusters if any(v["tags"] for v in c)]
-          kept = [sorted({t for v in c for t in v["tags"]}) for c in releases[-keep:]]
-          # Registry-cache versions carry nothing but a buildcache tag, so they never form a
-          # release cluster and would otherwise stay for ever. The build cache lives in the
-          # Actions cache now; the registry ones are leftovers, delete them every run.
-          cache_only = [v for v in versions if v["cache"]]
-          doomed = [v for c in releases[:-keep] for v in c] + cache_only
-          if not doomed:
-              print(f"{len(releases)} release image(s), no cache leftovers — nothing to prune")
+          if len(releases) <= keep:
+              print(f"{len(releases)} release image(s) — nothing to prune")
               sys.exit(0)
+          doomed = [v for c in releases[:-keep] for v in c]
+          kept = [sorted({t for v in c for t in v["tags"]}) for c in releases[-keep:]]
           print("keeping:", kept)
-          print(
-              "deleting:",
-              len(doomed),
-              "versions from",
-              max(0, len(releases) - keep),
-              "old release(s) and",
-              len(cache_only),
-              "cache leftover(s)",
-          )
+          print("deleting:", len(doomed), "versions from", len(releases) - keep, "old release(s)")
           if dry:
               sys.exit(0)
           ok = 0
