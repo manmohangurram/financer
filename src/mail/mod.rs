@@ -179,7 +179,7 @@ impl FakeSource {
     }
 
     pub fn fetched_uids(&self) -> Vec<u32> {
-        self.fetched.lock().map(|f| f.clone()).unwrap_or_default()
+        self.fetched.lock().map_or_default(|f| f.clone())
     }
 }
 
