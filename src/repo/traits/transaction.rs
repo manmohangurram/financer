@@ -177,7 +177,6 @@ pub trait TransactionRepo: Send + Sync {
         category_ids: &[String],
     ) -> Result<()>;
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>>;
-    async fn get_by_id_batch(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>>;
     async fn list(&self, user_id: &str, f: &TransactionListFilter)
     -> Result<ListTransactionResult>;
     async fn spending_rows(&self, user_id: &str, f: &SpendingFilter) -> Result<Vec<SpendingTxn>>;

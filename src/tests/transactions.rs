@@ -152,3 +152,59 @@ async fn list_total_count_covers_every_match_not_the_page() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(filtered["totalCount"], 1, "filtered total: {filtered}");
 }
+
+#[tokio::test]
+async fn account_balance_follows_its_transactions_through_edits() {
+    let app = TestApp::new().await;
+    app.create_txn("Salary", 1000.0, "CREDIT").await;
+    app.create_txn("Rent", 400.0, "DEBIT").await;
+    assert_eq!(balance_of(&app).await, 600.0);
+
+    // Editing a transaction recomputes the account instead of drifting by a delta.
+    let rent_id = txn_id(&app, "Rent").await;
+    let (status, body) = app
+        .request(
+            "PUT",
+            "/api/transactions",
+            Some(serde_json::json!({
+                "transactions": [{ "id": rent_id, "name": "Rent", "amount": 100.0, "type": "DEBIT" }]
+            })),
+            Some(&app.token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "update: {body}");
+    assert_eq!(balance_of(&app).await, 900.0);
+
+    let salary_id = txn_id(&app, "Salary").await;
+    let (status, body) = app
+        .request(
+            "DELETE",
+            "/api/transactions",
+            Some(serde_json::json!({ "ids": [salary_id] })),
+            Some(&app.token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT, "delete: {body}");
+    assert_eq!(balance_of(&app).await, -100.0);
+}
+
+async fn balance_of(app: &TestApp) -> f64 {
+    let (_, accounts) = app.get_json("/api/accounts", Some(&app.token)).await;
+    accounts["accounts"].as_array().unwrap()[0]["balance"]
+        .as_f64()
+        .unwrap()
+}
+
+async fn txn_id(app: &TestApp, name: &str) -> String {
+    let (_, list) = app
+        .get_json("/api/transactions?pageSize=50", Some(&app.token))
+        .await;
+    list["transactions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == name)
+        .and_then(|t| t["id"].as_str())
+        .unwrap()
+        .to_string()
+}

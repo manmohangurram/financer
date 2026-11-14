@@ -2,7 +2,8 @@
 //! `crate::repo::traits::TransactionRepo` over an `sqlx::SqlitePool`.
 
 use async_trait::async_trait;
-use sqlx::SqlitePool;
+use sqlx::{SqliteConnection, SqlitePool};
+use std::collections::{BTreeSet, HashMap};
 use std::fmt::Write;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -16,6 +17,63 @@ use crate::repo::traits::transaction::{
 
 pub struct SqliteTransactionRepo {
     pool: SqlitePool,
+}
+
+/// Recompute each touched account's stored balance and credit/debit totals from
+/// the transactions themselves, inside the caller's transaction. Recomputing
+/// rather than applying deltas means a retry cannot double-count, and the
+/// balance can never drift from the rows that justify it.
+async fn refresh_accounts(
+    tx: &mut SqliteConnection,
+    user_id: &str,
+    account_ids: &BTreeSet<String>,
+) -> Result<()> {
+    for id in account_ids {
+        sqlx::query(
+            "UPDATE accounts SET
+                balance = ROUND(totals.balance, 2),
+                total_credit = ROUND(totals.credit, 2),
+                total_debit = ROUND(totals.debit, 2)
+             FROM (
+                SELECT COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE -t.amount END), 0) AS balance,
+                       COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE 0 END), 0) AS credit,
+                       COALESCE(SUM(CASE WHEN t.type = 'DEBIT' THEN t.amount ELSE 0 END), 0) AS debit
+                  FROM transactions t WHERE t.account_id = ?
+             ) AS totals
+             WHERE accounts.id = ? AND accounts.user_id = ?",
+        )
+        .bind(id)
+        .bind(id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    Ok(())
+}
+
+/// The account each of `ids` is booked to, for reversing a move between accounts.
+async fn accounts_of(
+    tx: &mut SqliteConnection,
+    user_id: &str,
+    ids: &[String],
+) -> Result<HashMap<String, String>> {
+    let mut out = HashMap::new();
+    if ids.is_empty() {
+        return Ok(out);
+    }
+    let placeholders = vec!["?"; ids.len()].join(",");
+    let sql = format!(
+        "SELECT id, account_id FROM transactions WHERE user_id = ? AND id IN ({placeholders})"
+    );
+    let mut q =
+        sqlx::query_as::<_, (String, String)>(sqlx::AssertSqlSafe(sql.as_str())).bind(user_id);
+    for id in ids {
+        q = q.bind(id);
+    }
+    for (id, account_id) in q.fetch_all(&mut *tx).await? {
+        out.insert(id, account_id);
+    }
+    Ok(out)
 }
 
 impl SqliteTransactionRepo {
@@ -101,6 +159,7 @@ impl SqliteTransactionRepo {
         inputs: &[CreateTransactionInput],
     ) -> Result<CreateOutcome> {
         let mut inserted = std::collections::HashSet::new();
+        let mut touched: BTreeSet<String> = BTreeSet::new();
         let mut errors: Vec<String> = Vec::new();
         if inputs.is_empty() {
             return Ok(CreateOutcome { inserted, errors });
@@ -127,6 +186,7 @@ impl SqliteTransactionRepo {
             match res {
                 Ok(r) if r.rows_affected() > 0 => {
                     inserted.insert(t.id.clone());
+                    touched.insert(t.account_id.clone());
                     for cat in &input.category_ids {
                         if let Err(e) = sqlx::query(
                             "INSERT OR IGNORE INTO transaction_categories (transaction_id, category_id) VALUES (?, ?)",
@@ -148,6 +208,7 @@ impl SqliteTransactionRepo {
                 }
             }
         }
+        refresh_accounts(&mut tx, user_id, &touched).await?;
         tx.commit().await?;
         Ok(CreateOutcome { inserted, errors })
     }
@@ -161,7 +222,10 @@ impl SqliteTransactionRepo {
         if inputs.is_empty() {
             return Ok(errors);
         }
+        let mut touched: BTreeSet<String> = BTreeSet::new();
         let mut tx = self.pool.begin().await?;
+        let ids: Vec<String> = inputs.iter().map(|i| i.txn.id.clone()).collect();
+        let before = accounts_of(&mut tx, user_id, &ids).await?;
         for input in inputs {
             let t = &input.txn;
             let res = sqlx::query(
@@ -188,6 +252,15 @@ impl SqliteTransactionRepo {
             .await;
             match res {
                 Ok(r) if r.rows_affected() > 0 => {
+                    // Both sides of a move between accounts need their totals redone.
+                    let old_account = before.get(&t.id).cloned().unwrap_or_default();
+                    let new_account = if t.account_id.is_empty() {
+                        old_account.clone()
+                    } else {
+                        t.account_id.clone()
+                    };
+                    touched.insert(old_account);
+                    touched.insert(new_account);
                     if let Err(e) =
                         sqlx::query("DELETE FROM transaction_categories WHERE transaction_id = ?")
                             .bind(&t.id)
@@ -219,6 +292,7 @@ impl SqliteTransactionRepo {
                 }
             }
         }
+        refresh_accounts(&mut tx, user_id, &touched).await?;
         tx.commit().await?;
         Ok(errors)
     }
@@ -258,6 +332,8 @@ impl SqliteTransactionRepo {
             return Ok(errors);
         }
         let mut tx = self.pool.begin().await?;
+        let before = accounts_of(&mut tx, user_id, ids).await?;
+        let mut touched: BTreeSet<String> = BTreeSet::new();
         for id in ids {
             let res = sqlx::query("DELETE FROM transactions WHERE id = ? AND user_id = ?")
                 .bind(id)
@@ -265,7 +341,11 @@ impl SqliteTransactionRepo {
                 .execute(&mut *tx)
                 .await;
             match res {
-                Ok(r) if r.rows_affected() > 0 => {}
+                Ok(r) if r.rows_affected() > 0 => {
+                    if let Some(account_id) = before.get(id) {
+                        touched.insert(account_id.clone());
+                    }
+                }
                 Ok(_) => errors.push(format!("transaction {id} not found")),
                 Err(e) => {
                     errors.push(format!("failed to delete {id}"));
@@ -273,30 +353,9 @@ impl SqliteTransactionRepo {
                 }
             }
         }
+        refresh_accounts(&mut tx, user_id, &touched).await?;
         tx.commit().await?;
         Ok(errors)
-    }
-
-    async fn get_by_id_batch_inner(
-        &self,
-        user_id: &str,
-        ids: &[String],
-    ) -> Result<Vec<Transaction>> {
-        if ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let mut query = String::from(
-            "SELECT id, name, clean_name, amount, type, occurred_at, account_id, created_at, external_id FROM transactions WHERE user_id = ? AND id IN (",
-        );
-        query.push_str("?, ".repeat(ids.len()).trim_end_matches(", "));
-        query.push(')');
-        let mut q =
-            sqlx::query_as::<_, RawTransaction>(sqlx::AssertSqlSafe(query.as_str())).bind(user_id);
-        for id in ids {
-            q = q.bind(id);
-        }
-        let rows = q.fetch_all(&self.pool).await?;
-        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     async fn list_inner(
@@ -553,9 +612,6 @@ impl crate::repo::traits::TransactionRepo for SqliteTransactionRepo {
     }
     async fn delete(&self, user_id: &str, ids: &[String]) -> Result<Vec<String>> {
         self.delete_inner(user_id, ids).await
-    }
-    async fn get_by_id_batch(&self, user_id: &str, ids: &[String]) -> Result<Vec<Transaction>> {
-        self.get_by_id_batch_inner(user_id, ids).await
     }
     async fn list(
         &self,

@@ -1,7 +1,6 @@
 //! Transactions service — business logic mirroring Go's `services/transaction.go`.
 //! Rule overlay is Phase 4 and intentionally not wired here.
 
-use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use chrono::Datelike;
@@ -71,22 +70,6 @@ impl TransactionService {
     pub fn with_rule(mut self, rule: Arc<RuleService>) -> Self {
         self.rule = Some(rule);
         self
-    }
-
-    fn delta(transaction_type: TransactionType, amount: f64) -> f64 {
-        if transaction_type == TransactionType::Credit {
-            amount
-        } else {
-            -amount
-        }
-    }
-
-    fn totals(transaction_type: TransactionType, amount: f64) -> (f64, f64) {
-        if transaction_type == TransactionType::Credit {
-            (amount, 0.0)
-        } else {
-            (0.0, amount)
-        }
     }
 
     /// Reject the request with 400 unless the account and every category
@@ -206,28 +189,12 @@ impl TransactionService {
 
         let mut inserted_txns: Vec<Transaction> = Vec::new();
         let mut skipped = 0i64;
-        let mut deltas: HashMap<String, (f64, f64, f64)> = HashMap::new(); // account -> (balance, credit, debit)
         for t in &txns {
             if !outcome.inserted.contains(&t.id) {
                 skipped += 1;
                 continue;
             }
             inserted_txns.push(t.clone());
-            let (c, d) = Self::totals(t.transaction_type, t.amount);
-            let e = deltas
-                .entry(t.account_id.clone())
-                .or_insert((0.0, 0.0, 0.0));
-            e.0 += Self::delta(t.transaction_type, t.amount);
-            e.1 += c;
-            e.2 += d;
-        }
-        for (acc_id, (b, c, d)) in deltas {
-            if b != 0.0 {
-                self.account_repo.update_balance(&acc_id, b).await?;
-            }
-            if c != 0.0 || d != 0.0 {
-                self.account_repo.apply_totals(&acc_id, c, d).await?;
-            }
         }
 
         if let Some(tr) = &self.transfer_rule {
@@ -274,11 +241,6 @@ impl TransactionService {
                 }
             }
         }
-        let ids: Vec<String> = reqs.iter().map(|t| t.id.clone()).collect();
-        let old_txns = self.transaction_repo.get_by_id_batch(user_id, &ids).await?;
-        let old_map: HashMap<String, Transaction> =
-            old_txns.into_iter().map(|t| (t.id.clone(), t)).collect();
-
         let mut inputs: Vec<UpdateTransactionInput> = Vec::new();
         for t in reqs {
             inputs.push(UpdateTransactionInput {
@@ -298,45 +260,6 @@ impl TransactionService {
             });
         }
         let errs = self.transaction_repo.update(user_id, &inputs).await?;
-        let failed: HashSet<String> = failed_ids(&errs);
-
-        // Reverse old, apply new per account (balance + cached totals). Only for
-        // txns the repo actually updated — a failed row must not shift balances.
-        let mut deltas: HashMap<String, (f64, f64, f64)> = HashMap::new(); // account -> (balance, credit, debit)
-        for t in reqs {
-            if failed.contains(&t.id) {
-                continue;
-            }
-            let Some(old) = old_map.get(&t.id) else {
-                continue;
-            };
-            let acc_id = if t.account_id.is_empty() {
-                old.account_id.clone()
-            } else {
-                t.account_id.clone()
-            };
-            let (oc, od) = Self::totals(old.transaction_type, old.amount);
-            let e = deltas
-                .entry(old.account_id.clone())
-                .or_insert((0.0, 0.0, 0.0));
-            e.0 -= Self::delta(old.transaction_type, old.amount);
-            e.1 -= oc;
-            e.2 -= od;
-            let (nc, nd) = Self::totals(t.transaction_type, t.amount);
-            let e = deltas.entry(acc_id).or_insert((0.0, 0.0, 0.0));
-            e.0 += Self::delta(t.transaction_type, t.amount);
-            e.1 += nc;
-            e.2 += nd;
-        }
-        for (acc_id, (b, c, d)) in deltas {
-            if b != 0.0 {
-                self.account_repo.update_balance(&acc_id, b).await?;
-            }
-            if c != 0.0 || d != 0.0 {
-                self.account_repo.apply_totals(&acc_id, c, d).await?;
-            }
-        }
-
         if !errs.is_empty() {
             return Ok(BulkResult {
                 success: false,
@@ -357,33 +280,7 @@ impl TransactionService {
         if ids.is_empty() {
             return Err(ApiError::bad_request("no ids provided"));
         }
-        let old_txns = self.transaction_repo.get_by_id_batch(user_id, ids).await?;
         let errs = self.transaction_repo.delete(user_id, ids).await?;
-        let failed: HashSet<String> = failed_ids(&errs);
-
-        // Only reverse balances for txns that were actually deleted.
-        let mut deltas: HashMap<String, (f64, f64, f64)> = HashMap::new();
-        for t in &old_txns {
-            if failed.contains(&t.id) {
-                continue;
-            }
-            let e = deltas
-                .entry(t.account_id.clone())
-                .or_insert((0.0, 0.0, 0.0));
-            let (c, d) = Self::totals(t.transaction_type, t.amount);
-            e.0 -= Self::delta(t.transaction_type, t.amount);
-            e.1 -= c;
-            e.2 -= d;
-        }
-        for (acc_id, (b, c, d)) in deltas {
-            if b != 0.0 {
-                self.account_repo.update_balance(&acc_id, b).await?;
-            }
-            if c != 0.0 || d != 0.0 {
-                self.account_repo.apply_totals(&acc_id, c, d).await?;
-            }
-        }
-
         if !errs.is_empty() {
             return Ok(BulkResult {
                 success: false,
@@ -532,26 +429,6 @@ impl TransactionService {
             categories: category_items,
         })
     }
-}
-
-/// Extract the failed transaction ids from the repo's sanitized error messages
-/// (`failed to update {id}`, `failed to delete {id}`, `transaction {id} not found`).
-fn failed_ids(errs: &[String]) -> HashSet<String> {
-    errs.iter()
-        .filter_map(|e| {
-            for prefix in [
-                "failed to update ",
-                "failed to delete ",
-                "failed to create ",
-                "transaction ",
-            ] {
-                if let Some(rest) = e.strip_prefix(prefix) {
-                    return Some(rest.split(' ').next().unwrap_or("").to_string());
-                }
-            }
-            None
-        })
-        .collect()
 }
 
 // `total_` prefix matches the wire keys (totalBalance, ...).
