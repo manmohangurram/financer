@@ -10,7 +10,6 @@ use std::path::PathBuf;
 pub struct Config {
     pub server: Server,
     pub storage: Storage,
-    pub yahoo: YahooConfigSection,
 }
 
 #[derive(Debug, Clone)]
@@ -80,27 +79,6 @@ impl Default for Sqlite {
             page_size: 0,
             write_pool_size: 1,
             read_pool_size: 5,
-        }
-    }
-}
-
-/// The Yahoo Finance client config.
-#[derive(Debug, Clone)]
-pub struct YahooConfigSection {
-    pub bases: Vec<String>,
-    pub chart: String,
-    pub search: String,
-}
-
-impl Default for YahooConfigSection {
-    fn default() -> Self {
-        Self {
-            bases: vec![
-                "https://query1.finance.yahoo.com".into(),
-                "https://query2.finance.yahoo.com".into(),
-            ],
-            chart: "/v8/finance/chart/{symbol}?interval={interval}&period1={period1}&period2={period2}&includePrePost=true&events=div%7Csplit%7Cearn&lang=en-US&region=US&source=cosaic".into(),
-            search: "/v1/finance/search?q={query}&quotesCount=8&newsCount=0".into(),
         }
     }
 }

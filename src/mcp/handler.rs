@@ -9,14 +9,13 @@ use rmcp::{RoleServer, ServerHandler, tool, tool_handler, tool_router};
 
 use crate::mcp::models::{
     CategoriesReq, CreateAccountReq, CreateCategoryReq, CreateTransactionsReq,
-    CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, InvestmentReq,
-    ListTransactionsReq, LotInputReq, PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq,
-    TxnPayload, UpdateAccountReq, UpdateRuleReq, UpdateTransactionsReq,
+    CreateTransferCounterpartReq, DeleteReq, DeleteTransactionsReq, ListTransactionsReq,
+    PreviewRuleReq, RuleReq, RunRuleReq, TransfersReq, TxnPayload, UpdateAccountReq, UpdateRuleReq,
+    UpdateTransactionsReq,
 };
 use crate::repo::traits::transaction::{TransactionListFilter, TransactionType};
 use crate::service::account::AccountService;
 use crate::service::category::CategoryService;
-use crate::service::investment::InvestmentService;
 use crate::service::rule::RuleService;
 use crate::service::transaction::{TransactionReq, TransactionService};
 use crate::service::transfer::TransferService;
@@ -47,7 +46,6 @@ pub struct McpHandler {
     pub account: Arc<AccountService>,
     pub transaction: Arc<TransactionService>,
     pub category: Arc<CategoryService>,
-    pub investment: Arc<InvestmentService>,
     pub rule: Arc<RuleService>,
     pub transfer: Arc<TransferService>,
     pub transfer_rule: Arc<TransferRuleService>,
@@ -58,7 +56,6 @@ impl McpHandler {
         account: Arc<AccountService>,
         transaction: Arc<TransactionService>,
         category: Arc<CategoryService>,
-        investment: Arc<InvestmentService>,
         rule: Arc<RuleService>,
         transfer: Arc<TransferService>,
         transfer_rule: Arc<TransferRuleService>,
@@ -67,7 +64,6 @@ impl McpHandler {
             account,
             transaction,
             category,
-            investment,
             rule,
             transfer,
             transfer_rule,
@@ -130,16 +126,6 @@ impl McpHandler {
             Err(e) => return err_json(e.message),
         };
         serde_json::to_string(&d).unwrap_or_else(|e| err_json(format!("serialize error: {e}")))
-    }
-
-    #[tool(description = "Investments with lots and FIFO positions. Example: no arguments.")]
-    async fn get_portfolio(&self, ctx: RequestContext<RoleServer>) -> String {
-        let uid = uid!(&ctx);
-        let p = match self.investment.portfolio_summary(&uid).await {
-            Ok(p) => p,
-            Err(e) => return err_json(e.message),
-        };
-        serde_json::to_string(&p).unwrap_or_else(|e| err_json(format!("serialize error: {e}")))
     }
 
     #[tool(description = "List the user's categories. Example: no arguments.")]
@@ -515,171 +501,12 @@ impl McpHandler {
         }
     }
 
-    #[tool(
-        description = "Create an investment. Example args: {\"symbol\":\"RELIANCE\",\"name\":\"Reliance\",\"investmentType\":\"STOCK\"}."
-    )]
-    async fn create_investment(
-        &self,
-        ctx: RequestContext<RoleServer>,
-        Parameters(req): Parameters<InvestmentReq>,
-    ) -> String {
-        let uid = uid!(&ctx);
-        if !Self::can_write(&ctx) {
-            return err_json("read-only API key; cannot create investments");
-        }
-        match self
-            .investment
-            .create(
-                &uid,
-                &req.symbol,
-                &req.name,
-                req.investment_type,
-                req.manual_nav,
-            )
-            .await
-        {
-            Ok(r) => serde_json::to_string(&r)
-                .unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
-            Err(e) => err_json(e.message),
-        }
-    }
-
-    #[tool(
-        description = "Update an investment by id. Example args: {\"id\":\"<id>\",\"symbol\":\"RELIANCE\"}."
-    )]
-    async fn update_investment(
-        &self,
-        ctx: RequestContext<RoleServer>,
-        Parameters(req): Parameters<InvestmentReq>,
-    ) -> String {
-        let uid = uid!(&ctx);
-        if !Self::can_write(&ctx) {
-            return err_json("read-only API key; cannot update investments");
-        }
-        match self
-            .investment
-            .update(
-                &uid,
-                &req.id,
-                &req.symbol,
-                &req.name,
-                req.investment_type,
-                req.manual_nav,
-            )
-            .await
-        {
-            Ok(r) => serde_json::to_string(&r)
-                .unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
-            Err(e) => err_json(e.message),
-        }
-    }
-
-    #[tool(description = "Delete an investment by id. Example args: {\"id\":\"<id>\"}.")]
-    async fn delete_investment(
-        &self,
-        ctx: RequestContext<RoleServer>,
-        Parameters(req): Parameters<DeleteReq>,
-    ) -> String {
-        let uid = uid!(&ctx);
-        if !Self::can_write(&ctx) {
-            return err_json("read-only API key; cannot delete investments");
-        }
-        match self.investment.delete(&uid, &req.id).await {
-            Ok(()) => serde_json::json!({"ok": true}).to_string(),
-            Err(e) => err_json(e.message),
-        }
-    }
-
-    #[tool(
-        description = "Add a lot to an investment. Example args: {\"investmentId\":\"<id>\",\"side\":1,\"quantity\":10,\"price\":100,\"occurredAt\":\"2024-01-02 10:00:00 +0000 UTC\"}."
-    )]
-    async fn add_lot(
-        &self,
-        ctx: RequestContext<RoleServer>,
-        Parameters(req): Parameters<LotInputReq>,
-    ) -> String {
-        let uid = uid!(&ctx);
-        if !Self::can_write(&ctx) {
-            return err_json("read-only API key; cannot add lots");
-        }
-        match self
-            .investment
-            .add_lot(
-                &uid,
-                &req.investment_id,
-                req.side.unwrap_or(1),
-                req.quantity,
-                req.price,
-                &req.occurred_at,
-            )
-            .await
-        {
-            Ok(r) => serde_json::to_string(&r)
-                .unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
-            Err(e) => err_json(e.message),
-        }
-    }
-
-    #[tool(
-        description = "Update a lot by investment id + lot id. Example args: {\"investmentId\":\"<id>\",\"lotId\":\"<lot>\",\"quantity\":20}."
-    )]
-    async fn update_lot(
-        &self,
-        ctx: RequestContext<RoleServer>,
-        Parameters(req): Parameters<LotInputReq>,
-    ) -> String {
-        let uid = uid!(&ctx);
-        if !Self::can_write(&ctx) {
-            return err_json("read-only API key; cannot update lots");
-        }
-        match self
-            .investment
-            .update_lot(
-                &uid,
-                &req.investment_id,
-                &req.lot_id,
-                req.quantity,
-                req.price,
-                &req.occurred_at,
-            )
-            .await
-        {
-            Ok(r) => serde_json::to_string(&r)
-                .unwrap_or_else(|e| err_json(format!("serialize error: {e}"))),
-            Err(e) => err_json(e.message),
-        }
-    }
-
-    #[tool(description = "Delete a lot by lot id. Example args: {\"id\":\"<lot-id>\"}.")]
-    async fn delete_lot(
-        &self,
-        ctx: RequestContext<RoleServer>,
-        Parameters(req): Parameters<DeleteReq>,
-    ) -> String {
-        let uid = uid!(&ctx);
-        if !Self::can_write(&ctx) {
-            return err_json("read-only API key; cannot delete lots");
-        }
-        match self.investment.delete_lot(&uid, &req.id).await {
-            Ok(()) => serde_json::json!({"ok": true}).to_string(),
-            Err(e) => err_json(e.message),
-        }
-    }
-}
-
-/// Read the injected `KeyScope` and whether writes are allowed.
-impl McpHandler {
     fn can_write(ctx: &RequestContext<RoleServer>) -> bool {
         ctx.extensions
             .get::<http::request::Parts>()
             .and_then(|p| p.extensions.get::<KeyScope>())
             .is_some_and(KeyScope::can_write)
     }
-}
-
-fn bulk_json(r: &crate::service::transaction::BulkResult) -> String {
-    serde_json::json!({ "success": r.success, "message": r.message, "failedIds": r.failed_ids })
-        .to_string()
 }
 
 impl From<TxnPayload> for TransactionReq {
@@ -700,6 +527,11 @@ impl From<TxnPayload> for TransactionReq {
 #[allow(clippy::unused_async_trait_impl)]
 #[tool_handler]
 impl ServerHandler for McpHandler {}
+fn bulk_json(r: &crate::service::transaction::BulkResult) -> String {
+    serde_json::json!({ "success": r.success, "message": r.message, "failedIds": r.failed_ids })
+        .to_string()
+}
+
 fn err_json(msg: impl Into<String>) -> String {
     serde_json::json!({ "error": msg.into() }).to_string()
 }

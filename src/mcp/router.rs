@@ -19,7 +19,6 @@ pub fn mcp_router(st: &AppState) -> Router<()> {
         Arc::new(st.account.clone()),
         Arc::new(st.transaction.clone()),
         Arc::new(st.category.clone()),
-        Arc::new(st.investment.clone()),
         Arc::new(st.rule.clone()),
         Arc::new(st.transfer.clone()),
         Arc::new(st.transfer_rule.clone()),

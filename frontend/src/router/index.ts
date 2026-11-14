@@ -8,8 +8,6 @@ import SpendingView from '@/views/SpendingView.vue';
 import RulesView from '@/views/RulesView.vue';
 import InboxView from '@/views/InboxView.vue';
 import CategoriesView from '@/views/CategoriesView.vue';
-import InvestmentsView from '@/views/InvestmentsView.vue';
-import InvestmentDetailView from '@/views/InvestmentDetailView.vue';
 import ProfileView from '@/views/ProfileView.vue';
 import UiKitView from '@/views/UiKitView.vue';
 
@@ -30,8 +28,6 @@ const router = createRouter({
         { path: 'accounts/rules', name: 'rules', component: RulesView },
         { path: 'inbox', name: 'inbox', component: InboxView },
         { path: 'accounts/categories', name: 'categories', component: CategoriesView },
-        { path: 'investments', name: 'investments', component: InvestmentsView },
-        { path: 'investments/:id', name: 'investment-detail', component: InvestmentDetailView },
         { path: 'settings', name: 'settings', component: ProfileView },
         // Not in the nav: the primitives, in every state, for looking at.
         { path: 'ui-kit', name: 'ui-kit', component: UiKitView }

@@ -4,7 +4,7 @@
 //! secret: rotating tokens must not lock anyone out of their mailbox.
 //!
 //! Uses `ring` rather than a `RustCrypto` AEAD because `ring` is already compiled
-//! into this binary (`jsonwebtoken` and `reqwest` both pull it), so it adds no
+//! into this binary (`jsonwebtoken` pulls it), so it adds no
 //! dependency while the `RustCrypto` crate would be a new one.
 
 use base64::Engine;

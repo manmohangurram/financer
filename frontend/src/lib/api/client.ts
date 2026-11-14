@@ -59,24 +59,6 @@ export interface TransferServiceClient {
   createCounterpart: (req: unknown) => Promise<any>;
 }
 
-export interface InvestmentServiceClient {
-  createInvestment: (req: unknown) => Promise<any>;
-  listInvestments: (req: unknown) => Promise<any>;
-  getInvestment: (req: unknown) => Promise<any>;
-  updateInvestment: (req: unknown) => Promise<any>;
-  deleteInvestment: (req: unknown) => Promise<any>;
-  addLot: (req: unknown) => Promise<any>;
-  updateLot: (req: unknown) => Promise<any>;
-  deleteLot: (req: unknown) => Promise<any>;
-  listLots: (req: unknown) => Promise<any>;
-  importInvestments: (req: unknown) => Promise<any>;
-  importFile: (file: File) => Promise<{ id: string; headers: string[]; rowCount: number }>;
-  commitImportFile: (req: unknown) => Promise<any>;
-  searchSymbols: (req: unknown) => Promise<any>;
-  refreshPrices: (req: unknown) => Promise<any>;
-  getPortfolioSummary: (req: unknown) => Promise<any>;
-  getPriceHistory: (req: unknown) => Promise<any>;
-}
 
 export interface AnalyticsServiceClient {
   dashboard: (req: unknown) => Promise<any>;
@@ -102,7 +84,6 @@ let _transactions: TransactionServiceClient | null = null;
 let _rules: RuleServiceClient | null = null;
 let _mail: MailServiceClient | null = null;
 let _transfers: TransferServiceClient | null = null;
-let _investments: InvestmentServiceClient | null = null;
 let _analytics: AnalyticsServiceClient | null = null;
 let _profile: ProfileServiceClient | null = null;
 let _userKeys: UserKeyServiceClient | null = null;
@@ -185,7 +166,6 @@ async function uploadImportFile(path: string, file: File): Promise<{ id: string;
 }
 
 const importFile = (file: File) => uploadImportFile('/api/transactions/import/file', file);
-const importInvestmentFile = (file: File) => uploadImportFile('/api/investments/import/file', file);
 
 export function transactions(): TransactionServiceClient {
   if (!_transactions) {
@@ -244,29 +224,6 @@ export function transfers(): TransferServiceClient {
   return _transfers;
 }
 
-export function investments(): InvestmentServiceClient {
-  if (!_investments) {
-    _investments = {
-      createInvestment: api('POST', '/api/investments'),
-      listInvestments: api('GET', '/api/investments'),
-      getInvestment: api('GET', '/api/investments/{id}'),
-      updateInvestment: api('PUT', '/api/investments/{id}'),
-      deleteInvestment: api('DELETE', '/api/investments/{id}'),
-      addLot: api('POST', '/api/investments/{investmentId}/lots'),
-      updateLot: api('PUT', '/api/investments/{id}/lots/{lotId}'),
-      deleteLot: api('DELETE', '/api/investments/{id}/lots/{lotId}'),
-      listLots: api('GET', '/api/investments/{id}/lots'),
-      importInvestments: api('POST', '/api/investments/import'),
-      importFile: importInvestmentFile,
-      commitImportFile: api('POST', '/api/investments/import/file/commit'),
-      searchSymbols: api('GET', '/api/investments/search'),
-      refreshPrices: api('POST', '/api/investments/refresh-prices'),
-      getPortfolioSummary: api('GET', '/api/portfolio/summary'),
-      getPriceHistory: api('GET', '/api/investments/{id}/price-history')
-    };
-  }
-  return _investments;
-}
 
 export function analytics(): AnalyticsServiceClient {
   if (!_analytics) {

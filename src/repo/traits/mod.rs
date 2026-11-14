@@ -6,7 +6,6 @@
 
 pub mod account;
 pub mod category;
-pub mod investment;
 pub mod mail;
 pub mod rule;
 pub mod transaction;
@@ -17,7 +16,6 @@ pub mod user_key;
 // from them. Domain row/input types are imported from their own module.
 pub use account::AccountRepo;
 pub use category::CategoryRepo;
-pub use investment::InvestmentRepo;
 pub use mail::MailRepo;
 pub use rule::RuleRepo;
 pub use transaction::TransactionRepo;

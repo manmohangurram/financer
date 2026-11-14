@@ -26,7 +26,6 @@ use crate::repo::db::RepoSet;
 use crate::service::account::AccountService;
 use crate::service::auth::AuthService;
 use crate::service::category::CategoryService;
-use crate::service::investment::InvestmentService;
 use crate::service::mail::MailService;
 use crate::service::rule::RuleService;
 use crate::service::transaction::TransactionService;
@@ -34,7 +33,6 @@ use crate::service::transfer::TransferService;
 use crate::service::transfer_rule::TransferRuleService;
 use crate::service::user::UserService;
 use crate::service::user_key::UserKeyService;
-use crate::service::yahoo::YahooClient;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,7 +60,6 @@ async fn main() -> anyhow::Result<()> {
     let account_repo = repo_set.account.clone();
     let category_repo = repo_set.category.clone();
     let rule_repo = repo_set.rule.clone();
-    let investment_repo = Arc::clone(&repo_set.investment);
     let transaction_repo = repo_set.transaction.clone();
     let transaction_repo_clone = transaction_repo.clone();
     let account_repo_clone = account_repo.clone();
@@ -72,7 +69,6 @@ async fn main() -> anyhow::Result<()> {
     let user_key_svc = UserKeyService::new(repo_set.user_key.clone());
     let account_svc = AccountService::new(account_repo.clone());
     let category_svc = CategoryService::new(category_repo.clone());
-    let investment_svc = InvestmentService::new(investment_repo, YahooClient::new(&cfg.yahoo)?);
     let mail_svc = MailService::new(repo_set.mail.clone(), cfg.server.secret_key.clone());
     let rule_svc = RuleService::new(
         rule_repo.clone(),
@@ -107,7 +103,6 @@ async fn main() -> anyhow::Result<()> {
         user_key: user_key_svc,
         mail: mail_svc,
         account: account_svc,
-        investment: investment_svc,
         category: category_svc,
         rule: rule_svc,
         transfer_rule: transfer_rule_svc,

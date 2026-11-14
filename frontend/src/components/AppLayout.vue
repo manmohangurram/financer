@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { LayoutDashboard, CreditCard, PieChart, Inbox, BarChart3, MoreHorizontal } from '@lucide/vue';
+import { LayoutDashboard, CreditCard, PieChart, Inbox, MoreHorizontal } from '@lucide/vue';
 import { useRoute } from 'vue-router';
 import AppSidebar from '@/components/AppSidebar.vue';
 
@@ -14,8 +14,7 @@ const BAR = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/accounts', label: 'Accounts', icon: CreditCard },
   { to: '/accounts/spending', label: 'Spending', icon: PieChart },
-  { to: '/inbox', label: 'Inbox', icon: Inbox },
-  { to: '/investments', label: 'Investments', icon: BarChart3 }
+  { to: '/inbox', label: 'Inbox', icon: Inbox }
 ];
 
 const route = useRoute();

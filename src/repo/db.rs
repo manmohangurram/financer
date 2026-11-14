@@ -11,8 +11,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 
 use crate::error::Result;
 use crate::repo::traits::{
-    AccountRepo, CategoryRepo, InvestmentRepo, MailRepo, RuleRepo, TransactionRepo, UserKeyRepo,
-    UserRepo,
+    AccountRepo, CategoryRepo, MailRepo, RuleRepo, TransactionRepo, UserKeyRepo, UserRepo,
 };
 
 /// All repositories, type-erased so the service layer does not name a concrete
@@ -22,7 +21,6 @@ pub struct RepoSet {
     pub account: Arc<dyn AccountRepo>,
     pub category: Arc<dyn CategoryRepo>,
     pub rule: Arc<dyn RuleRepo>,
-    pub investment: Arc<dyn InvestmentRepo>,
     pub transaction: Arc<dyn TransactionRepo>,
     pub user_key: Arc<dyn UserKeyRepo>,
     pub mail: Arc<dyn MailRepo>,
@@ -49,9 +47,6 @@ pub async fn sqlite_repo_set(cfg: &crate::config::Sqlite) -> Result<RepoSet> {
             pool.clone(),
         )),
         rule: Arc::new(crate::repo::sqlite::rule::SqliteRuleRepo::new(pool.clone())),
-        investment: Arc::new(crate::repo::sqlite::investment::SqliteInvestmentRepo::new(
-            pool.clone(),
-        )),
         transaction: Arc::new(
             crate::repo::sqlite::transaction::SqliteTransactionRepo::new(pool.clone()),
         ),

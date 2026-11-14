@@ -1,8 +1,6 @@
 pub mod account;
 pub mod auth;
 pub mod category;
-pub mod fifo;
-pub mod investment;
 pub mod mail;
 pub mod rule;
 pub mod transaction;
@@ -10,4 +8,3 @@ pub mod transfer;
 pub mod transfer_rule;
 pub mod user;
 pub mod user_key;
-pub mod yahoo;

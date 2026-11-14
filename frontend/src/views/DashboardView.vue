@@ -13,22 +13,13 @@ const data = ref({
   totalBalance: 0,
   totalIncome: 0,
   totalExpenses: 0,
-  portfolioValue: 0,
-  accounts: [] as any[],
-  investments: [] as any[]
+  accounts: [] as any[]
 });
 const recent = ref<any[]>([]);
 const loading = ref(true);
 const failed = ref(false);
 
-const netWorth = computed(() => data.value.totalBalance + data.value.portfolioValue);
-const unrealised = computed(() =>
-  data.value.investments.reduce((sum: number, i: any) => sum + (i.unrealizedPnl || 0), 0)
-);
 const accountList = computed(() => data.value.accounts);
-const portfolioByPnl = computed(() =>
-  [...data.value.investments].sort((a: any, b: any) => (b.unrealizedPnl || 0) - (a.unrealizedPnl || 0))
-);
 const signed = (t: any) => (t.type === 'DEBIT' ? -Math.abs(t.amount || 0) : Math.abs(t.amount || 0));
 const pageSum = computed(() => recent.value.reduce((s: number, t: any) => s + signed(t), 0));
 
@@ -50,9 +41,7 @@ async function load() {
       totalBalance: resp.totalBalance || 0,
       totalIncome: resp.totalIncome || 0,
       totalExpenses: resp.totalExpenses || 0,
-      portfolioValue: resp.portfolioValue || 0,
-      accounts: resp.accounts || [],
-      investments: resp.investments || []
+      accounts: resp.accounts || []
     };
     recent.value = txns.transactions || [];
   } catch {
@@ -84,10 +73,10 @@ onMounted(load);
     <!-- the carried-forward band: one figure, then the three that explain it -->
     <section class="flex flex-col divide-y divide-rule rounded-card border border-rule bg-page md:flex-row md:divide-x md:divide-y-0">
       <div class="min-w-[240px] px-4 py-3.5 md:px-5">
-        <p class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Net worth</p>
+        <p class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Balance</p>
         <p v-if="loading" class="mt-2 h-8 w-40 animate-pulse rounded-full bg-page-sunk"></p>
         <p v-else class="tabular mt-1 font-display text-[34px] leading-none tracking-[-0.02em] text-ink">
-          {{ formatCurrency(netWorth) }}
+          {{ formatCurrency(data.totalBalance) }}
         </p>
       </div>
       <div class="flex-1 px-4 py-3.5 md:px-5">
@@ -99,14 +88,14 @@ onMounted(load);
         <p class="tabular mt-1 text-[16px] font-medium text-debit">− {{ formatCurrency(data.totalExpenses) }}</p>
       </div>
       <div class="flex-1 px-4 py-3.5 md:px-5">
-        <p class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Unrealised</p>
-        <p class="tabular mt-1 text-[16px] font-medium" :class="unrealised >= 0 ? 'text-ink' : 'text-debit'">
-          {{ unrealised >= 0 ? '+' : '−' }} {{ formatCurrency(Math.abs(unrealised)) }}
+        <p class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Net</p>
+        <p class="tabular mt-1 text-[16px] font-medium" :class="data.totalIncome - data.totalExpenses >= 0 ? 'text-ink' : 'text-debit'">
+          {{ formatCurrency(data.totalIncome - data.totalExpenses) }}
         </p>
       </div>
     </section>
 
-    <div class="grid items-start gap-4 lg:grid-cols-[1.15fr_1fr]">
+    <div class="grid items-start gap-4">
       <AppFolio title="Accounts" :subtitle="`${accountList.length} linked`">
         <div v-if="loading" class="flex flex-col gap-3">
           <span v-for="i in 3" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
@@ -136,32 +125,6 @@ onMounted(load);
         <AppEmpty v-else title="No accounts yet." hint="Add one to start booking entries." />
       </AppFolio>
 
-      <AppFolio title="Portfolio">
-        <template #actions>
-          <router-link to="/investments" class="text-[12px] text-accent hover:text-accent-hover">View all</router-link>
-        </template>
-        <div v-if="loading" class="flex flex-col gap-3">
-          <span v-for="i in 3" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
-        </div>
-        <div v-else-if="portfolioByPnl.length" class="flex flex-col">
-          <router-link
-            v-for="inv in portfolioByPnl"
-            :key="inv.id"
-            :to="`/investments/${inv.id}`"
-            class="-mx-2 grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-control px-2 py-1.5 transition-colors hover:bg-page-sunk/70"
-          >
-            <span class="min-w-0">
-              <span class="block truncate text-[13px] font-medium text-ink">{{ inv.name }}</span>
-              <span class="font-mono text-[11px] uppercase text-ink-mute">{{ inv.symbol }}</span>
-            </span>
-            <span class="tabular text-[13px] text-ink">{{ formatCurrency(inv.currentValue || 0) }}</span>
-            <span class="tabular w-[74px] text-right text-[13px] font-medium" :class="(inv.unrealizedPnl || 0) >= 0 ? 'text-credit' : 'text-debit'">
-              {{ (inv.unrealizedPnl || 0) >= 0 ? '+' : '−' }}{{ formatCurrency(Math.abs(inv.unrealizedPnl || 0)) }}
-            </span>
-          </router-link>
-        </div>
-        <AppEmpty v-else title="No investments yet." hint="Add an instrument to track it here." />
-      </AppFolio>
     </div>
 
     <AppFolio title="Recent entries" flush>
