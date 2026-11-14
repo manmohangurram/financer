@@ -58,6 +58,10 @@ pub struct AppState {
     pub domain_url: String,
 }
 
+/// Statement files are read into memory, and axum's default 2 MB body cap
+/// rejects a real bank statement, so the two import routes raise it.
+pub(crate) const MAX_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
+
 /// Read the `file` field of a multipart body as `(filename, bytes)`.
 pub(crate) async fn read_upload_file(mp: &mut Multipart) -> Option<(String, Vec<u8>)> {
     while let Ok(Some(field)) = mp.next_field().await {

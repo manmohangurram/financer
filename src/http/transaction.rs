@@ -1,6 +1,6 @@
 //! Transactions HTTP handlers — mirroring Go's `httpserver/transaction_handlers.go`.
 
-use axum::extract::{Multipart, Query, State};
+use axum::extract::{DefaultBodyLimit, Multipart, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
@@ -25,7 +25,8 @@ pub fn routes() -> Router<AppState> {
         )
         .route(
             "/api/transactions/import/file",
-            axum::routing::post(import_file),
+            axum::routing::post(import_file)
+                .layer(DefaultBodyLimit::max(crate::http::MAX_UPLOAD_BYTES)),
         )
         .route(
             "/api/transactions/import/file/commit",

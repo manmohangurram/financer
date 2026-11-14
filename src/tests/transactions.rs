@@ -127,3 +127,28 @@ async fn delete_restores_balance() {
     let (_, accounts) = app.get_json("/api/accounts", Some(&app.token)).await;
     assert_eq!(accounts["accounts"][0]["balance"].as_f64(), Some(0.0));
 }
+
+#[tokio::test]
+async fn list_total_count_covers_every_match_not_the_page() {
+    let app = TestApp::new().await;
+    for name in ["one", "two", "three"] {
+        assert_eq!(
+            app.create_txn(name, 10.0, "DEBIT").await.0,
+            StatusCode::CREATED
+        );
+    }
+
+    let (status, page) = app
+        .get_json("/api/transactions?pageSize=1", Some(&app.token))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["transactions"].as_array().unwrap().len(), 1);
+    assert_eq!(page["totalCount"], 3, "total must count all rows: {page}");
+
+    // A filtered page counts only what matches the filter.
+    let (status, filtered) = app
+        .get_json("/api/transactions?pageSize=1&names=two", Some(&app.token))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(filtered["totalCount"], 1, "filtered total: {filtered}");
+}
