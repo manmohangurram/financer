@@ -159,8 +159,8 @@ impl SqliteMailRepo {
             "SELECT id, message_id, from_addr, subject, received_at, status, parsed_json,
                     COALESCE(confidence, 0) AS confidence, raw_text, transaction_id
              FROM mail_messages
-             WHERE user_id = ? AND (?1 IS NULL OR status = ?2)
-             ORDER BY created_at DESC LIMIT ?3",
+             WHERE user_id = ? AND (? IS NULL OR status = ?)
+             ORDER BY created_at DESC LIMIT ?",
         )
         .bind(user_id)
         .bind(status.map(|s| s.to_string()))

@@ -1,58 +1,61 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import AppApexChart from '@/components/ui/AppApexChart.vue';
-import { palette } from '@/lib/chartPalette';
+import { computed, ref } from 'vue';
+import { formatCurrency } from '@/lib/utils/format';
 
-// Composition as one 100% stacked bar (the daisyUI-charts "bar" pattern), with the
-// amount legend rendered by the page — the bar carries share, the legend carries money.
-const props = withDefaults(defineProps<{ items: { name: string; amount: number }[]; height?: number }>(), {
-  height: 44
-});
+// One 100% bar. Flex-grow carries the proportion, so it always fills the box
+// edge to edge; hovering a segment shows its name, amount and share.
+const props = defineProps<{ items: { name: string; amount: number }[]; height?: number }>();
 
-// Apex lays horizontal bars out right-to-left, so the array is reversed to put the
-// biggest share at the left edge — the order the legend reads in.
-const ordered = computed(() => [...props.items].reverse());
-/** The axis must span exactly the total, or the segments don't tile the full width. */
+const height = computed(() => props.height ?? 30);
 const total = computed(() => props.items.reduce((sum, i) => sum + i.amount, 0) || 1);
-const series = computed(() => [{ name: 'Spent', data: ordered.value.map((i) => Number(i.amount.toFixed(2))) }]);
-const colors = computed(() =>
-  ordered.value.map((_i, idx) => palette.ramp[Math.min(ordered.value.length - 1 - idx, palette.ramp.length - 1)])
-);
 
-const options = computed(() => ({
-  chart: { type: 'bar', height: props.height, stacked: true },
-  plotOptions: {
-    bar: {
-      horizontal: true,
-      barHeight: 22,
-      distributed: true,
-      borderRadius: 3
-    }
-  },
-  colors: colors.value,
-  stroke: { width: 2, colors: [palette.page] },
-  dataLabels: { enabled: false },
-  legend: { show: false },
-  grid: { show: false, padding: { left: 0, right: 0, top: 0, bottom: 0 } },
-  xaxis: {
-    min: 0,
-    max: total.value,
-    labels: { show: false },
-    axisBorder: { show: false },
-    axisTicks: { show: false },
-    crosshairs: { show: false }
-  },
-  yaxis: { labels: { show: false } },
-  tooltip: { enabled: false }
-}));
+const hover = ref<{ name: string; amount: number; x: number; y: number } | null>(null);
+
+function share(amount: number): number {
+  return (amount / total.value) * 100;
+}
+
+function onEnter(item: { name: string; amount: number }, ev: MouseEvent) {
+  hover.value = { name: item.name, amount: item.amount, x: ev.clientX, y: ev.clientY };
+}
+function onMove(ev: MouseEvent) {
+  if (hover.value) hover.value = { ...hover.value, x: ev.clientX, y: ev.clientY };
+}
+function onLeave() {
+  hover.value = null;
+}
 </script>
 
 <template>
-  <div
-    v-if="items.length < 2"
-    class="w-full rounded-[3px] bg-accent"
-    :style="{ height: `${22}px` }"
-    :title="items[0] ? `${items[0].name}` : ''"
-  />
-  <AppApexChart v-else type="bar" :series="series" :options="options" :height="height" />
+  <div class="relative">
+    <div
+      class="flex w-full gap-[3px]"
+      role="img"
+      :aria-label="items.map((i) => `${i.name} ${formatCurrency(i.amount)}`).join(', ')"
+    >
+      <button
+        v-for="(item, i) in items"
+        :key="item.name"
+        type="button"
+        class="rounded-[3px] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        :style="{ flex: `${item.amount / total} 1 0`, height: `${height}px`, background: `var(--chart-${Math.min(i, 7)})` }"
+        :aria-label="`${item.name}: ${formatCurrency(item.amount)} (${share(item.amount).toFixed(0)}%)`"
+        @mouseenter="onEnter(item, $event)"
+        @mousemove="onMove"
+        @mouseleave="onLeave"
+        @focus="hover = { name: item.name, amount: item.amount, x: 0, y: 0 }"
+        @blur="onLeave"
+      />
+    </div>
+
+    <div
+      v-if="hover && hover.x"
+      class="pointer-events-none fixed z-50 whitespace-nowrap rounded-control border border-rule bg-page px-2 py-1 text-[11.5px] font-medium text-ink shadow-lift"
+      :style="{ left: `${hover.x + 12}px`, top: `${hover.y + 14}px` }"
+      role="status"
+    >
+      {{ hover.name }} · {{ formatCurrency(hover.amount) }}
+      <span class="text-ink-mute">{{ share(hover.amount).toFixed(0) }}%</span>
+    </div>
+  </div>
 </template>

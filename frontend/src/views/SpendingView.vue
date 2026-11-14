@@ -11,8 +11,8 @@ import AppTabs from '@/components/ui/AppTabs.vue';
 import AppSelect from '@/components/ui/AppSelect.vue';
 import AppField from '@/components/ui/AppField.vue';
 // ApexCharts is ~300 kB of the bundle: load it with the charts, on this page only.
-const SpendingTrendChart = defineAsyncComponent(() => import('@/components/ui/SpendingTrendChart.vue'));
-const CategoryShareBar = defineAsyncComponent(() => import('@/components/ui/CategoryShareBar.vue'));
+const SpendingColumnsChart = defineAsyncComponent(() => import('@/components/ui/SpendingColumnsChart.vue'));
+import CategoryShareBar from '@/components/ui/CategoryShareBar.vue';
 import AppStamp from '@/components/ui/AppStamp.vue';
 import AddTransactionModal from '@/components/workspace/AddTransactionModal.vue';
 
@@ -287,89 +287,109 @@ onMounted(loadAll);
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-3">
-    <!-- header: the figures, and the period that produces them -->
-    <header class="shrink-0">
-      <div class="flex items-center justify-between gap-4">
-        <h1 class="text-[22px] leading-none text-ink">Spending</h1>
+    <!-- title, the period that governs everything, and the action -->
+    <header class="flex shrink-0 flex-wrap items-center justify-between gap-3">
+      <h1 class="text-[22px] leading-none text-ink">Spending</h1>
+      <div class="flex flex-wrap items-center gap-3">
+        <AppTabs v-model="range" :items="RANGE_TABS" />
+        <span class="tabular whitespace-nowrap text-[12px] text-ink-soft">{{ rangeText }}</span>
         <AppButton @click="adding = true">Add entry</AppButton>
-      </div>
-      <div class="mt-2 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-rule pb-2.5">
-        <div class="flex items-stretch">
-          <div class="flex flex-col justify-end gap-1 pr-5">
-            <span class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Spent</span>
-            <span class="tabular font-display text-[28px] leading-none tracking-[-0.02em] text-ink">{{ formatCurrency(periodTotal) }}</span>
-          </div>
-          <div class="flex flex-col justify-end gap-1 border-l border-rule px-5">
-            <span class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Entries</span>
-            <span class="tabular text-[15px] leading-none text-ink">{{ drillTotal }}</span>
-          </div>
-          <div class="flex flex-col justify-end gap-1 border-l border-rule pl-5">
-            <span class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Largest</span>
-            <span class="text-[15px] leading-none text-ink">
-              {{ composition[0]?.name || '—' }}<template v-if="composition.length"> · {{ formatCurrency(composition[0].amount) }}</template>
-            </span>
-          </div>
-        </div>
-        <div class="flex items-end gap-3">
-          <AppTabs v-model="range" :items="RANGE_TABS" />
-          <span class="tabular pb-[9px] text-[12px] text-ink-soft">{{ rangeText }}</span>
-          <AppStamp v-if="selectedKey" tone="accent" class="mb-[6px] cursor-pointer" @click="selectedKey = null; refresh()">
-            {{ selectedLabel }} ✕
-          </AppStamp>
-        </div>
-      </div>
-      <div v-if="range === 'CUSTOM'" class="mt-2 flex items-end gap-2">
-        <AppField v-model="customStart" type="date" label="From" class="w-[160px]" />
-        <AppField v-model="customEnd" type="date" label="To" class="w-[160px]" />
-        <span class="pb-2 text-[12px] text-ink-mute">custom range feeds the chart, the breakdown and the ledger</span>
       </div>
     </header>
 
-    <p v-if="failed" class="flex items-center justify-between rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">
+    <div v-if="range === 'CUSTOM'" class="flex shrink-0 items-end gap-2">
+      <AppField v-model="customStart" type="date" label="From" class="w-[160px]" />
+      <AppField v-model="customEnd" type="date" label="To" class="w-[160px]" />
+    </div>
+
+    <p v-if="failed" class="flex shrink-0 items-center justify-between rounded-card border border-debit/40 px-3.5 py-2.5 text-[12.5px] text-debit">
       Spending could not be loaded.
       <AppButton variant="quiet" size="sm" @click="refresh">Retry</AppButton>
     </p>
 
-    <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
-      <div class="grid min-h-0 grid-rows-2 gap-3">
-        <!-- spending over time: smooth line, click a point to narrow -->
-        <AppFolio title="Spending over time" subtitle="click a point to narrow the ledger" class="min-h-0" body-class="flex min-h-0 flex-1 flex-col px-0 py-0">
-          <div class="relative grid min-h-0 flex-1 place-items-center">
-            <SpendingTrendChart
-              v-if="!loading && chartBuckets.length"
-              :points="chartBuckets"
-              :selected-key="selectedKey"
-              fill
-              @select="selectBucket"
-            />
-            <span v-else-if="loading" class="absolute inset-0 animate-pulse rounded-control bg-page-sunk" />
-            <div v-else class="flex h-full items-center justify-center">
-              <AppEmpty title="Nothing in this range." hint="Try a wider period, or clear the account filter." />
-            </div>
-          </div>
-        </AppFolio>
+    <AppStamp v-if="selectedKey" tone="accent" class="shrink-0 cursor-pointer self-start" @click="selectedKey = null; refresh()">
+      {{ selectedLabel }} ✕
+    </AppStamp>
 
-        <!-- composition: one 100% bar, amounts in the legend -->
-        <AppFolio title="Where it went" subtitle="top 6 by spend · others folded in" class="min-h-0" body-class="flex min-h-0 flex-1 flex-col justify-center" flush>
-          <div v-if="composition.length" class="flex flex-col justify-center px-4 py-3">
-            <CategoryShareBar :items="composition" :height="40" />
-            <div class="mt-2.5 flex flex-col">
-              <div v-for="(c, i) in composition" :key="c.name" class="flex items-center gap-2.5 border-b border-rule-soft py-[6px] last:border-0">
-                <span class="h-[9px] w-[9px] shrink-0 rounded-full" :style="{ background: `var(--chart-${i})` }" />
-                <span class="min-w-0 flex-1 truncate text-[12.5px] text-ink-soft">{{ c.name }}</span>
-                <span class="tabular text-[12.5px] font-medium text-ink">{{ formatCurrency(c.amount) }}</span>
-              </div>
-            </div>
-          </div>
-          <span v-else-if="loading" class="m-4 block h-[150px] animate-pulse rounded-control bg-page-sunk" />
-          <AppEmpty v-else title="No categorised spending." hint="Categories appear here once entries carry one." />
+    <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12 lg:grid-rows-[auto_minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <!-- the four facts of the period, each with a second line that means something -->
+      <div class="grid grid-cols-2 gap-3 lg:col-span-12 lg:grid-cols-4">
+        <AppFolio class="justify-center" body-class="flex flex-col justify-center">
+          <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Spent</p>
+          <p v-if="loading" class="mt-1.5 h-7 w-28 animate-pulse rounded-full bg-page-sunk"></p>
+          <p v-else class="tabular mt-1 font-display text-[26px] leading-none tracking-[-0.02em] text-ink">{{ formatCurrency(periodTotal) }}</p>
+          <p class="mt-1.5 text-[11.5px] text-ink-mute">{{ drillTotal }} entries in this period</p>
+        </AppFolio>
+        <AppFolio class="justify-center" body-class="flex flex-col justify-center">
+          <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Largest</p>
+          <p class="mt-1 truncate text-[20px] leading-none text-ink">{{ composition[0]?.name || '—' }}</p>
+          <p class="mt-1.5 text-[11.5px] text-ink-mute">{{ composition[0] ? formatCurrency(composition[0].amount) : 'nothing booked' }}</p>
+        </AppFolio>
+        <AppFolio class="justify-center" body-class="flex flex-col justify-center">
+          <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Categories</p>
+          <p class="tabular mt-1 text-[20px] leading-none text-ink">{{ composition.length }}</p>
+          <p class="mt-1.5 text-[11.5px] text-ink-mute">{{ chartBuckets.length }} {{ bucketWord() === 'day' ? 'days' : 'months' }} in range</p>
+        </AppFolio>
+        <AppFolio class="justify-center" body-class="flex flex-col justify-center">
+          <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Average / day</p>
+          <p class="tabular mt-1 text-[20px] leading-none text-ink">{{ formatCurrency(periodTotal / Math.max(1, chartBuckets.length)) }}</p>
+          <p class="mt-1.5 text-[11.5px] text-ink-mute">across the selected range</p>
         </AppFolio>
       </div>
 
-      <AppFolio title="Ledger" flush class="flex min-h-0 flex-1 flex-col" body-class="flex min-h-0 flex-1 flex-col">
+      <!-- when the money went -->
+      <AppFolio
+        title="Spending over time"
+        subtitle="click a day to narrow the ledger"
+        class="min-h-0 lg:col-span-7"
+        body-class="flex min-h-0 flex-1 flex-col justify-center"
+      >
+        <SpendingColumnsChart
+          v-if="!loading && chartBuckets.length"
+          :points="chartBuckets"
+          :selected-key="selectedKey"
+          :height="196"
+          @select="selectBucket"
+        />
+        <span v-else-if="loading" class="block h-[196px] animate-pulse rounded-control bg-page-sunk" />
+        <AppEmpty v-else title="Nothing in this range." hint="Try a wider period, or clear the account filter." />
+      </AppFolio>
+
+      <!-- what it went on: one bar, amounts in the legend, share on hover -->
+      <AppFolio
+        title="Where it went"
+        subtitle="top 6 by spend · others folded in"
+        class="min-h-0 lg:col-span-5"
+        body-class="flex min-h-0 flex-1 flex-col"
+        flush
+      >
+        <div v-if="composition.length" class="flex min-h-0 flex-1 flex-col">
+          <div class="px-4 pt-4">
+            <CategoryShareBar :items="composition" :height="30" />
+          </div>
+          <div class="mt-6 flex min-h-0 flex-1 flex-col gap-0 overflow-auto px-4 pb-2">
+            <div v-for="(c, i) in composition" :key="c.name" class="flex items-center gap-2.5 border-b border-rule-soft py-[7px] last:border-0">
+              <span class="h-[9px] w-[9px] shrink-0 rounded-full" :style="{ background: `var(--chart-${Math.min(i, 7)})` }" />
+              <span class="min-w-0 flex-1 truncate text-[12.5px] text-ink-soft">{{ c.name }}</span>
+              <span class="tabular text-[12.5px] font-medium text-ink">{{ formatCurrency(c.amount) }}</span>
+            </div>
+          </div>
+        </div>
+        <span v-else-if="loading" class="m-4 block h-[140px] animate-pulse rounded-control bg-page-sunk" />
+        <div v-else class="px-4 py-6"><AppEmpty title="No categorised spending." hint="Categories appear here once entries carry one." /></div>
+      </AppFolio>
+
+      <!-- the entries themselves -->
+      <AppFolio
+        title="Ledger"
+        flush
+        class="flex min-h-0 flex-col lg:col-span-12"
+        body-class="flex min-h-0 flex-1 flex-col"
+      >
         <template #actions>
           <span class="text-[12px] text-ink-mute">{{ drillTotal }} {{ drillTotal === 1 ? 'entry' : 'entries' }}</span>
         </template>
+
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-4 py-2">
           <AppSelect
             :model-value="store.state.selectedAccountId || ''"
@@ -390,40 +410,43 @@ onMounted(loadAll);
             </button>
           </div>
         </div>
+
         <div class="flex min-h-0 flex-1 flex-col overflow-auto">
-        <AppTable
-          :margin="false"
-          :columns="[
-            { label: 'Entry' },
-            { label: 'Category', hideOnMobile: true },
-            { label: 'Amount', align: 'right', width: '140px' }
-          ]"
-          :loading="loading"
-          :empty="!drillTxns.length"
-        >
-          <tr v-for="t in drillTxns" :key="t.id">
-            <td class="border-b border-rule-soft px-3 py-2.5">
-              <span class="block truncate text-[13px] text-ink">{{ t.name }}</span>
-              <span class="block text-[11px] text-ink-mute">{{ shortDate(t.occurredAt) }}</span>
-            </td>
-            <td class="hidden border-b border-rule-soft px-3 py-2.5 text-[12px] text-ink-soft md:table-cell">{{ categoryName(t) }}</td>
-            <td class="tabular border-b border-rule-soft px-3 py-2.5 text-right text-[13px] font-medium" :class="t.type === 'DEBIT' ? 'text-debit' : 'text-credit'">
-              {{ t.type === 'DEBIT' ? '−' : '+' }}{{ formatCurrency(Math.abs(t.amount || 0)) }}
-            </td>
-          </tr>
-          <template #empty>
-            <AppEmpty title="No entries in this range." hint="Widen the period, clear the account filter, or add an entry.">
-              <template #action><AppButton size="sm" @click="adding = true">Add entry</AppButton></template>
-            </AppEmpty>
-          </template>
-          <template #footer>
-            <tr>
-              <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute">Carried forward · this page</td>
-              <td class="tabular bg-page-sunk px-3 py-2.5 text-right font-display text-[15px] text-ink">{{ formatCurrency(pageSum) }}</td>
+          <AppTable
+            :margin="false"
+            :columns="[
+              { label: 'Entry' },
+              { label: 'Category', hideOnMobile: true },
+              { label: 'Amount', align: 'right', width: '140px' }
+            ]"
+            :loading="loading"
+            :empty="!drillTxns.length"
+          >
+            <tr v-for="t in drillTxns" :key="t.id">
+              <td class="border-b border-rule-soft px-3 py-2.5">
+                <span class="block truncate text-[13px] text-ink">{{ t.name }}</span>
+                <span class="block text-[11px] text-ink-mute">{{ shortDate(t.occurredAt) }}</span>
+              </td>
+              <td class="hidden border-b border-rule-soft px-3 py-2.5 text-[12px] text-ink-soft md:table-cell">{{ categoryName(t) }}</td>
+              <td class="tabular border-b border-rule-soft px-3 py-2.5 text-right text-[13px] font-medium" :class="t.type === 'DEBIT' ? 'text-debit' : 'text-credit'">
+                {{ t.type === 'DEBIT' ? '−' : '+' }}{{ formatCurrency(Math.abs(t.amount || 0)) }}
+              </td>
             </tr>
-          </template>
-        </AppTable>
+            <template #empty>
+              <AppEmpty title="No entries in this range." hint="Widen the period, clear the account filter, or add an entry.">
+                <template #action><AppButton size="sm" @click="adding = true">Add entry</AppButton></template>
+              </AppEmpty>
+            </template>
+            <template #footer>
+              <tr>
+                <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute">Carried forward · this page</td>
+                <td class="bg-page-sunk"></td>
+                <td class="tabular bg-page-sunk px-3 py-2.5 text-right font-display text-[15px] text-ink">{{ formatCurrency(pageSum) }}</td>
+              </tr>
+            </template>
+          </AppTable>
         </div>
+
         <template #footer>
           <div class="flex items-center justify-between">
             <span class="text-[12px] text-ink-mute">{{ drillTotal }} entries in the selected range</span>
