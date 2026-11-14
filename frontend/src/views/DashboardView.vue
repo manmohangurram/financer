@@ -161,7 +161,9 @@ onMounted(load);
         <template v-if="recent.length" #footer>
           <tr>
             <td class="m-cell"></td>
-            <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute" colspan="2">
+            <!-- the Account column disappears under md, so the span changes with it -->
+            <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute md:hidden">Carried forward · {{ recent.length }} latest</td>
+            <td class="hidden bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute md:table-cell" colspan="2">
               Carried forward · {{ recent.length }} of the latest entries
             </td>
             <td class="tabular bg-page-sunk px-3 py-2.5 text-right font-display text-[15px] text-ink">{{ formatCurrency(pageSum) }}</td>

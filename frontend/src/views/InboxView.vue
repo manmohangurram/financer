@@ -351,7 +351,7 @@ onMounted(load);
     </div>
 
     <div v-else class="rounded-card border border-rule bg-page overflow-hidden">
-      <div class="flex items-center gap-3 border-b border-rule bg-page-sunk px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
+      <div class="hidden items-center gap-3 border-b border-rule bg-page-sunk px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute md:flex">
         <input
           type="checkbox"
           class="h-3.5 w-3.5 accent-[var(--accent)]"
@@ -366,7 +366,7 @@ onMounted(load);
       </div>
 
       <template v-for="m in messages" :key="m.id">
-        <div class="flex items-center gap-3 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60 md:flex-nowrap">
           <input
             v-if="m.status === 'PENDING' || m.status === 'UNPARSED'"
             type="checkbox"
@@ -377,12 +377,12 @@ onMounted(load);
           />
           <span v-else class="w-3.5"></span>
 
-          <button class="min-w-0 flex-1 text-left" @click="expanded = expanded === m.id ? null : m.id">
+          <button class="w-[calc(100%-26px)] min-w-0 text-left md:w-auto md:flex-1" @click="expanded = expanded === m.id ? null : m.id">
             <span class="block truncate text-[13px] text-ink">{{ m.fromAddr }}</span>
             <span class="block truncate text-[11.5px] text-ink-mute">{{ m.subject || '(no subject)' }}</span>
           </button>
 
-          <span class="w-[104px] shrink-0 text-right">
+          <span class="ml-auto shrink-0 text-right md:ml-0 md:w-[104px]">
             <span class="tabular block text-[13px] font-medium" :class="parsed(m)?.direction === 'CREDIT' ? 'text-credit' : 'text-ink'">
               {{ summary(m) }}
             </span>
@@ -395,11 +395,11 @@ onMounted(load);
             </AppStamp>
           </span>
 
-          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex w-[150px] shrink-0 justify-end gap-1.5">
+          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex shrink-0 justify-end gap-1.5 md:w-[150px]">
             <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
             <AppButton variant="outline" size="sm" :disabled="busy" @click="act('REJECT', [m.id])">Reject</AppButton>
           </span>
-          <span v-else class="w-[150px] shrink-0"></span>
+          <span v-else class="hidden md:block md:w-[150px] md:shrink-0"></span>
         </div>
 
         <div v-if="expanded === m.id" class="flex flex-col gap-3 border-b border-rule-soft bg-page-sunk/40 px-4 py-3">

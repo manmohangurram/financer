@@ -5,6 +5,7 @@ import { reactive } from 'vue';
 export interface ChartPalette {
   accent: string;
   accentSoft: string;
+  accentQuiet: string;
   ink: string;
   inkMute: string;
   faint: string;
@@ -24,6 +25,8 @@ export function readChartPalette(): ChartPalette {
   return {
     accent: token('--accent', 'oklch(0.455 0.075 205)'),
     accentSoft: token('--accent-wash', 'oklch(0.94 0.02 205)'),
+    // accent at 28% — the receded state when another day is picked
+    accentQuiet: 'oklch(0.455 0.075 205 / 0.28)',
     ink: token('--ink', 'oklch(0.255 0.02 245)'),
     inkMute: token('--ink-mute', 'oklch(0.585 0.014 245)'),
     faint: token('--ink-faint', 'oklch(0.7 0.01 245)'),

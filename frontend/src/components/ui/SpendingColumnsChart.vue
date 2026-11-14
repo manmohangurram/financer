@@ -33,9 +33,11 @@ const options = computed(() => ({
       distributed: true
     }
   },
-  // the selected day is solid, the rest stay quiet
+  // everything solid until a day is picked; then the pick stays solid and the rest recede
   colors: computed(() =>
-    props.points.map((_p, i) => (i === selectedIndex.value ? palette.accent : 'oklch(0.455 0.075 205 / 0.28)'))
+    props.points.map((_p, i) =>
+      selectedIndex.value === -1 || i === selectedIndex.value ? palette.accent : palette.accentQuiet
+    )
   ).value,
   dataLabels: { enabled: false },
   legend: { show: false },
