@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { SlidersHorizontal, X, Loader2, Eye } from '@lucide/vue';
+import { X, Loader2, Eye } from '@lucide/vue';
 import { rules } from '@/lib/api/client';
 import AppInput from '@/components/AppInput.vue';
 import AppSelect from '@/components/AppSelect.vue';
@@ -62,7 +62,7 @@ async function runPreview() {
     <p class="text-[11px] text-ink-mute -mt-2">Lower priority numbers run first; later rules override earlier ones.</p>
 
     <div>
-      <span class="block text-[12px] text-ink-soft mb-2">Conditions</span>
+      <span class="mb-2 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Conditions</span>
       <div v-for="(cond, i) in form.conditions" :key="i" class="grid grid-cols-[1fr_1fr_2fr_auto] gap-2 mb-2 items-end">
         <AppSelect v-model="cond.matchField">
           <option v-for="f in matchFields" :key="f.value" :value="f.value">{{ f.label }}</option>
@@ -75,14 +75,11 @@ async function runPreview() {
           <X class="w-4 h-4" />
         </button>
       </div>
-      <button type="button" @click="addCondition" class="text-[12px] text-accent hover:underline">+ Add condition</button>
+      <button type="button" @click="addCondition" class="w-fit text-[12px] font-medium text-accent hover:underline">+ Add condition</button>
     </div>
 
-    <div class="pt-1 border-t border-rule">
-      <div class="flex items-center gap-2 mb-1">
-        <SlidersHorizontal class="w-4 h-4 text-accent" stroke-width="1.5" />
-        <span class="text-[13px] font-medium text-ink">Output actions</span>
-      </div>
+    <div class="border-t border-rule pt-3">
+      <span class="mb-1 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Output actions</span>
       <p class="text-[11.5px] text-ink-mute mb-3">Applied in order to every matched transaction. Multiple outputs are allowed.</p>
 
       <div v-for="(out, i) in form.outputs" :key="i" class="grid grid-cols-[1fr_1.2fr_2.4fr_auto] gap-2 mb-2 items-end">
@@ -108,13 +105,13 @@ async function runPreview() {
           <X class="w-4 h-4" />
         </button>
       </div>
-      <button type="button" @click="addOutput" class="text-[12px] text-accent hover:underline">+ Add output</button>
+      <button type="button" @click="addOutput" class="w-fit text-[12px] font-medium text-accent hover:underline">+ Add output</button>
     </div>
 
     <div class="pt-1 border-t border-rule">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-[13px] font-medium text-ink">Preview</span>
-        <button type="button" class="ns-primary btn-square" aria-label="Preview" title="Preview" :disabled="preview.loading" @click="runPreview">
+      <div class="mb-2 flex items-center justify-between">
+        <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Preview</span>
+        <button type="button" class="ns-icon border border-rule" aria-label="Preview" title="Preview" :disabled="preview.loading" @click="runPreview">
           <Loader2 v-if="preview.loading" class="w-3.5 h-3.5 animate-spin" />
           <Eye v-else class="w-3.5 h-3.5" />
         </button>

@@ -46,7 +46,7 @@ const ruleForm = ref(
 
 const catForm = ref({ name: props.type === 'category' && props.editingItem ? props.editingItem.name : '' });
 
-const titles: Record<ModalType, string> = { transaction: 'Transaction', rule: 'Rule', category: 'Category' };
+const titles: Record<ModalType, string> = { transaction: 'transaction', rule: 'rule', category: 'category' };
 
 function handleSubmit() {
   if (props.type === 'transaction') {
@@ -61,22 +61,25 @@ function handleSubmit() {
 
 <template>
   <AppModal :title="(editingItem ? 'Edit ' : 'New ') + titles[type]" :xwide="type === 'rule'" @close="emit('close')">
-    <form @submit.prevent="handleSubmit" class="p-6 flex flex-col gap-3">
+    <form class="flex flex-col gap-4 px-5 py-4" @submit.prevent="handleSubmit">
       <TransactionForm v-if="type === 'transaction'" v-model="txnForm" :accounts="accounts" :categories="categories" />
       <RuleForm v-else-if="type === 'rule'" v-model="ruleForm" :categories="categories" :accounts="accounts" />
       <CategoryForm v-else v-model="catForm" />
 
-      <div class="flex items-center justify-between pt-2">
+      <div class="flex items-center justify-between border-t border-rule pt-3">
         <div class="flex items-center gap-2">
           <button
             v-if="type === 'transaction' && editingItem?.linkedTransferId"
             type="button"
-            class="btn btn-outline btn-error shrink-0"
+            class="ns-quiet text-debit"
             @click="emit('unlink')"
           >Unlink transfer</button>
-          <button v-if="editingItem" type="button" @click="emit('delete')" class="btn btn-outline btn-error shrink-0">Delete</button>
+          <button v-if="editingItem" type="button" class="ns-quiet text-debit" @click="emit('delete')">Delete</button>
         </div>
-        <button type="submit" class="btn btn-primary">{{ editingItem ? 'Update' : 'Create' }}</button>
+        <div class="flex items-center gap-2">
+          <button type="button" class="ns-quiet" @click="emit('close')">Cancel</button>
+          <button type="submit" class="ns-primary">{{ editingItem ? 'Update' : 'Create' }}</button>
+        </div>
       </div>
     </form>
   </AppModal>

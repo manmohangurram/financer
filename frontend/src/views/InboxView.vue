@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import AppStamp from '@/components/ui/AppStamp.vue';
-import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus } from '@lucide/vue';
+import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus, ListTree } from '@lucide/vue';
 import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
 import { mail } from '@/lib/api/client';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -265,18 +265,20 @@ onMounted(load);
             <span v-if="a.lastError" class="text-debit"> · {{ a.lastError }}</span>
             <span v-else-if="a.lastPolledAt" class="text-ink-faint"> · checked {{ formatDate(a.lastPolledAt) }}</span>
           </span>
-          <span class="flex gap-1 shrink-0">
-            <button class="ns-icon" :disabled="busy" @click="pollAccount(a.id)">
-              <RefreshCw class="w-3.5 h-3.5" /> Check now
+          <span class="flex shrink-0 items-center gap-1">
+            <button class="ns-quiet" :disabled="busy" @click="pollAccount(a.id)">
+              <RefreshCw class="h-3.5 w-3.5" /> Check now
             </button>
-            <button class="ns-icon text-debit" :disabled="busy" @click="removeAccount(a.id)">
-              <Trash2 class="w-3.5 h-3.5" />
+            <button class="ns-icon text-debit" :disabled="busy" aria-label="Unlink mailbox" @click="removeAccount(a.id)">
+              <Trash2 class="h-3.5 w-3.5" />
             </button>
           </span>
         </div>
-        <button class="ns-icon gap-1 mt-1" @click="showMailboxForm = true">
-          <Plus class="w-3.5 h-3.5" /> Add mailbox
-        </button>
+        <div>
+          <button class="ns-quiet" @click="showMailboxForm = true">
+            <Plus class="h-3.5 w-3.5" /> Add mailbox
+          </button>
+        </div>
       </div>
     </div>
 
@@ -284,10 +286,14 @@ onMounted(load);
 
     <div class="overflow-hidden rounded-card border border-rule bg-page">
       <button class="flex w-full items-center justify-between px-4 py-2.5" @click="rulesOpen = !rulesOpen">
-        <span class="text-[14px] font-semibold text-ink">Rules <span class="text-ink-faint font-normal">({{ rules.length }})</span></span>
+        <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
+          <ListTree class="h-4 w-4" stroke-width="1.5" />
+          Rules
+          <span class="font-normal text-ink-faint">({{ rules.length }})</span>
+        </span>
         <ChevronDown class="w-4 h-4 text-ink-mute transition-transform" :class="rulesOpen ? 'rotate-180' : ''" />
       </button>
-      <div v-if="rulesOpen" class="border-t border-rule px-5 py-3 space-y-2">
+      <div v-if="rulesOpen" class="flex flex-col gap-2 border-t border-rule px-4 py-3">
         <p v-if="!rules.length" class="text-[12.5px] text-ink-mute">
           No rules. Everything is reviewed by hand until you add one.
         </p>
@@ -296,23 +302,23 @@ onMounted(load);
             <span class="mr-2 align-middle" :class="r.action === 'AUTO' ? 'text-credit' : r.action === 'IGNORE' ? 'text-ink-mute' : 'text-stamp'">
               {{ r.action.toLowerCase() }}
             </span>
-            <span class="text-ink-muted">{{ ruleLabel(r) }}</span>
+            <span class="text-ink-soft">{{ ruleLabel(r) }}</span>
           </span>
           <button class="ns-icon text-debit shrink-0" :disabled="busy" @click="deleteRule(r.id)">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-card border border-success/30 bg-success/10 px-3 py-2">
+        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-control border border-credit/30 bg-credit/5 px-3 py-2">
           <span class="text-[12.5px] text-ink">
             Auto-create for <span class="font-medium">{{ sugg.from }}</span>?
             <span class="text-ink-mute">{{ sugg.created }} created, 0 rejected</span>
           </span>
-          <button class="btn btn-success btn-xs shrink-0" :disabled="busy" @click="createAutoRule(sugg.from)">Create rule</button>
+          <button class="ns-primary-xs shrink-0" :disabled="busy" @click="createAutoRule(sugg.from)">Create rule</button>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 pt-2">
-          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="input input-sm bg-page border-rule text-[13px] flex-1 min-w-[180px]" />
+          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="h-[30px] flex-1 min-w-[180px] rounded-control border border-rule bg-page px-2 text-[12.5px] text-ink placeholder:text-ink-faint" />
           <input v-model="newRule.subjectContains" placeholder="subject contains" class="input input-sm bg-page border-rule text-[13px] flex-1 min-w-[150px]" />
           <select v-model="newRule.action" class="select select-sm bg-page border-rule text-[13px]">
             <option value="REVIEW">review</option>

@@ -89,7 +89,7 @@ async function createCounterpart() {
 
 <template>
   <AppModal title="Transfer" @close="emit('close')">
-    <div class="p-6 flex flex-col gap-3">
+    <div class="flex flex-col gap-4 px-5 py-4">
       <div class="grid grid-cols-2 gap-4">
         <AppSelect v-model="fromId" label="From account">
           <option v-for="a in accounts" :key="a.id" :value="a.id">{{ accName(a.id) }}</option>
@@ -98,8 +98,10 @@ async function createCounterpart() {
           <option v-for="a in accounts" :key="a.id" :value="a.id">{{ accName(a.id) }}</option>
         </AppSelect>
       </div>
-      <div class="flex items-center justify-center my-1">
-        <ArrowLeftRight class="w-4 h-4 text-accent" />
+      <div class="-my-1 flex items-center justify-center">
+        <span class="flex h-7 w-7 items-center justify-center rounded-full border border-rule bg-page text-ink-mute">
+          <ArrowLeftRight class="h-3.5 w-3.5" />
+        </span>
       </div>
 
       <div v-if="!prefill?.sourceId">
@@ -108,13 +110,13 @@ async function createCounterpart() {
             <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute" stroke-width="2" />
           </template>
         </AppInput>
-        <div class="mt-1 max-h-44 overflow-y-auto rounded-lg border border-rule">
+        <div class="mt-1.5 max-h-44 overflow-y-auto rounded-control border border-rule">
           <button
             v-for="t in sourceOptions"
             :key="t.id"
             type="button"
-            class="w-full text-left px-3 py-2 text-[12.5px] text-ink hover:bg-accent/10 transition-colors"
-            :class="t.id === sourceId ? 'bg-accent/15' : ''"
+            class="w-full px-3 py-2 text-left text-[12.5px] text-ink transition-colors hover:bg-page-sunk"
+            :class="t.id === sourceId ? 'bg-accent-wash' : ''"
             @click="sourceId = t.id"
           >
             <span class="font-medium">{{ t.name }}</span>
@@ -123,16 +125,16 @@ async function createCounterpart() {
           <div v-if="!sourceOptions.length" class="px-3 py-3 text-[12px] text-ink-mute">No unlinked debit transactions in {{ accName(fromId) }}</div>
         </div>
       </div>
-      <div v-else-if="source" class="rounded-lg border border-rule px-3 py-2.5">
-        <div class="text-[12px] text-ink-soft mb-0.5">Source</div>
+      <div v-else-if="source" class="rounded-control border border-rule bg-page-sunk/50 px-3 py-2.5">
+        <div class="mb-0.5 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Source</div>
         <div class="text-[13px] text-ink font-medium">{{ source.name }}</div>
         <div class="text-[12px] text-ink-mute">{{ formatCurrency(source.amount) }} · {{ formatDate(source.occurredAt) }} · {{ accName(fromId) }}</div>
       </div>
 
       <div v-if="source && fromId !== toId">
-        <label class="block text-[12px] text-ink-soft mb-1">Matches in {{ accName(toId) }}</label>
-        <div v-if="candidates.length" class="space-y-1.5">
-          <div v-for="c in candidates" :key="c.id" class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-rule">
+        <span class="mb-1.5 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Matches in {{ accName(toId) }}</span>
+        <div v-if="candidates.length" class="flex flex-col gap-1.5">
+          <div v-for="c in candidates" :key="c.id" class="flex items-center justify-between gap-3 rounded-control border border-rule px-3 py-2">
             <div class="min-w-0">
               <div class="text-[12.5px] text-ink truncate">{{ c.name }}</div>
               <div class="text-[11.5px] text-ink-mute">
@@ -141,8 +143,8 @@ async function createCounterpart() {
                 <span> · {{ c.days }}d</span>
               </div>
             </div>
-            <button type="button" class="btn btn-sm btn-primary gap-1 shrink-0" :disabled="!!submitting" @click="link(c)">
-              <Link2 class="w-3.5 h-3.5" />
+            <button type="button" class="ns-primary-xs shrink-0" :disabled="!!submitting" @click="link(c)">
+              <Link2 class="h-3.5 w-3.5" />
               Link
             </button>
           </div>
@@ -152,9 +154,10 @@ async function createCounterpart() {
 
       <p v-if="error" class="text-[13px] text-debit">{{ error }}</p>
 
-      <div class="flex justify-end pt-2">
-        <button type="button" class="btn btn-primary gap-1.5" :disabled="!source || toId === fromId || !!submitting" @click="createCounterpart">
-          <Plus class="w-4 h-4" />
+      <div class="flex items-center justify-end gap-2 border-t border-rule pt-3">
+        <button type="button" class="ns-quiet" @click="emit('close')">Cancel</button>
+        <button type="button" class="ns-primary" :disabled="!source || toId === fromId || !!submitting" @click="createCounterpart">
+          <Plus class="h-4 w-4" />
           {{ submitting === 'create' ? 'Creating…' : 'Create counterpart' }}
         </button>
       </div>
