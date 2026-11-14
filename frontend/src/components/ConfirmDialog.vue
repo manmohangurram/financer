@@ -16,7 +16,7 @@ const emit = defineEmits<{ (e: 'confirm'): void; (e: 'cancel'): void }>();
         <button
           type="button"
           @click="emit('cancel')"
-          class="btn btn-ghost btn-sm border border-track"
+          class="ns-quiet border border-rule"
         >
           Cancel
         </button>

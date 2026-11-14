@@ -15,7 +15,7 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'imported'): void }>();
 type Mode = 'manual' | 'csv';
 const mode = ref<Mode>('manual');
 
-const selectCls = 'select w-full bg-surface border-border text-text text-[13px]';
+const selectCls = 'select w-full bg-page border-rule text-ink text-[13px]';
 
 const txnForm = ref<{
   name: string; amount: number; type: 'DEBIT' | 'CREDIT';
@@ -150,11 +150,11 @@ async function runImport() {
 <template>
   <AppModal title="Add Transaction" wide @close="emit('close')">
     <div class="p-6">
-      <div class="flex gap-1 rounded-xl bg-surface border border-border p-1 mb-5" role="group" aria-label="Add method">
+      <div class="flex gap-1 rounded-card bg-page border border-rule p-1 mb-5" role="group" aria-label="Add method">
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="mode === 'manual' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
+          :class="mode === 'manual' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
           @click="switchMode('manual')"
         >
           <PenLine class="w-4 h-4" stroke-width="1.5" />
@@ -163,7 +163,7 @@ async function runImport() {
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="mode === 'csv' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
+          :class="mode === 'csv' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
           @click="switchMode('csv')"
         >
           <FileSpreadsheet class="w-4 h-4" stroke-width="1.5" />
@@ -173,7 +173,7 @@ async function runImport() {
 
       <form v-if="mode === 'manual'" @submit.prevent="submitManual" class="space-y-4">
         <TransactionForm v-model="txnForm" :accounts="accounts" :categories="categories" />
-        <p v-if="error" class="text-[13px] text-expense">{{ error }}</p>
+        <p v-if="error" class="text-[13px] text-debit">{{ error }}</p>
         <div class="flex justify-end pt-2">
           <button type="submit" class="btn btn-primary" :disabled="submitting">
             {{ submitting ? 'Adding...' : 'Add Transaction' }}
@@ -187,38 +187,38 @@ async function runImport() {
             <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
           </AppSelect>
           <div
-            class="mt-4 border-2 border-dashed rounded-xl p-8 text-center transition-colors"
-            :class="dragOver ? 'border-primary-500 bg-primary-500/5' : 'border-border hover:border-primary-500/40'"
+            class="mt-4 border-2 border-dashed rounded-card p-8 text-center transition-colors"
+            :class="dragOver ? 'border-primary-500 bg-accent/5' : 'border-rule hover:border-primary-500/40'"
             @dragover.prevent="dragOver = true"
             @dragleave.prevent="dragOver = false"
             @drop.prevent="handleDrop"
           >
-            <Upload class="w-10 h-10 mx-auto mb-3 text-faint" stroke-width="1.5" />
-            <p class="text-[14px] text-text-muted mb-2">Drop CSV, XLSX or PDF file, or click to browse</p>
-            <button type="button" class="btn btn-outline btn-sm" @click="fileInput?.click()">Choose file</button>
+            <Upload class="w-10 h-10 mx-auto mb-3 text-ink-faint" stroke-width="1.5" />
+            <p class="text-[14px] text-ink-soft mb-2">Drop CSV, XLSX or PDF file, or click to browse</p>
+            <button type="button" class="ns-quiet" @click="fileInput?.click()">Choose file</button>
             <input ref="fileInput" type="file" accept=".csv,.xlsx,.pdf" class="hidden" @change="handleFile" />
           </div>
-          <p v-if="error" class="text-[13px] text-expense mt-2">{{ error }}</p>
+          <p v-if="error" class="text-[13px] text-debit mt-2">{{ error }}</p>
         </template>
         <template v-else>
-          <div class="flex gap-1 rounded-xl bg-surface border border-border p-1 mb-4" role="group" aria-label="Amount format">
+          <div class="flex gap-1 rounded-card bg-page border border-rule p-1 mb-4" role="group" aria-label="Amount format">
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'single' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
+              :class="formatMode === 'single' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
               @click="switchFormat('single')"
             >Single amount column</button>
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'split' ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
+              :class="formatMode === 'split' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
               @click="switchFormat('split')"
             >Debit + Credit columns</button>
           </div>
-          <p class="text-[13px] text-text-muted mb-3">Map your columns to the transaction fields:</p>
+          <p class="text-[13px] text-ink-soft mb-3">Map your columns to the transaction fields:</p>
           <div class="space-y-2 max-h-60 overflow-y-auto">
             <div v-for="f in requiredFields" :key="f.key" class="flex items-center gap-3">
-              <span class="text-[13px] text-text w-36 shrink-0">{{ f.label }}</span>
+              <span class="text-[13px] text-ink w-36 shrink-0">{{ f.label }}</span>
               <select :value="fieldToCol[f.key]" @change="onFieldChange(f, ($event.target as HTMLSelectElement).value)" :class="[selectCls, 'flex-1']">
                 <option :value="-1">— None —</option>
                 <option v-for="(header, i) in headers" :key="i" :value="i">{{ header }}</option>
@@ -226,12 +226,12 @@ async function runImport() {
             </div>
           </div>
           <div class="flex items-center justify-between mt-4">
-            <button @click="step = 1" class="text-[13px] text-subtle hover:text-text">Back</button>
+            <button @click="step = 1" class="text-[13px] text-ink-mute hover:text-ink">Back</button>
             <button @click="runImport" class="btn btn-primary" :disabled="importing">
               {{ importing ? 'Importing...' : `Import ${rowCount} rows` }}
             </button>
           </div>
-          <p v-if="error" class="text-[13px] text-expense mt-2">{{ error }}</p>
+          <p v-if="error" class="text-[13px] text-debit mt-2">{{ error }}</p>
         </template>
       </div>
     </div>

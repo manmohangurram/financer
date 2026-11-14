@@ -64,7 +64,7 @@ async function remove() {
 <template>
   <AppModal :title="account ? 'Edit Account' : 'New Account'" @close="emit('close')">
     <form @submit.prevent="submit" class="px-6 py-5 space-y-3">
-      <p v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</p>
+      <p v-if="error" class="rounded-card border border-expense/30 bg-debit/10 px-4 py-3 text-[13px] text-debit">{{ error }}</p>
       <AppInput v-model="form.bankName" label="Bank Name" placeholder="e.g. Chase" />
       <AppInput v-model="form.nickname" label="Nickname" placeholder="e.g. Main Checking" />
       <AppInput

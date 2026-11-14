@@ -61,7 +61,7 @@ async function submit() {
 <template>
   <AppModal title="Link a mailbox" @close="emit('close')">
     <form class="px-6 py-5 space-y-3" @submit.prevent="submit">
-      <p v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</p>
+      <p v-if="error" class="rounded-card border border-expense/30 bg-debit/10 px-4 py-3 text-[13px] text-debit">{{ error }}</p>
 
       <AppInput v-model="form.label" label="Label" placeholder="e.g. Personal Gmail" hint="Optional; shown in the list" />
       <AppInput v-model="form.imapHost" label="IMAP host" placeholder="imap.gmail.com" required />

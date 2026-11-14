@@ -266,15 +266,15 @@ onMounted(load);
             <span v-else-if="a.lastPolledAt" class="text-ink-faint"> · checked {{ formatDate(a.lastPolledAt) }}</span>
           </span>
           <span class="flex gap-1 shrink-0">
-            <button class="btn btn-ghost btn-xs" :disabled="busy" @click="pollAccount(a.id)">
+            <button class="ns-icon" :disabled="busy" @click="pollAccount(a.id)">
               <RefreshCw class="w-3.5 h-3.5" /> Check now
             </button>
-            <button class="btn btn-ghost btn-xs text-debit" :disabled="busy" @click="removeAccount(a.id)">
+            <button class="ns-icon text-debit" :disabled="busy" @click="removeAccount(a.id)">
               <Trash2 class="w-3.5 h-3.5" />
             </button>
           </span>
         </div>
-        <button class="btn btn-ghost btn-xs gap-1 mt-1" @click="showMailboxForm = true">
+        <button class="ns-icon gap-1 mt-1" @click="showMailboxForm = true">
           <Plus class="w-3.5 h-3.5" /> Add mailbox
         </button>
       </div>
@@ -298,12 +298,12 @@ onMounted(load);
             </span>
             <span class="text-ink-muted">{{ ruleLabel(r) }}</span>
           </span>
-          <button class="btn btn-ghost btn-xs text-debit shrink-0" :disabled="busy" @click="deleteRule(r.id)">
+          <button class="ns-icon text-debit shrink-0" :disabled="busy" @click="deleteRule(r.id)">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-xl border border-success/30 bg-success/10 px-3 py-2">
+        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-card border border-success/30 bg-success/10 px-3 py-2">
           <span class="text-[12.5px] text-ink">
             Auto-create for <span class="font-medium">{{ sugg.from }}</span>?
             <span class="text-ink-mute">{{ sugg.created }} created, 0 rejected</span>
@@ -312,25 +312,25 @@ onMounted(load);
         </div>
 
         <div class="flex flex-wrap items-center gap-2 pt-2">
-          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="input input-sm bg-surface border-rule text-[13px] flex-1 min-w-[180px]" />
-          <input v-model="newRule.subjectContains" placeholder="subject contains" class="input input-sm bg-surface border-rule text-[13px] flex-1 min-w-[150px]" />
-          <select v-model="newRule.action" class="select select-sm bg-surface border-rule text-[13px]">
+          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="input input-sm bg-page border-rule text-[13px] flex-1 min-w-[180px]" />
+          <input v-model="newRule.subjectContains" placeholder="subject contains" class="input input-sm bg-page border-rule text-[13px] flex-1 min-w-[150px]" />
+          <select v-model="newRule.action" class="select select-sm bg-page border-rule text-[13px]">
             <option value="REVIEW">review</option>
             <option value="IGNORE">ignore</option>
             <option value="AUTO">auto</option>
           </select>
-          <button class="btn btn-ghost btn-sm border border-track gap-1" :disabled="busy" @click="addRule">
+          <button class="ns-quiet border border-rule gap-1" :disabled="busy" @click="addRule">
             <Plus class="w-3.5 h-3.5" /> Add
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="selected.size" class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-2.5">
+    <div v-if="selected.size" class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-card border border-primary-500/30 bg-accent/10 px-4 py-2.5">
       <span class="text-[13px] font-medium text-ink">{{ selected.size }} selected</span>
       <span class="flex gap-2">
-        <button class="btn btn-primary btn-sm" :disabled="busy" @click="act('APPROVE', [...selected])">Approve</button>
-        <button class="btn btn-ghost btn-sm border border-track" :disabled="busy" @click="act('REJECT', [...selected])">Reject</button>
+        <button class="ns-primary" :disabled="busy" @click="act('APPROVE', [...selected])">Approve</button>
+        <button class="ns-quiet border border-rule" :disabled="busy" @click="act('REJECT', [...selected])">Reject</button>
       </span>
     </div>
 
@@ -338,11 +338,11 @@ onMounted(load);
       <span class="loading loading-dots loading-lg text-primary"></span>
     </div>
 
-    <div v-else-if="!messages.length" class="rounded-2xl border border-rule bg-page px-8 py-14 text-center">
+    <div v-else-if="!messages.length" class="rounded-card border border-rule bg-page px-8 py-14 text-center">
       <p class="text-[14px] text-ink-mute">Nothing here. Alerts are picked up on the next poll.</p>
     </div>
 
-    <div v-else class="rounded-2xl border border-rule bg-page overflow-hidden">
+    <div v-else class="rounded-card border border-rule bg-page overflow-hidden">
       <div class="flex items-center gap-3 px-5 py-2.5 border-b border-rule text-[12px] text-ink-faint uppercase tracking-wide">
         <input
           type="checkbox"
@@ -371,7 +371,7 @@ onMounted(load);
           </button>
 
           <span class="text-right shrink-0">
-            <span class="block text-[13.5px] font-semibold" :class="parsed(m)?.direction === 'CREDIT' ? 'text-income' : 'text-ink'">
+            <span class="block text-[13.5px] font-semibold" :class="parsed(m)?.direction === 'CREDIT' ? 'text-credit' : 'text-ink'">
               {{ summary(m) }}
             </span>
             <span class="block text-[11.5px] text-ink-faint">{{ hint(m) }}</span>
@@ -388,13 +388,13 @@ onMounted(load);
           >{{ m.status.toLowerCase() }}</span>
 
           <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex gap-1 shrink-0">
-            <button class="btn btn-primary btn-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
-            <button class="btn btn-ghost btn-xs border border-track" :disabled="busy" @click="act('REJECT', [m.id])">Reject</button>
+            <button class="ns-primary-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
+            <button class="ns-icon border border-rule" :disabled="busy" @click="act('REJECT', [m.id])">Reject</button>
           </span>
         </div>
 
         <div v-if="expanded === m.id" class="px-5 pb-4 space-y-3">
-          <pre v-if="m.rawText" class="whitespace-pre-wrap rounded-xl bg-surface p-3 text-[12px] text-ink-mute max-h-64 overflow-auto">{{ m.rawText }}</pre>
+          <pre v-if="m.rawText" class="whitespace-pre-wrap rounded-card bg-page p-3 text-[12px] text-ink-mute max-h-64 overflow-auto">{{ m.rawText }}</pre>
           <p v-else class="text-[12px] text-ink-faint">The message body was pruned once this row was resolved.</p>
 
           <div v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex flex-wrap items-center gap-2">
@@ -402,11 +402,11 @@ onMounted(load);
               Account
               <span v-if="parsed(m)?.accountHint" class="text-ink-faint">(mail says …{{ parsed(m)?.accountHint }})</span>
             </span>
-            <select v-model="pickAccount[m.id]" class="select select-sm bg-surface border-rule text-[13px]">
+            <select v-model="pickAccount[m.id]" class="select select-sm bg-page border-rule text-[13px]">
               <option value="">From the last 4 digits</option>
               <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.label || a.username }}</option>
             </select>
-            <button class="btn btn-primary btn-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
+            <button class="ns-primary-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
           </div>
         </div>
       </template>

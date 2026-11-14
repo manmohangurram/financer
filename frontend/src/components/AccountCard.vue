@@ -24,7 +24,7 @@ const emit = defineEmits<{ (e: 'edit', account: any): void }>();
         <button
           v-if="!compact"
           @click="emit('edit', account)"
-          class="w-9 h-9 rounded-lg flex items-center justify-center text-ink-mute hover:text-accent hover:bg-primary-500/10 transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          class="w-9 h-9 rounded-lg flex items-center justify-center text-ink-mute hover:text-accent hover:bg-accent/10 transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           aria-label="Edit account"
         >
           <Pencil class="w-[18px] h-[18px]" />
