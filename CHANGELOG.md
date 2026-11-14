@@ -6,6 +6,50 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) with an `-alpha` suff
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
+## [0.4.0-alpha] — 2026-11-15
+
+A redesign release. The frontend was rebuilt on one design system — tokens, primitives, and then every
+page — and the investments feature was deleted with it.
+
+### Changed
+
+- **The UI is one system now: "the ledger".** Paper surfaces, hairline rules, one petrol accent, a ruled
+  margin column that carries state (the reconciliation tick, the priority number, the row's type), and
+  two families: Newsreader for titles and the carried-forward figure, IBM Plex Sans everywhere else.
+  Light is the default; dark is the same ledger at night. (#166, #167)
+- **The primitives were rebuilt, not restyled:** `AppButton`, `AppField`, `AppSelect` (a real listbox —
+  there is no native `<select>` left in the app), `AppTabs`, `AppStamp`, `AppTick`, `AppModal`,
+  `AppMenu`, `AppToaster`, `AppFolio`, `AppTable`, `AppEmpty`, `AppSkeleton`. (#167)
+- **Spending is a bento page:** four fact tiles (spent, largest, categories, average per day), spend per
+  day as columns you click to narrow the ledger, and a full-width allocation strip whose segments show
+  name · amount · share on hover. The ledger below scrolls on its own; the page fills the window. (#169,
+  #171, #172)
+- **Charts are ApexCharts**, loaded asynchronously on Spending only so the entry bundle stays ~90 kB
+  gzipped; the palette is read from the CSS tokens and re-read when the theme flips. (#171)
+- Every other page — Dashboard, Accounts, Manage, Categories, Rules, Inbox, Settings, Login, Signup —
+  and every modal and form behind them is on the same components. (#172)
+- `frontend/UI_STANDARDS.md` was rewritten from scratch: tokens, type scale, the margin, component
+  states, per-page composition, and the rules the code is checked against. (#166, #172)
+
+### Removed
+
+- **Investments.** The pages, the API, the service and the repository are gone, and migration
+  `000017_drop_investments` drops the tables on boot. (#170)
+- Dead frontend components with nothing importing them: `ExpenseChart`, `TimeRange`, `AppBars`,
+  `AppLineChart`, `SpendingTrendChart`, and the per-category colour module that painted chips from 24
+  hex hues. (#172)
+
+### Fixed
+
+- **Inbox: `?status=pending` answered `400 unknown status`.** The filter uppercases before parsing the
+  enum now. (#172)
+- **Inbox: a paged mail query answered `500 datatype mismatch`** — the statement mixed numbered and
+  positional placeholders; it uses plain `?` throughout. (#172)
+- Mobile: the Inbox queue clipped the sender and the Reject button, the Dashboard ledger table drew its
+  header across a third of the card (a four-cell footer for a three-column table), and the Spending
+  columns were drawn at 28% opacity with no day selected. All three were caught at 390px and fixed.
+  (#172)
+
 ## [0.3.0-alpha] — 2026-11-14
 
 This release is about one new feature — mail in, transactions out — and one big deletion: the SurrealDB
