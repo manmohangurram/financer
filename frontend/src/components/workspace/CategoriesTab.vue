@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { categoryColorMap } from '@/lib/utils/categoryColor';
-import { Pencil, Trash2, Tag } from '@lucide/vue';
+import { Pencil, Trash2 } from '@lucide/vue';
 import { formatCurrency } from '@/lib/utils/format';
+import AppEmpty from '@/components/ui/AppEmpty.vue';
+import AppButton from '@/components/ui/AppButton.vue';
 
+// Categories as ledger rows: name, share of the categories' spend, amount, count.
+// One list, no per-category hue — the bar carries size, the numbers carry truth.
 const props = defineProps<{ categories: any[]; txns: any[] }>();
 const emit = defineEmits<{ (e: 'edit', category: any): void; (e: 'delete', category: any): void }>();
-const colors = computed(() => categoryColorMap(props.categories.map((c: any) => c.name)));
 
 const spend = computed(() => {
   const map = new Map<string, number>();
@@ -14,51 +16,63 @@ const spend = computed(() => {
   for (const t of props.txns) {
     if (t.type === 'CREDIT') continue;
     for (const id of t.categoryIds || []) {
-      map.set(id, (map.get(id) || 0) + (t.amount || 0));
+      map.set(id, (map.get(id) || 0) + Math.abs(t.amount || 0));
       count.set(id, (count.get(id) || 0) + 1);
     }
   }
   return { map, count };
 });
 
-const maxSpend = computed(() => Math.max(1, ...props.categories.map((c: any) => spend.value.map.get(c.id) || 0)));
-const totalSpend = computed(() => props.categories.reduce((s, c: any) => s + (spend.value.map.get(c.id) || 0), 0));
+const rows = computed(() =>
+  [...props.categories]
+    .map((c) => ({ id: c.id, name: c.name, amount: spend.value.map.get(c.id) || 0, txns: spend.value.count.get(c.id) || 0 }))
+    .sort((a, b) => b.amount - a.amount)
+);
+const max = computed(() => Math.max(1, ...rows.value.map((r) => r.amount)));
+const total = computed(() => rows.value.reduce((s, r) => s + r.amount, 0));
 </script>
 
 <template>
-  <div class="space-y-2">
-    <div v-for="cat in categories" :key="cat.id" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border group">
-      <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: colors[cat.name] }"></span>
-      <div class="flex-1 min-w-0">
-        <div class="flex items-baseline justify-between gap-2">
-          <span class="text-[14px] text-text font-medium truncate">{{ cat.name }}</span>
-          <span class="text-[13px] font-semibold whitespace-nowrap">{{ formatCurrency(spend.map.get(cat.id) || 0) }}</span>
-        </div>
-        <div class="mt-1.5 flex items-center gap-2">
-          <div class="flex-1 h-1.5 rounded-full bg-track/50 overflow-hidden">
-            <div
-              class="h-full rounded-full transition-all duration-300"
-              :style="{ width: ((spend.map.get(cat.id) || 0) / maxSpend) * 100 + '%', background: colors[cat.name] }"
-            ></div>
-          </div>
-          <span class="text-[11px] text-subtle whitespace-nowrap w-10 text-right">
-            {{ totalSpend ? Math.round(((spend.map.get(cat.id) || 0) / totalSpend) * 100) : 0 }}%
-          </span>
-          <span class="text-[11px] text-subtle whitespace-nowrap w-12 text-right">{{ spend.count.get(cat.id) || 0 }} txns</span>
-        </div>
-      </div>
-      <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0">
-        <button aria-label="Edit" @click="emit('edit', cat)" class="btn btn-ghost btn-xs">
-          <Pencil class="w-3.5 h-3.5" />
-        </button>
-        <button aria-label="Delete" @click="emit('delete', cat)" class="btn btn-ghost btn-xs">
-          <Trash2 class="w-3.5 h-3.5" />
-        </button>
-      </div>
+  <div v-if="!rows.length" class="px-4 py-10">
+    <AppEmpty title="No categories yet." hint="Add one to organise your spending." />
+  </div>
+
+  <div v-else class="flex flex-col">
+    <div class="flex items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
+      <span class="flex-1">Category</span>
+      <span class="w-[34%]">Share of spend</span>
+      <span class="w-[92px] text-right">Spent</span>
+      <span class="w-[52px] text-right">Entries</span>
+      <span class="w-[64px]"></span>
     </div>
-    <div v-if="categories.length === 0" class="text-center py-16 text-subtle">
-      <Tag class="w-8 h-8 mx-auto mb-2 text-faint" stroke-width="1.5" />
-      No categories yet — add one to organize your spending
+    <div
+      v-for="row in rows"
+      :key="row.id"
+      class="group flex items-center gap-3 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60"
+    >
+      <span class="min-w-0 flex-1 truncate text-[13px] text-ink">{{ row.name }}</span>
+      <span class="relative block h-[8px] w-[34%] overflow-hidden rounded-[2px] bg-page-sunk">
+        <span
+          class="block h-full border-l-2 border-accent bg-accent/25"
+          :style="{ width: `${Math.max(2, (row.amount / max) * 100)}%` }"
+        />
+      </span>
+      <span class="tabular w-[92px] text-right text-[12.5px] font-medium text-ink">{{ formatCurrency(row.amount) }}</span>
+      <span class="tabular w-[52px] text-right text-[12px] text-ink-mute">{{ row.txns }}</span>
+      <span class="flex w-[64px] shrink-0 justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        <AppButton variant="icon" size="sm" label="Edit category" @click="emit('edit', row)">
+          <Pencil class="h-[14px] w-[14px]" stroke-width="1.7" />
+        </AppButton>
+        <AppButton variant="icon" size="sm" label="Delete category" @click="emit('delete', row)">
+          <Trash2 class="h-[14px] w-[14px]" stroke-width="1.7" />
+        </AppButton>
+      </span>
+    </div>
+    <div class="flex items-center gap-3 border-t border-rule bg-page-sunk px-4 py-2 text-[12px] text-ink-mute">
+      <span class="flex-1">{{ rows.length }} categories</span>
+      <span class="w-[92px] text-right font-display text-[14px] text-ink">{{ formatCurrency(total) }}</span>
+      <span class="w-[52px] text-right">{{ rows.reduce((s, r) => s + r.txns, 0) }}</span>
+      <span class="w-[64px]"></span>
     </div>
   </div>
 </template>

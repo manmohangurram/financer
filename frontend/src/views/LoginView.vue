@@ -36,13 +36,13 @@ async function handleSubmit() {
           </div>
           <div class="text-left">
             <div class="text-[28px] font-extrabold text-base-content tracking-tight">Financer</div>
-            <div class="text-sm text-subtle font-medium">Personal Finance</div>
+            <div class="text-sm text-ink-mute font-medium">Personal Finance</div>
           </div>
         </div>
-        <p class="text-text-muted text-lg">Sign in to manage your finances</p>
+        <p class="text-ink-soft text-lg">Sign in to manage your finances</p>
       </div>
 
-      <div class="card bg-base-200 border border-border shadow-2xl">
+      <div class="card bg-page border border-rule shadow-2xl">
         <div class="card-body p-8">
           <h2 class="card-title text-xl font-bold text-base-content mb-2">Sign In</h2>
           <div
@@ -75,7 +75,7 @@ async function handleSubmit() {
               {{ loading ? 'Signing in...' : 'Sign In' }}
             </button>
           </form>
-          <p class="mt-5 text-center text-sm text-subtle">
+          <p class="mt-5 text-center text-sm text-ink-mute">
             Don't have an account?
             <router-link to="/signup" class="text-primary-400 hover:underline font-medium">Sign up</router-link>
           </p>

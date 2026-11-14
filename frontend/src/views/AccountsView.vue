@@ -35,11 +35,11 @@ onMounted(loadAll);
 </script>
 
 <template>
-  <div class="w-full space-y-5">
+  <div class="w-full flex flex-col gap-4">
     <div class="flex items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-base-content tracking-tight">Accounts</h1>
-        <p class="hidden md:block text-[14px] text-subtle mt-0.5">Track spending & transactions across your accounts</p>
+        <h1 class="text-[22px] leading-none text-ink">Accounts</h1>
+        <p class="hidden md:block text-[14px] text-ink-mute mt-0.5">Track spending & transactions across your accounts</p>
       </div>
       <div v-if="accountList.length > 0" class="flex flex-wrap items-center gap-2 shrink-0">
         <button
@@ -53,15 +53,15 @@ onMounted(loadAll);
       </div>
     </div>
 
-    <div v-if="loadError" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ loadError }}</div>
+    <div v-if="loadError" class="rounded-card border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ loadError }}</div>
 
     <div v-if="accountList.length === 0" class="flex items-center justify-center min-h-[calc(100vh-180px)]">
-      <div class="rounded-2xl border border-border bg-base-200 px-10 py-12 text-center max-w-md w-full">
-        <div class="w-14 h-14 mx-auto rounded-2xl bg-primary-500/12 text-primary-400 flex items-center justify-center">
+      <div class="rounded-card border border-rule bg-page px-10 py-12 text-center max-w-md w-full">
+        <div class="w-14 h-14 mx-auto rounded-card bg-primary-500/12 text-primary-400 flex items-center justify-center">
           <Landmark class="w-7 h-7" stroke-width="1.5" />
         </div>
         <h2 class="text-lg font-semibold text-text mt-4">Add your first account</h2>
-        <p class="text-[13px] text-subtle mt-1.5">Start tracking your money — add a bank account to begin recording transactions.</p>
+        <p class="text-[13px] text-ink-mute mt-1.5">Start tracking your money — add a bank account to begin recording transactions.</p>
         <button class="btn btn-primary btn-sm gap-1.5 mt-6" @click="showAccountModal = true">
           <Plus class="w-4 h-4" />
           Add Account

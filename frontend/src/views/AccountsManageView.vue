@@ -49,7 +49,7 @@ onMounted(loadAll);
 </script>
 
 <template>
-  <div class="w-full space-y-5">
+  <div class="w-full flex flex-col gap-4">
     <SectionHeader title="Manage Accounts" subtitle="Add, edit or remove your accounts">
       <template #actions>
         <button @click="openCreateAccount" class="btn btn-primary btn-sm gap-1.5">
@@ -59,26 +59,26 @@ onMounted(loadAll);
       </template>
     </SectionHeader>
 
-    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+    <div v-if="error" class="rounded-card border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
 
-    <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
-    <div v-else class="card bg-base-200 border border-border">
+    <div v-if="loading" class="text-center py-16 text-ink-mute">Loading...</div>
+    <div v-else class="card bg-page border border-rule">
       <div class="card-body p-6">
         <div class="space-y-1.5">
           <div
             v-for="acc in accountList"
             :key="acc.id"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border group"
+            class="flex items-center gap-3 px-4 py-3 rounded-card bg-surface border border-rule group"
           >
             <div
-              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              class="w-10 h-10 rounded-card flex items-center justify-center shrink-0"
               :class="isCredit(acc.type) ? 'bg-expense/12 text-expense' : 'bg-income/12 text-income'"
             >
               <component :is="accountTypeIcon(acc.type)" class="w-5 h-5" stroke-width="2" />
             </div>
             <div class="flex-1 min-w-0">
               <div class="text-[14px] text-text font-medium truncate">{{ acc.nickname || acc.bankName }}</div>
-              <div class="text-[12px] text-subtle">{{ acc.bankName }}</div>
+              <div class="text-[12px] text-ink-mute">{{ acc.bankName }}</div>
             </div>
             <span class="text-[15px] font-semibold shrink-0" :class="isCredit(acc.type) ? 'text-expense' : 'text-base-content'">
               {{ isCredit(acc.type) ? '-' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
@@ -92,7 +92,7 @@ onMounted(loadAll);
               </button>
             </div>
           </div>
-          <div v-if="accountList.length === 0" class="text-center py-16 text-subtle">No accounts yet</div>
+          <div v-if="accountList.length === 0" class="text-center py-16 text-ink-mute">No accounts yet</div>
         </div>
       </div>
     </div>

@@ -66,7 +66,7 @@ onMounted(loadAll);
 </script>
 
 <template>
-  <div class="w-full space-y-5">
+  <div class="w-full flex flex-col gap-4">
     <SectionHeader title="Rules" subtitle="Automatically categorize transactions across all accounts">
       <template #actions>
         <button @click="openCreateItem" class="btn btn-primary btn-sm gap-1.5">
@@ -76,10 +76,10 @@ onMounted(loadAll);
       </template>
     </SectionHeader>
 
-    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+    <div v-if="error" class="rounded-card border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
 
-    <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
-    <div v-else class="card bg-base-200 border border-border">
+    <div v-if="loading" class="text-center py-16 text-ink-mute">Loading...</div>
+    <div v-else class="card bg-page border border-rule">
       <div class="card-body p-6">
         <RulesTab :rules="ruleList" :categories="categoryList" :accounts="accountList" @edit="openEditItem" @refresh="loadAll" />
       </div>
