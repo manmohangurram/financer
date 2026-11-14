@@ -4,6 +4,7 @@
 pub mod account;
 pub mod category;
 pub mod investment;
+pub mod mail;
 pub mod rule;
 pub mod transaction;
 pub mod user;
