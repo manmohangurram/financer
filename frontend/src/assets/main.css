@@ -143,6 +143,8 @@
   --color-stamp: var(--stamp);
   --color-overlay: var(--overlay);
 
+  --shadow-lift: var(--lift);
+
   --radius-control: 4px;
   --radius-card: 6px;
   --radius-overlay: 10px;
