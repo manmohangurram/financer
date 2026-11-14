@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import AppButton from '@/components/ui/AppButton.vue';
+import AppStamp from '@/components/ui/AppStamp.vue';
 import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus } from '@lucide/vue';
 import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
 import { mail } from '@/lib/api/client';
@@ -81,16 +83,14 @@ function summary(m: MailMessage): string {
   const p = parsed(m);
   if (!p?.amount) return m.subject || '(no subject)';
   const sign = p.direction === 'CREDIT' ? '+' : '-';
-  return `${sign}${formatCurrency(p.amount)} · ${p.merchant || 'Unknown'}`;
+  return `${sign}${formatCurrency(p.amount)}`;
 }
 
 function hint(m: MailMessage): string {
   const p = parsed(m);
   if (!p) return '';
   const parts: string[] = [];
-  if (p.accountHint) parts.push(`acct …${p.accountHint}`);
   if (p.occurredAt) parts.push(formatDate(p.occurredAt));
-  if (m.status === 'UNPARSED') parts.push('not parsed');
   return parts.join(' · ');
 }
 
@@ -352,7 +352,7 @@ onMounted(load);
           @change="toggleAll"
         />
         <span class="flex-1">From</span>
-        <span class="w-[132px] text-right">Amount</span>
+        <span class="w-[104px] text-right">Amount</span>
         <span class="w-[74px] text-right">State</span>
         <span class="w-[132px]"></span>
       </div>
@@ -374,7 +374,7 @@ onMounted(load);
             <span class="block truncate text-[11.5px] text-ink-mute">{{ m.subject || '(no subject)' }}</span>
           </button>
 
-          <span class="w-[132px] shrink-0 text-right">
+          <span class="w-[104px] shrink-0 text-right">
             <span class="tabular block text-[13px] font-medium" :class="parsed(m)?.direction === 'CREDIT' ? 'text-credit' : 'text-ink'">
               {{ summary(m) }}
             </span>
@@ -387,11 +387,11 @@ onMounted(load);
             </AppStamp>
           </span>
 
-          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex w-[132px] shrink-0 justify-end gap-1">
+          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex w-[150px] shrink-0 justify-end gap-1.5">
             <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
             <AppButton variant="outline" size="sm" :disabled="busy" @click="act('REJECT', [m.id])">Reject</AppButton>
           </span>
-          <span v-else class="w-[132px] shrink-0"></span>
+          <span v-else class="w-[150px] shrink-0"></span>
         </div>
 
         <div v-if="expanded === m.id" class="flex flex-col gap-3 border-b border-rule-soft bg-page-sunk/40 px-4 py-3">
