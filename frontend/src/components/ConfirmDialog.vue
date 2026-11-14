@@ -23,7 +23,7 @@ const emit = defineEmits<{ (e: 'confirm'): void; (e: 'cancel'): void }>();
         <button
           type="button"
           @click="emit('confirm')"
-          class="btn btn-error btn-sm"
+          class="ns-primary bg-debit hover:bg-debit/90"
         >
           {{ confirmText }}
         </button>

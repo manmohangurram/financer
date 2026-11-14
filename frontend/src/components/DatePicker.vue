@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ChevronLeft, ChevronRight } from '@lucide/vue';
+import AppMenu from '@/components/ui/AppMenu.vue';
 
 const model = defineModel<string | undefined>({ required: true });
 const props = withDefaults(defineProps<{ placeholder?: string; class?: string }>(), { placeholder: 'Pick a date' });
@@ -42,6 +43,11 @@ const yearOptions = computed(() => {
   for (let y = 2000; y <= end; y++) list.push(y);
   return list;
 });
+
+const monthItems = computed(() =>
+  monthOptions.value.map((label, i) => ({ key: String(i), label }))
+);
+const yearItems = computed(() => [...yearOptions.value].reverse().map((y) => ({ key: String(y), label: String(y) })));
 
 function openCalendar() {
   const base = selectedDate.value || new Date();
@@ -93,12 +99,20 @@ function selectDate(d: Date) {
           <ChevronLeft class="w-4 h-4" />
         </button>
         <div class="flex items-center gap-1.5">
-          <select v-model.number="viewMonth" class="h-7 rounded-control border border-rule bg-page px-1.5 text-[12px] text-ink" aria-label="Select month">
-            <option v-for="(m, i) in monthOptions" :key="i" :value="i">{{ m }}</option>
-          </select>
-          <select v-model.number="viewYear" class="h-7 rounded-control border border-rule bg-page px-1.5 text-[12px] text-ink" aria-label="Select year">
-            <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-          </select>
+          <AppMenu :items="monthItems" :label="`Month: ${monthOptions[viewMonth]}`" align="left" @select="viewMonth = Number($event)">
+            <template #trigger="{ toggle, label }">
+              <button type="button" class="rounded-control px-1.5 py-1 text-[12px] text-ink-soft hover:bg-page-sunk hover:text-ink" :aria-label="label" @click="toggle">
+                {{ monthOptions[viewMonth] }}
+              </button>
+            </template>
+          </AppMenu>
+          <AppMenu :items="yearItems" :label="`Year: ${viewYear}`" align="left" @select="viewYear = Number($event)">
+            <template #trigger="{ toggle, label }">
+              <button type="button" class="rounded-control px-1.5 py-1 text-[12px] text-ink-soft hover:bg-page-sunk hover:text-ink" :aria-label="label" @click="toggle">
+                {{ viewYear }}
+              </button>
+            </template>
+          </AppMenu>
         </div>
         <button type="button" @click="nextMonth" aria-label="Next month" class="ns-icon text-ink-soft">
           <ChevronRight class="w-4 h-4" />
@@ -116,7 +130,7 @@ function selectDate(d: Date) {
             :key="j"
             type="button"
             :disabled="!d"
-            class="w-8 h-8 flex items-center justify-center rounded-md text-[12px] transition-colors"
+            class="w-8 h-8 flex items-center justify-center rounded-control text-[12px] transition-colors"
             :class="
               d
                 ? isSelected(d)

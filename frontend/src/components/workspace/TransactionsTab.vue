@@ -49,7 +49,7 @@ function bulkDelete() {
       <span class="text-[13px] text-accent font-medium">{{ selectedIds.length }} selected</span>
       <div class="flex gap-2">
         <button @click="selectedIds = []" class="ns-quiet border border-rule">Cancel</button>
-        <button @click="bulkDelete" class="btn btn-error btn-sm">Delete selected</button>
+        <button @click="bulkDelete" class="ns-primary bg-debit hover:bg-debit/90">Delete selected</button>
       </div>
     </div>
 

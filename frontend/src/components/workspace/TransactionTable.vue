@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
-import { categoryColorMap } from '@/lib/utils/categoryColor';
 import { ArrowLeftRight, Pencil } from '@lucide/vue';
 
 const props = defineProps<{
@@ -25,7 +24,6 @@ const emit = defineEmits<{
 
 const revealed = ref<string | null>(null);
 
-const colors = computed(() => categoryColorMap(props.categories.map((c: any) => c.name)));
 
 const allSelected = computed(() => props.transactions.length > 0 && props.transactions.every((t) => props.selectedIds?.includes(t.id)));
 const someSelected = computed(() => !allSelected.value && props.transactions.some((t) => props.selectedIds?.includes(t.id)));
@@ -134,11 +132,7 @@ function counterpart(txn: any) {
             </div>
           </td>
           <td class="py-3 px-2 hidden lg:table-cell">
-            <span
-              v-if="txnCategory(txn)"
-              class="badge badge-outline gap-1 text-[11px]"
-              :style="{ backgroundColor: colors[txnCategory(txn).name] + '18', color: colors[txnCategory(txn).name], borderColor: colors[txnCategory(txn).name] + '40' }"
-            >{{ txnCategory(txn).name }}</span>
+            <span v-if="txnCategory(txn)" class="text-[12px] text-ink-soft">{{ txnCategory(txn).name }}</span>
           </td>
           <td class="py-3 px-4 text-right text-[14px] font-semibold whitespace-nowrap" :class="isCredit(txn) ? 'text-credit' : 'text-ink'">
             {{ isCredit(txn) ? '+' : '' }}{{ formatCurrency(txn.amount) }}

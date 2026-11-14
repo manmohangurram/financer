@@ -73,7 +73,7 @@ function onApply(f: TransactionFilters) {
 
       <button
         type="button"
-        class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-ink-soft hover:text-ink transition-colors"
+        class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-control text-ink-soft hover:text-ink transition-colors"
         aria-label="Filter options"
         title="More filters"
         @click.stop="showPopup = !showPopup"

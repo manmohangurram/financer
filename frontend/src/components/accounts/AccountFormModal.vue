@@ -79,8 +79,8 @@ async function remove() {
         <option v-for="opt in ACCOUNT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.name }}</option>
       </AppSelect>
       <div class="flex items-center justify-between pt-6">
-        <button v-if="account" type="button" @click="confirmDelete = true" class="btn btn-outline btn-error shrink-0">Delete</button>
-        <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Saving…' : account ? 'Update' : 'Create' }}</button>
+        <button v-if="account" type="button" @click="confirmDelete = true" class="ns-quiet shrink-0 text-debit">Delete</button>
+        <button type="submit" class="ns-primary" :disabled="saving">{{ saving ? 'Saving…' : account ? 'Update' : 'Create' }}</button>
       </div>
     </form>
   </AppModal>

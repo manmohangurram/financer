@@ -2,12 +2,13 @@
 import { ref, computed } from 'vue';
 import AppModal from '@/components/AppModal.vue';
 import AppSelect from '@/components/AppSelect.vue';
+import AppTabs from '@/components/ui/AppTabs.vue';
 import TransactionForm from '@/components/workspace/TransactionForm.vue';
 import { transactions } from '@/lib/api/client';
 import { dateToUnixSeconds, toLocalDateString } from '@/lib/utils/format';
 import { roundMoney } from '@/lib/utils/money';
 import { guessMapping, type CsvField } from '@/lib/utils/csv';
-import { Upload, PenLine, FileSpreadsheet } from '@lucide/vue';
+import { Upload } from '@lucide/vue';
 
 const props = defineProps<{ accounts: any[]; categories: any[]; defaultAccountId: string }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'imported'): void }>();
@@ -15,7 +16,6 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'imported'): void }>();
 type Mode = 'manual' | 'csv';
 const mode = ref<Mode>('manual');
 
-const selectCls = 'select w-full bg-page border-rule text-ink text-[13px]';
 
 const txnForm = ref<{
   name: string; amount: number; type: 'DEBIT' | 'CREDIT';
@@ -79,8 +79,22 @@ function switchFormat(mode: 'single' | 'split') {
   guessFields();
 }
 
-function onFieldChange(field: { key: FieldKey }, value: string) {
-  fieldToCol.value[field.key] = parseInt(value, 10);
+const modeTabs = [
+  { key: 'manual', label: 'Manual' },
+  { key: 'csv', label: 'Import file' }
+];
+const formatTabs = [
+  { key: 'single', label: 'Single amount column' },
+  { key: 'split', label: 'Debit + credit columns' }
+];
+
+const headerOptions = computed(() => [
+  { value: '-1', label: '— None —' },
+  ...headers.value.map((h: string, i: number) => ({ value: String(i), label: h }))
+]);
+
+function onFieldChange(field: { key: FieldKey }, value: string | number | undefined) {
+  fieldToCol.value[field.key] = parseInt(String(value ?? '-1'), 10);
 }
 
 function switchMode(m: Mode) {
@@ -150,25 +164,8 @@ async function runImport() {
 <template>
   <AppModal title="Add transaction" @close="emit('close')">
     <div class="px-5 py-4">
-      <div class="mb-5 inline-flex overflow-hidden rounded-control border border-rule" role="group" aria-label="Add method">
-        <button
-          type="button"
-          class="flex h-[32px] items-center justify-center gap-1.5 border-l border-rule px-3.5 text-[12.5px] font-medium transition-colors first:border-l-0"
-          :class="mode === 'manual' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
-          @click="switchMode('manual')"
-        >
-          <PenLine class="w-4 h-4" stroke-width="1.5" />
-          Manual
-        </button>
-        <button
-          type="button"
-          class="flex h-[32px] items-center justify-center gap-1.5 border-l border-rule px-3.5 text-[12.5px] font-medium transition-colors first:border-l-0"
-          :class="mode === 'csv' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
-          @click="switchMode('csv')"
-        >
-          <FileSpreadsheet class="w-4 h-4" stroke-width="1.5" />
-          Import file
-        </button>
+      <div class="mb-4">
+        <AppTabs :items="modeTabs" @update:model-value="switchMode($event as 'manual' | 'csv')" />
       </div>
 
       <form v-if="mode === 'manual'" class="flex flex-col gap-4" @submit.prevent="submitManual">
@@ -202,34 +199,27 @@ async function runImport() {
           <p v-if="error" class="text-[13px] text-debit mt-2">{{ error }}</p>
         </template>
         <template v-else>
-          <div class="flex gap-1 rounded-card bg-page border border-rule p-1 mb-4" role="group" aria-label="Amount format">
-            <button
-              type="button"
-              class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'single' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
-              @click="switchFormat('single')"
-            >Single amount column</button>
-            <button
-              type="button"
-              class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'split' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
-              @click="switchFormat('split')"
-            >Debit + Credit columns</button>
+          <div class="mb-3">
+            <AppTabs :items="formatTabs" @update:model-value="switchFormat($event as 'single' | 'split')" />
           </div>
           <p class="text-[13px] text-ink-soft mb-3">Map your columns to the transaction fields:</p>
           <div class="space-y-2 max-h-60 overflow-y-auto">
             <div v-for="f in requiredFields" :key="f.key" class="flex items-center gap-3">
               <span class="text-[13px] text-ink w-36 shrink-0">{{ f.label }}</span>
-              <select :value="fieldToCol[f.key]" @change="onFieldChange(f, ($event.target as HTMLSelectElement).value)" :class="[selectCls, 'flex-1']">
-                <option :value="-1">— None —</option>
-                <option v-for="(header, i) in headers" :key="i" :value="i">{{ header }}</option>
-              </select>
+              <div class="min-w-0 flex-1">
+                <AppSelect
+                  :model-value="String(fieldToCol[f.key])"
+                  :options="headerOptions"
+                  placeholder="— None —"
+                  @update:model-value="onFieldChange(f, $event)"
+                />
+              </div>
             </div>
           </div>
-          <div class="flex items-center justify-between mt-4">
-            <button @click="step = 1" class="text-[13px] text-ink-mute hover:text-ink">Back</button>
-            <button @click="runImport" class="btn btn-primary" :disabled="importing">
-              {{ importing ? 'Importing...' : `Import ${rowCount} rows` }}
+          <div class="mt-4 flex items-center justify-between">
+            <button class="ns-quiet" @click="step = 1">Back</button>
+            <button class="ns-primary" :disabled="importing" @click="runImport">
+              {{ importing ? 'Importing…' : `Import ${rowCount} rows` }}
             </button>
           </div>
           <p v-if="error" class="text-[13px] text-debit mt-2">{{ error }}</p>

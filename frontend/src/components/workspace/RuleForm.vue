@@ -71,7 +71,7 @@ async function runPreview() {
           <option v-for="o in operators" :key="o.value" :value="o.value">{{ o.label }}</option>
         </AppSelect>
         <AppInput v-model="cond.pattern" placeholder="Value" />
-        <button type="button" aria-label="Remove condition" @click="removeCondition(i)" class="p-2 rounded-lg text-ink-mute hover:text-debit hover:bg-debit/10">
+        <button type="button" aria-label="Remove condition" @click="removeCondition(i)" class="p-2 rounded-control text-ink-mute hover:text-debit hover:bg-debit/10">
           <X class="w-4 h-4" />
         </button>
       </div>
@@ -101,7 +101,7 @@ async function runPreview() {
           <option value="">Pick an account</option>
           <option v-for="a in props.accounts || []" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
         </AppSelect>
-        <button type="button" aria-label="Remove output" @click="removeOutput(i)" class="p-2 rounded-lg text-ink-mute hover:text-debit hover:bg-debit/10">
+        <button type="button" aria-label="Remove output" @click="removeOutput(i)" class="p-2 rounded-control text-ink-mute hover:text-debit hover:bg-debit/10">
           <X class="w-4 h-4" />
         </button>
       </div>

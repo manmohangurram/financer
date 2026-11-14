@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import AppStamp from '@/components/ui/AppStamp.vue';
+import AppSelect from '@/components/ui/AppSelect.vue';
 import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus, ListTree } from '@lucide/vue';
 import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
 import { mail } from '@/lib/api/client';
@@ -50,6 +51,12 @@ const pickAccount = ref<Record<string, string>>({});
 const rules = ref<any[]>([]);
 const rulesOpen = ref(false);
 const newRule = ref({ fromPattern: '', subjectContains: '', action: 'REVIEW' });
+const ruleActions = [
+  { value: 'REVIEW', label: 'review' },
+  { value: 'IGNORE', label: 'ignore' },
+  { value: 'AUTO', label: 'auto' }
+];
+const accountOptions = computed(() => accounts.value.map((a) => ({ value: a.id, label: a.label || a.username })));
 const allMessages = ref<MailMessage[]>([]);
 
 /// Senders that have earned an AUTO rule: several created, none rejected, and
@@ -320,14 +327,12 @@ onMounted(load);
         </div>
 
         <div class="flex flex-wrap items-center gap-2 pt-2">
-          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="h-[30px] flex-1 min-w-[180px] rounded-control border border-rule bg-page px-2 text-[12.5px] text-ink placeholder:text-ink-faint" />
-          <input v-model="newRule.subjectContains" placeholder="subject contains" class="input input-sm bg-page border-rule text-[13px] flex-1 min-w-[150px]" />
-          <select v-model="newRule.action" class="select select-sm bg-page border-rule text-[13px]">
-            <option value="REVIEW">review</option>
-            <option value="IGNORE">ignore</option>
-            <option value="AUTO">auto</option>
-          </select>
-          <button class="ns-quiet border border-rule gap-1" :disabled="busy" @click="addRule">
+          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="h-[38px] flex-1 min-w-[180px] rounded-control border border-rule bg-page-sunk px-3 text-[13px] text-ink placeholder:text-ink-faint" />
+          <input v-model="newRule.subjectContains" placeholder="subject contains" class="h-[38px] flex-1 min-w-[150px] rounded-control border border-rule bg-page-sunk px-3 text-[13px] text-ink placeholder:text-ink-faint" />
+          <div class="w-[130px]">
+            <AppSelect v-model="newRule.action" :options="ruleActions" />
+          </div>
+          <button class="ns-quiet h-[38px] border border-rule gap-1" :disabled="busy" @click="addRule">
             <Plus class="w-3.5 h-3.5" /> Add
           </button>
         </div>
@@ -411,10 +416,9 @@ onMounted(load);
               Account
               <span v-if="parsed(m)?.accountHint" class="text-ink-faint">(mail says …{{ parsed(m)?.accountHint }})</span>
             </span>
-            <select v-model="pickAccount[m.id]" class="h-[30px] rounded-control border border-rule bg-page px-2 text-[12.5px] text-ink">
-              <option value="">From the last 4 digits</option>
-              <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.label || a.username }}</option>
-            </select>
+            <div class="w-[220px]">
+              <AppSelect v-model="pickAccount[m.id]" :options="accountOptions" placeholder="From the last 4 digits" />
+            </div>
             <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
           </div>
         </div>

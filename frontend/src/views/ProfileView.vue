@@ -8,8 +8,15 @@ import { profile, apiKeys } from '@/lib/api/client';
 import { API_BASE } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { getAccessToken, setTokens } from '@/lib/api/transport';
-import { applyTheme, current as currentTheme } from '@/lib/theme';
-import { Camera, Save, Loader2, ShieldCheck, Sun, Moon, Monitor, Plus, Trash2 } from '@lucide/vue';
+import { applyTheme, current as currentTheme, type Theme } from '@/lib/theme';
+import AppTabs from '@/components/ui/AppTabs.vue';
+
+const themeTabs = [
+  { key: 'system', label: 'System' },
+  { key: 'light', label: 'Light' },
+  { key: 'dark', label: 'Dark' }
+];
+import { Camera, Save, Loader2, ShieldCheck, Plus, Trash2 } from '@lucide/vue';
 import { formatDate } from '@/lib/utils/format';
 
 const auth = useAuthStore();
@@ -233,7 +240,7 @@ onMounted(() => {
             </div>
 
             <div class="flex justify-end">
-              <button class="inline-flex h-[32px] items-center justify-center gap-2 rounded-control bg-accent px-3.5 text-[13px] font-medium text-paper transition-colors hover:bg-accent-hover disabled:opacity-50" :disabled="savingProfile" @click="saveProfile">
+              <button class="ns-primary" :disabled="savingProfile" @click="saveProfile">
                 <Loader2 v-if="savingProfile" class="w-4 h-4 animate-spin" />
                 <Save v-else class="w-4 h-4" />
                 Save
@@ -249,7 +256,7 @@ onMounted(() => {
               <AppInput v-model="password.newPassword" label="New password" type="password" autocomplete="new-password" />
             </div>
             <div class="flex justify-end">
-              <button class="inline-flex h-[32px] items-center justify-center gap-2 rounded-control bg-accent px-3.5 text-[13px] font-medium text-paper transition-colors hover:bg-accent-hover disabled:opacity-50" :disabled="savingPassword" @click="changePassword">
+              <button class="ns-primary" :disabled="savingPassword" @click="changePassword">
                 <Loader2 v-if="savingPassword" class="w-4 h-4 animate-spin" />
                 <Save v-else class="w-4 h-4" />
                 Update password
@@ -262,35 +269,7 @@ onMounted(() => {
               <h2 class="text-[15px] font-semibold text-ink">Appearance</h2>
               <p class="text-[12px] text-ink-mute">Choose the app theme. Default follows your system settings.</p>
             </div>
-            <div class="inline-flex overflow-hidden rounded-control border border-rule" role="group" aria-label="Theme">
-              <button
-                type="button"
-                class="flex h-[30px] items-center gap-1.5 border-l border-rule px-3 text-[12.5px] font-medium transition-colors first:border-l-0"
-                :class="currentTheme === 'system' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
-                @click="applyTheme('system')"
-              >
-                <Monitor class="w-4 h-4" stroke-width="1.5" />
-                System
-              </button>
-              <button
-                type="button"
-                class="flex h-[30px] items-center gap-1.5 border-l border-rule px-3 text-[12.5px] font-medium transition-colors first:border-l-0"
-                :class="currentTheme === 'light' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
-                @click="applyTheme('light')"
-              >
-                <Sun class="w-4 h-4" stroke-width="1.5" />
-                Light
-              </button>
-              <button
-                type="button"
-                class="flex h-[30px] items-center gap-1.5 border-l border-rule px-3 text-[12.5px] font-medium transition-colors first:border-l-0"
-                :class="currentTheme === 'dark' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
-                @click="applyTheme('dark')"
-              >
-                <Moon class="w-4 h-4" stroke-width="1.5" />
-                Dark
-              </button>
-            </div>
+            <AppTabs :items="themeTabs" :model-value="currentTheme" @update:model-value="applyTheme($event as Theme)" />
           </section>
 
           <section class="flex flex-col gap-4 px-4 py-4">
@@ -314,7 +293,7 @@ onMounted(() => {
                 <option value="read">Read</option>
                 <option value="read_write">Read + write</option>
               </AppSelect>
-              <button class="inline-flex h-[32px] items-center justify-center gap-2 rounded-control bg-accent px-3.5 text-[13px] font-medium text-paper transition-colors hover:bg-accent-hover disabled:opacity-50" :disabled="savingKey" @click="createKey">
+              <button class="ns-primary" :disabled="savingKey" @click="createKey">
                 <Loader2 v-if="savingKey" class="w-4 h-4 animate-spin" />
                 <Plus v-else class="w-4 h-4" />
                 Create key
