@@ -216,7 +216,7 @@ impl SqliteMailRepo {
             "SELECT {} FROM mail_rules WHERE user_id = ? ORDER BY position, created_at",
             Self::rule_columns()
         );
-        let rows = sqlx::query_as::<_, RawMailRule>(&sql)
+        let rows = sqlx::query_as::<_, RawMailRule>(sqlx::AssertSqlSafe(sql.as_str()))
             .bind(user_id)
             .fetch_all(&self.pool)
             .await?;
