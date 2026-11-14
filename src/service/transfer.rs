@@ -290,24 +290,6 @@ pub async fn resolve_transfer(
     if !outcome.inserted.contains(&counter_txn.id) {
         return Ok(ResolveOutcome::Noop);
     }
-    account_repo
-        .update_balance(
-            &counter_txn.account_id,
-            if opposite == TransactionType::Credit {
-                src.amount
-            } else {
-                -src.amount
-            },
-        )
-        .await?;
-    let (c, d) = if opposite == TransactionType::Credit {
-        (src.amount, 0.0)
-    } else {
-        (0.0, src.amount)
-    };
-    account_repo
-        .apply_totals(&counter_txn.account_id, c, d)
-        .await?;
 
     let (debit_id, credit_id) = if src.transaction_type == TransactionType::Debit {
         (src.id.clone(), counter_txn.id.clone())

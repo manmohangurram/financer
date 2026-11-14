@@ -114,32 +114,6 @@ impl SqliteAccountRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    async fn update_balance_inner(&self, account_id: &str, delta: f64) -> Result<()> {
-        sqlx::query(
-            "UPDATE accounts SET balance = ROUND(COALESCE(balance, 0) + ?, 2) WHERE id = ?",
-        )
-        .bind(delta)
-        .bind(account_id)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
-    async fn apply_totals_inner(&self, account_id: &str, credit: f64, debit: f64) -> Result<()> {
-        sqlx::query(
-            "UPDATE accounts SET
-                total_credit = ROUND(COALESCE(total_credit, 0) + ?, 2),
-                total_debit  = ROUND(COALESCE(total_debit, 0) + ?, 2)
-             WHERE id = ?",
-        )
-        .bind(credit)
-        .bind(debit)
-        .bind(account_id)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     async fn sum_balance_inner(&self, user_id: &str) -> Result<f64> {
         let total: Option<f64> =
             sqlx::query_scalar("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ?")
@@ -200,12 +174,6 @@ impl crate::repo::traits::AccountRepo for SqliteAccountRepo {
     }
     async fn list(&self, user_id: &str) -> Result<Vec<AccountRow>> {
         self.list_inner(user_id).await
-    }
-    async fn update_balance(&self, account_id: &str, delta: f64) -> Result<()> {
-        self.update_balance_inner(account_id, delta).await
-    }
-    async fn apply_totals(&self, account_id: &str, credit: f64, debit: f64) -> Result<()> {
-        self.apply_totals_inner(account_id, credit, debit).await
     }
     async fn sum_balance(&self, user_id: &str) -> Result<f64> {
         self.sum_balance_inner(user_id).await

@@ -1,7 +1,9 @@
 //! Auth service — signup / login / refresh, mirroring Go's `services/auth.go`.
 
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use utoipa::ToSchema;
 
 use crate::auth::Jwt;
@@ -43,11 +45,30 @@ pub struct RefreshTokenRequest {
 pub struct AuthService {
     repo: Arc<dyn UserRepo>,
     jwt: Jwt,
+    /// Failed logins per email address, so a script cannot guess at wire speed.
+    failures: Arc<Mutex<HashMap<String, Attempt>>>,
+}
+
+/// Failures allowed per email inside [`LOGIN_WINDOW`] before further attempts
+/// are refused without even hashing the password.
+const MAX_FAILURES: u32 = 5;
+const LOGIN_WINDOW: Duration = Duration::from_mins(15);
+/// Hard cap on tracked emails: a flood of made-up addresses just resets the
+/// counters instead of growing the map for ever.
+const MAX_TRACKED: usize = 10_000;
+
+struct Attempt {
+    failures: u32,
+    first: Instant,
 }
 
 impl AuthService {
     pub fn new(repo: Arc<dyn UserRepo>, jwt: Jwt) -> Self {
-        Self { repo, jwt }
+        Self {
+            repo,
+            jwt,
+            failures: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     pub async fn signup(&self, req: SignupRequest) -> Result<AuthResponse> {
@@ -80,6 +101,12 @@ impl AuthService {
         if req.email.is_empty() || req.password.is_empty() {
             return Err(ApiError::bad_request("email and password are required"));
         }
+        let key = req.email.to_lowercase();
+        if self.is_throttled(&key) {
+            return Err(ApiError::too_many_requests(
+                "too many failed logins for this email; try again later",
+            ));
+        }
 
         let user = self
             .repo
@@ -93,7 +120,12 @@ impl AuthService {
             .map_err(|_| ApiError::internal("internal error"))?
             .unwrap_or(false);
         if !ok {
+            // Unknown emails count too, so the timing and the answer stay the same.
+            self.record_failure(&key);
             return Err(ApiError::unauthorized("invalid credentials"));
+        }
+        if let Ok(mut m) = self.failures.lock() {
+            m.remove(&key);
         }
 
         self.issue_tokens(&user.id, &user.email, user.name.as_deref().unwrap_or(""))
@@ -120,6 +152,34 @@ impl AuthService {
 
         self.issue_tokens(&user.id, &user.email, user.name.as_deref().unwrap_or(""))
             .await
+    }
+
+    fn is_throttled(&self, key: &str) -> bool {
+        let Ok(m) = self.failures.lock() else {
+            return false;
+        };
+        m.get(key)
+            .is_some_and(|a| a.failures >= MAX_FAILURES && a.first.elapsed() < LOGIN_WINDOW)
+    }
+
+    fn record_failure(&self, key: &str) {
+        let Ok(mut m) = self.failures.lock() else {
+            return;
+        };
+        if m.len() >= MAX_TRACKED {
+            m.clear();
+        }
+        let entry = m.entry(key.to_string()).or_insert(Attempt {
+            failures: 0,
+            first: Instant::now(),
+        });
+        if entry.first.elapsed() >= LOGIN_WINDOW {
+            *entry = Attempt {
+                failures: 0,
+                first: Instant::now(),
+            };
+        }
+        entry.failures += 1;
     }
 
     async fn issue_tokens(&self, user_id: &str, email: &str, name: &str) -> Result<AuthResponse> {

@@ -49,6 +49,12 @@ impl ApiError {
             message: msg.into(),
         }
     }
+    pub fn too_many_requests(msg: impl Into<String>) -> Self {
+        Self {
+            status: 429,
+            message: msg.into(),
+        }
+    }
     pub fn bad_gateway(msg: impl Into<String>) -> Self {
         Self {
             status: 502,
@@ -68,6 +74,7 @@ impl ApiError {
             403 => "permission_denied",
             404 => "not_found",
             409 => "already_exists",
+            429 => "resource_exhausted",
             502 => "upstream_unavailable",
             _ => "internal",
         }

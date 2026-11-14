@@ -64,8 +64,6 @@ pub trait AccountRepo: Send + Sync {
     ) -> Result<Option<AccountRow>>;
     async fn delete(&self, user_id: &str, id: &str) -> Result<bool>;
     async fn list(&self, user_id: &str) -> Result<Vec<AccountRow>>;
-    async fn update_balance(&self, account_id: &str, delta: f64) -> Result<()>;
-    async fn apply_totals(&self, account_id: &str, credit: f64, debit: f64) -> Result<()>;
     async fn sum_balance(&self, user_id: &str) -> Result<f64>;
     async fn sum_totals(&self, user_id: &str) -> Result<(f64, f64)>;
 }
