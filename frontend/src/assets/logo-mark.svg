@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Financer">
+  <!-- A ledger page. The ruled margin carries the clerk's tick; the entries run to the right. -->
+  <rect x="8" y="5" width="48" height="54" rx="5" fill="none" stroke="currentColor" stroke-width="3.5"/>
+  <rect x="12" y="9" width="13" height="46" rx="2" fill="var(--margin, #12232b)"/>
+  <polyline points="14,31 17.5,35 22,25.5" fill="none" stroke="var(--tick-on-margin, #f5f0e6)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="30" y1="20" x2="50" y2="20" stroke="currentColor" stroke-width="2.6"/>
+  <line x1="30" y1="32" x2="44" y2="32" stroke="currentColor" stroke-width="2.6"/>
+  <line x1="30" y1="44" x2="47" y2="44" stroke="currentColor" stroke-width="2.6"/>
+</svg>

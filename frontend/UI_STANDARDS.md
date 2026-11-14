@@ -1,229 +1,492 @@
-# UI Standards
+# UI Standards — the Ledger
 
-> Follow this document on **every** UI change. It defines the design system, component usage rules, and accessibility baseline. If a change can't follow a rule, say so in the PR/review rather than silently deviating.
+Rewritten from scratch. This replaces the old daisyUI-default standards: nothing in here is inherited,
+and no component from the old system is kept on the grounds that it already exists.
 
-Stack: **Vue 3 + Vite + Tailwind v4 + daisyUI v5**. No `tailwind.config.js`; tokens live in the app's `src/assets/main.css` (`@theme` block + daisyUI theme).
-
----
-
-## 1. Design tokens (never raw values)
-
-All colors, radii, and shadows come from the theme tokens. **Never use inline hex, arbitrary Tailwind values (`bg-[#...]`), or literals.**
-
-### Color semantics
-
-| Token | Use for |
-|---|---|
-| `bg` / `bg-elevated` | page / elevated background |
-| `surface` / `surface-alt` | cards, panels, inputs |
-| `border` | borders, dividers, hairline strokes |
-| `text` | primary text |
-| `text-secondary` | secondary text |
-| `text-muted` | labels, placeholders, muted text |
-| `subtle` | tertiary / helper text |
-| `faint` | disabled / decorative |
-| `primary-500` + scale | actions, links, active states, focus |
-| `positive` / `negative` | gains vs losses, success vs destructive (green vs red) |
-| `track` | progress tracks, chart gridlines |
-
-daisyUI semantic classes (`.btn-primary`, `.badge-outline`, `text-error`, etc.) are also fair game — they resolve to the same theme.
-
-### Radius
-
-- Cards: `rounded-2xl` (16px)
-- Buttons / inputs / selects: `rounded-xl` (11px)
-- Badges / pills: `rounded-full`
-- Small controls (checkboxes, day cells): `rounded-md`
-
-### Shadows
-
-- Cards: `shadow-card` (large, soft — only for elevated cards/dialogs)
-- Popovers/dropdowns: `shadow-popover`
-- Buttons: **no shadow** (flat).
-- Never stack multiple shadows.
-
-### Spacing scale
-
-Use Tailwind's scale (`px`, `0.5`, `1`, `1.5`, `2`, `3`, …). Never off-scale values like `13px` for margin/padding.
-
-### Typography
-
-- Page titles: `text-lg`–`text-2xl font-semibold text-text`
-- Section titles: `text-sm font-medium text-text`
-- Field labels: `text-[12px] text-text-muted`
-- Body: `text-[13px] text-text`
-- Helper/secondary: `text-[11.5px]–text-[12px] text-subtle`
+Read this as one document. Tokens, components and pages are three views of the same decision.
 
 ---
 
-## 2. Form metrics (mandatory)
+## 1. Intent
 
-Every form field — input, select, textarea, date picker — follows these exact dimensions and spacing. **No per-field variance.**
+**Who.** One person, at a laptop or a phone, usually on a Sunday evening or on the 1st of the month, with a
+bank app open in another tab. They are not exploring — they are **closing the books**: check what came in,
+what went out, whether a statement's mail was booked, whether the numbers agree.
 
-### Input / select box
+**What they must do.** Reconcile. Read a number, trust it, and move on.
 
-| Property | Value |
-|---|---|
-| Height | `h-10` (40px) — single-line inputs and selects |
-| Textarea min-height | `h-24` (96px) |
-| Padding (horizontal) | `px-3.5` (14px) |
-| Padding (vertical) | centered text (`h-10` handles it) |
-| Border radius | `rounded-xl` (11px) |
-| Border | `border` token, 1px; `focus` → `primary-500` border + ring |
-| Font size | `text-[13px] text-text` |
-| Width | fill the container (`w-full`) unless a fixed width is required |
+**How it should feel.** Like writing in a well-made ledger: quiet paper, one ink, ruled lines that keep
+columns straight, and a tick in the margin when something is settled. Not a trading terminal (no neon, no
+density for density's sake), not a consumer finance app (no confetti, no mascots, no gradient cards).
 
-### Layout / spacing between fields
-
-| Property | Value |
-|---|---|
-| Label → field gap | `mb-1.5` (6px) |
-| Between fields (same group) | `space-y-4` (16px vertical) |
-| Between fields (side by side) | `gap-4` (16px horizontal) |
-| Field group → field group | `space-y-6` (24px) |
-| Form → action row | `pt-6` (24px) |
-| Action buttons gap | `gap-3` (12px) |
-| Section heading → first field | `mt-4` (16px) |
-
-### Inline errors
-
-- Error text: `text-[12px] text-negative`, directly **below** the field, `mt-1.5` (6px).
-- Invalid field: red border + red focus ring; pair with an `aria-invalid` attribute.
-- Never rely on color alone — pair the error with a message.
-
-### Segmented controls
-
-- Same height as inputs (`h-10`), `rounded-xl`, inner buttons `px-3`, `gap-1`.
-- The active segment is `bg-primary text-primary-content`; inactive is transparent.
+The test for every choice: *would a bookkeeper recognise this as their desk, or as a startup's dashboard?*
 
 ---
 
-## 3. Components — use the shared ones
+## 2. Where the design comes from
 
-**Never re-declare form styles inline.** Use the project's shared form/UI components (in `src/components/`):
+**Domain concepts** (the territory, not the features): the ruled ledger page · the ruled margin column ·
+double-entry columns · the bank statement in its perforated envelope · the passbook and its page bands ·
+reconciliation ticks in the margin · the till's compartments · index tabs and box files · iron-gall ink and
+red correction ink.
 
-| Need | Use | Notes |
+**Colour world** (what is physically in that world): cream ledger paper · pale steel-blue rule lines ·
+blue-black iron-gall ink · red correction ink · green bookbinding cloth · brass of the till and the clip ·
+manila folders.
+
+**Signature.** *The margin.* Every ruled surface in the app has a narrow left margin column separated by a
+vertical rule, and state lives there: the entry's type glyph, the reconciliation tick for a matched
+transfer, the approval tick in the Inbox, the priority stamp on a rule. It is the one structural idea
+carried from the logo into every table, card and list — and it is where colour is allowed to mean something.
+
+**Defaults rejected**
+1. *Slate + blue sidebar-with-KPI-boxes dashboard* → the **folio page**: a ruled content column with a
+   margin, and one "balance carried forward" band instead of four equal metric boxes.
+2. *Category pie chart + coloured chips + round avatars* → **allocation strips** and **horizontal ruled
+   bars**; categories carry a hairline and a monogram tab, not a hue.
+3. *Purple/indigo gradients, glassmorphism, drop shadows everywhere* → **paper, hairlines, one petrol
+   accent**, shadows only on things that float.
+
+---
+
+## 3. Brand
+
+### The mark
+
+`frontend/src/assets/logo-mark.svg` — a folio page: ruled entries to the right, a filled margin band carrying
+the clerk's tick.
+
+- Ink `#12232b`, margin band filled ink, tick in paper.
+- Clear space: the width of the margin band on all sides. Never place it on a colour; it is ink on paper or
+  paper on ink.
+- Minimum size 24px for the detailed mark; below that use the favicon variant.
+- `logo-app.svg` — the same mark on an ink field with a petrol tick, for app icon / avatar use.
+- `logo-favicon.svg` — 16px: two shapes only (margin rule + tick), no page outline, no entries.
+
+### The wordmark
+
+`financer` set lowercase in **Newsreader 500**, tracking `-0.02em`, ink. The descender of the *f* is not
+decorated — the mark carries the metaphor, the wordmark stays a word.
+
+Tagline, used once (login screen and README only): `STATEMENTS, BOOKED` in labels style, petrol.
+
+### Voice
+
+Sentence case everywhere. Verbs are bookkeeping verbs: *approve, book, reconcile, carried forward, unmatched,
+overdue*. No exclamation marks, no emoji, no "Oops!". Empty states state the fact and the next action in one
+line: `No mailboxes yet. Link one to start booking statements.`
+
+---
+
+## 4. Foundations
+
+### 4.1 Colour
+
+Two themes, one palette. **Light is the default** — the paper world is the product; dark is the same ledger
+at night, not a different design. Everything is `oklch` so lightness steps are perceptually even.
+
+```css
+:root {
+  /* paper & ink — light, the default */
+  --paper:          oklch(0.965 0.008 85);   /* desk / canvas */
+  --page:           oklch(0.995 0.003 85);   /* the page you write on */
+  --page-sunk:      oklch(0.945 0.010 85);   /* inputs, wells */
+  --ink:            oklch(0.255 0.020 245);  /* primary text */
+  --ink-soft:       oklch(0.435 0.018 245);  /* secondary */
+  --ink-mute:       oklch(0.585 0.014 245);  /* tertiary, metadata */
+  --ink-faint:      oklch(0.700 0.010 245);  /* placeholder, disabled */
+
+  /* rules — the structure */
+  --rule:           oklch(0.255 0.020 245 / 0.12);
+  --rule-soft:      oklch(0.255 0.020 245 / 0.07);
+  --rule-strong:    oklch(0.255 0.020 245 / 0.22);
+  --margin-rule:    oklch(0.700 0.045 225);  /* the steel margin line */
+
+  /* meaning */
+  --accent:         oklch(0.455 0.075 205);  /* petrol: actions, links, focus */
+  --accent-hover:   oklch(0.395 0.075 205);
+  --accent-wash:    oklch(0.940 0.020 205);
+  --credit:         oklch(0.505 0.100 155);  /* income */
+  --debit:          oklch(0.520 0.150 28);   /* expense, destructive */
+  --stamp:          oklch(0.660 0.105 78);   /* brass: carried forward, pending */
+  --overlay:        oklch(0.255 0.020 245 / 0.32);
+}
+
+:root[data-theme="dark"] {
+  --paper:          oklch(0.215 0.012 245);
+  --page:           oklch(0.255 0.014 245);
+  --page-sunk:      oklch(0.190 0.012 245);
+  --ink:            oklch(0.935 0.010 85);   /* paper-coloured text */
+  --ink-soft:       oklch(0.790 0.010 85);
+  --ink-mute:       oklch(0.640 0.012 85);
+  --ink-faint:      oklch(0.520 0.012 85);
+
+  --rule:           oklch(1 0 0 / 0.10);
+  --rule-soft:      oklch(1 0 0 / 0.06);
+  --rule-strong:    oklch(1 0 0 / 0.18);
+  --margin-rule:    oklch(0.480 0.035 225);
+
+  --accent:         oklch(0.720 0.080 205);
+  --accent-hover:   oklch(0.790 0.080 205);
+  --accent-wash:    oklch(0.300 0.030 205);
+  --credit:         oklch(0.720 0.100 155);
+  --debit:          oklch(0.680 0.140 28);
+  --stamp:          oklch(0.760 0.090 78);
+  --overlay:        oklch(0.100 0.010 245 / 0.60);
+}
+```
+
+**Rules of use**
+
+- One accent (petrol). It marks *interaction*: links, primary buttons, focus, active nav. Not decoration.
+- `--credit` / `--debit` mark *direction of money* only. Never use them for actions.
+- `--stamp` is brass, used for one thing: the "carried forward" figure and `PENDING` state. Nothing else.
+- Category colour: **none**. Categories are identified by name, monogram and position, never by hue — the
+  colourblind and the twelve-colour-pie-chart case are the same case.
+- Data-viz palette, when a chart genuinely needs more than one series: `--accent`, `--accent` at 60% opacity,
+  `--ink-mute`, and `--stamp` — same-hue steps plus one warm, all chart series drawn at 8% opacity fills with
+  a 1.5px solid top stroke.
+
+### 4.2 Type
+
+Two families, both self-hosted (no CDN, the app is offline-capable):
+
+| Role | Family | Weights | Why |
+|---|---|---|---|
+| Display, page titles, the carried-forward figure | **Newsreader** (variable) | 400 / 500 | A text serif with a statement's calm; makes the one number that matters look printed rather than computed |
+| Everything else | **IBM Plex Sans** (variable) | 400 / 500 / 600 | Engineered, slightly humanist, excellent at 12–14px, real tabular figures — the invoice/ledger temperament |
+| Machine strings (IDs, hashes, key prefixes, poll stamps) | `ui-monospace` (system) | 400 | Never a download for something that appears four times in the product |
+
+```css
+:root {
+  --font-display: "Newsreader", Georgia, serif;
+  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Major Third (1.25) from a 14px base — an interface scale, not an editorial one */
+  --text-xs:   0.75rem;   /* 12 — labels, stamps */
+  --text-sm:   0.8125rem; /* 13 — table cells, captions */
+  --text-base: 0.875rem;  /* 14 — body */
+  --text-md:   1rem;      /* 16 — emphasised body, form values */
+  --text-lg:   1.125rem;  /* 18 — section titles */
+  --text-xl:   1.375rem;  /* 22 — page titles */
+  --text-2xl:  1.75rem;   /* 28 — carried-forward figure */
+  --text-3xl:  2.25rem;   /* 36 — dashboard hero figure */
+
+  --tracking-tight: -0.015em;
+  --tracking-label: 0.06em;
+}
+```
+
+**Levels** (size, weight, family, colour — never size alone):
+
+| Level | Spec |
+|---|---|
+| Page title | `--text-xl` / Newsreader 500 / `--tracking-tight` / `--ink` |
+| Section title | `--text-lg` / Plex 600 / `--ink` |
+| Body | `--text-base` / Plex 400 / `--ink` / leading 1.55 |
+| Secondary body | `--text-base` / Plex 400 / `--ink-soft` |
+| Label | `--text-xs` / Plex 500 / uppercase / `--tracking-label` / `--ink-mute` |
+| Table cell | `--text-sm` / Plex 400 / `--ink` |
+| Money | Plex 500 + `font-variant-numeric: tabular-nums`; negatives prefixed `−` (U+2212), never `()` |
+| Carried forward | `--text-2xl` / Newsreader 500 / `--ink` |
+| Machine string | `--text-xs` / mono / `--ink-mute` |
+
+**Rules.** Tabular figures everywhere a column of numbers exists. Line length for prose ≤ 72ch. Never centre
+a number in a table. Numbers right-aligned, one currency format per page.
+
+### 4.3 Space & layout
+
+Base unit **4px**, and every value is on the scale: `4 8 12 16 20 24 32 40 48 64 80`.
+
+| Context | Value |
+|---|---|
+| Icon ↔ text | 6 |
+| Inside a control | 10 / 14 |
+| Between form fields | 16 |
+| Card padding | 20 (compact) / 24 (default) |
+| Between cards | 16 |
+| Between page sections | 40 |
+| Page padding | 32 desktop / 16 mobile |
+
+**Shell.** Sidebar 244px (fixed, `--paper`, hairline right border, no card, no contrast jump) + content that
+is a page: max width 1180px, left-aligned inside the content area with 32px padding (the page does not float
+centred — it sits on the desk like a sheet of paper).
+
+**The margin column.** Every ruled surface reserves a margin: 56px on desktop, 40px on mobile, closed by
+`--margin-rule`. Contents, left to right: state glyph · entry · right-aligned numbers. On mobile the margin
+stays (it is the signature), the glyph stacks above the title instead of beside it.
+
+**Breakpoints** `640 / 768 / 1024 / 1280`. Below 768 the sidebar becomes a bottom bar of 5 destinations
+(Dashboard, Accounts, Spending, Inbox, Investments) and the rest moves under "More" in Settings.
+
+### 4.4 Depth
+
+**Committed strategy: surface shift + hairline rules.** No card shadows. Shadows exist only where something
+actually floats (menu, modal, toast), where they are a single soft layer plus a hairline ring:
+
+```css
+--lift: 0 0 0 0.5px var(--rule), 0 6px 20px oklch(0.255 0.02 245 / 0.10);
+```
+
+Surfaces: `--paper` (canvas) → `--page` (cards, tables, sheets) → `--page-sunk` (inputs, wells, table head).
+A page card is `--page` on `--paper` with a 1px `--rule` border and 6px radius. Radius scale: **4** (controls)
+· **6** (cards, sheets) · **10** (modals) · **999** (only stamps and the account monogram tab).
+
+Never: pure white on paper, coloured card backgrounds, borders darker than `--rule-strong`, radius > 10 on
+anything but pills.
+
+### 4.5 Motion
+
+- Micro (hover, tick, toggle): **120ms**, `cubic-bezier(0.2, 0, 0, 1)`.
+- Enter/leave (menu, modal): **200ms** fade + 4px rise; modal scrim 160ms.
+- The **tick** — the one signature animation: approving a mail row draws the check with
+  `stroke-dashoffset` over 180ms, then the row collapses over 200ms.
+- Nothing loops. No skeleton shimmer sweep — skeletons are static `--page-sunk` bars with the text rhythm.
+- `prefers-reduced-motion: reduce` removes every transform and every non-essential transition.
+
+---
+
+## 5. Components
+
+Every component below is written as its states, because a component without its states is a mock.
+
+### 5.1 Button — `.btn` (rewritten)
+
+| Variant | Use | Spec |
 |---|---|---|
-| Text/number input | the shared labeled input component | styled `input` baked in; leading-icon slot auto-pads left |
-| Select | the shared labeled select component | with `<option>` children |
-| Date picker | the shared date-picker component | custom calendar; internal selects styled |
-| Modal shell | the shared modal component | slot content; optional `wide` prop for large modals |
-| Confirm | the shared confirm dialog component | never use native `confirm()` |
-| Dropdown/panel | the shared popover component | every filter/popup shell follows this |
-| Card shell | `.card` (daisyUI) or `div` with `bg-surface border border-border rounded-2xl` | see section 4 |
-| Buttons | daisyUI `.btn` classes only | see section 5 |
-| Icons | `@lucide/vue`, `stroke-width="1.5–2"`, size `w-4`/`w-5` | no emoji as icons |
+| Solid | the one primary action per view | `--accent` fill, paper text, 34px height, 4px radius |
+| Outline | secondary | transparent, `--rule-strong` border, ink text |
+| Quiet | tertiary, table row actions | no border, ink-soft text, `--page-sunk` on hover |
+| Danger | destructive, only in confirm flows | `--debit` text, `--debit` 20% border, transparent fill |
+| Icon | row actions, 32×32, always `aria-label` | quiet styling, 18px glyph |
 
-### Duplication rule
+States: hover (darken 8% / wash), active (inset 1px sense via `--page-sunk`), focus-visible (2px
+`--accent` ring, 2px offset), disabled (`--ink-faint`, no hover), loading (spinner replaces label, width
+held). Minimum hit area 44×44 on touch, padding may exceed the visual box.
 
-If you need the same markup in two places (an input+label pair, an empty state, a segmented control), **extract a component first**, then use it in both. Never copy-paste a class string between files.
+### 5.2 Field — input, select, date, textarea
 
----
+The input reads as a **ruled slot on the page**, not a floating box: 38px height, `--page-sunk` fill,
+1px `--rule` border, no radius above 4px, label above in labels style, hint below in `--ink-mute`.
+Focus: border `--accent` + 2px `--accent` 18% halo — never a glow.
 
-## 4. Cards & containers
+States: filled · focus · disabled · invalid (`--debit` border + one-line reason below, never a tooltip-only
+error) · read-only (no fill, hairline only).
 
-- Card: `card bg-surface border border-border` (daisyUI) or `bg-surface border border-border rounded-2xl shadow-card` when elevated.
-- If a domain entity has a recurring card, extract a named component rather than hand-rolling per view.
-- List rows: `bg-surface border border-border rounded-xl px-4 py-3`, hover `hover:border-primary-500/40`.
-- Avoid uniform card grids as a default layout — let information priority drive the layout.
+Selects and dates are custom popovers on `--page` with `--lift`; never a native `<select>` dropdown.
 
----
+### 5.3 Ledger table — the core surface
 
-## 5. Buttons — daisyUI `.btn` only
+```
+| margin | entry                                     | category | account | amount |
+|   ⌐    | Sainsbury's  · 12 Nov                     | Food     | Barcl…42|  −34.10|
+```
 
-There are **no custom button classes**. Use daisyUI v5 variants:
+- Header row: labels style, `--page-sunk`, hairline bottom `--rule`.
+- Body rows 44px (dense: 36px), hairline `--rule-soft` between rows, **no zebra striping**.
+- Hover: row background `--page-sunk` at 50%. Selected: 2px `--accent` left edge in the margin.
+- Margin cell: 56px wide, `--page-sunk` at 45%, closed by `--margin-rule`, glyph centred — `✓` petrol when a transfer is matched, `◌` stamp when
+  pending, `↕` ink-mute when linked to mail. Empty when nothing to say.
+- Money right-aligned, tabular, `--credit`/`--debit`. Amounts are the only coloured text in a normal row.
+- Footer: the "carried forward" line — `--page-sunk`, Newsreader, with the page total: this is not decoration,
+  it is how the user checks the table against their own arithmetic.
+- Loading: 3 static skeleton rows. Empty: the ruled page — a hairline box with one line of text and one
+  action. Error: hairline `--debit` banner above the table with a retry button, table keeps its last data.
 
-| Purpose | Classes |
-|---|---|
-| Primary action | `btn btn-primary` (optionally `btn-sm`) |
-| Secondary / neutral | `btn btn-ghost` or `btn btn-outline` |
-| Destructive | `btn btn-outline btn-error` |
-| Dense/toolbar | `btn btn-ghost btn-sm` |
-| Icon-only | `btn btn-ghost btn-sm` + `aria-label` |
+### 5.4 Folio card — `.folio`
 
-Rules:
-- Add `gap-1.5` (or `gap-2`) when a button contains an icon + label.
-- `:disabled` for in-flight states; swap the label to "…" / spinner (`Loader2` with `animate-spin`).
-- Loading: replace the CTA label (e.g. "Saving…"), keep the button disabled.
-- Never use a `span`/`div`/`a` with `role="button"` where a real `<button>` works (keyboard semantics are free).
-- `btn` has no shadow by design.
+`--page` surface, 1px `--rule`, 6px radius. Header: title (section title level) + optional stamp, separated
+from the body by a hairline. Body padding 20–24. No shadow, no hover lift — a card is a page, not a button.
+Interactive cards (accounts, investments) get `--rule-strong` border on hover and a focus ring, nothing else.
 
----
+### 5.5 Stamp — `.stamp`
 
-## 6. Forms
+The only pill in the product: 11px mono uppercase, 1px hairline border, 2px 8px padding, radius 999.
+Tones: neutral (`--ink-mute`), pending (`--stamp`), credited (`--credit`), debited (`--debit`), linked
+(`--accent`). Used for: `PENDING`, `AUTO`, `REVIEW`, `PAID`, account ending digits (`···42`), API key prefix.
 
-- Use the shared labeled input/select/date-picker components — never raw `input w-full bg-surface ...` class strings.
-- Every field gets a visible `<label>` (the shared input/select render it). Icon-only controls get `aria-label`.
-- Errors: show as `text-[12px] text-negative` under the field or in an error banner; never color-only.
-- Segmented controls (e.g. binary toggles) are the one allowed custom pattern: `peer sr-only` radio + styled span.
+### 5.6 Margin tick — `.tick`
 
----
+18px glyph button, hit area 44px, sits in the table margin.
+States: idle `◌` (`--ink-faint`) · hover `◌` `--accent` · done `✓` (`--accent`, drawn 180ms) · refused `✕`
+(`--debit`, 120ms). Approve/deny in the Inbox, match transfer in Spending. This is the signature interaction.
 
-## 7. States — never a blank screen
+### 5.7 Tabs, menus, modals
 
-Every list/screen must handle all three:
+- **Tabs**: underline rule only — label + 2px `--accent` underline on the active tab, hairline `--rule`
+  beneath the whole row. No filled pills, no segmented control chrome.
+- **Menu / popover**: `--page`, `--lift`, 4px radius, 4px padding, rows 32px, keyboard navigable.
+- **Modal**: `--page`, radius 10, `--lift`, scrim `--overlay`; max-width 520 (form) / 760 (preview);
+  header with title + close, body scroll, footer right-aligned actions with the primary on the right.
+  Esc and scrim-click close; focus is trapped and returned.
+- **Toast**: bottom-right, `--page`, hairline, 4px radius, 3s, one action max.
 
-- **Loading:** skeleton blocks (`animate-pulse bg-surface-alt`) for content, never a bare spinner for a whole screen. `aria-busy="true"`.
-- **Empty:** icon (`text-faint`) + title + one-line helper + primary action.
-- **Error:** message + retry button (`btn btn-outline btn-sm`).
+### 5.8 Charts
 
----
+Only three primitives, all paper-like:
 
-## 8. Accessibility (WCAG 2.1 AA)
+1. **Line** — 1.5px `--accent`, no fill, dots on hover only, horizontal hairline gridlines at 4 steps,
+   y labels right, x labels in labels style.
+2. **Ruled bars** — horizontal, one hairline box per row, fill `--accent` at 14% with a 1.5px solid left
+   edge, value right-aligned tabular. Used for category spending (replaces the pie).
+3. **Allocation strip** — a single 8px tall horizontal strip split by 2px paper gaps, segments in
+   `--ink-mute` steps; tooltip on hover. Used for portfolio/account split.
 
-- **Keyboard:** every interactive element is a real `<button>`/`<a>`/`<input>`/`<select>` (focusable by default). Verify by tabbing through.
-- **Labels:** every input has a visible label or `aria-label`.
-- **Contrast:** text is `text`/`text-secondary` on `surface`; never `subtle`/`faint` for essential text. All text tokens (`text-muted`, `subtle`, `faint`) are tuned to pass WCAG AA (≥4.5:1) on the app surfaces. Any palette used by badges/cells must pass AA on its tinted background in all supported themes.
-- **Theme support:** the app ships `system` / `dark` / `light` modes (`data-theme`, persisted in `localStorage`). UI that must match the screen uses the resolved theme, never the raw mode. Tokens have light overrides; every color must pass AA in every theme.
-- **Don't rely on color alone:** positive/negative values must pair color with a sign (`+`/`−`) or icon.
-- **Focus:** global `:focus-visible` outline is set in `main.css` — don't override it.
-- **Reduced motion:** handled globally via `prefers-reduced-motion` in `main.css`; don't add new animations that bypass it.
+No gradients, no shadows under bars, no donuts with exploded slices, no 3D.
 
----
+### 5.9 States, always
 
-## 9. Responsive
-
-Mobile-first. Test at **320, 768, 1024, 1440**. Navigation collapses on small screens; forms go single-column (`grid-cols-1 sm:grid-cols-2`); tables scroll horizontally inside an `overflow-x-auto` container.
-
-### What changes with viewport width
-
-**Sizes never change** — a 40px input stays 40px, `gap-4` stays 16px at every width. Only **layout** reflows. This is the rule set for that reflow, in compromise order (what gives up space first):
-
-| Breakpoint | Behavior |
-|---|---|
-| **≥ 1440** (extra space) | Content `max-w` caps the column (~1200px) and centers it; the extra space goes to margins, never stretching controls. Side-by-side fields may go 2–3 columns. |
-| **1024–1440** | Multi-column grids (2–3) stay; sidebar (if any) stays expanded. |
-| **768–1024** | Grids drop to 2 columns (`lg:grid-cols-2`); sidebars collapse to icon rail / overlay. |
-| **< 768** (tight) | Everything goes single-column (`grid-cols-1`); action rows stack; tables scroll horizontally (`overflow-x-auto`) instead of squeezing; dense toolbars wrap or collapse into a "more" menu. |
-
-### What to compromise on, in order, as space shrinks
-
-1. **Column count** — columns collapse first (3 → 2 → 1). Content stays readable.
-2. **Side-by-side fields** — two-column form rows become stacked; fields stay full-width and 40px tall.
-3. **Non-essential chrome** — hide secondary text, helper copy, decorative icons; keep labels and primary actions.
-4. **Inline toolbars** — shrink to icon-only buttons, then to an overflow/"more" popover.
-5. **Tables** — scroll horizontally rather than shrinking cell padding or text size below `text-[12px]`.
-
-**Never compromise:** readable font size (`text` ≥ 12px), tap targets (buttons/inputs stay ≥ 40px tall), field spacing below 8px, or hiding the primary action.
-
-### What absorbs extra space, in order, as it grows
-
-1. **Card/panel width** — content column grows up to the `max-w` cap; controls stay fixed-size.
-2. **Column count** — grids add columns (1 → 2 → 3) before any single element widens.
-3. **Whitespace** — remaining space becomes margins/gaps between sections, not bigger controls.
-4. **Charts/media** — the only elements allowed to scale freely with width.
-
-Rule of thumb: **controls are fixed, layout is fluid.** If a design needs larger controls on a big screen, that's an explicit accessibility decision (`clamp()` or media query), not the default.
+Every async surface ships four: **loading** (static skeleton rows) · **empty** (ruled page, one line, one
+action) · **error** (hairline `--debit` banner + retry, data preserved) · **content**. A blank screen is a
+bug.
 
 ---
 
-## 10. What "done" looks like
+## 6. Pages
 
-- [ ] Renders with no console errors.
-- [ ] Tab-through works; every action is a real button.
-- [ ] Loading / empty / error states present.
-- [ ] Uses the shared components (input/select/date-picker/modal/confirm/popover) where applicable.
-- [ ] Only daisyUI `.btn` button classes + theme tokens (no hex, no `bg-[...]`).
-- [ ] Form fields follow the section 2 metrics exactly (40px height, 16px vertical gap, 6px label gap, etc.).
-- [ ] No duplicated component code — if you copy-pasted markup, extract a component.
-- [ ] Works at 320 / 768 / 1024 / 1440.
+Each page states its focal point first — the one thing the person came for.
+
+### 6.1 Login — `/login`
+Focal: the form. Split screen: left 42% a `--paper` field with the mark at 40px, the wordmark, and the
+tagline; right the form on a `--page` sheet, max 380px, titled "Sign in" (page title), two ruled fields, one
+solid button full width, then a hairline and `Create an account` as a quiet link. No marketing copy, no
+testimonial, no image.
+
+### 6.2 Signup — `/signup`
+Same frame, three fields, one sentence under the title: `One ledger per person. Nothing is shared.`
+Password rules appear only on focus, as a single line.
+
+### 6.3 Dashboard — `/dashboard`
+Focal: **the carried-forward figure**. Composition, top to bottom:
+1. Page head: title `Dashboard`, right side the reporting period as a quiet text button.
+2. **Balance band** (not four boxes): a full-width `--page` strip with the net worth in `--text-3xl`
+   Newsreader on the left; to its right, separated by hairline verticals, three small blocks — income,
+   expenses, unrealised P&L — each a label + tabular figure with a 12px delta line.
+3. Two columns (60/40): left `Accounts` — one row per account in a folio card, each row a mini ledger row
+   (margin: monogram tab; name + `···42` stamp; balance right; 40px sparkline in the row's last column).
+   Right `Portfolio`, `Mail` (last poll stamp + pending count with a `.tick`), and `Recent rules` blocks.
+4. Bottom: `Recent entries` — a 6-row ledger table with a `→` link to Spending, and its carried-forward line.
+
+### 6.4 Accounts — `/accounts`
+Focal: the account list as pages in a book. Cards in a 2-column grid (1 on mobile), each card a folio with
+the monogram tab in the margin, name, `···42` stamp, balance in Newsreader, and a footer hairline row with
+`12 entries · updated 2h ago`. Hover: `--rule-strong`. Click: account detail (the same page with the
+account's ledger below).
+
+### 6.5 Manage accounts — `/accounts/manage`
+Focal: correction. A single ledger table: margin (type glyph), account name + bank, type as stamp, ending
+digits, balance, row actions (`Edit`, `Delete`). Add account is a solid button in the page head, opens a
+520px modal with four ruled fields. Delete is a danger confirm with the account balance recited in the body.
+
+### 6.6 Spending — `/accounts/spending`
+Focal: **the ledger**. This is the app's spine.
+1. Page head: title `Spending`, buttons `Filter` (quiet, with active-count stamp) and `Add entry` (solid).
+2. Filter row: an index-tab row above the table — period tabs (`7D 1M 6M 1Y Custom`) as underline tabs,
+   account select, search field, `Filter` popover for the rest. Active filters appear as removable stamps
+   under the row.
+3. Chart block (only when a period is chosen): ruled bars, one row per category, with a `Total` row that
+   matches the table footer.
+4. The ledger table (§5.3) with the carried-forward footer, `Import statement` as a quiet button in the
+   table header, and pagination as `‹ 1 / 4 ›` in the footer.
+
+### 6.7 Rules — `/accounts/rules`
+Focal: what is automatic. Left: the rule list — numbered rows in the margin (priority is literal here), name,
+conditions line in `--ink-soft`, action line with category/account stamps, `Preview` and row actions.
+Right (or below on mobile): the preview panel — the last 5 transactions the rule matched, ruled rows.
+Rule form is a modal, 760px, in two columns: conditions (AND/OR tab) and actions; a live "matches N of the
+last 200 entries" line at the bottom updates as you edit.
+
+### 6.8 Inbox — `/inbox`
+Focal: **the queue**. Three stacked sections, each a folio:
+1. `Mailboxes` — one row per mailbox: margin (monogram), label + address, `Polled 12m ago` or the error line
+   in `--debit`, `Poll now` quiet button, delete in the row menu. `Link mailbox` solid button in the section
+   header; modal has the allowlist as a repeating field and says plainly: `Port 993 only`.
+2. `To review` — the mail queue as a ledger table: margin carries the `.tick` (approve) and `✕` (deny), entry
+   is `Sender · subject`, extraction is amount + date, right column the account select when ambiguous. Approve
+   draws the tick; the row leaves over 200ms.
+3. `Rules` — disposition rules as compact rows: `From` pattern, `→` and one of `Ignore` / `Review` / `Auto`
+   as a stamp, drag handle for order. A hint appears when `Auto` is chosen for the first time:
+   `Auto books the transaction without asking.`
+
+### 6.9 Categories — `/accounts/categories`
+Focal: order. A ledger table: margin (monogram), name, usage count, last used, row actions. Header has the
+count and `New category`. Inline create row rather than a modal — a category is one word.
+
+### 6.10 Investments — `/investments`
+Focal: current value vs cost. Top: a summary strip (same pattern as the Dashboard band) with invested,
+current, unrealised P&L, realised P&L. Then the holdings table: margin (monogram of the symbol's first
+letter), symbol in mono + name, quantity, avg cost, price + `last quote 3m` in `--ink-mute`, P&L as a
+right-aligned tabular figure with a `▲`/`▼` glyph, 40px sparkline in the last column. Row click → detail.
+
+### 6.11 Investment detail — `/investments/:id`
+Focal: the price history. Head: symbol + name, big price (Newsreader), delta line, buttons `Add lot` and
+`Refresh`. Line chart, full width, hairline gridlines, period tabs above it. Below: two columns — `Lots`
+(FIFO table with margin tick when a lot is fully sold) and `Summary` (quantity, cost basis, realised,
+unrealised, all as label/figure pairs on hairlines).
+
+### 6.12 Settings — `/settings`
+Focal: account hygiene. Left in-page nav (underline tabs on mobile): `Profile`, `Password`, `API keys`,
+`Danger zone`. Each is a folio card with the section title and a one-line purpose.
+- Profile: name, email (read-only, with a stamp), avatar as a 64px monogram tab.
+- Password: current, new, confirm; the single solid button; success shows a toast, never a modal.
+- API keys: rows of `name`, key prefix as a mono stamp, scope as a stamp, last used; `New key` reveals the
+  full key exactly once in a `--page-sunk` well with a copy button.
+- Danger zone: `Sign out everywhere` (outline) and `Delete account` (danger) behind a typed confirmation.
+
+---
+
+## 7. Accessibility
+
+- Text contrast ≥ 4.5:1 (`--ink` on `--page` is ~13:1, `--ink-mute` ~5.2:1 — `--ink-faint` is for
+  placeholders only, never for information).
+- Colour is never the only carrier: every credit/debit figure also carries `+`/`−`; every stamp carries its
+  word; every tick has an `aria-label`.
+- Focus visible on everything focusable: 2px `--accent` ring, 2px offset, never removed.
+- Keyboard: skip-to-content link, sidebar reachable, tables navigable row by row (`j`/`k` optional, arrow
+  keys required), Esc closes overlays, focus returns to the trigger.
+- Targets ≥ 44×44 on touch; icon buttons carry `aria-label`; decorative glyphs are `aria-hidden`.
+- Motion respects `prefers-reduced-motion`. Tables use real `<table>` semantics with `<th scope>`.
+- Live regions: poll results, toast, and the review queue announce changes politely.
+
+---
+
+## 8. Implementation notes
+
+**Stack.** Tailwind v4 + daisyUI v5 stay, but daisyUI is used as a *reset for behaviour* only: `btn`,
+`input`, `select`, `modal`, `table` base classes are allowed, then every visual property is overridden by the
+tokens above. Any daisyUI default that is not overridden is a bug in the same way an unstyled `<div>` is.
+
+**Tokens in code.** `frontend/src/assets/main.css` becomes: `@import "tailwindcss"`, `@plugin "daisyui"`
+with a **custom theme per mode** built from the variables in §4.1, an `@theme` block mapping them to Tailwind
+utilities (`bg-page`, `text-ink-soft`, `border-rule`, `text-credit`), and no raw hex anywhere else in the
+codebase. One file owns colour.
+
+**Fonts.** `@fontsource-variable/newsreader` and `@fontsource-variable/ibm-plex-sans` imported in
+`main.ts`; `font-display: swap`; no CDN link.
+
+**Component inventory to rebuild** (replacing the current ones, not editing them): `AppButton`, `AppField`,
+`AppSelect`, `AppDatePicker`, `AppTable` (with margin slot + footer slot), `AppFolio` (card), `AppStamp`,
+`AppTick`, `AppTabs`, `AppModal`, `AppMenu`, `AppToast`, `AppEmpty`, `AppSkeleton`, `AppPagination`,
+`AppLineChart`, `AppBars`, `AppAllocation`.
+
+**Migration, in four stations** — each one shippable on its own:
+1. Foundations: tokens, fonts, logo, `@theme` mapping, `AppLayout` shell + sidebar + mobile bar.
+2. Primitives: button, field, select, date, stamp, tick, tabs, modal, menu, toast.
+3. Surfaces: `AppTable` + folio card + empty/skeleton, then Dashboard and Spending (the two pages that prove
+   the system).
+4. The rest: Accounts, Manage, Rules, Inbox, Categories, Investments, Detail, Settings, Login, Signup.
+
+**Definition of done for a page:** all four states, keyboard-only pass, 360px width pass, light and dark
+pass, no raw hex, no colour that is not one of the meaning tokens, and the margin column present.
+
+---
+
+## 9. Never
+
+- Never a coloured card background, a gradient, or a shadow on a page surface.
+- Never a second accent colour; never a category hue.
+- Never a number without tabular figures; never a table without its carried-forward footer.
+- Never a modal for something that fits inline; never a native `<select>`.
+- Never a blank loading screen; never "Oops"; never an exclamation mark.
+- Never break the margin column to fit content — the margin is the product.
