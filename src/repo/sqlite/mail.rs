@@ -114,7 +114,8 @@ impl SqliteMailRepo {
         let sql = format!(
             "SELECT message_id FROM mail_messages WHERE user_id = ? AND message_id IN ({placeholders})"
         );
-        let mut q = sqlx::query_scalar::<_, String>(&sql).bind(user_id);
+        let mut q =
+            sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(sql.as_str())).bind(user_id);
         for id in ids {
             q = q.bind(id);
         }
