@@ -99,7 +99,7 @@ onMounted(async () => {
     <router-link
       to="/dashboard"
       class="flex items-center gap-2.5 border-b border-rule-soft text-ink"
-      :class="collapsed ? 'justify-center px-2 py-4' : 'px-5 py-4'"
+      :class="collapsed ? 'justify-center px-2 py-3.5' : 'px-4 py-3.5'"
       @click="closeDrawer"
     >
       <svg viewBox="0 0 64 64" class="w-[26px] h-[26px] shrink-0" aria-hidden="true">
@@ -113,13 +113,13 @@ onMounted(async () => {
       <span v-if="!collapsed" class="font-display text-[21px] leading-none tracking-[-0.02em]">financer</span>
     </router-link>
 
-    <nav class="flex-1 overflow-y-auto py-3" :class="collapsed ? 'px-2' : 'px-3'">
+    <nav class="flex-1 overflow-y-auto py-2" :class="collapsed ? 'px-2' : 'px-2.5'">
       <template v-for="(section, i) in NAV_SECTIONS" :key="section.label ?? `section-${i}`">
         <div v-if="collapsed && i > 0" class="mx-auto my-3 h-px w-6 bg-rule"></div>
         <div
           v-else-if="section.label"
-          class="px-2 pb-1.5 text-label font-medium uppercase tracking-[0.06em] text-ink-faint"
-          :class="i > 0 ? 'pt-5' : 'pt-1'"
+          class="px-2 pb-1 pt-1 text-label font-medium uppercase tracking-[0.06em] text-ink-faint"
+          :class="i > 0 ? 'pt-4' : 'pt-0.5'"
         >
           {{ section.label }}
         </div>
@@ -129,7 +129,7 @@ onMounted(async () => {
           :key="item.to"
           :to="item.to"
           :title="item.label"
-          class="group relative flex items-center gap-3 rounded-control py-2 font-medium transition-colors"
+          class="group relative flex h-8 items-center gap-2.5 rounded-control text-[13px] font-medium transition-colors"
           :class="[
             activeHref === item.to ? 'bg-page-sunk text-ink' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink',
             collapsed ? 'justify-center px-0' : 'px-2.5'
@@ -168,7 +168,7 @@ onMounted(async () => {
             v-for="acc in accountSlice.shown"
             :key="acc.id"
             type="button"
-            class="flex w-full items-center gap-2.5 rounded-control px-2.5 py-1.5 text-left transition-colors"
+            class="flex h-7 w-full items-center gap-2.5 rounded-control px-2 text-left transition-colors"
             :class="accountStore.state.selectedAccountId === acc.id ? 'bg-page-sunk' : 'hover:bg-page-sunk/70'"
             @click="goToAccount(acc.id)"
           >
