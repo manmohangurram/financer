@@ -176,6 +176,8 @@ Configuration is env-only (no config file). See the table in `README.md`.
 | `FINANCER_DOMAIN_URL` | no | set only if the SPA is served from a different host |
 | `FINANCER_TIMEZONE` | no | IANA zone (default `Asia/Kolkata`) |
 | `FINANCER_SQLITE_PATH` | no | SQLite file (default `/data/financer.db`) |
+| `FINANCER_SECRET_KEY` | for the Inbox | 64 hex chars (`openssl rand -hex 32`); encrypts mailbox passwords, and must stay stable — changing it makes stored passwords unreadable |
+| `FINANCER_MAIL_POLL_SECS` | no | background mail poll interval, seconds (default `300`, min `30`) |
 
 ---
 

@@ -26,6 +26,7 @@ Financer tracks accounts, transactions, transfers, spending, rules (auto-categor
 - [Tech stack](#tech-stack)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
+- [Inbox (email → transactions)](#inbox-email--transactions)
 - [Data, backups & upgrades](#data-backups--upgrades)
 - [Reverse proxy & HTTPS](#reverse-proxy--https)
 - [API](#api)
@@ -45,6 +46,7 @@ Financer tracks accounts, transactions, transfers, spending, rules (auto-categor
 - **Spending analytics** — server-computed buckets (7D/1M/6M/1Y/custom, day or month granularity), per-category debit/credit pies with drill-down, and transfer exclusion (debt accounts count as real spending).
 - **Dashboard** — one summary endpoint: net worth, income, expenses, portfolio value, account cards, P&L.
 - **Investments** — instruments (stock/mutual fund), buy/sell lots with FIFO cost basis, live Yahoo quotes, price-history chart, portfolio summary (invested / current / unrealized / realized P&L).
+- **Inbox** — link an IMAP mailbox (app password, encrypted at rest), poll it on a timer, and turn bank-statement mail into transactions: disposition rules send each sender to Ignore / Review / Auto, and the Inbox approves or rejects what needs a person.
 - **API keys + MCP** — per-user API keys (scoped read / read_write) and an MCP server at `/mcp` for external AI agents.
 
 All finance math (aggregation, filtering, transfer resolution, FIFO) lives in the backend; the frontend renders server-computed results.
@@ -119,12 +121,44 @@ Configuration is **entirely environment variables** — there is no config file.
 | `FINANCER_DOMAIN_URL` | *(empty)* | External URL, if the SPA is served from a different origin |
 | `FINANCER_TIMEZONE` | `Asia/Kolkata` | IANA timezone for day/month bucketing and date ranges |
 | `FINANCER_SQLITE_PATH` | `/data/financer.db` | SQLite file |
+| `FINANCER_SECRET_KEY` | *(unset)* | 32-byte hex key (64 chars) encrypting mailbox passwords; the mail feature needs it |
+| `FINANCER_MAIL_POLL_SECS` | `300` | How often the background poll runs (minimum 30) |
 
 **Frontend API base:** in the container the frontend is built same-origin, so it talks to the API on whatever host serves the page. For local dev set `VITE_API_URL` (see [`frontend/.env.example`](frontend/.env.example)).
 
 ### Storage
 
 **SQLite** — zero-dependency, single file at `/data/financer.db`. Migrations in `db/migrations/` run automatically at boot.
+
+## Inbox (email → transactions)
+
+The server reads bank-statement mail over IMAP and turns it into transactions.
+
+1. Generate the credential key once — it encrypts the stored mailbox passwords and is **not** the JWT secret:
+
+   ```bash
+   openssl rand -hex 32     # -> FINANCER_SECRET_KEY, 64 hex characters
+   ```
+
+   Without it the mailbox endpoints refuse to store credentials (`FINANCER_SECRET_KEY is not set`).
+2. In the app: **Inbox → Link mailbox** — IMAP host, port, username, password, and the senders to read.
+   - **Port 993 only** (implicit TLS). STARTTLS on 143 is not supported yet and is rejected with a clear message.
+   - Use an **app password** from the provider, not the account password.
+   - The **sender allowlist** is required; mail from anyone else is never fetched.
+   - Private/LAN hosts are allowed, cloud metadata addresses are not.
+3. The poll runs in the background every `FINANCER_MAIL_POLL_SECS` (default 300s, minimum 30), and on demand from the Inbox.
+4. Disposition rules decide what happens to each match, first rule wins:
+
+   | Disposition | Effect |
+   |---|---|
+   | `AUTO` | The poll creates the transaction itself and the row is marked `AUTO` |
+   | `REVIEW` | The row waits in the Inbox for approve / reject |
+   | `IGNORE` | Seen, never surfaced |
+
+   A row that needs a decision it cannot make (ambiguous account, nothing extracted) lands in `PENDING` with the reason rather than guessing.
+5. Approving creates the transaction through the normal service path, so the rule engine, balance recalculation and category handling all apply. The account is picked from the last 4 digits in the mail, or chosen by you when they do not resolve.
+
+**These routes require HTTPS** (loopback exempt): the mailbox password travels in the request body. Behind a reverse proxy, forward `X-Forwarded-Proto: https` — see [Reverse proxy & HTTPS](#reverse-proxy--https).
 
 ## Data, backups & upgrades
 
