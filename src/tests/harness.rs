@@ -15,14 +15,12 @@ use crate::http::AppState;
 use crate::service::account::AccountService;
 use crate::service::auth::AuthService;
 use crate::service::category::CategoryService;
-use crate::service::investment::InvestmentService;
 use crate::service::rule::RuleService;
 use crate::service::transaction::TransactionService;
 use crate::service::transfer::TransferService;
 use crate::service::transfer_rule::TransferRuleService;
 use crate::service::user::UserService;
 use crate::service::user_key::UserKeyService;
-use crate::service::yahoo::YahooClient;
 
 /// A running test app on a temp SQLite DB. Keeps the tempdir alive.
 pub struct TestApp {
@@ -80,10 +78,6 @@ impl TestApp {
             user_key: UserKeyService::new(repos.user_key.clone()),
             mail: crate::service::mail::MailService::new(repos.mail.clone(), Some("00".repeat(32))),
             account,
-            investment: InvestmentService::new(
-                repos.investment.clone(),
-                YahooClient::new(&crate::config::YahooConfigSection::default()).unwrap(),
-            ),
             category,
             rule,
             transfer_rule,

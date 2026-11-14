@@ -1,6 +1,6 @@
 //! MCP server — exposes financer data to external AI agents over the Model
 //! Context Protocol. Mounted as a streamable-HTTP server at `/mcp`. Read tools
-//! cover accounts/transactions/categories/investments; rule + category tools
+//! cover accounts/transactions/categories; rule + category tools
 //! allow a client (e.g. an AI agent) to manage rules and categories. Auth uses
 //! the per-user API key from the `Authorization` header; the authenticated
 //! `user_id` is injected into the request extensions and read by each tool

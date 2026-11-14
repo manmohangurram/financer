@@ -3,7 +3,6 @@
 use utoipa::OpenApi;
 
 use crate::repo::traits::account::AccountType;
-use crate::repo::traits::investment::InvestmentType;
 use crate::repo::traits::rule::{ActionOp, ActionType, MatchField, MatchOperator, RuleLogic};
 use crate::repo::traits::transaction::TransactionType;
 
@@ -43,22 +42,6 @@ use crate::repo::traits::transaction::TransactionType;
         crate::http::rule::delete,
         crate::http::rule::preview,
         crate::http::rule::run,
-        crate::http::investment::list,
-        crate::http::investment::create,
-        crate::http::investment::get,
-        crate::http::investment::update,
-        crate::http::investment::delete,
-        crate::http::investment::list_lots,
-        crate::http::investment::add_lot,
-        crate::http::investment::update_lot,
-        crate::http::investment::delete_lot,
-        crate::http::investment::price_history,
-        crate::http::investment::search,
-        crate::http::investment::refresh_prices,
-        crate::http::investment::portfolio_summary,
-        crate::http::investment::import,
-        crate::http::investment::import_file,
-        crate::http::investment::import_file_commit,
         crate::http::settings::get,
         crate::http::settings::update,
         crate::http::settings::password,
@@ -69,7 +52,6 @@ use crate::repo::traits::transaction::TransactionType;
         schemas(
             AccountType,
             TransactionType,
-            InvestmentType,
             RuleLogic,
             MatchField,
             MatchOperator,
@@ -83,7 +65,6 @@ use crate::repo::traits::transaction::TransactionType;
         (name = "transactions", description = "Transactions & transfers"),
         (name = "categories", description = "Categories"),
         (name = "rules", description = "Auto-categorization rules"),
-        (name = "investments", description = "Investments, lots, portfolio"),
         (name = "analytics", description = "Dashboard & spending"),
         (name = "settings", description = "Profile, password, avatar"),
     ),

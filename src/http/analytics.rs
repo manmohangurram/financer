@@ -49,15 +49,7 @@ pub async fn dashboard(State(st): State<AppState>, headers: HeaderMap) -> Respon
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    let summary = match st.investment.portfolio_summary(&uid).await {
-        Ok(s) => s,
-        Err(e) => return e.into_response(),
-    };
     let accounts = match st.account.list(&uid).await {
-        Ok(v) => v,
-        Err(e) => return e.into_response(),
-    };
-    let investments = match st.investment.list(&uid).await {
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
@@ -66,9 +58,7 @@ pub async fn dashboard(State(st): State<AppState>, headers: HeaderMap) -> Respon
         "totalBalance": round2(dashboard.total_balance),
         "totalIncome": round2(dashboard.total_income),
         "totalExpenses": round2(dashboard.total_expenses),
-        "portfolioValue": round2(summary.total_current_value),
         "accounts": accounts,
-        "investments": investments,
     }))
     .into_response()
 }

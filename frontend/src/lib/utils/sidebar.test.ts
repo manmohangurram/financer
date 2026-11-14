@@ -15,7 +15,6 @@ describe('resolveActiveHref', () => {
 
   it('falls back to the parent for a sub-page with no nav item', () => {
     expect(resolveActiveHref('/accounts/manage')).toBe('/accounts');
-    expect(resolveActiveHref('/investments/abc-123')).toBe('/investments');
   });
 
   it('returns null when nothing owns the route', () => {

@@ -6,7 +6,6 @@ pub mod account;
 pub mod analytics;
 pub mod category;
 pub mod https;
-pub mod investment;
 pub mod mail;
 pub mod rule;
 pub mod settings;
@@ -25,7 +24,6 @@ use crate::error::{ApiError, Result, json_error};
 use crate::http::account::routes as account_routes;
 use crate::http::analytics::routes as analytics_routes;
 use crate::http::category::routes as category_routes;
-use crate::http::investment::routes as investment_routes;
 use crate::http::mail::routes as mail_routes;
 use crate::http::rule::routes as rule_routes;
 use crate::http::settings::routes as settings_routes;
@@ -35,7 +33,6 @@ use crate::http::user_key::routes as user_key_routes;
 use crate::service::account::AccountService;
 use crate::service::auth::{AuthService, LoginRequest, RefreshTokenRequest, SignupRequest};
 use crate::service::category::CategoryService;
-use crate::service::investment::InvestmentService;
 use crate::service::mail::MailService;
 use crate::service::rule::RuleService;
 use crate::service::transaction::TransactionService;
@@ -51,7 +48,6 @@ pub struct AppState {
     pub user_key: UserKeyService,
     pub mail: MailService,
     pub account: AccountService,
-    pub investment: InvestmentService,
     pub category: CategoryService,
     pub rule: RuleService,
     pub transfer_rule: TransferRuleService,
@@ -95,7 +91,6 @@ pub fn router(state: AppState) -> Router {
         .merge(account_routes())
         .merge(analytics_routes())
         .merge(category_routes())
-        .merge(investment_routes())
         .merge(rule_routes())
         .merge(transaction_routes())
         .merge(transfer_routes())

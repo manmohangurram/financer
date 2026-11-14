@@ -178,35 +178,3 @@ pub struct CategoriesReq {
     #[serde(default)]
     pub categories: Vec<CatItem>,
 }
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct InvestmentReq {
-    #[serde(default)]
-    pub id: String,
-    #[serde(default)]
-    pub symbol: String,
-    #[serde(default)]
-    pub name: String,
-    #[serde(rename = "investmentType")]
-    pub investment_type: crate::repo::traits::investment::InvestmentType,
-    #[serde(default)]
-    pub manual_nav: f64,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct LotInputReq {
-    #[serde(default)]
-    pub investment_id: String,
-    #[serde(default)]
-    pub lot_id: String,
-    #[serde(default)]
-    pub side: Option<i64>,
-    #[serde(default)]
-    pub quantity: f64,
-    #[serde(default)]
-    pub price: f64,
-    #[serde(default)]
-    pub occurred_at: String,
-}
