@@ -309,8 +309,7 @@ impl SqliteTransactionRepo {
         let mut query = String::from(
             "SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id,
                     COALESCE(l.id, ''),
-                    (SELECT GROUP_CONCAT(tc.category_id) FROM transaction_categories tc WHERE tc.transaction_id = t.id),
-                    COUNT(*) OVER () AS total
+                    (SELECT GROUP_CONCAT(tc.category_id) FROM transaction_categories tc WHERE tc.transaction_id = t.id)
                 FROM transactions t
                 LEFT JOIN transfer_links l ON l.debit_transaction_id = t.id OR l.credit_transaction_id = t.id ",
         );
@@ -319,6 +318,15 @@ impl SqliteTransactionRepo {
         let mut bind_args: Vec<String> = Vec::with_capacity(filter_args.len() + 1);
         bind_args.push(user_id.to_string());
         bind_args.extend(filter_args);
+
+        // Counted separately: a `COUNT(*) OVER ()` column made SQLite sort the user's
+        // whole history for every page.
+        let count_sql = format!("SELECT COUNT(*) FROM transactions t {where_sql}");
+        let mut cq = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(count_sql.as_str()));
+        for a in &bind_args {
+            cq = cq.bind(a);
+        }
+        let total = cq.fetch_one(&self.pool).await?;
 
         if f.sort_by.is_empty() {
             if !f.page_token.is_empty()
@@ -357,9 +365,7 @@ impl SqliteTransactionRepo {
         let rows = q.fetch_all(&self.pool).await?;
 
         let mut items: Vec<ListRow> = Vec::new();
-        let mut total = 0i64;
         for r in rows {
-            total = r.3;
             let mut category_ids = Vec::new();
             if let Some(g) = &r.2 {
                 category_ids = g.split(',').map(str::to_string).collect();
@@ -655,12 +661,7 @@ fn like_escape(s: &str) -> String {
 }
 
 /// The full row shape returned by the list query: txn, link id, category group.
-struct RawListTxn(
-    pub RawTransaction,
-    pub Option<String>,
-    pub Option<String>,
-    pub i64,
-);
+struct RawListTxn(pub RawTransaction, pub Option<String>, pub Option<String>);
 
 impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for RawListTxn {
     fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> std::result::Result<Self, sqlx::Error> {
@@ -678,8 +679,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for RawListTxn {
         };
         let link: Option<String> = row.try_get(9)?;
         let cat_group: Option<String> = row.try_get(10)?;
-        let total: i64 = row.try_get(11)?;
-        Ok(RawListTxn(txn, link, cat_group, total))
+        Ok(RawListTxn(txn, link, cat_group))
     }
 }
 
