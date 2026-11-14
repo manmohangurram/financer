@@ -1,190 +1,238 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
-/* The app is dark-first; "dark" is the default theme. This variant lets
-   components use dark: for colors that need to invert in dark mode. */
+/* The app has two themes: "light" (paper, the default) and "dark" (the same
+   ledger at night). Every colour below is one of the meaning tokens from
+   frontend/UI_STANDARDS.md — no raw hex is used outside this file. */
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
+/* ---- raw tokens: paper & ink ------------------------------------------- */
+:root {
+  --paper: oklch(0.965 0.008 85);
+  --page: oklch(0.995 0.003 85);
+  --page-sunk: oklch(0.945 0.01 85);
+  --ink: oklch(0.255 0.02 245);
+  --ink-soft: oklch(0.435 0.018 245);
+  --ink-mute: oklch(0.585 0.014 245);
+  --ink-faint: oklch(0.7 0.01 245);
+
+  --rule: oklch(0.255 0.02 245 / 0.12);
+  --rule-soft: oklch(0.255 0.02 245 / 0.07);
+  --rule-strong: oklch(0.255 0.02 245 / 0.22);
+  --margin-rule: oklch(0.7 0.045 225);
+
+  --accent: oklch(0.455 0.075 205);
+  --accent-hover: oklch(0.395 0.075 205);
+  --accent-wash: oklch(0.94 0.02 205);
+  --credit: oklch(0.505 0.1 155);
+  --debit: oklch(0.52 0.15 28);
+  --stamp: oklch(0.66 0.105 78);
+  --overlay: oklch(0.255 0.02 245 / 0.32);
+  --lift: 0 0 0 0.5px var(--rule), 0 6px 20px oklch(0.255 0.02 245 / 0.1);
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --paper: oklch(0.215 0.012 245);
+  --page: oklch(0.255 0.014 245);
+  --page-sunk: oklch(0.19 0.012 245);
+  --ink: oklch(0.935 0.01 85);
+  --ink-soft: oklch(0.79 0.01 85);
+  --ink-mute: oklch(0.64 0.012 85);
+  --ink-faint: oklch(0.52 0.012 85);
+
+  --rule: oklch(1 0 0 / 0.1);
+  --rule-soft: oklch(1 0 0 / 0.06);
+  --rule-strong: oklch(1 0 0 / 0.18);
+  --margin-rule: oklch(0.48 0.035 225);
+
+  --accent: oklch(0.72 0.08 205);
+  --accent-hover: oklch(0.79 0.08 205);
+  --accent-wash: oklch(0.3 0.03 205);
+  --credit: oklch(0.72 0.1 155);
+  --debit: oklch(0.68 0.14 28);
+  --stamp: oklch(0.76 0.09 78);
+  --overlay: oklch(0.1 0.01 245 / 0.6);
+  --lift: 0 0 0 0.5px var(--rule), 0 6px 20px oklch(0.1 0.01 245 / 0.55);
+
+  color-scheme: dark;
+}
+
+/* ---- daisyUI: keep its behaviour, replace its look ---------------------- */
 @plugin "daisyui/theme" {
   name: "light";
-  default: false;
+  default: true;
   color-scheme: "light";
-  --color-base-100: #f8fafc;
-  --color-base-200: #f1f5f9;
-  --color-base-300: #e2e8f0;
-  --color-base-content: #0f172a;
-  --color-primary: #2563eb;
-  --color-primary-focus: #1d4ed8;
-  --color-primary-content: #ffffff;
-  --color-secondary: #047857;
-  --color-secondary-content: #ffffff;
-  --color-accent: #7c3aed;
-  --color-accent-content: #ffffff;
-  --color-neutral: #e2e8f0;
-  --color-neutral-focus: #cbd5e1;
-  --color-neutral-content: #1e293b;
-  --color-info: #2563eb;
-  --color-success: #047857;
-  --color-success-content: #ffffff;
-  --color-warning: #b45309;
-  --color-error: #dc2626;
+  --color-base-100: var(--page);
+  --color-base-200: var(--paper);
+  --color-base-300: var(--page-sunk);
+  --color-base-content: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-content: var(--page);
+  --color-secondary: var(--credit);
+  --color-secondary-content: var(--page);
+  --color-accent: var(--accent);
+  --color-accent-content: var(--page);
+  --color-neutral: var(--page-sunk);
+  --color-neutral-content: var(--ink);
+  --color-info: var(--accent);
+  --color-success: var(--credit);
+  --color-success-content: var(--page);
+  --color-warning: var(--stamp);
+  --color-warning-content: var(--page);
+  --color-error: var(--debit);
+  --color-error-content: var(--page);
+  --radius-selector: 4px;
+  --radius-field: 4px;
+  --radius-box: 6px;
+  --border: 1px;
 }
 
 @plugin "daisyui/theme" {
   name: "dark";
-  default: true;
+  default: false;
   color-scheme: "dark";
-  --color-base-100: #0b0f1a;
-  --color-base-200: #0f1420;
-  --color-base-300: #141b2d;
-  --color-base-content: #f1f5f9;
---color-primary: #2563eb;
---color-primary-focus: #1d4ed8;
---color-primary-content: #ffffff;
-  --color-secondary: #34d399;
-  --color-secondary-content: #052e22;
-  --color-accent: #a78bfa;
-  --color-accent-content: #241441;
-  --color-neutral: #1e2536;
-  --color-neutral-focus: #141b2d;
-  --color-neutral-content: #e2e8f0;
-  --color-info: #60a5fa;
-  --color-success: #047857;
-  --color-success-content: #ffffff;
-  --color-warning: #fbbf24;
-  --color-error: #f87171;
+  --color-base-100: var(--page);
+  --color-base-200: var(--paper);
+  --color-base-300: var(--page-sunk);
+  --color-base-content: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-content: var(--page);
+  --color-secondary: var(--credit);
+  --color-secondary-content: var(--page);
+  --color-accent: var(--accent);
+  --color-accent-content: var(--page);
+  --color-neutral: var(--page-sunk);
+  --color-neutral-content: var(--ink);
+  --color-info: var(--accent);
+  --color-success: var(--credit);
+  --color-success-content: var(--page);
+  --color-warning: var(--stamp);
+  --color-warning-content: var(--page);
+  --color-error: var(--debit);
+  --color-error-content: var(--page);
+  --radius-selector: 4px;
+  --radius-field: 4px;
+  --radius-box: 6px;
+  --border: 1px;
 }
 
+/* ---- utilities ---------------------------------------------------------- */
 @theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
-  --color-income: #34d399;
-  --color-expense: #f87171;
-  --color-surface: #141b2d;
-  --color-surface-alt: #0f1524;
-  --color-border: #1e2536;
-  --color-text: #f8fafc;
-  --color-text-secondary: #e2e8f0;
-  --color-text-muted: #94a3b8;
---color-subtle: #7e91a9;
---color-faint: #6f829a;
-  --color-track: #334155;
-  --color-bg: #0b0f1a;
-  --color-bg-elevated: #101728;
-  --color-bg-auth: #16223d;
-  --radius-card: 16px;
-  --radius-button: 11px;
-  --radius-badge: 9999px;
-  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover: 0 8px 20px rgba(0, 0, 0, 0.2);
-  --shadow-popover: 0 10px 28px rgba(0, 0, 0, 0.22);
-  --duration-fast: 150ms;
-  --duration-normal: 200ms;
+  --font-display: "Newsreader Variable", Georgia, serif;
+  --font-ui: "IBM Plex Sans Variable", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-paper: var(--paper);
+  --color-page: var(--page);
+  --color-page-sunk: var(--page-sunk);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-mute: var(--ink-mute);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-soft: var(--rule-soft);
+  --color-rule-strong: var(--rule-strong);
+  --color-margin-rule: var(--margin-rule);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-wash: var(--accent-wash);
+  --color-credit: var(--credit);
+  --color-debit: var(--debit);
+  --color-stamp: var(--stamp);
+  --color-overlay: var(--overlay);
+
+  --radius-control: 4px;
+  --radius-card: 6px;
+  --radius-overlay: 10px;
+
+  --text-label: 11px;
+  --text-label--line-height: 1.2;
 }
 
-html,
-body,
-#app {
-  height: 100%;
+/* Temporary aliases for pages still on the previous standards. Deleted page by
+   page as each one moves to the tokens above; nothing new may use them. */
+@theme {
+  --color-bg: var(--paper);
+  --color-surface: var(--page);
+  --color-surface-alt: var(--paper);
+  --color-border: var(--rule);
+  --color-text: var(--ink);
+  --color-text-secondary: var(--ink-soft);
+  --color-text-muted: var(--ink-mute);
+  --color-subtle: var(--ink-mute);
+  --color-faint: var(--ink-faint);
+  --color-track: var(--page-sunk);
+  --color-income: var(--credit);
+  --color-expense: var(--debit);
+  --color-primary-50: var(--accent-wash);
+  --color-primary-100: var(--accent-wash);
+  --color-primary-200: var(--accent-wash);
+  --color-primary-300: var(--accent);
+  --color-primary-400: var(--accent);
+  --color-primary-500: var(--accent);
+  --color-primary-600: var(--accent-hover);
+  --color-primary-700: var(--accent-hover);
+  --color-primary-800: var(--accent-hover);
+  --color-primary-900: var(--accent-hover);
 }
 
-body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Light theme: override the app tokens (the @theme defaults above are the
-   dark values). daisyUI's [data-theme="light"] block handles the base +
-   component colors; this scopes the app tokens so utilities resolve per theme. */
-[data-theme='light'] {
-  --color-surface: #ffffff;
-  --color-surface-alt: #eef2f7;
-  --color-border: #e2e8f0;
-  --color-text: #0f172a;
-  --color-text-secondary: #1e293b;
-  --color-text-muted: #475569;
-  --color-subtle: #52627a;
-  --color-faint: #5b6b7e;
-  --color-track: #cbd5e1;
-  --color-bg: #f8fafc;
-  --color-bg-elevated: #ffffff;
-  --color-bg-auth: #eef2f7;
-  --color-income: #047857;
-  --color-expense: #dc2626;
-  /* #60a5fa (the dark primary-400) is 2.3:1 on white; darken so primary
-     text links (sign up, view all) pass AA on the light theme. */
-  --color-primary-400: #1d4ed8;
-}
-
-button:not(:disabled),
-[role='button']:not(:disabled),
-a,
-label[for] {
-  cursor: pointer;
-}
-
-.btn {
-  box-shadow: none;
-}
-
-html :focus-visible {
-  outline: 2px solid var(--color-primary-500);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-/* daisyUI form controls draw their focus outline/underline from --input-color
-   (defaults to base-content = white in the dark theme); theme it to primary. */
-html .input:focus,
-html .input:focus-within,
-html .select:focus,
-html .select:focus-within {
-  --input-color: var(--color-primary-500);
-}
-
-/* No spinner arrows on number inputs anywhere. */
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type='number'] {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-}
 
-html[data-theme='light'] {
-  color-scheme: light;
-}
-html[data-theme='dark'] {
-  color-scheme: dark;
-}
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
 
-.no-scrollbar {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+  /* Page titles are printed; section titles stay in the UI face. */
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+  }
+
+  h2,
+  h3 {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+
+  /* Money and any other column of digits. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background: var(--accent-wash);
+    color: var(--ink);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
