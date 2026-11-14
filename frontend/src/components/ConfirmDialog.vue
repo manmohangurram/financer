@@ -11,19 +11,19 @@ const emit = defineEmits<{ (e: 'confirm'): void; (e: 'cancel'): void }>();
 <template>
   <AppModal :title="title" @close="emit('cancel')">
     <div class="p-6 space-y-5">
-      <p class="text-[14px] text-text-secondary">{{ message }}</p>
+      <p class="text-[14px] text-ink-soft">{{ message }}</p>
       <div class="flex justify-end gap-3">
         <button
           type="button"
           @click="emit('cancel')"
-          class="btn btn-ghost btn-sm border border-track"
+          class="ns-quiet border border-rule"
         >
           Cancel
         </button>
         <button
           type="button"
           @click="emit('confirm')"
-          class="btn btn-error btn-sm"
+          class="ns-primary bg-debit hover:bg-debit/90"
         >
           {{ confirmText }}
         </button>

@@ -60,8 +60,8 @@ async function submit() {
 
 <template>
   <AppModal title="Link a mailbox" @close="emit('close')">
-    <form class="px-6 py-5 space-y-3" @submit.prevent="submit">
-      <p v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</p>
+    <form class="flex flex-col gap-3.5 px-5 py-4" @submit.prevent="submit">
+      <p v-if="error" class="rounded-control border border-debit/30 bg-debit/5 px-3 py-2 text-[12.5px] text-debit">{{ error }}</p>
 
       <AppInput v-model="form.label" label="Label" placeholder="e.g. Personal Gmail" hint="Optional; shown in the list" />
       <AppInput v-model="form.imapHost" label="IMAP host" placeholder="imap.gmail.com" required />
@@ -88,9 +88,9 @@ async function submit() {
         required
       />
 
-      <div class="flex justify-end gap-2 pt-4">
-        <button type="button" class="btn btn-ghost" @click="emit('close')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Linking…' : 'Link' }}</button>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" class="ns-quiet" @click="emit('close')">Cancel</button>
+        <button type="submit" class="ns-primary" :disabled="saving">{{ saving ? 'Linking…' : 'Link mailbox' }}</button>
       </div>
     </form>
   </AppModal>

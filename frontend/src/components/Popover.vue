@@ -13,7 +13,7 @@ const emit = defineEmits<{ (e: 'close'): void }>();
         panelClass
       ]"
     >
-      <div class="bg-surface border border-border rounded-xl shadow-popover" :class="noClip ? '' : 'overflow-hidden'" @click.stop>
+      <div class="bg-page border border-rule rounded-card shadow-lift" :class="noClip ? '' : 'overflow-hidden'" @click.stop>
         <slot />
       </div>
     </div>

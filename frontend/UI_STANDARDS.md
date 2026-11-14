@@ -218,7 +218,7 @@ centred — it sits on the desk like a sheet of paper).
 stays (it is the signature), the glyph stacks above the title instead of beside it.
 
 **Breakpoints** `640 / 768 / 1024 / 1280`. Below 768 the sidebar becomes a bottom bar of 5 destinations
-(Dashboard, Accounts, Spending, Inbox, Investments) and the rest moves under "More" in Settings.
+(Dashboard, Accounts, Spending, Inbox, More) and the rest moves under "More".
 
 ### 4.4 Depth
 
@@ -315,7 +315,10 @@ States: idle `◌` (`--ink-faint`) · hover `◌` `--accent` · done `✓` (`--a
 ### 5.7 Tabs, menus, modals
 
 - **Tabs**: underline rule only — label + 2px `--accent` underline on the active tab, hairline `--rule`
-  beneath the whole row. No filled pills, no segmented control chrome.
+  beneath the whole row. No filled pills, no segmented control chrome. `AppTabs` is the only switch
+  control: view switches (Manual / Import file, theme) are tabs; a two-way choice inside a form
+  (Debit / Credit) is a pair of ruled slots from §5.2, selected state = `--accent-wash` + `--accent/50`
+  border.
 - **Menu / popover**: `--page`, `--lift`, 4px radius, 4px padding, rows 32px, keyboard navigable.
 - **Modal**: `--page`, radius 10, `--lift`, scrim `--overlay`; max-width 520 (form) / 760 (preview);
   header with title + close, body scroll, footer right-aligned actions with the primary on the right.
@@ -324,16 +327,26 @@ States: idle `◌` (`--ink-faint`) · hover `◌` `--accent` · done `✓` (`--a
 
 ### 5.8 Charts
 
-Only three primitives, all paper-like:
+ApexCharts is the engine, loaded async on the one page that needs it (~300 kB stays out of the entry
+bundle). It is only ever given the tokens: `src/lib/chartPalette.ts` reads `--accent`, `--ink-mute`,
+`--rule-soft` and `--chart-0..7` off the document and re-reads them when `data-theme` flips, so a chart
+never holds a colour of its own.
 
-1. **Line** — 1.5px `--accent`, no fill, dots on hover only, horizontal hairline gridlines at 4 steps,
-   y labels right, x labels in labels style.
-2. **Ruled bars** — horizontal, one hairline box per row, fill `--accent` at 14% with a 1.5px solid left
-   edge, value right-aligned tabular. Used for category spending (replaces the pie).
-3. **Allocation strip** — a single 8px tall horizontal strip split by 2px paper gaps, segments in
-   `--ink-mute` steps; tooltip on hover. Used for portfolio/account split.
+Two primitives, both paper-like:
 
-No gradients, no shadows under bars, no donuts with exploded slices, no 3D.
+1. **Day columns** — vertical, discrete bars for spend per day, `--accent` fill, 2px top radius, no
+   gradient, no shadow, hairline gridlines on the y axis only, y labels `₹` at ten pixels in
+   `--ink-mute`, x labels rotated 45° in labels style. Clicking a column narrows the ledger to that day.
+   When a day is picked the others drop to `accentQuiet` (accent at 28%) rather than the picked one
+   brightening — nothing in the default state is ever drawn faint.
+   *Why columns, not the line in §2 of the old spec:* spend per day is a count over discrete buckets;
+   a line implies interpolation between days and draws attention to the gaps.
+2. **Allocation strip** — one 30px full-bleed horizontal bar, segments proportional to spend, 2px paper
+   gaps, colours from the ink ramp `--chart-0..7` (darkest = biggest share, grey tail for "Others").
+   Hovering a segment shows `name · amount · share`. The legend below lists the same order with amounts
+   only — never percentages, never a hue per category.
+
+No pie, no donut, no exploded slices, no 3D, no more than eight segments (top 6 + Others).
 
 ### 5.9 States, always
 
@@ -369,10 +382,11 @@ Focal: **the carried-forward figure**. Composition, top to bottom:
 4. Bottom: `Recent entries` — a 6-row ledger table with a `→` link to Spending, and its carried-forward line.
 
 ### 6.4 Accounts — `/accounts`
-Focal: the account list as pages in a book. Cards in a 2-column grid (1 on mobile), each card a folio with
-the monogram tab in the margin, name, `···42` stamp, balance in Newsreader, and a footer hairline row with
-`12 entries · updated 2h ago`. Hover: `--rule-strong`. Click: account detail (the same page with the
-account's ledger below).
+Focal: **the ledger**. A summary band of three facts (Total cash · Credit owed · Net worth) on
+`--page-sunk` strips, then the account filter row (`All accounts` + one chip per account with its
+balance), then the transactions panel — search, filter popover, `Add`, and the ledger table with its
+carried-forward footer and pagination. The account *cards* are gone: with three accounts the chips carry
+the same information in one line and the table gets the height.
 
 ### 6.5 Manage accounts — `/accounts/manage`
 Focal: correction. A single ledger table: margin (type glyph), account name + bank, type as stamp, ending
@@ -380,15 +394,19 @@ digits, balance, row actions (`Edit`, `Delete`). Add account is a solid button i
 520px modal with four ruled fields. Delete is a danger confirm with the account balance recited in the body.
 
 ### 6.6 Spending — `/accounts/spending`
-Focal: **the ledger**. This is the app's spine.
-1. Page head: title `Spending`, buttons `Filter` (quiet, with active-count stamp) and `Add entry` (solid).
-2. Filter row: an index-tab row above the table — period tabs (`7D 1M 6M 1Y Custom`) as underline tabs,
-   account select, search field, `Filter` popover for the rest. Active filters appear as removable stamps
-   under the row.
-3. Chart block (only when a period is chosen): ruled bars, one row per category, with a `Total` row that
-   matches the table footer.
-4. The ledger table (§5.3) with the carried-forward footer, `Import statement` as a quiet button in the
-   table header, and pagination as `‹ 1 / 4 ›` in the footer.
+Focal: **the ledger**, framed by four facts. A bento on a 12-column grid:
+
+1. Page head: title `Spending`, the period tabs (`7D 1M 6M 1Y Custom`) and the resolved date range on
+   the right of the title, `Add entry` as the one solid button.
+2. Four fact tiles across the top — `Spent`, `Largest`, `Categories`, `Average / day` — each a folio
+   with a label, one figure, and one line of context. These replace the old KPI boxes: four facts, not
+   four metrics.
+3. Left (7/12): `Spending over time`, the day columns of §5.8 filling the panel.
+4. Right (5/12): `Where it went`, the allocation strip plus its legend.
+5. Full width below: the ledger (§5.3) — account filter, four-way sort, pagination, carried-forward
+   footer. No bulk-selection column: this page is for reading, not for batch editing.
+
+The page fills the viewport at 940px and above; only the ledger scrolls. No empty band under the table.
 
 ### 6.7 Rules — `/accounts/rules`
 Focal: what is automatic. Left: the rule list — numbered rows in the margin (priority is literal here), name,
@@ -399,40 +417,31 @@ last 200 entries" line at the bottom updates as you edit.
 
 ### 6.8 Inbox — `/inbox`
 Focal: **the queue**. Three stacked sections, each a folio:
-1. `Mailboxes` — one row per mailbox: margin (monogram), label + address, `Polled 12m ago` or the error line
-   in `--debit`, `Poll now` quiet button, delete in the row menu. `Link mailbox` solid button in the section
-   header; modal has the allowlist as a repeating field and says plainly: `Port 993 only`.
-2. `To review` — the mail queue as a ledger table: margin carries the `.tick` (approve) and `✕` (deny), entry
-   is `Sender · subject`, extraction is amount + date, right column the account select when ambiguous. Approve
-   draws the tick; the row leaves over 200ms.
-3. `Rules` — disposition rules as compact rows: `From` pattern, `→` and one of `Ignore` / `Review` / `Auto`
-   as a stamp, drag handle for order. A hint appears when `Auto` is chosen for the first time:
-   `Auto books the transaction without asking.`
+
+1. `Mailboxes` — one row per mailbox: label · address, `checked 12 Nov` or the error line in `--debit`
+   on its own line, `Check now` as a quiet text button, delete as a square icon button carrying
+   `aria-label`. `Link mailbox` opens a 520px modal: label, IMAP host, username, app password, alert
+   senders, one line each for the hint.
+2. `Rules` — disposition rules as compact rows (`auto` / `review` / `ignore` in its tone, then
+   `from → action`), with a composer row of ruled inputs and an `AppSelect` beneath.
+3. The queue — a ledger: margin checkbox, sender + subject, amount right-aligned tabular with the date
+   under it, a state stamp, and `Approve` / `Reject` on the right. Approve books the row; the list
+   refetches. Bulk approve appears only once a row is selected.
+
+*Deviation from the tick-in-the-margin spec:* bulk approval is a real flow (a statement's worth of mail
+arrives at once), so the margin carries a checkbox and the actions are named buttons. The tick still
+lives in the ledger margin (§5.6) for matched transfers.
 
 ### 6.9 Categories — `/accounts/categories`
 Focal: order. A ledger table: margin (monogram), name, usage count, last used, row actions. Header has the
 count and `New category`. Inline create row rather than a modal — a category is one word.
 
-### 6.10 Investments — `/investments`
-Focal: current value vs cost. Top: a summary strip (same pattern as the Dashboard band) with invested,
-current, unrealised P&L, realised P&L. Then the holdings table: margin (monogram of the symbol's first
-letter), symbol in mono + name, quantity, avg cost, price + `last quote 3m` in `--ink-mute`, P&L as a
-right-aligned tabular figure with a `▲`/`▼` glyph, 40px sparkline in the last column. Row click → detail.
-
-### 6.11 Investment detail — `/investments/:id`
-Focal: the price history. Head: symbol + name, big price (Newsreader), delta line, buttons `Add lot` and
-`Refresh`. Line chart, full width, hairline gridlines, period tabs above it. Below: two columns — `Lots`
-(FIFO table with margin tick when a lot is fully sold) and `Summary` (quantity, cost basis, realised,
-unrealised, all as label/figure pairs on hairlines).
-
 ### 6.12 Settings — `/settings`
-Focal: account hygiene. Left in-page nav (underline tabs on mobile): `Profile`, `Password`, `API keys`,
-`Danger zone`. Each is a folio card with the section title and a one-line purpose.
-- Profile: name, email (read-only, with a stamp), avatar as a 64px monogram tab.
-- Password: current, new, confirm; the single solid button; success shows a toast, never a modal.
-- API keys: rows of `name`, key prefix as a mono stamp, scope as a stamp, last used; `New key` reveals the
-  full key exactly once in a `--page-sunk` well with a copy button.
-- Danger zone: `Sign out everywhere` (outline) and `Delete account` (danger) behind a typed confirmation.
+Focal: account hygiene. One folio of hairline-separated sections, each with a 15px title and a one-line
+purpose: `Profile` (monogram tab with a camera action, name, email), `Change password`, `Appearance`
+(the theme as underline tabs), `API keys` (a four-column grid — name flexes, expires, scope as an
+`AppSelect`, `Create key` — then the key rows with prefix stamps), `Sign out all sessions` (danger,
+outline). No left nav: five sections fit one scroll and the page reads as a form.
 
 ---
 
@@ -467,18 +476,25 @@ codebase. One file owns colour.
 
 **Component inventory to rebuild** (replacing the current ones, not editing them): `AppButton`, `AppField`,
 `AppSelect`, `AppDatePicker`, `AppTable` (with margin slot + footer slot), `AppFolio` (card), `AppStamp`,
-`AppTick`, `AppTabs`, `AppModal`, `AppMenu`, `AppToast`, `AppEmpty`, `AppSkeleton`, `AppPagination`,
-`AppLineChart`, `AppBars`, `AppAllocation`.
+`AppTick`, `AppTabs`, `AppModal`, `AppMenu`, `AppToaster`, `AppEmpty`, `AppSkeleton`,
+`AppApexChart` (the engine), `SpendingColumnsChart`, `CategoryShareBar`. Pagination lives in
+`components/Pagination.vue` — it was always a page control, not a primitive.
 
 **Migration, in four stations** — each one shippable on its own:
 1. Foundations: tokens, fonts, logo, `@theme` mapping, `AppLayout` shell + sidebar + mobile bar.
 2. Primitives: button, field, select, date, stamp, tick, tabs, modal, menu, toast.
 3. Surfaces: `AppTable` + folio card + empty/skeleton, then Dashboard and Spending (the two pages that prove
    the system).
-4. The rest: Accounts, Manage, Rules, Inbox, Categories, Investments, Detail, Settings, Login, Signup.
+4. The rest: Accounts, Manage, Rules, Inbox, Categories, Settings, Login, Signup, and the modals
+   and forms behind them.
 
-**Definition of done for a page:** all four states, keyboard-only pass, 360px width pass, light and dark
-pass, no raw hex, no colour that is not one of the meaning tokens, and the margin column present.
+**Definition of done for a page:** all four states, keyboard-only pass, 390px width pass (no horizontal
+scroll), light and dark pass, no raw hex, no colour that is not one of the meaning tokens, the margin
+column present, and a screenshot at 1440 and 390 read before the claim is made.
+
+**Known limits.** `AppSelect` and the calendar are custom popovers; the month and year pickers inside
+`DatePicker` open `AppMenu` panels. `main.css` is the only file with literals in it (tokens + the
+daisyUI theme map). Charts load async on Spending only.
 
 ---
 

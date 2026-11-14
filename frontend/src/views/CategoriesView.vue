@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
+import AppFolio from '@/components/ui/AppFolio.vue';
+import AppButton from '@/components/ui/AppButton.vue';
 import CategoriesTab from '@/components/workspace/CategoriesTab.vue';
 import EditItemModal from '@/components/workspace/EditItemModal.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -63,24 +65,26 @@ onMounted(loadAll);
 </script>
 
 <template>
-  <div class="w-full space-y-5">
+  <div class="w-full flex flex-col gap-4">
     <SectionHeader title="Categories" subtitle="Organize spending into categories">
       <template #actions>
-        <button @click="openCreateItem" class="btn btn-primary btn-sm gap-1.5">
-          <Plus class="w-4 h-4" />
-          Add Category
-        </button>
+        <AppButton @click="openCreateItem">
+          <Plus class="h-[15px] w-[15px]" stroke-width="1.8" />
+          Add category
+        </AppButton>
       </template>
     </SectionHeader>
 
-    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+    <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">{{ error }}</div>
 
-    <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
-    <div v-else class="card bg-base-200 border border-border">
-      <div class="card-body p-6">
-        <CategoriesTab :categories="categoryList" :txns="txnList" @edit="openEditItem" @delete="requestDeleteItem" />
+    <AppFolio v-if="!loading" class="min-h-0" :title="undefined" flush>
+      <CategoriesTab :categories="categoryList" :txns="txnList" @edit="openEditItem" @delete="requestDeleteItem" />
+    </AppFolio>
+    <AppFolio v-else flush>
+      <div class="flex flex-col gap-2 p-4">
+        <span v-for="i in 5" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
       </div>
-    </div>
+    </AppFolio>
 
     <EditItemModal
       v-if="showItemModal"

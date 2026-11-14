@@ -54,8 +54,8 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="flex flex-col gap-5">
-    <header class="flex items-end justify-between gap-4">
+  <div class="flex min-h-0 flex-1 flex-col gap-3">
+    <header class="flex shrink-0 items-center justify-between gap-4">
       <div>
         <h1 class="text-[26px] leading-tight text-ink">Dashboard</h1>
         <p class="mt-1 text-[13px] text-ink-mute">What the books say today.</p>
@@ -95,8 +95,8 @@ onMounted(load);
       </div>
     </section>
 
-    <div class="grid items-start gap-4">
-      <AppFolio title="Accounts" :subtitle="`${accountList.length} linked`">
+    <div class="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_1.15fr]">
+      <AppFolio title="Accounts" :subtitle="`${accountList.length} linked`" class="min-h-0" body-class="flex min-h-0 flex-1 flex-col gap-0 overflow-auto">
         <div v-if="loading" class="flex flex-col gap-3">
           <span v-for="i in 3" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
         </div>
@@ -125,9 +125,7 @@ onMounted(load);
         <AppEmpty v-else title="No accounts yet." hint="Add one to start booking entries." />
       </AppFolio>
 
-    </div>
-
-    <AppFolio title="Recent entries" flush>
+    <AppFolio title="Recent entries" flush class="flex min-h-0 flex-col" body-class="flex min-h-0 flex-1 flex-col">
       <template #actions>
         <router-link to="/accounts/spending" class="text-[12px] text-accent hover:text-accent-hover">All entries</router-link>
       </template>
@@ -163,7 +161,9 @@ onMounted(load);
         <template v-if="recent.length" #footer>
           <tr>
             <td class="m-cell"></td>
-            <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute" colspan="2">
+            <!-- the Account column disappears under md, so the span changes with it -->
+            <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute md:hidden">Carried forward · {{ recent.length }} latest</td>
+            <td class="hidden bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute md:table-cell" colspan="2">
               Carried forward · {{ recent.length }} of the latest entries
             </td>
             <td class="tabular bg-page-sunk px-3 py-2.5 text-right font-display text-[15px] text-ink">{{ formatCurrency(pageSum) }}</td>
@@ -171,5 +171,6 @@ onMounted(load);
         </template>
       </AppTable>
     </AppFolio>
+    </div>
   </div>
 </template>

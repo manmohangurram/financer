@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ChevronLeft, ChevronRight } from '@lucide/vue';
+import AppMenu from '@/components/ui/AppMenu.vue';
 
 const model = defineModel<string | undefined>({ required: true });
 const props = withDefaults(defineProps<{ placeholder?: string; class?: string }>(), { placeholder: 'Pick a date' });
@@ -10,7 +11,7 @@ const viewYear = ref(new Date().getFullYear());
 const viewMonth = ref(new Date().getMonth());
 
 const buttonCls = computed(() =>
-  ['input w-full bg-surface text-left', model.value ? 'text-text' : 'text-text-muted', props.class].join(' ')
+  ['input w-full bg-page text-left', model.value ? 'text-ink' : 'text-ink-soft', props.class].join(' ')
 );
 
 const selectedDate = computed<Date | null>(() => {
@@ -42,6 +43,11 @@ const yearOptions = computed(() => {
   for (let y = 2000; y <= end; y++) list.push(y);
   return list;
 });
+
+const monthItems = computed(() =>
+  monthOptions.value.map((label, i) => ({ key: String(i), label }))
+);
+const yearItems = computed(() => [...yearOptions.value].reverse().map((y) => ({ key: String(y), label: String(y) })));
 
 function openCalendar() {
   const base = selectedDate.value || new Date();
@@ -86,26 +92,34 @@ function selectDate(d: Date) {
 
     <div
       v-if="open"
-      class="absolute left-0 top-full z-50 mt-2 bg-base-100 border border-base-300 rounded-box shadow-lg p-3 w-72"
+      class="absolute left-0 top-full z-50 mt-2 w-72 rounded-card border border-rule bg-page p-3 shadow-lift"
     >
       <div class="flex items-center justify-between mb-2">
-        <button type="button" @click="prevMonth" aria-label="Previous month" class="btn btn-ghost btn-xs text-text-muted">
+        <button type="button" @click="prevMonth" aria-label="Previous month" class="ns-icon text-ink-soft">
           <ChevronLeft class="w-4 h-4" />
         </button>
         <div class="flex items-center gap-1.5">
-          <select v-model.number="viewMonth" class="select select-xs bg-surface border-border text-text" aria-label="Select month">
-            <option v-for="(m, i) in monthOptions" :key="i" :value="i">{{ m }}</option>
-          </select>
-          <select v-model.number="viewYear" class="select select-xs bg-surface border-border text-text" aria-label="Select year">
-            <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-          </select>
+          <AppMenu :items="monthItems" :label="`Month: ${monthOptions[viewMonth]}`" align="left" @select="viewMonth = Number($event)">
+            <template #trigger="{ toggle, label }">
+              <button type="button" class="rounded-control px-1.5 py-1 text-[12px] text-ink-soft hover:bg-page-sunk hover:text-ink" :aria-label="label" @click="toggle">
+                {{ monthOptions[viewMonth] }}
+              </button>
+            </template>
+          </AppMenu>
+          <AppMenu :items="yearItems" :label="`Year: ${viewYear}`" align="left" @select="viewYear = Number($event)">
+            <template #trigger="{ toggle, label }">
+              <button type="button" class="rounded-control px-1.5 py-1 text-[12px] text-ink-soft hover:bg-page-sunk hover:text-ink" :aria-label="label" @click="toggle">
+                {{ viewYear }}
+              </button>
+            </template>
+          </AppMenu>
         </div>
-        <button type="button" @click="nextMonth" aria-label="Next month" class="btn btn-ghost btn-xs text-text-muted">
+        <button type="button" @click="nextMonth" aria-label="Next month" class="ns-icon text-ink-soft">
           <ChevronRight class="w-4 h-4" />
         </button>
       </div>
 
-      <div class="grid grid-cols-7 gap-0.5 text-center text-[11px] text-subtle mb-1">
+      <div class="grid grid-cols-7 gap-0.5 text-center text-[11px] text-ink-mute mb-1">
         <span v-for="w in ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']" :key="w" class="py-0.5">{{ w }}</span>
       </div>
 
@@ -116,14 +130,14 @@ function selectDate(d: Date) {
             :key="j"
             type="button"
             :disabled="!d"
-            class="w-8 h-8 flex items-center justify-center rounded-md text-[12px] transition-colors"
+            class="w-8 h-8 flex items-center justify-center rounded-control text-[12px] transition-colors"
             :class="
               d
                 ? isSelected(d)
-                  ? 'bg-primary-600 text-white font-semibold'
+                  ? 'bg-accent text-white font-semibold'
                   : isToday(d)
-                    ? 'text-primary-400 font-semibold'
-                    : 'text-text hover:bg-white/5'
+                    ? 'text-accent font-semibold'
+                    : 'text-ink hover:bg-white/5'
                 : ''
             "
             @click="d && selectDate(d)"

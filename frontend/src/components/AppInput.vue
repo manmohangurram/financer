@@ -20,9 +20,9 @@ const slots = useSlots();
 </script>
 
 <template>
-  <label class="block w-full">
-    <span v-if="label" class="block text-[12px] text-text-muted mb-1.5">{{ label }}</span>
-    <div class="relative">
+  <label class="flex w-full flex-col gap-1.5">
+    <span v-if="label" class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">{{ label }}</span>
+    <span class="relative block">
       <slot name="icon" />
       <input
         v-model="model"
@@ -34,12 +34,12 @@ const slots = useSlots();
         :autocomplete="autocomplete"
         :required="required"
         :aria-invalid="!!error || invalid"
-        class="input w-full bg-surface border-border text-text text-[13px]"
-        :class="[slots.icon ? 'pl-9' : '', error || invalid ? 'border-expense/60' : '']"
+        class="h-[38px] w-full rounded-control border bg-page-sunk px-3 text-[14px] text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+        :class="[slots.icon ? 'pl-9' : '', error || invalid ? 'border-debit' : 'border-rule']"
       />
       <slot name="dropdown" />
-    </div>
-    <span v-if="hint" class="block text-[11px] text-subtle mt-1">{{ hint }}</span>
-    <span v-if="error" class="block text-[11px] text-expense mt-1">{{ error }}</span>
+    </span>
+    <span v-if="error" class="text-[12px] text-debit">{{ error }}</span>
+    <span v-else-if="hint" class="text-[12px] text-ink-mute">{{ hint }}</span>
   </label>
 </template>

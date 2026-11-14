@@ -22,15 +22,15 @@ function apply() {
 <template>
   <Popover panel-class="right-0 w-[29rem]" no-clip @close="emit('close')">
     <div class="p-4 space-y-4">
-      <h3 class="text-sm font-semibold text-text">Filter transactions</h3>
+      <h3 class="text-sm font-semibold text-ink">Filter transactions</h3>
 
       <div class="grid grid-cols-4 gap-3">
         <div>
-          <label class="block text-[12px] text-text-muted mb-1.5">From</label>
+          <label class="block text-[12px] text-ink-soft mb-1.5">From</label>
           <DatePicker v-model="draft.dateFrom" placeholder="Start" />
         </div>
         <div>
-          <label class="block text-[12px] text-text-muted mb-1.5">To</label>
+          <label class="block text-[12px] text-ink-soft mb-1.5">To</label>
           <DatePicker v-model="draft.dateTo" placeholder="End" />
         </div>
         <AppInput v-model="draft.minAmount" label="Amount Min" type="number" step="0.01" placeholder="0" />
@@ -51,8 +51,8 @@ function apply() {
       </div>
 
       <div class="flex items-center justify-between pt-2">
-        <button type="button" class="btn btn-ghost btn-sm text-text-muted" @click="clear">Clear</button>
-        <button type="button" class="btn btn-primary btn-sm" @click="apply">Apply filters</button>
+        <button type="button" class="ns-quiet text-ink-soft" @click="clear">Clear</button>
+        <button type="button" class="ns-primary" @click="apply">Apply filters</button>
       </div>
     </div>
   </Popover>

@@ -9,7 +9,10 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { accounts, transactions, categories, transfers } from '@/lib/api/client';
 import { emptyFilters, type TransactionFilters } from '@/lib/utils/transactionFilters';
 import { useAccountsStore } from '@/lib/stores/accounts';
-import { Plus, ReceiptText } from '@lucide/vue';
+import { Plus } from '@lucide/vue';
+import AppFolio from '@/components/ui/AppFolio.vue';
+import AppButton from '@/components/ui/AppButton.vue';
+import AppEmpty from '@/components/ui/AppEmpty.vue';
 
 const store = useAccountsStore();
 
@@ -128,37 +131,33 @@ async function confirmDeleteNow() {
 </script>
 
 <template>
-  <div class="space-y-5">
-    <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
-    <div v-else-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense flex items-center justify-between gap-3">
+  <div class="flex flex-col gap-4">
+    <p v-if="error" class="flex items-center justify-between rounded-card border border-debit/40 px-3.5 py-2.5 text-[12.5px] text-debit">
       <span>{{ error }}</span>
-      <button @click="loadPage" class="btn btn-outline btn-sm shrink-0">Retry</button>
-    </div>
-    <div v-else-if="txnList.length === 0" class="flex items-center justify-center min-h-[40vh]">
-      <div class="rounded-2xl border border-border bg-base-200 px-10 py-12 text-center max-w-md w-full">
-        <div class="w-14 h-14 mx-auto rounded-2xl bg-primary-500/12 text-primary-400 flex items-center justify-center">
-          <ReceiptText class="w-7 h-7" stroke-width="1.5" />
-        </div>
-        <h2 class="text-lg font-semibold text-text mt-4">Add your first transaction</h2>
-        <p class="text-[13px] text-subtle mt-1.5">Record an expense or income to start building your spending history.</p>
-        <button @click="openAdd" class="btn btn-primary btn-sm gap-1.5 mt-6">
-          <Plus class="w-4 h-4" />
-          Add Transaction
-        </button>
-      </div>
-    </div>
-    <div v-else class="card bg-base-200 border border-border">
-      <div class="card-body p-6">
-        <div class="flex items-center gap-3 mb-4">
-          <h2 class="text-lg font-semibold text-text shrink-0">Transactions</h2>
-          <TransactionFilterInput v-model:filters="filters" :categories="categoryList" />
-          <button @click="openAdd" class="btn btn-primary btn-sm gap-1.5 shrink-0">
-            <Plus class="w-4 h-4" />
+      <AppButton variant="quiet" size="sm" @click="loadPage">Retry</AppButton>
+    </p>
+
+    <AppFolio v-if="!loading" flush>
+      <template #default>
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-4 py-2">
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <h2 class="shrink-0 text-[15px] font-semibold text-ink">Transactions</h2>
+            <TransactionFilterInput v-model:filters="filters" :categories="categoryList" />
+          </div>
+          <AppButton @click="openAdd">
+            <Plus class="h-[15px] w-[15px]" stroke-width="1.8" />
             Add
-          </button>
+          </AppButton>
+        </div>
+
+        <div v-if="txnList.length === 0" class="px-4 py-10">
+          <AppEmpty title="No transactions yet." hint="Record an expense or income to start the books.">
+            <template #action><AppButton size="sm" @click="openAdd">Add transaction</AppButton></template>
+          </AppEmpty>
         </div>
 
         <TransactionsTab
+          v-else
           v-model:filters="filters"
           v-model:page="page"
           :paged-txns="pagedTxns"
@@ -171,6 +170,12 @@ async function confirmDeleteNow() {
           @bulk-delete="requestBulkDelete"
           @transfer="openTransfer"
         />
+      </template>
+    </AppFolio>
+
+    <div v-else class="rounded-card border border-rule bg-page p-4">
+      <div class="flex flex-col gap-2">
+        <span v-for="i in 5" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
       </div>
     </div>
 

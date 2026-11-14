@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
+import AppFolio from '@/components/ui/AppFolio.vue';
+import AppButton from '@/components/ui/AppButton.vue';
+import AppEmpty from '@/components/ui/AppEmpty.vue';
+import AppStamp from '@/components/ui/AppStamp.vue';
 import AccountFormModal from '@/components/accounts/AccountFormModal.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { accounts } from '@/lib/api/client';
@@ -26,6 +30,11 @@ async function loadAll() {
   loading.value = false;
 }
 
+const TYPE_LABELS: Record<string, string> = { CURRENT: 'current', SAVINGS: 'savings', LOAN: 'loan', CREDIT_CARD: 'card' };
+function typeLabel(type: string): string {
+  return TYPE_LABELS[type] ?? String(type || '').replace(/_/g, ' ').toLowerCase();
+}
+
 function openCreateAccount() {
   editingAccount.value = null;
   showModal.value = true;
@@ -49,53 +58,64 @@ onMounted(loadAll);
 </script>
 
 <template>
-  <div class="w-full space-y-5">
+  <div class="w-full flex flex-col gap-4">
     <SectionHeader title="Manage Accounts" subtitle="Add, edit or remove your accounts">
       <template #actions>
-        <button @click="openCreateAccount" class="btn btn-primary btn-sm gap-1.5">
-          <Plus class="w-4 h-4" />
-          Add Account
-        </button>
+        <AppButton @click="openCreateAccount">
+          <Plus class="h-[15px] w-[15px]" stroke-width="1.8" />
+          Add account
+        </AppButton>
       </template>
     </SectionHeader>
 
-    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+    <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">{{ error }}</div>
 
-    <div v-if="loading" class="text-center py-16 text-subtle">Loading...</div>
-    <div v-else class="card bg-base-200 border border-border">
-      <div class="card-body p-6">
-        <div class="space-y-1.5">
-          <div
-            v-for="acc in accountList"
-            :key="acc.id"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border group"
-          >
-            <div
-              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              :class="isCredit(acc.type) ? 'bg-expense/12 text-expense' : 'bg-income/12 text-income'"
-            >
-              <component :is="accountTypeIcon(acc.type)" class="w-5 h-5" stroke-width="2" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="text-[14px] text-text font-medium truncate">{{ acc.nickname || acc.bankName }}</div>
-              <div class="text-[12px] text-subtle">{{ acc.bankName }}</div>
-            </div>
-            <span class="text-[15px] font-semibold shrink-0" :class="isCredit(acc.type) ? 'text-expense' : 'text-base-content'">
-              {{ isCredit(acc.type) ? '-' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
-            </span>
-            <div class="flex gap-1 shrink-0">
-              <button aria-label="Edit" @click="openEditAccount(acc)" class="btn btn-ghost btn-sm">
-                <Pencil class="w-4 h-4" />
-              </button>
-              <button aria-label="Delete" @click="requestDeleteAccount(acc)" class="btn btn-ghost btn-sm">
-                <Trash2 class="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          <div v-if="accountList.length === 0" class="text-center py-16 text-subtle">No accounts yet</div>
-        </div>
+    <AppFolio v-if="!loading && accountList.length" flush>
+      <div class="flex items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
+        <span class="w-7"></span>
+        <span class="flex-1">Account</span>
+        <span class="w-[120px]">Type</span>
+        <span class="w-[74px]">Ending</span>
+        <span class="w-[110px] text-right">Balance</span>
+        <span class="w-[64px]"></span>
       </div>
-    </div>
+      <div
+        v-for="acc in accountList"
+        :key="acc.id"
+        class="group flex items-center gap-3 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60"
+      >
+        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-rule bg-page-sunk text-ink-soft">
+          <component :is="accountTypeIcon(acc.type)" class="h-[15px] w-[15px]" stroke-width="1.7" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-[13px] text-ink">{{ acc.nickname || acc.bankName }}</span>
+          <span class="block truncate text-[11px] text-ink-mute">{{ acc.bankName }}</span>
+        </span>
+        <span class="w-[120px]"><AppStamp :tone="isCredit(acc.type) ? 'debit' : 'neutral'">{{ typeLabel(acc.type) }}</AppStamp></span>
+        <span class="tabular w-[74px] text-[12px] text-ink-soft">{{ acc.endingNumbers ? '···' + acc.endingNumbers : '—' }}</span>
+        <span class="tabular w-[110px] text-right text-[13px] font-medium" :class="isCredit(acc.type) ? 'text-debit' : 'text-ink'">
+          {{ isCredit(acc.type) ? '−' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
+        </span>
+        <span class="flex w-[64px] shrink-0 justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <AppButton variant="icon" size="sm" label="Edit account" @click="openEditAccount(acc)">
+            <Pencil class="h-[14px] w-[14px]" stroke-width="1.7" />
+          </AppButton>
+          <AppButton variant="icon" size="sm" label="Delete account" @click="requestDeleteAccount(acc)">
+            <Trash2 class="h-[14px] w-[14px]" stroke-width="1.7" />
+          </AppButton>
+        </span>
+      </div>
+    </AppFolio>
+    <AppFolio v-else-if="loading" flush>
+      <div class="flex flex-col gap-2 p-4">
+        <span v-for="i in 3" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
+      </div>
+    </AppFolio>
+    <AppFolio v-else flush>
+      <div class="px-4 py-8"><AppEmpty title="No accounts yet." hint="Add one to start booking entries.">
+        <template #action><AppButton size="sm" @click="openCreateAccount">Add account</AppButton></template>
+      </AppEmpty></div>
+    </AppFolio>
 
     <AccountFormModal
       v-if="showModal"

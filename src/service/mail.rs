@@ -77,8 +77,11 @@ impl MailService {
         let status = match status {
             None => None,
             Some(raw) if raw.is_empty() || raw == "all" => None,
+            // The query contract is lowercase (`?status=pending`); the enum parses
+            // SCREAMING_SNAKE_CASE, so normalise before parsing instead of 400ing
+            // on the documented form.
             Some(raw) => Some(
-                crate::repo::traits::mail::MailStatus::from_str(raw)
+                crate::repo::traits::mail::MailStatus::from_str(&raw.to_ascii_uppercase())
                     .map_err(|_| ApiError::bad_request(format!("unknown status {raw:?}")))?,
             ),
         };

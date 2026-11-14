@@ -64,7 +64,7 @@ async function remove() {
 <template>
   <AppModal :title="account ? 'Edit Account' : 'New Account'" @close="emit('close')">
     <form @submit.prevent="submit" class="px-6 py-5 space-y-3">
-      <p v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</p>
+      <p v-if="error" class="rounded-card border border-expense/30 bg-debit/10 px-4 py-3 text-[13px] text-debit">{{ error }}</p>
       <AppInput v-model="form.bankName" label="Bank Name" placeholder="e.g. Chase" />
       <AppInput v-model="form.nickname" label="Nickname" placeholder="e.g. Main Checking" />
       <AppInput
@@ -79,8 +79,8 @@ async function remove() {
         <option v-for="opt in ACCOUNT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.name }}</option>
       </AppSelect>
       <div class="flex items-center justify-between pt-6">
-        <button v-if="account" type="button" @click="confirmDelete = true" class="btn btn-outline btn-error shrink-0">Delete</button>
-        <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Saving…' : account ? 'Update' : 'Create' }}</button>
+        <button v-if="account" type="button" @click="confirmDelete = true" class="ns-quiet shrink-0 text-debit">Delete</button>
+        <button type="submit" class="ns-primary" :disabled="saving">{{ saving ? 'Saving…' : account ? 'Update' : 'Create' }}</button>
       </div>
     </form>
   </AppModal>

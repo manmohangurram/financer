@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus } from '@lucide/vue';
+import AppButton from '@/components/ui/AppButton.vue';
+import AppStamp from '@/components/ui/AppStamp.vue';
+import AppSelect from '@/components/ui/AppSelect.vue';
+import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus, ListTree } from '@lucide/vue';
 import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
 import { mail } from '@/lib/api/client';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
@@ -48,6 +51,12 @@ const pickAccount = ref<Record<string, string>>({});
 const rules = ref<any[]>([]);
 const rulesOpen = ref(false);
 const newRule = ref({ fromPattern: '', subjectContains: '', action: 'REVIEW' });
+const ruleActions = [
+  { value: 'REVIEW', label: 'review' },
+  { value: 'IGNORE', label: 'ignore' },
+  { value: 'AUTO', label: 'auto' }
+];
+const accountOptions = computed(() => accounts.value.map((a) => ({ value: a.id, label: a.label || a.username })));
 const allMessages = ref<MailMessage[]>([]);
 
 /// Senders that have earned an AUTO rule: several created, none rejected, and
@@ -81,16 +90,14 @@ function summary(m: MailMessage): string {
   const p = parsed(m);
   if (!p?.amount) return m.subject || '(no subject)';
   const sign = p.direction === 'CREDIT' ? '+' : '-';
-  return `${sign}${formatCurrency(p.amount)} · ${p.merchant || 'Unknown'}`;
+  return `${sign}${formatCurrency(p.amount)}`;
 }
 
 function hint(m: MailMessage): string {
   const p = parsed(m);
   if (!p) return '';
   const parts: string[] = [];
-  if (p.accountHint) parts.push(`acct …${p.accountHint}`);
   if (p.occurredAt) parts.push(formatDate(p.occurredAt));
-  if (m.status === 'UNPARSED') parts.push('not parsed');
   return parts.join(' · ');
 }
 
@@ -226,109 +233,117 @@ onMounted(load);
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-[24px] font-bold text-base-content tracking-tight">Inbox</h1>
-        <p class="text-[13.5px] text-subtle mt-0.5">Bank alerts waiting to become transactions</p>
+        <p class="text-[13.5px] text-ink-mute mt-0.5">Bank alerts waiting to become transactions</p>
       </div>
-      <div class="join">
+      <div class="flex items-end gap-4 border-b border-rule">
         <button
           v-for="f in FILTERS"
           :key="f"
-          class="btn btn-sm join-item"
-          :class="filter === f ? 'btn-primary' : 'btn-ghost border border-track'"
+          type="button"
+          class="relative -mb-px pb-2 text-[13px] font-medium capitalize transition-colors"
+          :class="filter === f ? 'text-ink' : 'text-ink-mute hover:text-ink-soft'"
           @click="filter = f; load()"
         >
           {{ f }}
+          <span v-if="filter === f" class="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-accent"></span>
         </button>
       </div>
     </div>
 
-    <div v-if="error" class="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-[13px] text-warning">{{ error }}</div>
+    <div v-if="error" class="rounded-card border border-stamp/40 px-3.5 py-2.5 text-[12.5px] text-ink">{{ error }}</div>
 
-    <div class="rounded-2xl border border-border bg-base-200">
-      <button class="w-full flex items-center justify-between px-5 py-3.5" @click="accountsOpen = !accountsOpen">
-        <span class="flex items-center gap-2 text-[14px] font-semibold text-text">
+    <div class="overflow-hidden rounded-card border border-rule bg-page">
+      <button class="flex w-full items-center justify-between px-4 py-2.5" @click="accountsOpen = !accountsOpen">
+        <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
           <InboxIcon class="w-4 h-4" stroke-width="1.5" />
           Mailboxes
-          <span class="text-faint font-normal">({{ accounts.length }})</span>
+          <span class="font-normal text-ink-faint">({{ accounts.length }})</span>
         </span>
-        <ChevronDown class="w-4 h-4 text-subtle transition-transform" :class="accountsOpen ? 'rotate-180' : ''" />
+        <ChevronDown class="w-4 h-4 text-ink-mute transition-transform" :class="accountsOpen ? 'rotate-180' : ''" />
       </button>
-      <div v-if="accountsOpen" class="border-t border-border px-5 py-3 space-y-2">
-        <p v-if="!accounts.length" class="text-[13px] text-subtle">
+      <div v-if="accountsOpen" class="flex flex-col gap-2 border-t border-rule px-4 py-3">
+        <p v-if="!accounts.length" class="text-[12.5px] text-ink-mute">
           No mailbox linked yet. Add one with an app password and the senders that send your bank alerts.
         </p>
         <div v-for="a in accounts" :key="a.id" class="flex items-center justify-between gap-3 text-[13px]">
           <span class="min-w-0">
-            <span class="text-text font-medium">{{ a.label || a.username }}</span>
-            <span class="text-faint"> · {{ a.username }}</span>
-            <span v-if="a.lastError" class="text-expense"> · {{ a.lastError }}</span>
-            <span v-else-if="a.lastPolledAt" class="text-faint"> · checked {{ formatDate(a.lastPolledAt) }}</span>
+            <span class="block truncate text-[13px] text-ink">
+              <span class="font-medium">{{ a.label || a.username }}</span>
+              <span class="text-ink-mute"> · {{ a.username }}</span>
+              <span v-if="!a.lastError && a.lastPolledAt" class="text-ink-mute"> · checked {{ formatDate(a.lastPolledAt) }}</span>
+            </span>
+            <span v-if="a.lastError" class="mt-0.5 block truncate text-[11.5px] text-debit">{{ a.lastError }}</span>
           </span>
-          <span class="flex gap-1 shrink-0">
-            <button class="btn btn-ghost btn-xs" :disabled="busy" @click="pollAccount(a.id)">
-              <RefreshCw class="w-3.5 h-3.5" /> Check now
+          <span class="flex shrink-0 items-center gap-1">
+            <button class="ns-quiet" :disabled="busy" @click="pollAccount(a.id)">
+              <RefreshCw class="h-3.5 w-3.5" /> Check now
             </button>
-            <button class="btn btn-ghost btn-xs text-expense" :disabled="busy" @click="removeAccount(a.id)">
-              <Trash2 class="w-3.5 h-3.5" />
+            <button class="ns-icon text-debit" :disabled="busy" aria-label="Unlink mailbox" @click="removeAccount(a.id)">
+              <Trash2 class="h-3.5 w-3.5" />
             </button>
           </span>
         </div>
-        <button class="btn btn-ghost btn-xs gap-1 mt-1" @click="showMailboxForm = true">
-          <Plus class="w-3.5 h-3.5" /> Add mailbox
-        </button>
+        <div>
+          <button class="ns-quiet" @click="showMailboxForm = true">
+            <Plus class="h-3.5 w-3.5" /> Add mailbox
+          </button>
+        </div>
       </div>
     </div>
 
     <MailboxFormModal v-if="showMailboxForm" @close="showMailboxForm = false" @saved="load" />
 
-    <div class="rounded-2xl border border-border bg-base-200">
-      <button class="w-full flex items-center justify-between px-5 py-3.5" @click="rulesOpen = !rulesOpen">
-        <span class="text-[14px] font-semibold text-text">Rules <span class="text-faint font-normal">({{ rules.length }})</span></span>
-        <ChevronDown class="w-4 h-4 text-subtle transition-transform" :class="rulesOpen ? 'rotate-180' : ''" />
+    <div class="overflow-hidden rounded-card border border-rule bg-page">
+      <button class="flex w-full items-center justify-between px-4 py-2.5" @click="rulesOpen = !rulesOpen">
+        <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
+          <ListTree class="h-4 w-4" stroke-width="1.5" />
+          Rules
+          <span class="font-normal text-ink-faint">({{ rules.length }})</span>
+        </span>
+        <ChevronDown class="w-4 h-4 text-ink-mute transition-transform" :class="rulesOpen ? 'rotate-180' : ''" />
       </button>
-      <div v-if="rulesOpen" class="border-t border-border px-5 py-3 space-y-2">
-        <p v-if="!rules.length" class="text-[13px] text-subtle">
+      <div v-if="rulesOpen" class="flex flex-col gap-2 border-t border-rule px-4 py-3">
+        <p v-if="!rules.length" class="text-[12.5px] text-ink-mute">
           No rules. Everything is reviewed by hand until you add one.
         </p>
         <div v-for="r in rules" :key="r.id" class="flex items-center justify-between gap-3 text-[13px]">
           <span class="min-w-0">
-            <span class="badge badge-xs mr-2" :class="r.action === 'AUTO' ? 'badge-success' : r.action === 'IGNORE' ? 'badge-ghost' : 'badge-warning'">
+            <span class="mr-2 align-middle" :class="r.action === 'AUTO' ? 'text-credit' : r.action === 'IGNORE' ? 'text-ink-mute' : 'text-stamp'">
               {{ r.action.toLowerCase() }}
             </span>
-            <span class="text-text-muted">{{ ruleLabel(r) }}</span>
+            <span class="text-ink-soft">{{ ruleLabel(r) }}</span>
           </span>
-          <button class="btn btn-ghost btn-xs text-expense shrink-0" :disabled="busy" @click="deleteRule(r.id)">
+          <button class="ns-icon text-debit shrink-0" :disabled="busy" @click="deleteRule(r.id)">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-xl border border-success/30 bg-success/10 px-3 py-2">
-          <span class="text-[12.5px] text-text">
+        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-control border border-credit/30 bg-credit/5 px-3 py-2">
+          <span class="text-[12.5px] text-ink">
             Auto-create for <span class="font-medium">{{ sugg.from }}</span>?
-            <span class="text-subtle">{{ sugg.created }} created, 0 rejected</span>
+            <span class="text-ink-mute">{{ sugg.created }} created, 0 rejected</span>
           </span>
-          <button class="btn btn-success btn-xs shrink-0" :disabled="busy" @click="createAutoRule(sugg.from)">Create rule</button>
+          <button class="ns-primary-xs shrink-0" :disabled="busy" @click="createAutoRule(sugg.from)">Create rule</button>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 pt-2">
-          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="input input-sm bg-surface border-border text-[13px] flex-1 min-w-[180px]" />
-          <input v-model="newRule.subjectContains" placeholder="subject contains" class="input input-sm bg-surface border-border text-[13px] flex-1 min-w-[150px]" />
-          <select v-model="newRule.action" class="select select-sm bg-surface border-border text-[13px]">
-            <option value="REVIEW">review</option>
-            <option value="IGNORE">ignore</option>
-            <option value="AUTO">auto</option>
-          </select>
-          <button class="btn btn-ghost btn-sm border border-track gap-1" :disabled="busy" @click="addRule">
+          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="h-[38px] flex-1 min-w-[180px] rounded-control border border-rule bg-page-sunk px-3 text-[13px] text-ink placeholder:text-ink-faint" />
+          <input v-model="newRule.subjectContains" placeholder="subject contains" class="h-[38px] flex-1 min-w-[150px] rounded-control border border-rule bg-page-sunk px-3 text-[13px] text-ink placeholder:text-ink-faint" />
+          <div class="w-[130px]">
+            <AppSelect v-model="newRule.action" :options="ruleActions" />
+          </div>
+          <button class="ns-quiet h-[38px] border border-rule gap-1" :disabled="busy" @click="addRule">
             <Plus class="w-3.5 h-3.5" /> Add
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="selected.size" class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-2.5">
-      <span class="text-[13px] font-medium text-text">{{ selected.size }} selected</span>
+    <div v-if="selected.size" class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-card border border-primary-500/30 bg-accent/10 px-4 py-2.5">
+      <span class="text-[13px] font-medium text-ink">{{ selected.size }} selected</span>
       <span class="flex gap-2">
-        <button class="btn btn-primary btn-sm" :disabled="busy" @click="act('APPROVE', [...selected])">Approve</button>
-        <button class="btn btn-ghost btn-sm border border-track" :disabled="busy" @click="act('REJECT', [...selected])">Reject</button>
+        <button class="ns-primary" :disabled="busy" @click="act('APPROVE', [...selected])">Approve</button>
+        <button class="ns-quiet border border-rule" :disabled="busy" @click="act('REJECT', [...selected])">Reject</button>
       </span>
     </div>
 
@@ -336,75 +351,75 @@ onMounted(load);
       <span class="loading loading-dots loading-lg text-primary"></span>
     </div>
 
-    <div v-else-if="!messages.length" class="rounded-2xl border border-border bg-base-200 px-8 py-14 text-center">
-      <p class="text-[14px] text-subtle">Nothing here. Alerts are picked up on the next poll.</p>
+    <div v-else-if="!messages.length" class="rounded-card border border-rule bg-page px-6 py-10 text-center">
+      <p class="text-[14px] text-ink-mute">Nothing here. Alerts are picked up on the next poll.</p>
     </div>
 
-    <div v-else class="rounded-2xl border border-border bg-base-200 overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-2.5 border-b border-border text-[12px] text-faint uppercase tracking-wide">
+    <div v-else class="rounded-card border border-rule bg-page overflow-hidden">
+      <div class="hidden items-center gap-3 border-b border-rule bg-page-sunk px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute md:flex">
         <input
           type="checkbox"
-          class="checkbox checkbox-xs"
+          class="h-3.5 w-3.5 accent-[var(--accent)]"
           :checked="selected.size === actionable.length && actionable.length > 0"
+          aria-label="Select every pending message"
           @change="toggleAll"
         />
-        <span>From</span>
-        <span class="ml-auto">Amount · merchant</span>
+        <span class="flex-1">From</span>
+        <span class="w-[104px] text-right">Amount</span>
+        <span class="w-[74px] text-right">State</span>
+        <span class="w-[132px]"></span>
       </div>
 
       <template v-for="m in messages" :key="m.id">
-        <div class="flex items-center gap-3 px-5 py-3 border-b border-border/60 last:border-0">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60 md:flex-nowrap">
           <input
             v-if="m.status === 'PENDING' || m.status === 'UNPARSED'"
             type="checkbox"
-            class="checkbox checkbox-xs"
+            class="h-3.5 w-3.5 accent-[var(--accent)]"
             :checked="selected.has(m.id)"
+            aria-label="Select message"
             @change="toggle(m.id)"
           />
-          <span v-else class="w-4"></span>
+          <span v-else class="w-3.5"></span>
 
-          <button class="flex-1 min-w-0 text-left" @click="expanded = expanded === m.id ? null : m.id">
-            <span class="block text-[13.5px] font-medium text-text truncate">{{ m.fromAddr }}</span>
-            <span class="block text-[12px] text-faint truncate">{{ m.subject || '(no subject)' }}</span>
+          <button class="w-[calc(100%-26px)] min-w-0 text-left md:w-auto md:flex-1" @click="expanded = expanded === m.id ? null : m.id">
+            <span class="block truncate text-[13px] text-ink">{{ m.fromAddr }}</span>
+            <span class="block truncate text-[11.5px] text-ink-mute">{{ m.subject || '(no subject)' }}</span>
           </button>
 
-          <span class="text-right shrink-0">
-            <span class="block text-[13.5px] font-semibold" :class="parsed(m)?.direction === 'CREDIT' ? 'text-income' : 'text-text'">
+          <span class="ml-auto shrink-0 text-right md:ml-0 md:w-[104px]">
+            <span class="tabular block text-[13px] font-medium" :class="parsed(m)?.direction === 'CREDIT' ? 'text-credit' : 'text-ink'">
               {{ summary(m) }}
             </span>
-            <span class="block text-[11.5px] text-faint">{{ hint(m) }}</span>
+            <span class="block truncate text-[11px] text-ink-mute">{{ hint(m) }}</span>
           </span>
 
-          <span
-            class="badge badge-sm shrink-0"
-            :class="{
-              'badge-warning': m.status === 'PENDING',
-              'badge-ghost': m.status === 'UNPARSED',
-              'badge-success': m.status === 'AUTO',
-              'badge-error': m.status === 'REJECTED'
-            }"
-          >{{ m.status.toLowerCase() }}</span>
-
-          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex gap-1 shrink-0">
-            <button class="btn btn-primary btn-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
-            <button class="btn btn-ghost btn-xs border border-track" :disabled="busy" @click="act('REJECT', [m.id])">Reject</button>
+          <span class="w-[74px] shrink-0 text-right">
+            <AppStamp :tone="m.status === 'PENDING' ? 'pending' : m.status === 'UNPARSED' ? 'neutral' : m.status === 'AUTO' ? 'credit' : 'debit'">
+              {{ m.status.toLowerCase() }}
+            </AppStamp>
           </span>
+
+          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex shrink-0 justify-end gap-1.5 md:w-[150px]">
+            <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
+            <AppButton variant="outline" size="sm" :disabled="busy" @click="act('REJECT', [m.id])">Reject</AppButton>
+          </span>
+          <span v-else class="hidden md:block md:w-[150px] md:shrink-0"></span>
         </div>
 
-        <div v-if="expanded === m.id" class="px-5 pb-4 space-y-3">
-          <pre v-if="m.rawText" class="whitespace-pre-wrap rounded-xl bg-surface p-3 text-[12px] text-subtle max-h-64 overflow-auto">{{ m.rawText }}</pre>
-          <p v-else class="text-[12px] text-faint">The message body was pruned once this row was resolved.</p>
+        <div v-if="expanded === m.id" class="flex flex-col gap-3 border-b border-rule-soft bg-page-sunk/40 px-4 py-3">
+          <pre v-if="m.rawText" class="max-h-56 overflow-auto whitespace-pre-wrap rounded-control border border-rule bg-page p-3 text-[11.5px] text-ink-mute">{{ m.rawText }}</pre>
+          <p v-else class="text-[12px] text-ink-faint">The message body was pruned once this row was resolved.</p>
 
           <div v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex flex-wrap items-center gap-2">
-            <span class="text-[12.5px] text-subtle">
+            <span class="text-[12.5px] text-ink-mute">
               Account
-              <span v-if="parsed(m)?.accountHint" class="text-faint">(mail says …{{ parsed(m)?.accountHint }})</span>
+              <span v-if="parsed(m)?.accountHint" class="text-ink-faint">(mail says …{{ parsed(m)?.accountHint }})</span>
             </span>
-            <select v-model="pickAccount[m.id]" class="select select-sm bg-surface border-border text-[13px]">
-              <option value="">From the last 4 digits</option>
-              <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.label || a.username }}</option>
-            </select>
-            <button class="btn btn-primary btn-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
+            <div class="w-[220px]">
+              <AppSelect v-model="pickAccount[m.id]" :options="accountOptions" placeholder="From the last 4 digits" />
+            </div>
+            <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
           </div>
         </div>
       </template>
