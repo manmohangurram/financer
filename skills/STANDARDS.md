@@ -9,7 +9,7 @@ Run verification in this order after backend changes, then frontend changes.
 cargo run            # starts API on :8080; config from FINANCER_* env (schema applied at boot)
 cargo build --locked
 cargo clippy --all-targets -- -D warnings
-cargo test           # unit + repo (SurrealDB Mem) + HTTP integration tests (SQLite)
+cargo test           # unit + repo (SQLite tempfile) + HTTP integration tests (SQLite)
 cargo audit          # dependency advisories; ignores documented in .cargo/audit.toml
 ```
 
@@ -69,15 +69,14 @@ Key rules:
 - **`&String` params**: prefer accepting `&str` in the signature; if you have a `&String`, pass `.as_str()`.
 - **No `.clone()` to satisfy a borrow** — if the callee takes `&str`, pass `.as_str()`, don't clone a `String`.
 
-Real example — SurrealDB query binds:
+Real example — sqlx query binds:
 ```rust
-.bind(("name", t.name.as_str()))        // String -> &str
-.bind(("clean", t.clean_name.as_deref())) // Option<String> -> Option<&str>
-.bind(("acc", rid("account", &t.account_id))) // borrow a String into a fn that takes it by ref
-.bind(("type", t.transaction_type.to_string())) // enum: only path
+.bind(t.name.as_str())                        // String -> &str
+.bind(t.clean_name.as_deref())                // Option<String> -> Option<&str>
+.bind(t.transaction_type.to_string())         // enum: only path
 ```
 
-**SurrealDB bind types** (surreal value): `&str` and `Option<&str>` both serialize; `&String` and `Option<String>` do not bind directly. That's why the `.as_str()`/`.as_deref()` forms are required there.
+**sqlx bind types:** `&str` and `Option<&str>` implement `Encode`/`Type` for TEXT; `&String`/`Option<String>` do not — hence the `.as_str()`/`.as_deref()` forms.
 
 ### Rust style: general
 
@@ -97,7 +96,7 @@ The conventions big-engineering orgs apply, adapted to this codebase. Repo-speci
 
 - **One file = one clear responsibility.** Struct + its impl + that domain's types in one module (`src/repo/transaction.rs`, `src/service/account.rs`). Keep files under ~1000 lines; split when a module does more than one thing.
 - **Layering is one-way**: `http` → `service` → `repo` → storage. No lower layer calls a higher one; `service` never touches DB details; `repo` never touches HTTP.
-- **Dual-backend repos**: shared types + trait in `src/repo/traits/`, concrete impl in `src/repo/sqlite/` and `src/repo/surreal/`. Both impls must stay behavior-identical and both get tested.
+- **Repo traits**: shared types + trait in `src/repo/traits/`, concrete impl in `src/repo/sqlite/`.
 - **Public surface is intentional.** `pub` only what other modules/crates use. Private by default.
 - **No re-export chains for internal use** — import from the real module path.
 
@@ -138,7 +137,7 @@ The conventions big-engineering orgs apply, adapted to this codebase. Repo-speci
 
 ### Testing
 
-- **Both backends tested** where a repo has sqlite + surreal impls (SurrealDB `Mem`, SQLite tempfile).
+- **Repos tested** against a SQLite tempfile.
 - **Behavior over implementation**; test the public service/repo API.
 - **`cargo clippy --all-targets -- -D warnings` and `cargo test` must pass** before any PR (see Verification above).
 - One smoke/assert test minimum for non-trivial logic; not every helper needs a suite.

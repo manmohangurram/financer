@@ -32,7 +32,6 @@ frontend/vite.config.d.ts
 frontend/vite.config.js
 
 # Local tooling scratch
-graphify-out/
 .superpowers/
 docs/superpowers/
 *.deb

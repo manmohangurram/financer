@@ -1,6 +1,6 @@
 # Deployment Guide
 
-How this app is built and deployed: the Rust binary serves both the API and the built frontend (single container, no nginx). This doc covers the build pipeline, how frontend↔backend link at build/runtime, multi-arch builds, and the GitHub Actions release flow.
+How this app is built and deployed: the Rust binary serves both the API and the built frontend (single container, no nginx). This doc covers the build pipeline, how frontend↔backend link at build/runtime, the arm64 image build, and the GitHub Actions release flow.
 
 Replace `<PROJECT>` / `<owner>` / `<image>` with your project's values. Apply the same pattern to any Rust + Vue app with this layout.
 
@@ -70,33 +70,26 @@ These must be present at build context (the workflow checks out the whole repo, 
 | File | Purpose |
 |---|---|
 | `.github/workflows/ci.yml` | PR gate: cargo build/clippy/test + frontend type-check/vitest/build |
-| `.github/workflows/docker-publish.yml` | Release: build + push multi-arch image to GHCR on tag |
+| `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR on tag |
+| `.github/workflows/prune-packages.yml` | Weekly: delete old image versions from GHCR (keeps the newest 5 releases) |
 | `Dockerfile` | Multi-stage build (frontend + cargo-chef + runtime) |
 | `.dockerignore` | Exclude `target/`, `data/`, `node_modules/`, `.git` from build context |
 | `config/` | Runtime asset copied into the image |
 
 ---
 
-## 4. Building for different architectures
+## 4. Building the image (arm64)
 
 ### How it works
 
-The image is **multi-arch**. CI builds each architecture on a native runner; the Dockerfile also supports cross-compiling to `TARGETARCH` when built under emulation (local `buildx` without an arm machine):
+CI builds `linux/arm64` natively on an arm runner — no QEMU. The Dockerfile also handles `TARGETARCH`, so a cross-build works with the toolchain below:
 
-- **amd64** → native build, no cross toolchain
 - **arm64 on an arm runner** → native build
 - **arm64 under emulation** → `rustup target add aarch64-unknown-linux-gnu` + apt cross-gcc (`gcc-aarch64-linux-gnu`, `libc6-dev-arm64-cross`) → `cargo build --release --target aarch64-unknown-linux-gnu`
 
-Why a cross-C toolchain when cross-compiling: ring/rustls (used by the SurrealDB HTTP client + reqwest) need a C linker for the final binary on arm64.
+Why a cross-C toolchain when cross-compiling: ring/rustls (reqwest) need a C linker for the final binary on arm64.
 
 ### Via GitHub Actions (recommended)
-
-The workflow builds **every architecture natively** — no QEMU — on a runner matrix:
-
-| Arch | Runner |
-|---|---|
-| `linux/amd64` | `ubuntu-latest` |
-| `linux/arm64` | `ubuntu-24.04-arm` |
 
 Tag a release:
 
@@ -105,36 +98,31 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The workflow (`docker-publish.yml`) publishes **two variants** — the default SQLite build and a SurrealDB build (`--features surreal`):
+The workflow (`docker-publish.yml`) builds and pushes one image, on an arm runner:
 
-| Variant | Tags |
+| Platform | Runner |
 |---|---|
-| SQLite (default) | `:v1.0.0`, `:latest` |
-| SurrealDB | `:v1.0.0-surreal`, `:latest-surreal` |
+| `linux/arm64` | `ubuntu-24.04-arm` |
 
-1. Builds each platform **× variant** on its native runner and pushes it **by digest**
-2. Merges the per-arch digests into one multi-arch manifest **per variant** (`merge` job)
-3. Tags `ghcr.io/<owner>/<image>` as above
-4. Reuses the per-arch, per-variant **registry-backed build cache** (`:buildcache-<variant>-<arch>`) so cargo-chef dep layers persist across releases — only the app crate recompiles
+| Tag | Storage |
+|---|---|
+| `:v1.0.0`, `:latest` | SQLite |
 
-No repo variable to configure; every `v*` tag ships both variants for both architectures.
+1. Builds `linux/arm64` on the native arm runner
+2. Pushes and tags `ghcr.io/<owner>/<image>` as above
+3. Reuses the Actions build cache (`type=gha`) so cargo-chef dep layers persist across releases — only the app crate recompiles
+
+No repo variable to configure; every `v*` tag ships the image.
+
+### Pruning the registry
+
+`prune-packages.yml` runs weekly (Sunday 03:00 UTC) and keeps the newest 5 release images, deleting everything older. Run it by hand from the Actions tab before a release, optionally with `keep` (how many releases to keep) and `dry_run` (report only).
 
 ### Locally with buildx
 
-The `Dockerfile` takes a `CARGO_FEATURES` build arg — empty builds SQLite, `surreal` builds the SurrealDB variant.
-
 ```bash
-# SQLite (default), both arches
-docker buildx build --platform linux/arm64,linux/amd64 -t ghcr.io/<owner>/<image>:test .
-
-# SurrealDB variant
-docker buildx build --platform linux/arm64,linux/amd64 --build-arg CARGO_FEATURES=surreal -t ghcr.io/<owner>/<image>:test-surreal .
-
-# just arm64 (Pi)
-docker buildx build --platform linux/arm64 -t ghcr.io/<owner>/<image>:arm64 .
-
-# just amd64
-docker buildx build --platform linux/amd64 -t ghcr.io/<owner>/<image>:amd64 .
+# arm64, loaded into the local docker (needs an arm host to run it)
+docker buildx build --platform linux/arm64 -t ghcr.io/<owner>/<image>:test --load .
 ```
 
 If you get `no matching manifest for linux/arm64`, run `docker buildx create --use` once to enable the builder.
@@ -149,7 +137,7 @@ The workflow also supports `workflow_dispatch` — run it from the Actions tab o
 
 1. Merge feature branches to the default branch (each PR runs `ci.yml`)
 2. Tag a release: `git tag v1.0.0 && git push origin v1.0.0`
-3. `docker-publish.yml` builds all configured platforms, pushes `ghcr.io/<owner>/<image>:v1.0.0` and `:latest`
+3. `docker-publish.yml` builds the arm64 image, pushes `ghcr.io/<owner>/<image>:v1.0.0` and `:latest`
 4. Deploy:
 
 ```bash
@@ -169,10 +157,10 @@ docker run -d \
   -p 8080:8080 \
   -v <app>-data:/data \
   -e FINANCER_JWT_SECRET="$(openssl rand -hex 32)" \
-  ghcr.io/<owner>/<image>:latest   # same tag — manifest picks the arm64 image automatically
+  ghcr.io/<owner>/<image>:latest   # arm64 image
 ```
 
-No per-arch tag needed — the multi-arch manifest resolves the right image on the target.
+No per-arch tag needed — the published image **is** the arm64 one.
 
 ---
 
@@ -187,9 +175,7 @@ Configuration is env-only (no config file). See the table in `README.md`.
 | `FINANCER_DATA_DIR` | no | runtime data root (default `/data`, bind a volume) |
 | `FINANCER_DOMAIN_URL` | no | set only if the SPA is served from a different host |
 | `FINANCER_TIMEZONE` | no | IANA zone (default `Asia/Kolkata`) |
-| `FINANCER_DATABASE` | no | `sqlite` \| `surreal` (default `sqlite`) |
 | `FINANCER_SQLITE_PATH` | no | SQLite file (default `/data/financer.db`) |
-| `FINANCER_SURREAL_URL/USER/PASS/NS/DB` | no | SurrealDB connection |
 
 ---
 
@@ -201,5 +187,5 @@ Configuration is env-only (no config file). See the table in `README.md`.
 | 404 on `/api/...` after deploy | Wrong `DOMAIN_URL` injection; or unknown API path (SPA returns 404 JSON for unknown `/api/*`). |
 | `no matching manifest for linux/arm64` locally | buildx builder missing: `docker buildx create --use`. |
 | arm64 build fails on ring/cc | Cross-gcc missing — the Dockerfile installs `gcc-aarch64-linux-gnu` + `libc6-dev-arm64-cross` automatically. |
-| Full dependency rebuild on every release | Check the `:buildcache-<arch>` images exist in GHCR; the registry cache survives across tags (gha cache does not — 7-day eviction). |
+| Full dependency rebuild on every release | The Actions cache (`type=gha`) expires after 7 days of inactivity; a tag push after that gap rebuilds the deps once. |
 | Docker image tag is branch/sha not version | Manual `workflow_dispatch` run; `latest`/version tags apply only on `v*` tag pushes. |

@@ -290,7 +290,8 @@ impl SqliteTransactionRepo {
         );
         query.push_str("?, ".repeat(ids.len()).trim_end_matches(", "));
         query.push(')');
-        let mut q = sqlx::query_as::<_, RawTransaction>(&query).bind(user_id);
+        let mut q =
+            sqlx::query_as::<_, RawTransaction>(sqlx::AssertSqlSafe(query.as_str())).bind(user_id);
         for id in ids {
             q = q.bind(id);
         }
@@ -349,7 +350,7 @@ impl SqliteTransactionRepo {
             }
         }
 
-        let mut q = sqlx::query_as::<_, RawListTxn>(&query);
+        let mut q = sqlx::query_as::<_, RawListTxn>(sqlx::AssertSqlSafe(query.as_str()));
         for a in &bind_args {
             q = q.bind(a);
         }
@@ -406,7 +407,7 @@ impl SqliteTransactionRepo {
         let mut q = sqlx::query_as::<
             _,
             (String, String, f64, String, Option<String>, Option<String>),
-        >(&query);
+        >(sqlx::AssertSqlSafe(query.as_str()));
         for a in &bind_args {
             q = q.bind(a);
         }

@@ -41,22 +41,9 @@ impl Default for Server {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Storage {
-    /// "sqlite" | "surreal"
-    pub database: String,
     pub sqlite: Sqlite,
-    pub surreal: Surreal,
-}
-
-impl Default for Storage {
-    fn default() -> Self {
-        Self {
-            database: "sqlite".into(),
-            sqlite: Sqlite::default(),
-            surreal: Surreal::default(),
-        }
-    }
 }
 
 /// Advanced SQLite tuning (maps to sqlx `SqliteConnectOptions`).
@@ -86,27 +73,6 @@ impl Default for Sqlite {
             page_size: 0,
             write_pool_size: 1,
             read_pool_size: 5,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Surreal {
-    pub url: String,
-    pub user: String,
-    pub pass: String,
-    pub ns: String,
-    pub db: String,
-}
-
-impl Default for Surreal {
-    fn default() -> Self {
-        Self {
-            url: "127.0.0.1:8000".into(),
-            user: "root".into(),
-            pass: "root".into(),
-            ns: "financer".into(),
-            db: "financer".into(),
         }
     }
 }
@@ -141,14 +107,6 @@ fn validate_secret_key(key: Option<&str>) -> anyhow::Result<Option<String>> {
     } else {
         anyhow::bail!("FINANCER_SECRET_KEY must be 32 bytes of hex (64 characters)")
     }
-}
-
-/// Storage backend, chosen by `FINANCER_DATABASE`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumString)]
-#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
-pub enum Database {
-    Surreal,
-    Sqlite,
 }
 
 impl Config {
@@ -188,32 +146,9 @@ impl Config {
         if let Some(v) = get("FINANCER_SECRET_KEY") {
             self.server.secret_key = Some(v);
         }
-        if let Some(v) = get("FINANCER_DATABASE") {
-            self.storage.database = v;
-        }
         if let Some(v) = get("FINANCER_SQLITE_PATH") {
             self.storage.sqlite.path = v;
         }
-        if let Some(v) = get("FINANCER_SURREAL_URL") {
-            self.storage.surreal.url = v;
-        }
-        if let Some(v) = get("FINANCER_SURREAL_USER") {
-            self.storage.surreal.user = v;
-        }
-        if let Some(v) = get("FINANCER_SURREAL_PASS") {
-            self.storage.surreal.pass = v;
-        }
-        if let Some(v) = get("FINANCER_SURREAL_NS") {
-            self.storage.surreal.ns = v;
-        }
-        if let Some(v) = get("FINANCER_SURREAL_DB") {
-            self.storage.surreal.db = v;
-        }
-    }
-
-    /// Choose the database from `[storage] database` value.
-    pub fn database(&self) -> Database {
-        std::str::FromStr::from_str(&self.storage.database).unwrap_or(Database::Sqlite)
     }
 }
 
@@ -237,20 +172,12 @@ mod tests {
             ("FINANCER_ADDR", "0.0.0.0:9000"),
             ("FINANCER_JWT_SECRET", "secret"),
             ("FINANCER_TIMEZONE", "Asia/Kolkata"),
-            ("FINANCER_DATABASE", "surreal"),
-            ("FINANCER_SURREAL_URL", "surrealdb:8000"),
-            ("FINANCER_SURREAL_PASS", "pw"),
         ]));
         assert_eq!(cfg.server.addr, "0.0.0.0:9000");
         assert_eq!(cfg.server.jwt_secret, "secret");
         assert_eq!(cfg.server.timezone, "Asia/Kolkata");
-        assert_eq!(cfg.storage.database, "surreal");
-        assert_eq!(cfg.storage.surreal.url, "surrealdb:8000");
-        assert_eq!(cfg.storage.surreal.pass, "pw");
         // Unset vars keep their defaults.
-        assert_eq!(cfg.storage.surreal.user, "root");
         assert_eq!(cfg.storage.sqlite.path, "/data/financer.db");
-        assert_eq!(cfg.database(), Database::Surreal);
     }
 
     #[test]
@@ -274,6 +201,5 @@ mod tests {
         let mut cfg = Config::default();
         cfg.apply_overrides_from(|_| None); // nothing set
         assert_eq!(cfg.server.addr, "0.0.0.0:8080");
-        assert_eq!(cfg.storage.database, "sqlite");
     }
 }

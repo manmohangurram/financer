@@ -1,7 +1,7 @@
 name: CI
 
 # Runs the full merge gate on pull requests only: Rust build, clippy
-# (-D warnings), unit tests (both feature sets), frontend type-check + vitest.
+# (-D warnings), unit tests, frontend type-check + vitest.
 on:
   pull_request:
 
@@ -19,20 +19,12 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-        with:
-          # Shared by every job so the surreal build reuses the default artifacts.
-          shared-key: backend
 
-      # Default build (SQLite only): fast gate for the shipping configuration.
-      - name: Check (default features)
-        run: cargo check --locked
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
 
-      # Full build: compiles the SurrealDB backend too.
-      - name: Clippy (all features)
-        run: cargo clippy --all-targets --features surreal -- -D warnings
-
-      - name: Test (all features)
-        run: cargo test --features surreal
+      - name: Test
+        run: cargo test --locked
 
       - name: Audit
         run: |

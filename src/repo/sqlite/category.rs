@@ -111,7 +111,7 @@ impl SqliteCategoryRepo {
         }
         // sqlx needs parameters in order; build binds manually.
         let page_size_usize = usize::try_from(page_size).unwrap_or(0);
-        let mut q = sqlx::query_as::<_, RawCat>(&sql).bind(user_id);
+        let mut q = sqlx::query_as::<_, RawCat>(sqlx::AssertSqlSafe(sql.as_str())).bind(user_id);
         if let Some(cur) = &cursor {
             q = q
                 .bind(cur.name.as_str())
