@@ -61,7 +61,7 @@ function handleSubmit() {
 
 <template>
   <AppModal :title="(editingItem ? 'Edit ' : 'New ') + titles[type]" :xwide="type === 'rule'" @close="emit('close')">
-    <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
+    <form @submit.prevent="handleSubmit" class="p-6 flex flex-col gap-3">
       <TransactionForm v-if="type === 'transaction'" v-model="txnForm" :accounts="accounts" :categories="categories" />
       <RuleForm v-else-if="type === 'rule'" v-model="ruleForm" :categories="categories" :accounts="accounts" />
       <CategoryForm v-else v-model="catForm" />

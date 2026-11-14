@@ -89,7 +89,7 @@ async function createCounterpart() {
 
 <template>
   <AppModal title="Transfer" @close="emit('close')">
-    <div class="p-6 space-y-4">
+    <div class="p-6 flex flex-col gap-3">
       <div class="grid grid-cols-2 gap-4">
         <AppSelect v-model="fromId" label="From account">
           <option v-for="a in accounts" :key="a.id" :value="a.id">{{ accName(a.id) }}</option>
@@ -99,43 +99,43 @@ async function createCounterpart() {
         </AppSelect>
       </div>
       <div class="flex items-center justify-center my-1">
-        <ArrowLeftRight class="w-4 h-4 text-primary-400" />
+        <ArrowLeftRight class="w-4 h-4 text-accent" />
       </div>
 
       <div v-if="!prefill?.sourceId">
         <AppInput v-model="search" label="Transaction" placeholder="Search unlinked debit transactions…">
           <template #icon>
-            <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle" stroke-width="2" />
+            <Search class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute" stroke-width="2" />
           </template>
         </AppInput>
-        <div class="mt-1 max-h-44 overflow-y-auto rounded-lg border border-border">
+        <div class="mt-1 max-h-44 overflow-y-auto rounded-lg border border-rule">
           <button
             v-for="t in sourceOptions"
             :key="t.id"
             type="button"
-            class="w-full text-left px-3 py-2 text-[12.5px] text-text hover:bg-primary-500/10 transition-colors"
-            :class="t.id === sourceId ? 'bg-primary-500/15' : ''"
+            class="w-full text-left px-3 py-2 text-[12.5px] text-ink hover:bg-accent/10 transition-colors"
+            :class="t.id === sourceId ? 'bg-accent/15' : ''"
             @click="sourceId = t.id"
           >
             <span class="font-medium">{{ t.name }}</span>
-            <span class="text-subtle"> · {{ formatCurrency(t.amount) }} · {{ formatDate(t.occurredAt) }}</span>
+            <span class="text-ink-mute"> · {{ formatCurrency(t.amount) }} · {{ formatDate(t.occurredAt) }}</span>
           </button>
-          <div v-if="!sourceOptions.length" class="px-3 py-3 text-[12px] text-subtle">No unlinked debit transactions in {{ accName(fromId) }}</div>
+          <div v-if="!sourceOptions.length" class="px-3 py-3 text-[12px] text-ink-mute">No unlinked debit transactions in {{ accName(fromId) }}</div>
         </div>
       </div>
-      <div v-else-if="source" class="rounded-lg border border-border px-3 py-2.5">
-        <div class="text-[12px] text-text-muted mb-0.5">Source</div>
-        <div class="text-[13px] text-text font-medium">{{ source.name }}</div>
-        <div class="text-[12px] text-subtle">{{ formatCurrency(source.amount) }} · {{ formatDate(source.occurredAt) }} · {{ accName(fromId) }}</div>
+      <div v-else-if="source" class="rounded-lg border border-rule px-3 py-2.5">
+        <div class="text-[12px] text-ink-soft mb-0.5">Source</div>
+        <div class="text-[13px] text-ink font-medium">{{ source.name }}</div>
+        <div class="text-[12px] text-ink-mute">{{ formatCurrency(source.amount) }} · {{ formatDate(source.occurredAt) }} · {{ accName(fromId) }}</div>
       </div>
 
       <div v-if="source && fromId !== toId">
-        <label class="block text-[12px] text-text-muted mb-1">Matches in {{ accName(toId) }}</label>
+        <label class="block text-[12px] text-ink-soft mb-1">Matches in {{ accName(toId) }}</label>
         <div v-if="candidates.length" class="space-y-1.5">
-          <div v-for="c in candidates" :key="c.id" class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border">
+          <div v-for="c in candidates" :key="c.id" class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-rule">
             <div class="min-w-0">
-              <div class="text-[12.5px] text-text truncate">{{ c.name }}</div>
-              <div class="text-[11.5px] text-subtle">
+              <div class="text-[12.5px] text-ink truncate">{{ c.name }}</div>
+              <div class="text-[11.5px] text-ink-mute">
                 {{ formatCurrency(c.amount) }}
                 <span v-if="c.diff !== 0">({{ c.diff > 0 ? '+' : '' }}{{ formatCurrency(c.diff) }})</span>
                 <span> · {{ c.days }}d</span>
@@ -147,10 +147,10 @@ async function createCounterpart() {
             </button>
           </div>
         </div>
-        <div v-else class="text-[12px] text-subtle">No matching transactions — create the counterpart below.</div>
+        <div v-else class="text-[12px] text-ink-mute">No matching transactions — create the counterpart below.</div>
       </div>
 
-      <p v-if="error" class="text-[13px] text-expense">{{ error }}</p>
+      <p v-if="error" class="text-[13px] text-debit">{{ error }}</p>
 
       <div class="flex justify-end pt-2">
         <button type="button" class="btn btn-primary gap-1.5" :disabled="!source || toId === fromId || !!submitting" @click="createCounterpart">

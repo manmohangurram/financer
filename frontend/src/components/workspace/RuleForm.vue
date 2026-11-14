@@ -50,7 +50,7 @@ async function runPreview() {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="flex flex-col gap-3">
     <div class="grid grid-cols-3 gap-3">
       <AppInput v-model="form.name" label="Name" placeholder="e.g. Food Purchases" />
       <AppInput v-model.number="form.priority" label="Priority" type="number" />
@@ -59,10 +59,10 @@ async function runPreview() {
         <option value="AND">AND (all conditions)</option>
       </AppSelect>
     </div>
-    <p class="text-[11px] text-subtle -mt-2">Lower priority numbers run first; later rules override earlier ones.</p>
+    <p class="text-[11px] text-ink-mute -mt-2">Lower priority numbers run first; later rules override earlier ones.</p>
 
     <div>
-      <span class="block text-[12px] text-text-muted mb-2">Conditions</span>
+      <span class="block text-[12px] text-ink-soft mb-2">Conditions</span>
       <div v-for="(cond, i) in form.conditions" :key="i" class="grid grid-cols-[1fr_1fr_2fr_auto] gap-2 mb-2 items-end">
         <AppSelect v-model="cond.matchField">
           <option v-for="f in matchFields" :key="f.value" :value="f.value">{{ f.label }}</option>
@@ -71,19 +71,19 @@ async function runPreview() {
           <option v-for="o in operators" :key="o.value" :value="o.value">{{ o.label }}</option>
         </AppSelect>
         <AppInput v-model="cond.pattern" placeholder="Value" />
-        <button type="button" aria-label="Remove condition" @click="removeCondition(i)" class="p-2 rounded-lg text-subtle hover:text-expense hover:bg-expense/10">
+        <button type="button" aria-label="Remove condition" @click="removeCondition(i)" class="p-2 rounded-lg text-ink-mute hover:text-debit hover:bg-debit/10">
           <X class="w-4 h-4" />
         </button>
       </div>
-      <button type="button" @click="addCondition" class="text-[12px] text-primary-400 hover:underline">+ Add condition</button>
+      <button type="button" @click="addCondition" class="text-[12px] text-accent hover:underline">+ Add condition</button>
     </div>
 
-    <div class="pt-1 border-t border-border">
+    <div class="pt-1 border-t border-rule">
       <div class="flex items-center gap-2 mb-1">
-        <SlidersHorizontal class="w-4 h-4 text-primary-400" stroke-width="1.5" />
-        <span class="text-[13px] font-medium text-text">Output actions</span>
+        <SlidersHorizontal class="w-4 h-4 text-accent" stroke-width="1.5" />
+        <span class="text-[13px] font-medium text-ink">Output actions</span>
       </div>
-      <p class="text-[11.5px] text-subtle mb-3">Applied in order to every matched transaction. Multiple outputs are allowed.</p>
+      <p class="text-[11.5px] text-ink-mute mb-3">Applied in order to every matched transaction. Multiple outputs are allowed.</p>
 
       <div v-for="(out, i) in form.outputs" :key="i" class="grid grid-cols-[1fr_1.2fr_2.4fr_auto] gap-2 mb-2 items-end">
         <AppSelect v-model="out.type">
@@ -94,7 +94,7 @@ async function runPreview() {
         <AppSelect v-if="out.type === 'name'" v-model="out.nameOp">
           <option v-for="o in nameOps" :key="o.value" :value="o.value">{{ o.label }}</option>
         </AppSelect>
-        <span v-else class="text-[11px] text-subtle pb-3">{{ out.type === 'category' ? '→ category' : '→ account' }}</span>
+        <span v-else class="text-[11px] text-ink-mute pb-3">{{ out.type === 'category' ? '→ category' : '→ account' }}</span>
         <AppInput v-if="out.type === 'name'" v-model="out.value" placeholder="e.g. Netflix Subscription" />
         <AppSelect v-else-if="out.type === 'category'" v-model="out.categoryId">
           <option value="">Pick a category</option>
@@ -104,24 +104,24 @@ async function runPreview() {
           <option value="">Pick an account</option>
           <option v-for="a in props.accounts || []" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
         </AppSelect>
-        <button type="button" aria-label="Remove output" @click="removeOutput(i)" class="p-2 rounded-lg text-subtle hover:text-expense hover:bg-expense/10">
+        <button type="button" aria-label="Remove output" @click="removeOutput(i)" class="p-2 rounded-lg text-ink-mute hover:text-debit hover:bg-debit/10">
           <X class="w-4 h-4" />
         </button>
       </div>
-      <button type="button" @click="addOutput" class="text-[12px] text-primary-400 hover:underline">+ Add output</button>
+      <button type="button" @click="addOutput" class="text-[12px] text-accent hover:underline">+ Add output</button>
     </div>
 
-    <div class="pt-1 border-t border-border">
+    <div class="pt-1 border-t border-rule">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-[13px] font-medium text-text">Preview</span>
-        <button type="button" class="btn btn-primary btn-sm btn-square" aria-label="Preview" title="Preview" :disabled="preview.loading" @click="runPreview">
+        <span class="text-[13px] font-medium text-ink">Preview</span>
+        <button type="button" class="ns-primary btn-square" aria-label="Preview" title="Preview" :disabled="preview.loading" @click="runPreview">
           <Loader2 v-if="preview.loading" class="w-3.5 h-3.5 animate-spin" />
           <Eye v-else class="w-3.5 h-3.5" />
         </button>
       </div>
-      <p class="text-[11.5px] text-subtle mb-2">Shows up to 20 matching transactions this rule would apply to.</p>
-      <p v-if="preview.error" class="text-[12px] text-expense">{{ preview.error }}</p>
-      <div v-else class="rounded-xl border border-border bg-surface overflow-hidden">
+      <p class="text-[11.5px] text-ink-mute mb-2">Shows up to 20 matching transactions this rule would apply to.</p>
+      <p v-if="preview.error" class="text-[12px] text-debit">{{ preview.error }}</p>
+      <div v-else class="rounded-card border border-rule bg-page overflow-hidden">
         <TransactionTable
           :transactions="preview.matches"
           :categories="props.categories"

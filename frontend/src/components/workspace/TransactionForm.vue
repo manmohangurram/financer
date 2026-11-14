@@ -26,18 +26,18 @@ function toggleCategory(id: string) {
       <AppInput v-model="form.name" label="Name" placeholder="e.g. Coffee Shop" />
       <AppInput v-model.number="form.amount" label="Amount" type="number" step="0.01" />
       <div>
-        <span class="block text-[12px] text-text-muted mb-1.5">Type</span>
+        <span class="block text-[12px] text-ink-soft mb-1.5">Type</span>
         <div class="flex gap-2">
           <label v-for="t in [{ v: 'DEBIT' as const, label: 'Debit' }, { v: 'CREDIT' as const, label: 'Credit' }]" :key="t.v" class="flex-1 cursor-pointer">
             <input type="radio" :value="t.v" :checked="form.type === t.v" @change="form.type = t.v" class="peer sr-only" />
-            <span class="block w-full text-center px-3 h-10 leading-10 rounded-lg border cursor-pointer transition-colors text-[13px] border-border text-text-muted hover:text-text peer-checked:border-primary-500 peer-checked:bg-primary-500/10 peer-checked:text-primary-500">
+            <span class="block w-full text-center px-3 h-10 leading-10 rounded-lg border cursor-pointer transition-colors text-[13px] border-rule text-ink-soft hover:text-ink peer-checked:border-primary-500 peer-checked:bg-accent/10 peer-checked:text-primary-500">
               {{ t.label }}
             </span>
           </label>
         </div>
       </div>
       <div>
-        <span class="block text-[12px] text-text-muted mb-1.5">Categories</span>
+        <span class="block text-[12px] text-ink-soft mb-1.5">Categories</span>
         <div class="flex flex-wrap gap-1.5">
           <button
             v-for="cat in categories"
@@ -45,7 +45,7 @@ function toggleCategory(id: string) {
             type="button"
             @click="toggleCategory(cat.id)"
             class="badge gap-1.5 px-3 py-2.5 h-auto text-[12px] transition-colors"
-            :class="form.categoryIds.includes(cat.id) ? 'badge-primary' : 'badge-outline text-text-muted hover:text-text'"
+            :class="form.categoryIds.includes(cat.id) ? 'badge-primary' : 'badge-outline text-ink-soft hover:text-ink'"
             :style="form.categoryIds.includes(cat.id) ? { backgroundColor: colors[cat.name], borderColor: colors[cat.name], color: badgeText } : {}"
           >
             <span class="w-2 h-2 rounded-full" :style="{ background: colors[cat.name] }"></span>
@@ -59,7 +59,7 @@ function toggleCategory(id: string) {
         <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
       </AppSelect>
       <div>
-        <span class="block text-[12px] text-text-muted mb-1.5">Date</span>
+        <span class="block text-[12px] text-ink-soft mb-1.5">Date</span>
         <DatePicker v-model="form.occurredAt" />
       </div>
     </div>

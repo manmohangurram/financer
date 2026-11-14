@@ -10,7 +10,7 @@ const viewYear = ref(new Date().getFullYear());
 const viewMonth = ref(new Date().getMonth());
 
 const buttonCls = computed(() =>
-  ['input w-full bg-surface text-left', model.value ? 'text-text' : 'text-text-muted', props.class].join(' ')
+  ['input w-full bg-page text-left', model.value ? 'text-ink' : 'text-ink-soft', props.class].join(' ')
 );
 
 const selectedDate = computed<Date | null>(() => {
@@ -86,26 +86,26 @@ function selectDate(d: Date) {
 
     <div
       v-if="open"
-      class="absolute left-0 top-full z-50 mt-2 bg-base-100 border border-base-300 rounded-box shadow-lg p-3 w-72"
+      class="absolute left-0 top-full z-50 mt-2 bg-page border border-base-300 rounded-box shadow-lg p-3 w-72"
     >
       <div class="flex items-center justify-between mb-2">
-        <button type="button" @click="prevMonth" aria-label="Previous month" class="btn btn-ghost btn-xs text-text-muted">
+        <button type="button" @click="prevMonth" aria-label="Previous month" class="ns-icon text-ink-soft">
           <ChevronLeft class="w-4 h-4" />
         </button>
         <div class="flex items-center gap-1.5">
-          <select v-model.number="viewMonth" class="select select-xs bg-surface border-border text-text" aria-label="Select month">
+          <select v-model.number="viewMonth" class="select select-xs bg-page border-rule text-ink" aria-label="Select month">
             <option v-for="(m, i) in monthOptions" :key="i" :value="i">{{ m }}</option>
           </select>
-          <select v-model.number="viewYear" class="select select-xs bg-surface border-border text-text" aria-label="Select year">
+          <select v-model.number="viewYear" class="select select-xs bg-page border-rule text-ink" aria-label="Select year">
             <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
           </select>
         </div>
-        <button type="button" @click="nextMonth" aria-label="Next month" class="btn btn-ghost btn-xs text-text-muted">
+        <button type="button" @click="nextMonth" aria-label="Next month" class="ns-icon text-ink-soft">
           <ChevronRight class="w-4 h-4" />
         </button>
       </div>
 
-      <div class="grid grid-cols-7 gap-0.5 text-center text-[11px] text-subtle mb-1">
+      <div class="grid grid-cols-7 gap-0.5 text-center text-[11px] text-ink-mute mb-1">
         <span v-for="w in ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']" :key="w" class="py-0.5">{{ w }}</span>
       </div>
 
@@ -120,10 +120,10 @@ function selectDate(d: Date) {
             :class="
               d
                 ? isSelected(d)
-                  ? 'bg-primary-600 text-white font-semibold'
+                  ? 'bg-accent text-white font-semibold'
                   : isToday(d)
-                    ? 'text-primary-400 font-semibold'
-                    : 'text-text hover:bg-white/5'
+                    ? 'text-accent font-semibold'
+                    : 'text-ink hover:bg-white/5'
                 : ''
             "
             @click="d && selectDate(d)"

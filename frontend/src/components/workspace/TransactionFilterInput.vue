@@ -42,18 +42,18 @@ function onApply(f: TransactionFilters) {
 <template>
   <div class="relative flex-1 min-w-[400px]">
     <div
-      class="flex items-center gap-1.5 flex-wrap px-2.5 py-1.5 rounded-xl bg-surface border border-border transition-colors"
+      class="flex items-center gap-1.5 flex-wrap px-2.5 py-1.5 rounded-card bg-page border border-rule transition-colors"
       @click="inputEl?.focus()"
     >
       <span
         v-for="b in bubbles"
         :key="b.key + b.value"
-        class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-primary-500/10 text-primary-400 text-[11.5px] font-medium"
+        class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-accent/10 text-accent text-[11.5px] font-medium"
       >
         {{ b.label }}
         <button
           type="button"
-          class="hover:text-text shrink-0"
+          class="hover:text-ink shrink-0"
           :aria-label="`Remove ${b.label}`"
           @click.stop="remove(b)"
         >
@@ -65,7 +65,7 @@ function onApply(f: TransactionFilters) {
         ref="inputEl"
         v-model="text"
         type="text"
-        class="flex-1 min-w-[120px] bg-transparent outline-none text-text placeholder:text-text-muted py-1 text-[13px]"
+        class="flex-1 min-w-[120px] bg-transparent outline-none text-ink placeholder:text-ink-soft py-1 text-[13px]"
         placeholder="Search"
         @keydown.enter.prevent="addName"
         @keydown.backspace="onBackspace"
@@ -73,7 +73,7 @@ function onApply(f: TransactionFilters) {
 
       <button
         type="button"
-        class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-text-muted hover:text-text transition-colors"
+        class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-ink-soft hover:text-ink transition-colors"
         aria-label="Filter options"
         title="More filters"
         @click.stop="showPopup = !showPopup"

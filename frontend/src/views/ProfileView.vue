@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
 import AppInput from '@/components/AppInput.vue';
+import AppSelect from '@/components/AppSelect.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { profile, apiKeys } from '@/lib/api/client';
 import { API_BASE } from '@/lib/api/client';
@@ -192,8 +193,8 @@ onMounted(() => {
   <div class="w-full space-y-5">
     <SectionHeader title="Settings" subtitle="Manage your profile, avatar, and password" />
 
-    <div v-if="error" class="rounded-xl border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
-    <div v-if="notice" class="rounded-xl border border-income/30 bg-income/10 px-4 py-3 text-[13px] text-income">{{ notice }}</div>
+    <div v-if="error" class="rounded-card border border-debit/40 px-3.5 py-2.5 text-[12.5px] text-debit">{{ error }}</div>
+    <div v-if="notice" class="rounded-card border border-credit/40 px-3.5 py-2.5 text-[12.5px] text-credit">{{ notice }}</div>
 
     <div v-if="loading" class="py-16 text-center text-ink-mute">Loading…</div>
 
@@ -206,12 +207,12 @@ onMounted(() => {
 
             <div class="flex items-center gap-4">
               <div class="relative">
-                <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-2xl font-bold text-accent-content overflow-hidden">
+                <div class="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-[6px] border border-rule bg-page-sunk text-[20px] font-medium text-ink-soft">
                   <img v-if="avatarSrc" :src="avatarSrc" alt="Avatar" class="w-full h-full object-cover" />
                   <span v-else>{{ (form.name || '?').slice(0, 2).toUpperCase() }}</span>
                 </div>
                 <button
-                  class="absolute -bottom-1 -right-1 btn btn-ghost btn-xs border border-track rounded-full p-1.5"
+                  class="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-rule bg-page text-ink-soft transition-colors hover:text-ink"
                   aria-label="Upload avatar"
                   :disabled="avatarBusy"
                   @click="fileInput?.click()"
@@ -232,7 +233,7 @@ onMounted(() => {
             </div>
 
             <div class="flex justify-end">
-              <button class="ns-btn-primary" :disabled="savingProfile" @click="saveProfile">
+              <button class="inline-flex h-[32px] items-center justify-center gap-2 rounded-control bg-accent px-3.5 text-[13px] font-medium text-paper transition-colors hover:bg-accent-hover disabled:opacity-50" :disabled="savingProfile" @click="saveProfile">
                 <Loader2 v-if="savingProfile" class="w-4 h-4 animate-spin" />
                 <Save v-else class="w-4 h-4" />
                 Save
@@ -248,7 +249,7 @@ onMounted(() => {
               <AppInput v-model="password.newPassword" label="New password" type="password" autocomplete="new-password" />
             </div>
             <div class="flex justify-end">
-              <button class="ns-btn-primary" :disabled="savingPassword" @click="changePassword">
+              <button class="inline-flex h-[32px] items-center justify-center gap-2 rounded-control bg-accent px-3.5 text-[13px] font-medium text-paper transition-colors hover:bg-accent-hover disabled:opacity-50" :disabled="savingPassword" @click="changePassword">
                 <Loader2 v-if="savingPassword" class="w-4 h-4 animate-spin" />
                 <Save v-else class="w-4 h-4" />
                 Update password
@@ -261,11 +262,11 @@ onMounted(() => {
               <h2 class="text-[15px] font-semibold text-ink">Appearance</h2>
               <p class="text-[12px] text-ink-mute">Choose the app theme. Default follows your system settings.</p>
             </div>
-            <div class="flex gap-1 rounded-xl bg-page border border-rule p-1" role="group" aria-label="Theme">
+            <div class="inline-flex overflow-hidden rounded-control border border-rule" role="group" aria-label="Theme">
               <button
                 type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
-                :class="currentTheme === 'system' ? 'bg-primary-600 text-white' : 'text-ink-muted hover:text-ink'"
+                class="flex h-[30px] items-center gap-1.5 border-l border-rule px-3 text-[12.5px] font-medium transition-colors first:border-l-0"
+                :class="currentTheme === 'system' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
                 @click="applyTheme('system')"
               >
                 <Monitor class="w-4 h-4" stroke-width="1.5" />
@@ -273,8 +274,8 @@ onMounted(() => {
               </button>
               <button
                 type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
-                :class="currentTheme === 'light' ? 'bg-primary-600 text-white' : 'text-ink-muted hover:text-ink'"
+                class="flex h-[30px] items-center gap-1.5 border-l border-rule px-3 text-[12.5px] font-medium transition-colors first:border-l-0"
+                :class="currentTheme === 'light' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
                 @click="applyTheme('light')"
               >
                 <Sun class="w-4 h-4" stroke-width="1.5" />
@@ -282,8 +283,8 @@ onMounted(() => {
               </button>
               <button
                 type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors"
-                :class="currentTheme === 'dark' ? 'bg-primary-600 text-white' : 'text-ink-muted hover:text-ink'"
+                class="flex h-[30px] items-center gap-1.5 border-l border-rule px-3 text-[12.5px] font-medium transition-colors first:border-l-0"
+                :class="currentTheme === 'dark' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
                 @click="applyTheme('dark')"
               >
                 <Moon class="w-4 h-4" stroke-width="1.5" />
@@ -298,39 +299,36 @@ onMounted(() => {
               <p class="text-[12px] text-ink-mute">Keys for external tools (e.g. MCP clients). Max 50 per user. Never shown again after creation.</p>
             </div>
 
-            <p v-if="keyError" class="text-error text-sm">{{ keyError }}</p>
-            <p v-if="keyNotice" class="text-success text-sm">{{ keyNotice }}</p>
+            <p v-if="keyError" class="text-[12.5px] text-debit">{{ keyError }}</p>
+            <p v-if="keyNotice" class="text-[12.5px] text-credit">{{ keyNotice }}</p>
 
             <div v-if="newKeyResult" class="rounded-card border border-accent/40 bg-accent-wash p-3">
               <p class="text-[12px] text-ink-mute">Copy this key now — it won't be shown again:</p>
               <code class="block break-all text-ink text-sm mt-1 font-mono">{{ newKeyResult }}</code>
             </div>
 
-            <div class="flex items-end gap-3">
-              <AppInput v-model="newKeyName" label="Name" placeholder="e.g. Claude Desktop" class="flex-1" />
-              <AppInput v-model="newKeyDays" label="Expires (days, 0=never)" type="number" min="0" class="w-40" />
-              <label class="form-control w-40">
-                <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Scope</span>
-                <select v-model="newKeyScope" class="select select-bordered select-sm">
-                  <option value="read">Read</option>
-                  <option value="read_write">Read + write</option>
-                </select>
-              </label>
-              <button class="ns-btn-primary" :disabled="savingKey" @click="createKey">
+            <div class="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_140px_150px_auto]">
+              <AppInput v-model="newKeyName" label="Name" placeholder="e.g. Claude Desktop" />
+              <AppInput v-model="newKeyDays" label="Expires (days)" type="number" min="0" />
+              <AppSelect v-model="newKeyScope" label="Scope">
+                <option value="read">Read</option>
+                <option value="read_write">Read + write</option>
+              </AppSelect>
+              <button class="inline-flex h-[32px] items-center justify-center gap-2 rounded-control bg-accent px-3.5 text-[13px] font-medium text-paper transition-colors hover:bg-accent-hover disabled:opacity-50" :disabled="savingKey" @click="createKey">
                 <Loader2 v-if="savingKey" class="w-4 h-4 animate-spin" />
                 <Plus v-else class="w-4 h-4" />
                 Create key
               </button>
             </div>
 
-            <div v-if="keys.length" class="space-y-2">
-              <div v-for="k in keys" :key="k.id" class="flex items-center justify-between gap-4 rounded-lg border border-base-300 p-3">
+            <div v-if="keys.length" class="flex flex-col gap-2">
+              <div v-for="k in keys" :key="k.id" class="flex items-center justify-between gap-4 rounded-card border border-rule p-3">
                 <div>
                   <p class="text-ink text-sm font-medium">{{ k.name || 'Untitled' }}</p>
                   <p class="text-[12px] text-ink-mute font-mono">{{ maskKey(k) }}</p>
                   <p class="text-[11px] text-ink-mute">Created {{ formatDate(k.createdAt) }}<span v-if="k.expiresAt"> · expires {{ formatDate(k.expiresAt) }}</span></p>
                 </div>
-                <button class="ns-btn-danger" @click="revokeKey(k.id)">
+                <button class="inline-flex h-[30px] items-center justify-center gap-2 rounded-control border border-debit/30 px-3 text-[12.5px] font-medium text-debit transition-colors hover:bg-debit/10" @click="revokeKey(k.id)">
                   <Trash2 class="w-4 h-4" />
                   Revoke
                 </button>
@@ -344,7 +342,7 @@ onMounted(() => {
               <h2 class="text-[15px] font-semibold text-ink">Sign out all sessions</h2>
               <p class="text-[12px] text-ink-mute">Revokes every login on other devices and browsers.</p>
             </div>
-            <button class="ns-btn-danger" :disabled="loggingOutAll" @click="confirmLogoutAll = true">
+            <button class="inline-flex h-[30px] items-center justify-center gap-2 rounded-control border border-debit/30 px-3 text-[12.5px] font-medium text-debit transition-colors hover:bg-debit/10" :disabled="loggingOutAll" @click="confirmLogoutAll = true">
               <Loader2 v-if="loggingOutAll" class="w-4 h-4 animate-spin" />
               <ShieldCheck v-else class="w-4 h-4" />
               Sign out all
