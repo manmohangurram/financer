@@ -1,9 +1,13 @@
 name: CI
 
-# Runs the full merge gate on pull requests only: Rust build, clippy
-# (-D warnings), unit tests, frontend type-check + vitest.
+# The merge gate: Rust clippy (-D warnings) + tests, frontend type-check,
+# vitest and build. Runs on pull requests, and on pushes to main because that
+# run is what saves the cargo cache every PR then restores — with PR-only
+# triggers each PR started cold and re-downloaded the whole registry.
 on:
   pull_request:
+  push:
+    branches: [main]
 
 jobs:
   backend:
