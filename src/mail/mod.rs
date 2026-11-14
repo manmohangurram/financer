@@ -97,7 +97,16 @@ pub async fn poll_account(
                 MailRuleAction::Ignore => MailStatus::Ignored,
                 // shortcut: AUTO reviews instead of creating; the poll has no
                 // TransactionService yet. Becomes real when poll_once gets it.
-                MailRuleAction::Auto | MailRuleAction::Review => status,
+                MailRuleAction::Auto => {
+                    // Eligible for unattended creation only on a full parse;
+                    // anything less goes to review like a REVIEW rule.
+                    if extraction.as_ref().is_some_and(|e| e.confidence >= 1.0) {
+                        MailStatus::Auto
+                    } else {
+                        status
+                    }
+                }
+                MailRuleAction::Review => status,
             };
         }
         let parsed_json = extraction
@@ -130,7 +139,12 @@ pub async fn poll_account(
     Ok(summary)
 }
 
-pub async fn poll_once(repo: &Arc<dyn MailRepo>, key: Option<&str>) -> Result<usize> {
+pub async fn poll_once(
+    repo: &Arc<dyn MailRepo>,
+    key: Option<&str>,
+    transactions: &crate::service::transaction::TransactionService,
+    account_svc: &crate::service::account::AccountService,
+) -> Result<usize> {
     let accounts = repo.list_pollable_accounts().await?;
     let mut polled = 0;
     for account in accounts {
@@ -149,6 +163,7 @@ pub async fn poll_once(repo: &Arc<dyn MailRepo>, key: Option<&str>) -> Result<us
         match result {
             Ok(_) => {
                 repo.mark_polled(&account.id, "").await?;
+                auto_create(repo, key, &account, transactions, account_svc).await;
                 polled += 1;
             }
             Err(e) => {
@@ -166,13 +181,81 @@ fn decrypt_password(key: Option<&str>, secret_enc: &str) -> Result<String> {
     crypto::decrypt(key, secret_enc)
 }
 
-pub fn spawn(repo: Arc<dyn MailRepo>, key: Option<String>, interval: Duration) {
+/// Approve the rows an AUTO rule marked, leaving anything that cannot be
+/// resolved in the review queue.
+async fn auto_create(
+    repo: &Arc<dyn MailRepo>,
+    key: Option<&str>,
+    account: &MailAccountRow,
+    transactions: &crate::service::transaction::TransactionService,
+    accounts: &crate::service::account::AccountService,
+) {
+    let rows = match repo
+        .list_messages(&account.user_id, Some(MailStatus::Auto), 200)
+        .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!("auto-create: could not list candidates: {}", e.message);
+            return;
+        }
+    };
+    let ids: Vec<String> = rows
+        .into_iter()
+        .filter(|m| m.transaction_id.is_none())
+        .map(|m| m.id)
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+
+    let service = crate::service::mail::MailService::new(repo.clone(), key.map(str::to_string));
+    let actions = ids
+        .iter()
+        .map(|id| crate::service::mail::MailActionItem {
+            id: id.clone(),
+            action: crate::service::mail::MailActionKind::Approve,
+            account_id: None,
+            category_ids: vec![],
+        })
+        .collect();
+    match service
+        .act(&account.user_id, actions, transactions, accounts)
+        .await
+    {
+        Ok(out) => {
+            for failure in out.failed {
+                // Back to the queue: an ambiguous account must be reviewed,
+                // not retried every tick.
+                let _ = repo
+                    .resolve_message(
+                        &account.user_id,
+                        &failure.id,
+                        MailStatus::Pending,
+                        None,
+                        None,
+                    )
+                    .await;
+                tracing::warn!("auto-create skipped {}: {}", failure.id, failure.error);
+            }
+        }
+        Err(e) => tracing::warn!("auto-create failed: {}", e.message),
+    }
+}
+
+pub fn spawn(
+    repo: Arc<dyn MailRepo>,
+    key: Option<String>,
+    interval: Duration,
+    transactions: crate::service::transaction::TransactionService,
+    accounts: crate::service::account::AccountService,
+) {
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             ticker.tick().await;
-            match poll_once(&repo, key.as_deref()).await {
+            match poll_once(&repo, key.as_deref(), &transactions, &accounts).await {
                 Ok(n) if n > 0 => tracing::info!("mail poll: {n} mailbox(es) polled"),
                 Ok(_) => {}
                 Err(e) => tracing::warn!("mail poll failed: {}", e.message),
@@ -474,6 +557,67 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(status, "PENDING");
+    }
+
+    async fn auto_rule(repo: &dyn MailRepo) {
+        repo.create_rule(
+            "u1",
+            &crate::repo::traits::mail::MailRuleInput {
+                position: 0,
+                enabled: true,
+                from_pattern: "alerts@bank.com".into(),
+                subject_contains: String::new(),
+                body_contains: String::new(),
+                action: MailRuleAction::Auto,
+                account_id: None,
+                category_ids: vec![],
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_auto_rule_with_a_full_parse_is_marked_for_creation() {
+        let repo = repo().await;
+        let acc = account(&repo).await;
+        auto_rule(&repo).await;
+
+        let source = FakeSource::new(vec![header(1, "<auto>", "alerts@bank.com")]).with_body(
+            1,
+            "Your A/c XX1234 has been debited with INR 1,249.50 at SWIGGY on 12/09/2026.",
+        );
+        poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
+
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM mail_messages WHERE message_id = '<auto>'")
+                .fetch_one(&repo.pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "AUTO");
+    }
+
+    #[tokio::test]
+    async fn an_auto_rule_with_a_partial_parse_stays_in_review() {
+        let repo = repo().await;
+        let acc = account(&repo).await;
+        auto_rule(&repo).await;
+
+        // No account digits and no date, so confidence is below 1.0.
+        let source = FakeSource::new(vec![header(2, "<partial>", "alerts@bank.com")])
+            .with_body(2, "INR 500.00 debited at SHOP");
+        poll_account(&source, &repo, &acc, &extract::TemplateExtractor)
+            .await
+            .unwrap();
+
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM mail_messages WHERE message_id = '<partial>'")
+                .fetch_one(&repo.pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "PENDING", "a partial parse must never auto-create");
     }
 
     #[tokio::test]
