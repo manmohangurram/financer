@@ -145,6 +145,16 @@
 
   --shadow-lift: var(--lift);
 
+  /* chart ramp: rank-ordered, darkest = biggest share (charts + legend read the same list) */
+  --chart-0: var(--accent);
+  --chart-1: oklch(0.44 0.045 205);
+  --chart-2: oklch(0.52 0.04 205);
+  --chart-3: oklch(0.60 0.035 205);
+  --chart-4: oklch(0.67 0.03 205);
+  --chart-5: oklch(0.74 0.025 205);
+  --chart-6: oklch(0.81 0.02 205);
+  --chart-7: oklch(0.68 0.01 245);
+
   --radius-control: 4px;
   --radius-card: 6px;
   --radius-overlay: 10px;
