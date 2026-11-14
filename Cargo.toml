@@ -2,7 +2,7 @@
 name = "financer"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.98"
+rust-version = "1.100"
 description = "Financer personal finance tracker backend (Rust) — strangler replacement for the Go backend"
 license = "0BSD"
 repository = "https://github.com/manmohangurram/financer"
@@ -23,7 +23,6 @@ tower-http = { version = "0.6", features = ["trace", "cors"] }
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite", "migrate"] }
 thiserror = "2"
 utoipa = { version = "6", features = ["axum_extras", "chrono"] }
-utoipa-axum = "0.3"
 utoipa-swagger-ui = { version = "10", features = ["axum"] }
 jsonwebtoken = "9"
 bcrypt = "0.15"
