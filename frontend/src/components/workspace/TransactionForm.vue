@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { categoryColorMap } from '@/lib/utils/categoryColor';
-import { resolved } from '@/lib/theme';
 import AppInput from '@/components/AppInput.vue';
 import AppSelect from '@/components/AppSelect.vue';
 import DatePicker from '@/components/DatePicker.vue';
 
-const props = defineProps<{ accounts: any[]; categories: any[] }>();
-const colors = computed(() => categoryColorMap(props.categories.map((c: any) => c.name)));
-// On dark theme badges are light hues (dark text passes AA); on light theme
-// they're dark hues (white text passes AA).
-const badgeText = computed(() => (resolved.value === 'light' ? '#ffffff' : '#0f172a'));
+defineProps<{ accounts: any[]; categories: any[] }>();
 const form = defineModel<{ name: string; amount: number; type: 'DEBIT' | 'CREDIT'; accountId: string; occurredAt: string; categoryIds: string[] }>({ required: true });
 
 function toggleCategory(id: string) {
@@ -21,45 +14,44 @@ function toggleCategory(id: string) {
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-x-4">
-    <div class="space-y-3">
+  <div class="grid gap-4 md:grid-cols-2">
+    <div class="flex flex-col gap-3">
       <AppInput v-model="form.name" label="Name" placeholder="e.g. Coffee Shop" />
       <AppInput v-model.number="form.amount" label="Amount" type="number" step="0.01" />
       <div>
-        <span class="block text-[12px] text-ink-soft mb-1.5">Type</span>
+        <span class="mb-1.5 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Type</span>
         <div class="flex gap-2">
           <label v-for="t in [{ v: 'DEBIT' as const, label: 'Debit' }, { v: 'CREDIT' as const, label: 'Credit' }]" :key="t.v" class="flex-1 cursor-pointer">
             <input type="radio" :value="t.v" :checked="form.type === t.v" @change="form.type = t.v" class="peer sr-only" />
-            <span class="block w-full text-center px-3 h-10 leading-10 rounded-lg border cursor-pointer transition-colors text-[13px] border-rule text-ink-soft hover:text-ink peer-checked:border-primary-500 peer-checked:bg-accent/10 peer-checked:text-primary-500">
+            <span class="block h-[34px] w-full cursor-pointer rounded-control border border-rule text-center text-[12.5px] leading-[34px] text-ink-soft transition-colors hover:bg-page-sunk peer-checked:border-accent/50 peer-checked:bg-accent-wash peer-checked:text-accent">
               {{ t.label }}
             </span>
           </label>
         </div>
       </div>
       <div>
-        <span class="block text-[12px] text-ink-soft mb-1.5">Categories</span>
-        <div class="flex flex-wrap gap-1.5">
+        <span class="mb-1.5 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Categories</span>
+        <p v-if="!categories.length" class="text-[12px] text-ink-mute">No categories yet — entries stay uncategorised.</p>
+        <div v-else class="flex flex-wrap gap-1.5">
           <button
             v-for="cat in categories"
             :key="cat.id"
             type="button"
             @click="toggleCategory(cat.id)"
-            class="badge gap-1.5 px-3 py-2.5 h-auto text-[12px] transition-colors"
-            :class="form.categoryIds.includes(cat.id) ? 'badge-primary' : 'badge-outline text-ink-soft hover:text-ink'"
-            :style="form.categoryIds.includes(cat.id) ? { backgroundColor: colors[cat.name], borderColor: colors[cat.name], color: badgeText } : {}"
+            class="h-[28px] rounded-full border px-2.5 text-[12px] transition-colors"
+            :class="form.categoryIds.includes(cat.id) ? 'border-accent/50 bg-accent-wash text-accent' : 'border-rule text-ink-soft hover:bg-page-sunk hover:text-ink'"
           >
-            <span class="w-2 h-2 rounded-full" :style="{ background: colors[cat.name] }"></span>
             {{ cat.name }}
           </button>
         </div>
       </div>
     </div>
-    <div class="space-y-3">
+    <div class="flex flex-col gap-3">
       <AppSelect v-model="form.accountId" label="Account">
         <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
       </AppSelect>
       <div>
-        <span class="block text-[12px] text-ink-soft mb-1.5">Date</span>
+        <span class="mb-1.5 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Date</span>
         <DatePicker v-model="form.occurredAt" />
       </div>
     </div>

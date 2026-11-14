@@ -86,17 +86,17 @@ function selectDate(d: Date) {
 
     <div
       v-if="open"
-      class="absolute left-0 top-full z-50 mt-2 bg-page border border-base-300 rounded-box shadow-lg p-3 w-72"
+      class="absolute left-0 top-full z-50 mt-2 w-72 rounded-card border border-rule bg-page p-3 shadow-lift"
     >
       <div class="flex items-center justify-between mb-2">
         <button type="button" @click="prevMonth" aria-label="Previous month" class="ns-icon text-ink-soft">
           <ChevronLeft class="w-4 h-4" />
         </button>
         <div class="flex items-center gap-1.5">
-          <select v-model.number="viewMonth" class="select select-xs bg-page border-rule text-ink" aria-label="Select month">
+          <select v-model.number="viewMonth" class="h-7 rounded-control border border-rule bg-page px-1.5 text-[12px] text-ink" aria-label="Select month">
             <option v-for="(m, i) in monthOptions" :key="i" :value="i">{{ m }}</option>
           </select>
-          <select v-model.number="viewYear" class="select select-xs bg-page border-rule text-ink" aria-label="Select year">
+          <select v-model.number="viewYear" class="h-7 rounded-control border border-rule bg-page px-1.5 text-[12px] text-ink" aria-label="Select year">
             <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
           </select>
         </div>

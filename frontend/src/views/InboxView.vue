@@ -293,7 +293,7 @@ onMounted(load);
         </p>
         <div v-for="r in rules" :key="r.id" class="flex items-center justify-between gap-3 text-[13px]">
           <span class="min-w-0">
-            <span class="badge badge-xs mr-2" :class="r.action === 'AUTO' ? 'badge-success' : r.action === 'IGNORE' ? 'badge-ghost' : 'badge-warning'">
+            <span class="mr-2 align-middle" :class="r.action === 'AUTO' ? 'text-credit' : r.action === 'IGNORE' ? 'text-ink-mute' : 'text-stamp'">
               {{ r.action.toLowerCase() }}
             </span>
             <span class="text-ink-muted">{{ ruleLabel(r) }}</span>
@@ -338,63 +338,64 @@ onMounted(load);
       <span class="loading loading-dots loading-lg text-primary"></span>
     </div>
 
-    <div v-else-if="!messages.length" class="rounded-card border border-rule bg-page px-8 py-14 text-center">
+    <div v-else-if="!messages.length" class="rounded-card border border-rule bg-page px-6 py-10 text-center">
       <p class="text-[14px] text-ink-mute">Nothing here. Alerts are picked up on the next poll.</p>
     </div>
 
     <div v-else class="rounded-card border border-rule bg-page overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-2.5 border-b border-rule text-[12px] text-ink-faint uppercase tracking-wide">
+      <div class="flex items-center gap-3 border-b border-rule bg-page-sunk px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
         <input
           type="checkbox"
-          class="checkbox checkbox-xs"
+          class="h-3.5 w-3.5 accent-[var(--accent)]"
           :checked="selected.size === actionable.length && actionable.length > 0"
+          aria-label="Select every pending message"
           @change="toggleAll"
         />
-        <span>From</span>
-        <span class="ml-auto">Amount · merchant</span>
+        <span class="flex-1">From</span>
+        <span class="w-[132px] text-right">Amount</span>
+        <span class="w-[74px] text-right">State</span>
+        <span class="w-[132px]"></span>
       </div>
 
       <template v-for="m in messages" :key="m.id">
-        <div class="flex items-center gap-3 px-5 py-3 border-b border-rule/60 last:border-0">
+        <div class="flex items-center gap-3 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60">
           <input
             v-if="m.status === 'PENDING' || m.status === 'UNPARSED'"
             type="checkbox"
-            class="checkbox checkbox-xs"
+            class="h-3.5 w-3.5 accent-[var(--accent)]"
             :checked="selected.has(m.id)"
+            aria-label="Select message"
             @change="toggle(m.id)"
           />
-          <span v-else class="w-4"></span>
+          <span v-else class="w-3.5"></span>
 
-          <button class="flex-1 min-w-0 text-left" @click="expanded = expanded === m.id ? null : m.id">
-            <span class="block text-[13.5px] font-medium text-ink truncate">{{ m.fromAddr }}</span>
-            <span class="block text-[12px] text-ink-faint truncate">{{ m.subject || '(no subject)' }}</span>
+          <button class="min-w-0 flex-1 text-left" @click="expanded = expanded === m.id ? null : m.id">
+            <span class="block truncate text-[13px] text-ink">{{ m.fromAddr }}</span>
+            <span class="block truncate text-[11.5px] text-ink-mute">{{ m.subject || '(no subject)' }}</span>
           </button>
 
-          <span class="text-right shrink-0">
-            <span class="block text-[13.5px] font-semibold" :class="parsed(m)?.direction === 'CREDIT' ? 'text-credit' : 'text-ink'">
+          <span class="w-[132px] shrink-0 text-right">
+            <span class="tabular block text-[13px] font-medium" :class="parsed(m)?.direction === 'CREDIT' ? 'text-credit' : 'text-ink'">
               {{ summary(m) }}
             </span>
-            <span class="block text-[11.5px] text-ink-faint">{{ hint(m) }}</span>
+            <span class="block truncate text-[11px] text-ink-mute">{{ hint(m) }}</span>
           </span>
 
-          <span
-            class="badge badge-sm shrink-0"
-            :class="{
-              'badge-warning': m.status === 'PENDING',
-              'badge-ghost': m.status === 'UNPARSED',
-              'badge-success': m.status === 'AUTO',
-              'badge-error': m.status === 'REJECTED'
-            }"
-          >{{ m.status.toLowerCase() }}</span>
-
-          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex gap-1 shrink-0">
-            <button class="ns-primary-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
-            <button class="ns-icon border border-rule" :disabled="busy" @click="act('REJECT', [m.id])">Reject</button>
+          <span class="w-[74px] shrink-0 text-right">
+            <AppStamp :tone="m.status === 'PENDING' ? 'pending' : m.status === 'UNPARSED' ? 'neutral' : m.status === 'AUTO' ? 'credit' : 'debit'">
+              {{ m.status.toLowerCase() }}
+            </AppStamp>
           </span>
+
+          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex w-[132px] shrink-0 justify-end gap-1">
+            <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
+            <AppButton variant="outline" size="sm" :disabled="busy" @click="act('REJECT', [m.id])">Reject</AppButton>
+          </span>
+          <span v-else class="w-[132px] shrink-0"></span>
         </div>
 
-        <div v-if="expanded === m.id" class="px-5 pb-4 space-y-3">
-          <pre v-if="m.rawText" class="whitespace-pre-wrap rounded-card bg-page p-3 text-[12px] text-ink-mute max-h-64 overflow-auto">{{ m.rawText }}</pre>
+        <div v-if="expanded === m.id" class="flex flex-col gap-3 border-b border-rule-soft bg-page-sunk/40 px-4 py-3">
+          <pre v-if="m.rawText" class="max-h-56 overflow-auto whitespace-pre-wrap rounded-control border border-rule bg-page p-3 text-[11.5px] text-ink-mute">{{ m.rawText }}</pre>
           <p v-else class="text-[12px] text-ink-faint">The message body was pruned once this row was resolved.</p>
 
           <div v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex flex-wrap items-center gap-2">
@@ -402,11 +403,11 @@ onMounted(load);
               Account
               <span v-if="parsed(m)?.accountHint" class="text-ink-faint">(mail says …{{ parsed(m)?.accountHint }})</span>
             </span>
-            <select v-model="pickAccount[m.id]" class="select select-sm bg-page border-rule text-[13px]">
+            <select v-model="pickAccount[m.id]" class="h-[30px] rounded-control border border-rule bg-page px-2 text-[12.5px] text-ink">
               <option value="">From the last 4 digits</option>
               <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.label || a.username }}</option>
             </select>
-            <button class="ns-primary-xs" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</button>
+            <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
           </div>
         </div>
       </template>

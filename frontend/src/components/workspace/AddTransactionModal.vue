@@ -148,13 +148,13 @@ async function runImport() {
 </script>
 
 <template>
-  <AppModal title="Add Transaction" wide @close="emit('close')">
-    <div class="p-6">
-      <div class="flex gap-1 rounded-card bg-page border border-rule p-1 mb-5" role="group" aria-label="Add method">
+  <AppModal title="Add transaction" @close="emit('close')">
+    <div class="px-5 py-4">
+      <div class="mb-5 inline-flex overflow-hidden rounded-control border border-rule" role="group" aria-label="Add method">
         <button
           type="button"
-          class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="mode === 'manual' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
+          class="flex h-[32px] items-center justify-center gap-1.5 border-l border-rule px-3.5 text-[12.5px] font-medium transition-colors first:border-l-0"
+          :class="mode === 'manual' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
           @click="switchMode('manual')"
         >
           <PenLine class="w-4 h-4" stroke-width="1.5" />
@@ -162,8 +162,8 @@ async function runImport() {
         </button>
         <button
           type="button"
-          class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-          :class="mode === 'csv' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
+          class="flex h-[32px] items-center justify-center gap-1.5 border-l border-rule px-3.5 text-[12.5px] font-medium transition-colors first:border-l-0"
+          :class="mode === 'csv' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
           @click="switchMode('csv')"
         >
           <FileSpreadsheet class="w-4 h-4" stroke-width="1.5" />
@@ -171,12 +171,13 @@ async function runImport() {
         </button>
       </div>
 
-      <form v-if="mode === 'manual'" @submit.prevent="submitManual" class="space-y-4">
+      <form v-if="mode === 'manual'" class="flex flex-col gap-4" @submit.prevent="submitManual">
         <TransactionForm v-model="txnForm" :accounts="accounts" :categories="categories" />
         <p v-if="error" class="text-[13px] text-debit">{{ error }}</p>
-        <div class="flex justify-end pt-2">
-          <button type="submit" class="btn btn-primary" :disabled="submitting">
-            {{ submitting ? 'Adding...' : 'Add Transaction' }}
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" class="ns-quiet" @click="emit('close')">Cancel</button>
+          <button type="submit" class="ns-primary" :disabled="submitting">
+            {{ submitting ? 'Adding…' : 'Add transaction' }}
           </button>
         </div>
       </form>
@@ -205,13 +206,13 @@ async function runImport() {
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'single' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
+              :class="formatMode === 'single' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
               @click="switchFormat('single')"
             >Single amount column</button>
             <button
               type="button"
               class="flex-1 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-              :class="formatMode === 'split' ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
+              :class="formatMode === 'split' ? 'bg-page-sunk text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink'"
               @click="switchFormat('split')"
             >Debit + Credit columns</button>
           </div>
