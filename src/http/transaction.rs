@@ -332,8 +332,7 @@ pub async fn list(
         category_ids: q
             .category_id
             .as_deref()
-            .map(|s| s.split(',').map(str::to_string).collect())
-            .unwrap_or_default(),
+            .map_or_default(|s| s.split(',').map(str::to_string).collect()),
         transaction_type,
         date_from: q.date_from.unwrap_or_default(),
         date_to: q.date_to.unwrap_or_default(),
@@ -342,8 +341,7 @@ pub async fn list(
         names: q
             .names
             .as_deref()
-            .map(|s| s.split(',').map(str::to_string).collect())
-            .unwrap_or_default(),
+            .map_or_default(|s| s.split(',').map(str::to_string).collect()),
         page_size: i64::from(q.page_size.unwrap_or(0)),
         page_token: q.page_token.unwrap_or_default(),
         sort_by: q.sort_by.unwrap_or_default(),
