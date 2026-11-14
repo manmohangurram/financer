@@ -1,40 +1,18 @@
-# Financer — default self-host setup: SurrealDB + the app.
+# Financer — self-host setup: one container, SQLite storage, no external services.
 #
 #   docker compose up -d
 #
 # Settings come from environment variables (see .env.example and README.md).
-# Copy .env.example to .env to override them. For a single-container SQLite
-# setup with no external database, use docker-compose.minimal.yml instead.
+# Copy .env.example to .env to override them.
 services:
-  surrealdb:
-    image: surrealdb/surrealdb:latest
-    restart: unless-stopped
-    command: start rocksdb:/data/financer.db
-    environment:
-      SURREAL_USER: ${SURREAL_USER:-root}
-      SURREAL_PASS: ${SURREAL_PASS:-root}
-      SURREAL_LOG: ${SURREAL_LOG:-info}
-    volumes:
-      - surrealdb_data:/data
-
   financer:
-    # This compose runs against the bundled SurrealDB, so it needs the
-    # SurrealDB image variant (`<tag>-surreal`). For SQLite use
-    # docker-compose.minimal.yml.
-    image: ghcr.io/manmohangurram/financer:${IMAGE_TAG:-latest}-surreal
+    image: ghcr.io/manmohangurram/financer:${IMAGE_TAG:-latest}
     container_name: financer
     restart: unless-stopped
-    depends_on:
-      - surrealdb
     ports:
       - "${PORT:-8080}:8080"
     environment:
-      FINANCER_DATABASE: surreal
-      FINANCER_SURREAL_URL: surrealdb:8000
-      FINANCER_SURREAL_USER: ${SURREAL_USER:-root}
-      FINANCER_SURREAL_PASS: ${SURREAL_PASS:-root}
-      FINANCER_SURREAL_NS: ${SURREAL_NS:-financer}
-      FINANCER_SURREAL_DB: ${SURREAL_DB:-financer}
+      FINANCER_SQLITE_PATH: ${FINANCER_SQLITE_PATH:-/data/financer.db}
       # Required: a stable JWT secret (e.g. `openssl rand -hex 32`).
       FINANCER_JWT_SECRET: ${FINANCER_JWT_SECRET:?set FINANCER_JWT_SECRET}
       # Container clock and the app's date/time zone.
@@ -42,6 +20,3 @@ services:
       FINANCER_TIMEZONE: ${TZ:-Asia/Kolkata}
     volumes:
       - ${DATA_DIR:-./data}:/data
-
-volumes:
-  surrealdb_data:

@@ -4,7 +4,7 @@
 
 **A self-hosted personal finance tracker.**
 
-Rust backend · Vue 3 frontend · single container · SQLite (default) or SurrealDB
+Rust backend · Vue 3 frontend · single container · SQLite
 
 [![CI](https://github.com/manmohangurram/financer/actions/workflows/ci.yml/badge.svg)](https://github.com/manmohangurram/financer/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/manmohangurram/financer?display_name=tag)](https://github.com/manmohangurram/financer/releases)
@@ -54,35 +54,29 @@ All finance math (aggregation, filtering, transfer resolution, FIFO) lives in th
 | Layer | Stack |
 |---|---|
 | Backend | Rust (axum on tokio), JWT (`jsonwebtoken`), OpenAPI via `utoipa` |
-| Storage | **SQLite** (default, `sqlx` + migrations in `db/migrations/`) or **SurrealDB** (server-mode HTTP-RPC) |
+| Storage | **SQLite** (`sqlx` + migrations in `db/migrations/`) |
 | Frontend | Vue 3 + Vite + TypeScript |
 | Styling | Tailwind CSS v4 + daisyUI v5 (dark `financer` theme), `@lucide/vue` icons |
 | Packaging | Single container — Rust binary serves API **and** built SPA |
 
 ## Quick start
 
-The image is published to GitHub Container Registry for `linux/amd64` and `linux/arm64`, in two variants:
+The image is published to GitHub Container Registry for `linux/arm64`:
 
 | Tag | Storage |
 |---|---|
-| `ghcr.io/manmohangurram/financer:latest` | **SQLite** (default) |
-| `ghcr.io/manmohangurram/financer:latest-surreal` | **SurrealDB** (compiled with `--features surreal`) |
+| `ghcr.io/manmohangurram/financer:latest` | **SQLite** |
 
-The default [`docker-compose.yml`](docker-compose.yml) runs against a bundled SurrealDB, so it pulls the `-surreal` variant; [`docker-compose.minimal.yml`](docker-compose.minimal.yml) is single-container SQLite.
+[`docker-compose.yml`](docker-compose.yml) runs it as a single container.
 
 ### Docker Compose (recommended)
 
-The repo ships two compose files:
-
 ```bash
-# Default: SurrealDB + the app
 docker compose up -d
-
-# Minimal: one container, SQLite, no external database
-docker compose -f docker-compose.minimal.yml up -d
 ```
 
-Copy [`.env.example`](.env.example) to `.env` to set the port, data directory, image tag, timezone, and (for the default setup) the SurrealDB credentials:
+Copy [`.env.example`](.env.example) to `.env` to set the port, data directory, image tag and timezone:
+
 
 ```bash
 cp .env.example .env
@@ -124,20 +118,13 @@ Configuration is **entirely environment variables** — there is no config file.
 | `FINANCER_DATA_DIR` | `/data` | Runtime data root |
 | `FINANCER_DOMAIN_URL` | *(empty)* | External URL, if the SPA is served from a different origin |
 | `FINANCER_TIMEZONE` | `Asia/Kolkata` | IANA timezone for day/month bucketing and date ranges |
-| `FINANCER_DATABASE` | `sqlite` | `sqlite` \| `surreal` |
 | `FINANCER_SQLITE_PATH` | `/data/financer.db` | SQLite file |
-| `FINANCER_SURREAL_URL` | `127.0.0.1:8000` | SurrealDB endpoint |
-| `FINANCER_SURREAL_USER` | `root` | SurrealDB user |
-| `FINANCER_SURREAL_PASS` | `root` | SurrealDB password |
-| `FINANCER_SURREAL_NS` | `financer` | SurrealDB namespace |
-| `FINANCER_SURREAL_DB` | `financer` | SurrealDB database |
 
 **Frontend API base:** in the container the frontend is built same-origin, so it talks to the API on whatever host serves the page. For local dev set `VITE_API_URL` (see [`frontend/.env.example`](frontend/.env.example)).
 
-### Storage backends
+### Storage
 
-- **SQLite (default)** — zero-dependency, single file at `/data/financer.db`. Migrations in `db/migrations/` run automatically at boot.
-- **SurrealDB (optional)** — a separate **image variant**: `ghcr.io/manmohangurram/financer:latest-surreal` (the default build is SQLite-only). Set `FINANCER_DATABASE=surreal` and point `FINANCER_SURREAL_*` at a running SurrealDB. The schema is applied idempotently at boot. The default [`docker-compose.yml`](docker-compose.yml) bundles a SurrealDB for you.
+**SQLite** — zero-dependency, single file at `/data/financer.db`. Migrations in `db/migrations/` run automatically at boot.
 
 ## Data, backups & upgrades
 
@@ -266,7 +253,7 @@ Open http://localhost:5173.
 ### Tests
 
 ```bash
-# Backend: unit + repo (SurrealDB Mem) + HTTP integration tests (SQLite)
+# Backend: unit + repo (SQLite tempfile) + HTTP integration tests (SQLite)
 cargo test
 
 # Frontend
@@ -295,7 +282,6 @@ src/
   repo/
     traits/               # repo traits + row/input types (shared)
     sqlite/               # SQLite implementation (sqlx)
-    surreal/              # SurrealDB implementation
   service/                # business logic (rules, transfers, FIFO, Yahoo, …)
   tests/                  # HTTP integration tests (SQLite, in-process)
 db/migrations/            # SQLite migrations (applied at boot)
@@ -310,7 +296,7 @@ architecture/             # layering, data flow, naming, conventions
 
 ## Deployment reference
 
-Full build/deploy reference — frontend↔backend linking, multi-arch builds, the GitHub Actions release flow, and troubleshooting — is in **[DEPLOY.md](DEPLOY.md)**.
+Full build/deploy reference — frontend↔backend linking, the arm64 build, the GitHub Actions release flow, and troubleshooting — is in **[DEPLOY.md](DEPLOY.md)**.
 
 Releases are cut by pushing a `v*` tag; `.github/workflows/docker-publish.yml` builds the image for the configured platforms and pushes it to GHCR with the version tag and `latest`.
 

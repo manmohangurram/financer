@@ -1,6 +1,6 @@
 # Financer — Project Rules
 
-Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SurrealDB storage. No protobuf — API types are hand-written Rust structs in `src/service/*.rs` / `src/repo/*.rs`, serialized to JSON by serde.
+Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SQLite storage. No protobuf — API types are hand-written Rust structs in `src/service/*.rs` / `src/repo/*.rs`, serialized to JSON by serde.
 
 ## Documentation Index
 
@@ -10,11 +10,11 @@ Financer: a personal finance tracker. Rust backend (axum, plain HTTP/JSON) + Vue
 - **Frontend structure** — [architecture/FRONTEND_STRUCTURE.md](architecture/FRONTEND_STRUCTURE.md)
 - **Rust naming conventions** — [architecture/NAMING_CONVENTIONS.md](architecture/NAMING_CONVENTIONS.md)
 - **Conventions & gotchas** (Tailwind/daisyUI, migrations, env vars, commits, PR format) — [architecture/CONVENTIONS_GOTCHAS.md](architecture/CONVENTIONS_GOTCHAS.md)
-- **Deployment** (frontend↔backend linking, multi-arch builds, GitHub Actions release flow) — [DEPLOY.md](DEPLOY.md)
+- **Deployment** (frontend↔backend linking, the arm64 image build, GitHub Actions release flow) — [DEPLOY.md](DEPLOY.md)
 
 ## Quick Reference
 
 - **Commands:** `cargo run` (API on :8080; config from `FINANCER_*` env, schema applied at boot), `cargo build --locked`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo audit`; frontend: `npm run dev` / `npm run build` / `npm test` (details in [skills/STANDARDS.md](skills/STANDARDS.md)).
-- **Architecture:** repo → service → http layering; SurrealDB (server-mode HTTP-RPC client, embedded `Mem` in tests); schema via idempotent `define_tables()` at boot; record ids (`table:<id>`) with plain-string wire ids; per-user scoping via `user` record links (details in [architecture/](architecture/)).
+- **Architecture:** repo → service → http layering; SQLite via `sqlx` (`write` + `read` pools in `src/repo/db.rs`); schema via `db/migrations/` applied at boot; plain-string ids on the wire; per-user scoping by `user` column (details in [architecture/](architecture/)).
 - **API docs:** Swagger UI at `/docs` (utoipa-generated), spec at `/openapi.json`.
 - **Deployment:** see [DEPLOY.md](DEPLOY.md).

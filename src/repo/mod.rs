@@ -1,9 +1,7 @@
-//! Repository layer — backend-agnostic. `repo/mod.rs` declares the module tree
-//! and re-exports the shared repo traits. Concrete repos live in `surreal/` and
-//! `sqlite/`, each implementing the corresponding `traits::*Repo` trait.
+//! Repository layer. `repo/mod.rs` declares the module tree and re-exports the
+//! shared repo traits. The concrete SQLite repos live in `sqlite/`, each
+//! implementing the corresponding `traits::*Repo` trait.
 
 pub mod db;
 pub mod sqlite;
-#[cfg(feature = "surreal")]
-pub mod surreal;
 pub mod traits;

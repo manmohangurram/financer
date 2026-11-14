@@ -1,5 +1,4 @@
-//! Financer Rust backend — Rust-only server on `SurrealDB` OR `SQLite` (picked
-//! at runtime from env), axum API, serves the built Vue frontend.
+//! Financer Rust backend — axum API on `SQLite`, serves the built Vue frontend.
 
 mod auth;
 mod config;

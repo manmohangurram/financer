@@ -1,3 +1,3 @@
 # Architecture — Layering
 
-`src/repo/` (SQL) → `src/service/` (business logic) → `src/http/` (JSON mapping + handlers). Repos use `surrealdb` v3 against a server-mode HTTP-RPC client (`src/surreal_db.rs` `connect`), generic over `C: Connection` so tests use the embedded `Mem` engine (`connect_mem`). Schema is idempotent `define_tables()` SurrealQL run at boot — no migration files. Use `db.query(...)` with bound params (`$param`), never string-concatenate values.
+`src/repo/` (SQL) → `src/service/` (business logic) → `src/http/` (JSON mapping + handlers). Repos are `sqlx` implementations in `src/repo/sqlite/` over a single-writer pool plus a read pool (`src/repo/db.rs`). Schema is versioned SQL migrations in `db/migrations/`, applied at boot by `sqlx::migrate!`. Bind every value with `?` placeholders, never string-concatenate SQL.
