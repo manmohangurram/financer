@@ -260,10 +260,12 @@ onMounted(load);
         </p>
         <div v-for="a in accounts" :key="a.id" class="flex items-center justify-between gap-3 text-[13px]">
           <span class="min-w-0">
-            <span class="text-ink font-medium">{{ a.label || a.username }}</span>
-            <span class="text-ink-faint"> · {{ a.username }}</span>
-            <span v-if="a.lastError" class="text-debit"> · {{ a.lastError }}</span>
-            <span v-else-if="a.lastPolledAt" class="text-ink-faint"> · checked {{ formatDate(a.lastPolledAt) }}</span>
+            <span class="block truncate text-[13px] text-ink">
+              <span class="font-medium">{{ a.label || a.username }}</span>
+              <span class="text-ink-mute"> · {{ a.username }}</span>
+              <span v-if="!a.lastError && a.lastPolledAt" class="text-ink-mute"> · checked {{ formatDate(a.lastPolledAt) }}</span>
+            </span>
+            <span v-if="a.lastError" class="mt-0.5 block truncate text-[11.5px] text-debit">{{ a.lastError }}</span>
           </span>
           <span class="flex shrink-0 items-center gap-1">
             <button class="ns-quiet" :disabled="busy" @click="pollAccount(a.id)">
