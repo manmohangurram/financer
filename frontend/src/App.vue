@@ -3,6 +3,7 @@ import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useRoute } from 'vue-router';
+import AppToaster from '@/components/ui/AppToaster.vue';
 
 const auth = useAuthStore();
 const route = useRoute();
@@ -22,4 +23,5 @@ onMounted(async () => {
   <div v-else class="h-full flex items-center justify-center">
     <span class="loading loading-dots loading-lg text-primary"></span>
   </div>
+  <AppToaster />
 </template>

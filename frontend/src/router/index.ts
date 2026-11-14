@@ -11,6 +11,7 @@ import CategoriesView from '@/views/CategoriesView.vue';
 import InvestmentsView from '@/views/InvestmentsView.vue';
 import InvestmentDetailView from '@/views/InvestmentDetailView.vue';
 import ProfileView from '@/views/ProfileView.vue';
+import UiKitView from '@/views/UiKitView.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -31,7 +32,9 @@ const router = createRouter({
         { path: 'accounts/categories', name: 'categories', component: CategoriesView },
         { path: 'investments', name: 'investments', component: InvestmentsView },
         { path: 'investments/:id', name: 'investment-detail', component: InvestmentDetailView },
-        { path: 'settings', name: 'settings', component: ProfileView }
+        { path: 'settings', name: 'settings', component: ProfileView },
+        // Not in the nav: the primitives, in every state, for looking at.
+        { path: 'ui-kit', name: 'ui-kit', component: UiKitView }
       ]
     },
     { path: '/:pathMatch(.*)*', redirect: '/' }
