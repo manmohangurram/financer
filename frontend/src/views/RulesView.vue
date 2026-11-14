@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
+import AppFolio from '@/components/ui/AppFolio.vue';
+import AppButton from '@/components/ui/AppButton.vue';
 import RulesTab from '@/components/workspace/RulesTab.vue';
 import EditItemModal from '@/components/workspace/EditItemModal.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -67,23 +69,25 @@ onMounted(loadAll);
 
 <template>
   <div class="w-full flex flex-col gap-4">
-    <SectionHeader title="Rules" subtitle="Automatically categorize transactions across all accounts">
+    <SectionHeader title="Rules" subtitle="Rename, categorise or link entries as they are written">
       <template #actions>
-        <button @click="openCreateItem" class="btn btn-primary btn-sm gap-1.5">
-          <Plus class="w-4 h-4" />
-          Add Rule
-        </button>
+        <AppButton @click="openCreateItem">
+          <Plus class="h-[15px] w-[15px]" stroke-width="1.8" />
+          Add rule
+        </AppButton>
       </template>
     </SectionHeader>
 
-    <div v-if="error" class="rounded-card border border-expense/30 bg-expense/10 px-4 py-3 text-[13px] text-expense">{{ error }}</div>
+    <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">{{ error }}</div>
 
-    <div v-if="loading" class="text-center py-16 text-ink-mute">Loading...</div>
-    <div v-else class="card bg-page border border-rule">
-      <div class="card-body p-6">
-        <RulesTab :rules="ruleList" :categories="categoryList" :accounts="accountList" @edit="openEditItem" @refresh="loadAll" />
+    <AppFolio v-if="!loading" flush>
+      <RulesTab :rules="ruleList" :categories="categoryList" :accounts="accountList" @edit="openEditItem" @refresh="loadAll" @create="openCreateItem" />
+    </AppFolio>
+    <AppFolio v-else flush>
+      <div class="flex flex-col gap-2 p-4">
+        <span v-for="i in 4" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
       </div>
-    </div>
+    </AppFolio>
 
     <EditItemModal
       v-if="showItemModal"

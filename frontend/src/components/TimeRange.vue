@@ -23,13 +23,13 @@ const model = defineModel<string>();
 </script>
 
 <template>
-  <div class="flex gap-1 rounded-xl bg-surface border border-border p-1" role="group" aria-label="Time range">
+  <div class="flex gap-1 rounded-card bg-page border border-rule p-1" role="group" aria-label="Time range">
     <button
       v-for="opt in options"
       :key="opt.id"
       type="button"
       class="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
-      :class="model === opt.id ? 'bg-primary-600 text-white' : 'text-subtle hover:text-text'"
+      :class="model === opt.id ? 'bg-accent text-white' : 'text-ink-mute hover:text-ink'"
       @click="model = opt.id"
     >{{ opt.label }}</button>
   </div>

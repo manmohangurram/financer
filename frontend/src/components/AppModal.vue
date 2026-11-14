@@ -24,18 +24,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60" @click.self="emit('close')">
+  <div class="fixed inset-0 z-[100] flex items-center justify-center bg-overlay p-4" @click.self="emit('close')">
     <div
       ref="panelEl"
       role="dialog"
       aria-modal="true"
       :aria-label="title"
-      class="w-full rounded-2xl bg-gradient-to-br from-surface to-surface-alt border border-border"
+      class="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-overlay border border-rule bg-page shadow-lift"
       :class="xwide ? 'max-w-4xl' : wide ? 'max-w-2xl' : 'max-w-lg'"
     >
-      <div class="flex items-center justify-between px-6 py-5 border-b border-border">
-        <h3 class="text-lg font-semibold text-text">{{ title }}</h3>
-        <button @click="emit('close')" aria-label="Close" class="text-subtle hover:text-text-secondary text-xl">&times;</button>
+      <div class="flex shrink-0 items-center justify-between gap-4 border-b border-rule px-5 py-3.5">
+        <h3 class="text-[15px] font-semibold text-ink">{{ title }}</h3>
+        <button type="button" @click="emit('close')" aria-label="Close" class="flex h-8 w-8 items-center justify-center rounded-control text-ink-mute transition-colors hover:bg-page-sunk hover:text-ink">&times;</button>
       </div>
       <slot />
     </div>
