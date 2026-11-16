@@ -152,7 +152,7 @@ onMounted(load);
           </td>
         </tr>
         <template #empty>
-          <AppEmpty title="Nothing booked yet." hint="Add your first entry or import a statement.">
+          <AppEmpty title="Nothing booked yet." hint="Add your first entry to get started.">
             <template #action>
               <router-link to="/accounts/spending"><AppButton size="sm">Add entry</AppButton></router-link>
             </template>

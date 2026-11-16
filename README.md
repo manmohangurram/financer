@@ -4,7 +4,7 @@
 
 **A self-hosted personal finance tracker.**
 
-Rust backend · Vue 3 frontend · single container · SQLite
+Go backend · Vue 3 frontend · single container · SQLite
 
 [![CI](https://github.com/manmohangurram/financer/actions/workflows/ci.yml/badge.svg)](https://github.com/manmohangurram/financer/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/manmohangurram/financer?display_name=tag)](https://github.com/manmohangurram/financer/releases)
@@ -16,7 +16,7 @@ Rust backend · Vue 3 frontend · single container · SQLite
 > [!WARNING]
 > **Alpha — still under active development, not ready for production.** Expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
 
-Financer tracks accounts, transactions, transfers, spending, rules (auto-categorization), and investments — in one place, with a dark, dense dashboard UI. It ships as **one container**: the Rust binary serves both the API and the built frontend (no nginx).
+Financer tracks accounts, transactions, transfers, spending, and rules (auto-categorization) — in one place, with a dark, dense dashboard UI. It ships as **one container**: the Go binary serves both the API and the built frontend (no nginx).
 
 ---
 
@@ -40,7 +40,7 @@ Financer tracks accounts, transactions, transfers, spending, rules (auto-categor
 
 - **Auth** — signup, login, JWT access + refresh tokens.
 - **Accounts & categories** — full CRUD; account types (Current, Savings, Credit Card, Loan); balances stay in sync as transactions change.
-- **Transactions** — create (single + bulk), edit, delete, **CSV/XLSX/PDF statement import** (upload → map columns → commit, server-parsed), server-side filters (date, amount, name, category) and cursor pagination.
+- **Transactions** - create (single + bulk), edit, delete, server-side filters (date, amount, name, category) and cursor pagination.
 - **Transfers** — link two transactions as a transfer, unlink, or create the missing counterpart; candidate matching (±5 days, ±10% amount) and fee-tolerant amounts.
 - **Rules** — conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR) with outputs (rename, set category, transfer to account). Rules are applied **at write time** and snapshot the resolved name + category onto the transaction; the raw bank string is preserved.
 - **Spending analytics** — server-computed buckets (7D/1M/6M/1Y/custom, day or month granularity), per-category debit/credit pies with drill-down, and transfer exclusion (debt accounts count as real spending).
@@ -55,11 +55,11 @@ All finance math (aggregation, filtering, transfer resolution, FIFO) lives in th
 
 | Layer | Stack |
 |---|---|
-| Backend | Rust (axum on tokio), JWT (`jsonwebtoken`), OpenAPI via `utoipa` |
-| Storage | **SQLite** (`sqlx` + migrations in `db/migrations/`) |
+| Backend | Go (Gin) — JWT (`golang-jwt`), OpenAPI at `/docs` + `/openapi.json`, MCP at `/mcp` |
+| Storage | **SQLite** (`glebarez/sqlite`, pure Go; migrations in `db/migrations/`) |
 | Frontend | Vue 3 + Vite + TypeScript |
 | Styling | Tailwind CSS v4 + daisyUI v5 (dark `financer` theme), `@lucide/vue` icons |
-| Packaging | Single container — Rust binary serves API **and** built SPA |
+| Packaging | Single container — Go binary serves API **and** built SPA |
 
 ## Quick start
 
@@ -244,10 +244,9 @@ Manage personal API keys (for the MCP server and other clients) at `GET/POST /ap
 
 ### Statement import
 
-Importing a CSV, XLSX or PDF is a two-step flow so the column mapping happens after parsing — the client never parses the file:
-
-1. `POST /api/transactions/import/file` (multipart `file`) → `{ id, headers, rowCount }`; the file is stored server-side under an opaque id.
-2. `POST /api/transactions/import/file/commit` `{ id, accountId, mapping }` → parses, applies the mapping and creates the transactions. Columns map to `date | description | amount | type | debit | credit`; re-importing the same file is skipped (deduped by file hash + row index).
+Statement import is **not supported**: the Go backend exposes no CSV/XLSX/PDF
+import routes, and the app has no import UI. Add transactions manually, via the
+API, or from bank-alert mail (see the inbox).
 
 ## MCP server
 
@@ -266,15 +265,15 @@ Authenticate with a per-user API key (created in **Settings → API keys**):
 }
 ```
 
-Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `get_portfolio`, `list_categories`, plus write tools when the key has `read_write` scope.
+Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `list_categories`, `list_rules`, `preview_rule`, plus write tools when the key has `read_write` scope.
 
 ## Development
 
-**Prerequisites:** Rust ≥ 1.85 (edition 2024) and Node 22.
+**Prerequisites:** Go ≥ 1.27 and Node 22.
 
 ```bash
 # Backend — API on :8080 (set FINANCER_JWT_SECRET, see Configuration)
-cargo run
+go run ./cmd/financer
 
 # Frontend — Vite dev server on :5173, calls the API directly (CORS)
 cd frontend
@@ -287,8 +286,8 @@ Open http://localhost:5173.
 ### Tests
 
 ```bash
-# Backend: unit + repo (SQLite tempfile) + HTTP integration tests (SQLite)
-cargo test
+# Backend: unit + repo (SQLite tempfile) + HTTP/MCP integration tests
+go test ./...
 
 # Frontend
 cd frontend && npm test
@@ -297,36 +296,44 @@ cd frontend && npm test
 Quality gate (all must pass before a PR):
 
 ```bash
-cargo build --locked
-cargo clippy --all-targets -- -D warnings
-cargo test
-cargo audit          # advisories ignored are documented in .cargo/audit.toml
+gofmt -l cmd internal migrate.go   # must print nothing
+go vet ./...
+go build ./...
+go test ./...
+go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 ```
 
 ### Project structure
 
 ```
-src/
-  main.rs                 # wiring: repo set, services, HTTP server
-  auth.rs                 # JWT creation/validation
-  config.rs               # env config + defaults
-  error.rs                # ApiError → HTTP status mapping
-  http/                   # REST handlers (account, transaction, rule, investment, analytics, settings, …)
-  mcp/                    # MCP server tools + models
-  repo/
-    traits/               # repo traits + row/input types (shared)
-    sqlite/               # SQLite implementation (sqlx)
-  service/                # business logic (rules, transfers, FIFO, Yahoo, …)
-  tests/                  # HTTP integration tests (SQLite, in-process)
-db/migrations/            # SQLite migrations (applied at boot)
+cmd/financer/main.go        # wiring: config → DB → repos → services → Gin server
+internal/
+  config/                   # env config + defaults
+  db/                       # SQLite pools (WAL) + migration runner
+  errors/                   # API error envelope {code, message}
+  auth/                     # JWT creation/validation
+  model/                    # camelCase wire types
+  repo/                     # repo interfaces + row types
+    sqlite/                 # SQLite implementations
+  authservice/ userservice/ accountservice/ categoryservice/
+  transactionservice/ transferservice/ ruleservice/ mailservice/ keyservice/
+  mail/                     # IMAP source, alert extractor, credential crypto
+  mcp/                      # MCP tool handlers
+  openapi/                  # /openapi.json spec
+  server/                   # Gin router, handlers, middleware
+  time/                     # stored-timestamp + timezone helpers
+migrate.go                  # embeds db/migrations/*.up.sql
+db/migrations/              # SQLite migrations (applied at boot)
 frontend/src/
-  views/                  # route pages
-  components/             # shared UI
-  lib/api/                # fetch API client
-  lib/stores/             # auth + account selection state
-  lib/utils/              # pure helpers (formatting, filters)
-architecture/             # layering, data flow, naming, conventions
+  views/                    # route pages
+  components/               # shared UI
+  lib/api/                  # fetch API client
+  lib/stores/               # auth + account selection state
+  lib/utils/                # pure helpers (formatting, filters)
+architecture/               # layering, data flow, naming, conventions
 ```
+
+> The Rust implementation under `src/` is retained as a reference until the Go backend fully replaces it in production; it is no longer the deployed server.
 
 ## Deployment reference
 
