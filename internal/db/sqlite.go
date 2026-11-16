@@ -6,6 +6,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -94,6 +95,14 @@ func RunMigrations(db *sql.DB) error {
 	}
 	sort.Strings(files)
 
+	// Adopt an existing sqlx migration history. Production databases created by
+	// the Rust backend already have every migration applied; re-running the
+	// ALTER TABLE steps would fail. When the Go tracker is empty but
+	// `_sqlx_migrations` exists, seed it from the successful sqlx rows.
+	if err := adoptSqlxMigrations(db, files); err != nil {
+		return err
+	}
+
 	for _, f := range files {
 		base := filepath.Base(f)
 		var exists bool
@@ -128,6 +137,70 @@ func RunMigrations(db *sql.DB) error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("committing migration %s: %w", f, err)
 		}
+	}
+	return nil
+}
+
+// adoptSqlxMigrations copies a successful sqlx history into the Go tracker so a
+// database migrated by the Rust backend is not migrated again.
+func adoptSqlxMigrations(db *sql.DB, files []string) error {
+	var tracked int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM _financer_applied_migrations`).Scan(&tracked); err != nil {
+		return fmt.Errorf("counting applied migrations: %w", err)
+	}
+	if tracked > 0 {
+		return nil
+	}
+	var hasSqlx bool
+	if err := db.QueryRow(
+		`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations')`,
+	).Scan(&hasSqlx); err != nil {
+		return fmt.Errorf("checking sqlx history: %w", err)
+	}
+	if !hasSqlx {
+		return nil
+	}
+
+	rows, err := db.Query(`SELECT version, description FROM _sqlx_migrations WHERE success = 1`)
+	if err != nil {
+		return fmt.Errorf("reading sqlx history: %w", err)
+	}
+	known := make(map[string]bool, len(files))
+	for _, f := range files {
+		known[filepath.Base(f)] = true
+	}
+	// Buffer before inserting: the write pool has one connection, so an Exec
+	// while the rows iterator holds it would deadlock.
+	var adopted []string
+	for rows.Next() {
+		var version int64
+		var description string
+		if err := rows.Scan(&version, &description); err != nil {
+			rows.Close()
+			return fmt.Errorf("scanning sqlx history: %w", err)
+		}
+		name := fmt.Sprintf("%06d_%s.up.sql", version, description)
+		// Only adopt migrations this binary knows; anything else was applied by
+		// a newer backend and is left alone.
+		if known[name] {
+			adopted = append(adopted, name)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("reading sqlx history: %w", err)
+	}
+	rows.Close()
+
+	for _, name := range adopted {
+		if _, err := db.Exec(
+			`INSERT OR IGNORE INTO _financer_applied_migrations (version) VALUES (?)`, name,
+		); err != nil {
+			return fmt.Errorf("adopting migration %s: %w", name, err)
+		}
+	}
+	if len(adopted) > 0 {
+		slog.Info("adopted sqlx migration history", "migrations", len(adopted))
 	}
 	return nil
 }
