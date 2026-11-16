@@ -1,0 +1,471 @@
+// Package openapi serves the hand-written OpenAPI description and a Swagger UI
+// page at /docs. It covers the routes this backend implements; the removed
+// statement-import routes are intentionally absent.
+package openapi
+
+import "strings"
+
+// Spec is the OpenAPI 3.0 document for the Financer API.
+func Spec() map[string]any {
+	return map[string]any{
+		"openapi": "3.0.3",
+		"info": map[string]any{
+			"title":       "Financer API",
+			"description": "Personal finance tracker — REST JSON API. All endpoints except /api/auth/* require `Authorization: Bearer <accessToken>`.",
+			"version":     "0.4.0",
+		},
+		"security": []any{map[string]any{"bearer_auth": []any{}}},
+		"tags": []any{
+			tag("auth", "Authentication"),
+			tag("accounts", "Bank accounts"),
+			tag("transactions", "Transactions & transfers"),
+			tag("categories", "Categories"),
+			tag("rules", "Auto-categorization rules"),
+			tag("analytics", "Dashboard & spending"),
+			tag("settings", "Profile, password, avatar, API keys"),
+			tag("mail", "Mailbox ingest"),
+		},
+		"paths":      paths(),
+		"components": components(),
+	}
+}
+
+func tag(name, desc string) map[string]any {
+	return map[string]any{"name": name, "description": desc}
+}
+
+func op(tagName, summary string, body string, ok map[string]any) map[string]any {
+	o := map[string]any{
+		"tags":    []any{tagName},
+		"summary": summary,
+		"responses": map[string]any{
+			"200": ok,
+			"400": errRef("invalid_argument"),
+			"401": errRef("unauthenticated"),
+		},
+	}
+	if body != "" {
+		o["requestBody"] = map[string]any{
+			"required": true,
+			"content":  map[string]any{"application/json": map[string]any{"schema": ref(body)}},
+		}
+	}
+	return o
+}
+
+func okResp(desc, schema string) map[string]any {
+	content := map[string]any{}
+	if schema != "" {
+		content["application/json"] = map[string]any{"schema": ref(schema)}
+	}
+	return map[string]any{"description": desc, "content": content}
+}
+
+func noContent(desc string) map[string]any {
+	return map[string]any{"description": desc}
+}
+
+func errRef(name string) map[string]any {
+	return map[string]any{
+		"description": name,
+		"content":     map[string]any{"application/json": map[string]any{"schema": ref("Error")}},
+	}
+}
+
+func ref(schema string) map[string]any {
+	if strings.HasPrefix(schema, "[]") {
+		return map[string]any{"type": "array", "items": ref(strings.TrimPrefix(schema, "[]"))}
+	}
+	return map[string]any{"$ref": "#/components/schemas/" + schema}
+}
+
+func idParam() map[string]any {
+	return map[string]any{
+		"name": "id", "in": "path", "required": true,
+		"schema": map[string]any{"type": "string"},
+	}
+}
+
+func paths() map[string]any {
+	return map[string]any{
+		"/api/auth/signup": map[string]any{
+			"post": op("auth", "Create an account and receive tokens", "SignupRequest", okResp("Tokens", "AuthResponse")),
+		},
+		"/api/auth/login": map[string]any{
+			"post": op("auth", "Log in and receive tokens", "LoginRequest", okResp("Tokens", "AuthResponse")),
+		},
+		"/api/auth/refresh": map[string]any{
+			"post": op("auth", "Rotate an access token", "RefreshRequest", okResp("Tokens", "AuthResponse")),
+		},
+		"/api/me/profile": map[string]any{
+			"get": op("settings", "Read the profile", "", okResp("Profile", "ProfileResponse")),
+			"put": op("settings", "Update the profile", "ReqProfile", okResp("Profile", "ProfileResponse")),
+		},
+		"/api/me/password": map[string]any{
+			"post": op("settings", "Change the password", "ReqPassword", okResp("Tokens", "AuthResponse")),
+		},
+		"/api/me/logout-all": map[string]any{
+			"post": op("settings", "Revoke all sessions", "", okResp("Result", "BulkResult")),
+		},
+		"/api/me/avatar": map[string]any{
+			"post": map[string]any{
+				"tags": []any{"settings"}, "summary": "Upload an avatar (multipart 'file')",
+				"responses": map[string]any{"201": okResp("Profile", "ProfileResponse"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/me/keys": map[string]any{
+			"get":  op("settings", "List API keys (masked)", "", okResp("Keys", "[]UserKey")),
+			"post": op("settings", "Create an API key (plaintext shown once)", "ReqCreateKey", okResp("Key", "CreatedUserKey")),
+		},
+		"/api/me/keys/{id}": map[string]any{
+			"delete": map[string]any{
+				"tags": []any{"settings"}, "summary": "Revoke an API key",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"204": noContent("Revoked"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/accounts": map[string]any{
+			"get":  op("accounts", "List accounts", "", okResp("Accounts", "ListAccounts")),
+			"post": op("accounts", "Create an account", "ReqAccount", okResp("Account", "Account")),
+		},
+		"/api/accounts/{id}": map[string]any{
+			"put": map[string]any{
+				"tags": []any{"accounts"}, "summary": "Update an account",
+				"parameters":  []any{idParam()},
+				"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": ref("ReqAccount")}}},
+				"responses":   map[string]any{"200": okResp("Account", "Account"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+			"delete": map[string]any{
+				"tags": []any{"accounts"}, "summary": "Delete an account",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"204": noContent("Deleted"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/categories": map[string]any{
+			"get":    op("categories", "List categories (cursor paginated)", "", okResp("Categories", "ListCategories")),
+			"post":   op("categories", "Create categories", "ReqCategoriesCreate", okResp("Result", "BulkResult")),
+			"put":    op("categories", "Update categories", "ReqCategoriesUpdate", okResp("Result", "BulkResult")),
+			"delete": op("categories", "Delete categories", "ReqCategoriesDelete", okResp("Result", "BulkResult")),
+		},
+		"/api/transactions": map[string]any{
+			"get":    op("transactions", "List transactions", "", okResp("Transactions", "ListTransactions")),
+			"post":   op("transactions", "Create transactions", "ReqTransactions", okResp("Result", "BulkResult")),
+			"put":    op("transactions", "Update transactions", "ReqTransactions", okResp("Result", "BulkResult")),
+			"delete": op("transactions", "Delete transactions", "ReqTransactionIDs", okResp("Result", "BulkResult")),
+		},
+		"/api/transfer-links": map[string]any{
+			"post":   op("transactions", "Link transfer debit/credit pairs", "ReqTransfer", okResp("Result", "BulkResult")),
+			"delete": op("transactions", "Unlink transfers", "ReqTransfer", okResp("Result", "BulkResult")),
+		},
+		"/api/transfer-links/counterpart": map[string]any{
+			"post": op("transactions", "Create the missing side of a transfer", "ReqCounterpart", okResp("Counterpart", "TransferCounterpart")),
+		},
+		"/api/rules": map[string]any{
+			"get":  op("rules", "List rules", "", okResp("Rules", "ListRules")),
+			"post": op("rules", "Create a rule", "ReqRule", okResp("Rule", "Rule")),
+		},
+		"/api/rules/{id}": map[string]any{
+			"put": map[string]any{
+				"tags": []any{"rules"}, "summary": "Update a rule",
+				"parameters":  []any{idParam()},
+				"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": ref("ReqRule")}}},
+				"responses":   map[string]any{"200": okResp("Rule", "Rule"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+			"delete": map[string]any{
+				"tags": []any{"rules"}, "summary": "Delete a rule",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"204": noContent("Deleted"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/rules/preview": map[string]any{
+			"post": op("rules", "Preview matching transactions", "ReqPreview", okResp("Matches", "ListPreview")),
+		},
+		"/api/rules/{id}/run": map[string]any{
+			"post": map[string]any{
+				"tags": []any{"rules"}, "summary": "Apply a rule to existing transactions",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"200": okResp("Run summary", "RuleRun"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/dashboard": map[string]any{
+			"get": op("analytics", "Dashboard totals and accounts", "", okResp("Dashboard", "Dashboard")),
+		},
+		"/api/spending": map[string]any{
+			"get": map[string]any{
+				"tags": []any{"analytics"}, "summary": "Spending buckets and category totals",
+				"parameters": []any{
+					map[string]any{"name": "range", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"7D", "1M", "6M", "1Y"}}},
+					map[string]any{"name": "from", "in": "query", "schema": map[string]any{"type": "string", "format": "date"}},
+					map[string]any{"name": "to", "in": "query", "schema": map[string]any{"type": "string", "format": "date"}},
+					map[string]any{"name": "accountId", "in": "query", "schema": map[string]any{"type": "string"}},
+				},
+				"responses": map[string]any{"200": okResp("Spending", "Spending"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/mail/accounts": map[string]any{
+			"get":  op("mail", "List linked mailboxes", "", okResp("Mailboxes", "ListMailAccounts")),
+			"post": op("mail", "Link a mailbox", "ReqMailAccount", okResp("Mailbox", "MailAccount")),
+		},
+		"/api/mail/accounts/{id}": map[string]any{
+			"delete": map[string]any{
+				"tags": []any{"mail"}, "summary": "Remove a mailbox",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"204": noContent("Removed"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/mail/accounts/{id}/poll": map[string]any{
+			"post": map[string]any{
+				"tags": []any{"mail"}, "summary": "Poll one mailbox now",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"200": okResp("Poll summary", "PollSummary"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/mail/messages": map[string]any{
+			"get": map[string]any{
+				"tags": []any{"mail"}, "summary": "List stored mail",
+				"parameters": []any{
+					map[string]any{"name": "status", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"pending", "unparsed", "ignored", "auto", "rejected", "all"}}},
+					map[string]any{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer"}},
+				},
+				"responses": map[string]any{"200": okResp("Messages", "ListMailMessages"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
+			},
+			"post": op("mail", "Approve or reject messages", "ReqMailAction", okResp("Outcome", "MailActionOutcome")),
+		},
+		"/api/mail/rules": map[string]any{
+			"get":  op("mail", "List mail rules", "", okResp("Rules", "ListMailRules")),
+			"post": op("mail", "Create a mail rule", "ReqMailRule", okResp("Rule", "MailRule")),
+		},
+		"/api/mail/rules/{id}": map[string]any{
+			"put": map[string]any{
+				"tags": []any{"mail"}, "summary": "Update a mail rule",
+				"parameters":  []any{idParam()},
+				"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": ref("ReqMailRule")}}},
+				"responses":   map[string]any{"204": noContent("Updated"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+			"delete": map[string]any{
+				"tags": []any{"mail"}, "summary": "Delete a mail rule",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"204": noContent("Deleted"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
+	}
+}
+
+func components() map[string]any {
+	s := map[string]any{
+		"Error": obj(map[string]any{
+			"code":    map[string]any{"type": "string"},
+			"message": map[string]any{"type": "string"},
+		}),
+		"AccountType":     map[string]any{"type": "string", "enum": []any{"CURRENT", "SAVINGS", "LOAN", "CREDIT_CARD"}},
+		"TransactionType": map[string]any{"type": "string", "enum": []any{"DEBIT", "CREDIT"}},
+		"Account": obj(map[string]any{
+			"id": str(), "bankName": str(), "nickname": str(),
+			"balance": map[string]any{"type": "number"},
+			"type":    ref("AccountType"), "endingNumbers": nullable(str()),
+			"createdAt": map[string]any{"type": "string", "format": "date-time"},
+		}),
+		"ReqAccount": obj(map[string]any{
+			"id": str(), "bankName": str(), "nickname": str(),
+			"endingNumbers": str(), "type": ref("AccountType"),
+		}),
+		"ListAccounts": obj(map[string]any{"accounts": ref("[]Account")}),
+		"Transaction": obj(map[string]any{
+			"id": str(), "name": str(), "amount": map[string]any{"type": "number"},
+			"type": ref("TransactionType"), "occurredAt": str(), "accountId": str(),
+			"createdAt": str(), "linkedTransferId": str(),
+			"categoryIds": nullable(map[string]any{"type": "array", "items": str()}),
+		}),
+		"ListTransactions": obj(map[string]any{
+			"transactions":  ref("[]Transaction"),
+			"nextPageToken": str(), "totalCount": map[string]any{"type": "integer"},
+		}),
+		"BulkResult": obj(map[string]any{
+			"success": map[string]any{"type": "boolean"}, "message": str(),
+			"failedIds": map[string]any{"type": "array", "items": str()},
+			"skipped":   map[string]any{"type": "integer"},
+		}),
+		"Category": obj(map[string]any{"id": str(), "name": str(), "createdAt": str()}),
+		"ListCategories": obj(map[string]any{
+			"categories": ref("[]Category"), "nextPageToken": str(),
+		}),
+		"RuleCondition": obj(map[string]any{
+			"matchField": map[string]any{"type": "string", "enum": []any{"NAME", "AMOUNT", "TYPE", "CATEGORY", "ACCOUNT"}},
+			"operator":   map[string]any{"type": "string", "enum": []any{"CONTAINS", "STARTS_WITH", "ENDS_WITH", "EQUALS", "GREATER_THAN", "LESS_THAN", "REGEX"}},
+			"pattern":    str(),
+		}),
+		"RuleAction": obj(map[string]any{
+			"setName":       str(),
+			"setNameOp":     map[string]any{"type": "string", "enum": []any{"RENAME", "ADD_PREFIX", "ADD_SUFFIX"}},
+			"setCategoryId": str(), "setTransferAccountId": str(),
+		}),
+		"Rule": obj(map[string]any{
+			"id": str(), "name": str(), "priority": map[string]any{"type": "integer"},
+			"logic":      map[string]any{"type": "string", "enum": []any{"OR", "AND"}},
+			"conditions": ref("[]RuleCondition"), "actions": ref("[]RuleAction"),
+			"createdAt": str(),
+		}),
+		"ListRules": obj(map[string]any{"rules": ref("[]Rule")}),
+		"ReqRule": obj(map[string]any{
+			"name": str(), "priority": map[string]any{"type": "integer"},
+			"logic":      map[string]any{"type": "string", "enum": []any{"OR", "AND"}},
+			"conditions": ref("[]RuleCondition"), "actions": ref("[]RuleAction"),
+		}),
+		"ReqPreview": obj(map[string]any{
+			"logic":      map[string]any{"type": "string", "enum": []any{"OR", "AND"}},
+			"conditions": ref("[]RuleCondition"), "limit": map[string]any{"type": "integer"},
+		}),
+		"PreviewTxn": obj(map[string]any{
+			"name": str(), "amount": map[string]any{"type": "number"}, "type": str(),
+			"accountId": str(), "categoryIds": ref("[]Category"), "occurredAt": str(),
+		}),
+		"ListPreview": obj(map[string]any{"transactions": map[string]any{"type": "array", "items": ref("PreviewTxn")}}),
+		"RuleRun": obj(map[string]any{
+			"updated": map[string]any{"type": "integer"}, "matched": map[string]any{"type": "integer"},
+			"linked": map[string]any{"type": "integer"}, "created": map[string]any{"type": "integer"},
+		}),
+		"Dashboard": obj(map[string]any{
+			"totalBalance":  map[string]any{"type": "number"},
+			"totalIncome":   map[string]any{"type": "number"},
+			"totalExpenses": map[string]any{"type": "number"},
+			"accounts":      ref("[]Account"),
+		}),
+		"SpendingBucket": obj(map[string]any{
+			"key": str(), "label": str(), "amount": map[string]any{"type": "number"},
+		}),
+		"SpendingCategory": obj(map[string]any{
+			"id": str(), "name": str(),
+			"debit": map[string]any{"type": "number"}, "credit": map[string]any{"type": "number"},
+			"net": map[string]any{"type": "number"},
+		}),
+		"Spending": obj(map[string]any{
+			"buckets":    map[string]any{"type": "array", "items": ref("SpendingBucket")},
+			"categories": map[string]any{"type": "array", "items": ref("SpendingCategory")},
+		}),
+		"AuthResponse": obj(map[string]any{
+			"accessToken": str(), "refreshToken": str(), "userId": str(),
+			"email": str(), "name": str(),
+		}),
+		"SignupRequest":  obj(map[string]any{"email": str(), "password": str(), "name": str()}),
+		"LoginRequest":   obj(map[string]any{"email": str(), "password": str()}),
+		"RefreshRequest": obj(map[string]any{"refreshToken": str()}),
+		"ProfileResponse": obj(map[string]any{
+			"userId": str(), "name": str(), "email": str(), "avatarUrl": str(),
+		}),
+		"ReqProfile":  obj(map[string]any{"name": str(), "email": str(), "avatarUrl": str()}),
+		"ReqPassword": obj(map[string]any{"currentPassword": str(), "newPassword": str()}),
+		"UserKey": obj(map[string]any{
+			"id": str(), "name": str(), "keyPrefix": str(), "createdAt": str(),
+			"expiresAt": nullable(str()), "lastUsedAt": nullable(str()),
+			"scope": map[string]any{"type": "string", "enum": []any{"read", "read_write"}},
+		}),
+		"CreatedUserKey": obj(map[string]any{
+			"id": str(), "name": str(), "key": str(), "keyPrefix": str(),
+			"createdAt": str(), "expiresAt": nullable(str()),
+			"lastUsedAt": nullable(str()),
+			"scope":      map[string]any{"type": "string", "enum": []any{"read", "read_write"}},
+		}),
+		"ReqCreateKey": obj(map[string]any{
+			"name": str(), "expiresInDays": map[string]any{"type": "integer"},
+			"scope": map[string]any{"type": "string", "enum": []any{"read", "read_write"}},
+		}),
+		"ReqTransactions": obj(map[string]any{
+			"transactions": map[string]any{"type": "array", "items": ref("TransactionInput")},
+		}),
+		"ReqTransactionIDs": obj(map[string]any{"ids": map[string]any{"type": "array", "items": str()}}),
+		"TransactionInput": obj(map[string]any{
+			"id": str(), "name": str(), "amount": map[string]any{"type": "number"},
+			"type": ref("TransactionType"), "occurredAt": map[string]any{},
+			"accountId": str(), "categoryIds": ref("[]Category"), "externalId": str(),
+		}),
+		"ReqCategoriesCreate": obj(map[string]any{
+			"categories": map[string]any{"type": "array", "items": obj(map[string]any{"id": str(), "name": str()})},
+		}),
+		"ReqCategoriesUpdate": obj(map[string]any{
+			"categories": map[string]any{"type": "array", "items": obj(map[string]any{"id": str(), "name": str()})},
+		}),
+		"ReqCategoriesDelete": obj(map[string]any{"ids": map[string]any{"type": "array", "items": str()}}),
+		"ReqTransfer": obj(map[string]any{
+			"ids": map[string]any{"type": "array", "items": str()},
+			"links": map[string]any{"type": "array", "items": obj(map[string]any{
+				"debitTransactionId": str(), "creditTransactionId": str(),
+			})},
+		}),
+		"ReqCounterpart":      obj(map[string]any{"transactionId": str(), "toAccountId": str()}),
+		"TransferCounterpart": obj(map[string]any{"debitTransactionId": str(), "creditTransactionId": str()}),
+		"MailAccount": obj(map[string]any{
+			"id": str(), "label": str(), "imapHost": str(),
+			"imapPort": map[string]any{"type": "integer"}, "username": str(),
+			"senderAllowlist": map[string]any{"type": "array", "items": str()},
+			"enabled":         map[string]any{"type": "boolean"},
+			"lastPolledAt":    nullable(str()), "lastError": str(),
+		}),
+		"ReqMailAccount": obj(map[string]any{
+			"label": str(), "imapHost": str(), "imapPort": map[string]any{"type": "integer"},
+			"username": str(), "password": str(),
+			"senderAllowlist": map[string]any{"type": "array", "items": str()},
+		}),
+		"ListMailAccounts": obj(map[string]any{"accounts": ref("[]MailAccount")}),
+		"MailMessage": obj(map[string]any{
+			"id": str(), "messageId": str(), "fromAddr": str(), "subject": str(),
+			"receivedAt": nullable(str()), "status": str(), "parsedJson": nullable(str()),
+			"confidence": map[string]any{"type": "number"}, "rawText": nullable(str()),
+			"transactionId": nullable(str()),
+		}),
+		"ListMailMessages": obj(map[string]any{"messages": ref("[]MailMessage")}),
+		"MailRule": obj(map[string]any{
+			"id": str(), "position": map[string]any{"type": "integer"},
+			"enabled": map[string]any{"type": "boolean"}, "fromPattern": str(),
+			"subjectContains": str(), "bodyContains": str(),
+			"action":      map[string]any{"type": "string", "enum": []any{"IGNORE", "REVIEW", "AUTO"}},
+			"accountId":   nullable(str()),
+			"categoryIds": map[string]any{"type": "array", "items": str()},
+		}),
+		"ReqMailRule": obj(map[string]any{
+			"position": map[string]any{"type": "integer"}, "enabled": map[string]any{"type": "boolean"},
+			"fromPattern": str(), "subjectContains": str(), "bodyContains": str(),
+			"action":      map[string]any{"type": "string", "enum": []any{"IGNORE", "REVIEW", "AUTO"}},
+			"accountId":   nullable(str()),
+			"categoryIds": map[string]any{"type": "array", "items": str()},
+		}),
+		"ListMailRules": obj(map[string]any{"rules": ref("[]MailRule")}),
+		"ReqMailAction": obj(map[string]any{
+			"messages": map[string]any{"type": "array", "items": obj(map[string]any{
+				"id": str(), "action": map[string]any{"type": "string", "enum": []any{"APPROVE", "REJECT"}},
+				"accountId":   nullable(str()),
+				"categoryIds": map[string]any{"type": "array", "items": str()},
+			})},
+		}),
+		"MailActionOutcome": obj(map[string]any{
+			"succeeded": map[string]any{"type": "array", "items": str()},
+			"failed":    map[string]any{"type": "array", "items": obj(map[string]any{"id": str(), "error": str()})},
+		}),
+		"PollSummary": obj(map[string]any{
+			"matched": map[string]any{"type": "integer"},
+			"stored":  map[string]any{"type": "integer"},
+			"skipped": map[string]any{"type": "integer"},
+		}),
+	}
+	return map[string]any{
+		"schemas":         s,
+		"securitySchemes": map[string]any{"bearer_auth": map[string]any{"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+	}
+}
+
+func obj(props map[string]any) map[string]any {
+	return map[string]any{"type": "object", "properties": props}
+}
+
+func str() map[string]any { return map[string]any{"type": "string"} }
+
+func nullable(schema map[string]any) map[string]any {
+	if _, ok := schema["$ref"]; ok {
+		return map[string]any{"allOf": []any{schema}, "nullable": true}
+	}
+	out := map[string]any{}
+	for k, v := range schema {
+		out[k] = v
+	}
+	out["nullable"] = true
+	return out
+}
