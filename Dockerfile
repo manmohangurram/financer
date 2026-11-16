@@ -1,9 +1,8 @@
-# syntax=docker/dockerfile:1.4
-# Single container: the Rust server serves both the API and the built Vue app
-# (no nginx). Build stages run on BUILDPLATFORM (native speed, no QEMU) and
-# cross-compile to TARGETARCH via rustup target + a cross-gcc from apt.
-# cargo-chef caches the dependency build: only the app crate recompiles when
-# source changes. Runtime is Debian (glibc), matching the cross-gcc toolchain.
+# syntax=docker/dockerfile:1.7
+# Single container: the Go server serves both the API and the built Vue app
+# (no nginx). Both build stages run on BUILDPLATFORM (native speed, no QEMU)
+# and cross-compile; the SQLite driver is pure Go (glebarez/modernc), so no C
+# toolchain or target-specific linker is needed.
 
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /app/frontend
@@ -14,53 +13,31 @@ COPY frontend/ ./
 # the FINANCER_DOMAIN_URL setting (not baked at build).
 RUN VITE_API_URL= npm run build
 
-# We only pay the cargo-chef install cost once (cached from the second build).
-# Pinned to the same Rust as local dev (rustc 1.100).
-FROM --platform=$BUILDPLATFORM rust:1.100 AS chef
-RUN cargo install --locked cargo-chef
-WORKDIR /app
-
-# Planner: snapshot manifests + full source → recipe (cache key = Cargo.toml/lock).
-FROM --platform=$BUILDPLATFORM chef AS planner
+FROM --platform=$BUILDPLATFORM golang:1.27 AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+ARG TARGETOS=linux
+ARG TARGETARCH=arm64
+# CGO_ENABLED=0 keeps the binary static and makes the arm64 cross-build a plain
+# GOARCH switch. Migrations are embedded, so the binary is self-contained.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o /out/financer ./cmd/financer
 
-# Builder: build dependencies once (cached layer), then the app crate.
-FROM --platform=$BUILDPLATFORM chef AS builder
-ARG TARGETARCH
-# amd64 builds natively (glibc). Cross-compiles (e.g. arm64) add the target
-# triple and a cross-gcc for the final link (ring/rustls need a C linker).
-RUN case ${TARGETARCH} in \
-        arm64) rustup target add aarch64-unknown-linux-gnu && \
-               apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross && \
-               rm -rf /var/lib/apt/lists/*;; \
-    esac
-COPY --from=planner /app/recipe.json recipe.json
-RUN case ${TARGETARCH} in \
-        arm64) CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-               cargo chef cook --release --target aarch64-unknown-linux-gnu --recipe-path recipe.json;; \
-        *)     cargo chef cook --release --recipe-path recipe.json;; \
-    esac
-COPY . .
-RUN mkdir -p /out && \
-    case ${TARGETARCH} in \
-        arm64) CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-               CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-               cargo build --release --locked -p financer --target aarch64-unknown-linux-gnu && \
-               cp target/aarch64-unknown-linux-gnu/release/financer /out/financer;; \
-        *)     cargo build --release --locked -p financer && \
-               cp target/release/financer /out/financer;; \
-    esac
-
-FROM debian:trixie-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata && \
-    rm -rf /var/lib/apt/lists/*
+FROM alpine:3.22 AS runtime
+# ca-certificates is required for outbound IMAP TLS; the IANA timezone database
+# is embedded in the binary (time/tzdata), so tzdata is not needed.
+RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 COPY --from=builder /out/financer ./financer
 # Configuration is entirely from environment variables (see README.md);
 # there is no config file. The schema is applied at boot from the binary.
+ENV FINANCER_STATIC_DIR=/app/frontend/dist \
+    FINANCER_DATA_DIR=/data
 EXPOSE 8080
 VOLUME ["/data"]
 ENTRYPOINT ["/app/financer"]
