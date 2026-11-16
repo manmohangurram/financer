@@ -18,9 +18,11 @@
 
 ## Verification
 
-- [ ] `cargo build --locked` passes
-- [ ] `cargo clippy -- -D warnings` passes
-- [ ] `cargo test` passes
+- [ ] `gofmt -l cmd internal migrate.go` prints nothing
+- [ ] `go vet ./...` passes
+- [ ] `go build ./...` passes
+- [ ] `go test ./...` passes
+- [ ] `govulncheck ./...` passes (or no new advisories)
 - [ ] `npm run build` passes (vue-tsc type-check + vite)
 - [ ] `npm test` passes
 - [ ] Browser smoke test done, console clean
