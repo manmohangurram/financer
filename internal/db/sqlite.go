@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -127,6 +128,23 @@ func RunMigrations(db *sql.DB) error {
 			if stmt == "" {
 				continue
 			}
+			// ALTER TABLE ADD COLUMN is the only non-idempotent shape in these
+			// migrations. A database migrated by an older backend already has the
+			// column (or the table was dropped by a later migration), so skip it
+			// instead of failing the boot.
+			if table, column, ok := parseAddColumn(stmt); ok {
+				tableExists, columnExists, err := columnStatus(tx, table, column)
+				if err != nil {
+					tx.Rollback()
+					return fmt.Errorf("inspecting %s.%s for %s: %w", table, column, f, err)
+				}
+				if !tableExists || columnExists {
+					slog.Debug("migration step already applied",
+						"migration", base, "table", table, "column", column,
+						"table_exists", tableExists, "column_exists", columnExists)
+					continue
+				}
+			}
 			if _, err := tx.Exec(stmt); err != nil {
 				tx.Rollback()
 				return fmt.Errorf("executing migration %s: %w", f, err)
@@ -149,15 +167,10 @@ func RunMigrations(db *sql.DB) error {
 }
 
 // adoptSqlxMigrations copies a successful sqlx history into the Go tracker so a
-// database migrated by the Rust backend is not migrated again.
+// database migrated by the Rust backend is not migrated again. It runs on every
+// boot (INSERT OR IGNORE), because a previously failed boot may have recorded
+// only a prefix of the migrations in the Go tracker.
 func adoptSqlxMigrations(db *sql.DB, files []string) error {
-	var tracked int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM _financer_applied_migrations`).Scan(&tracked); err != nil {
-		return fmt.Errorf("counting applied migrations: %w", err)
-	}
-	if tracked > 0 {
-		return nil
-	}
 	var hasSqlx bool
 	if err := db.QueryRow(
 		`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations')`,
@@ -210,6 +223,44 @@ func adoptSqlxMigrations(db *sql.DB, files []string) error {
 		slog.Info("adopted sqlx migration history", "migrations", len(adopted))
 	}
 	return nil
+}
+
+// alterAddColumn matches the only non-idempotent statement shape used by the
+// migrations.
+var alterAddColumn = regexp.MustCompile(`(?is)^\s*ALTER\s+TABLE\s+([A-Za-z_][A-Za-z0-9_]*)\s+ADD\s+COLUMN\s+([A-Za-z_][A-Za-z0-9_]*)`)
+
+func parseAddColumn(stmt string) (table, column string, ok bool) {
+	m := alterAddColumn.FindStringSubmatch(stmt)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1], m[2], true
+}
+
+// columnStatus reports whether table exists and whether it already has column.
+func columnStatus(tx *sql.Tx, table, column string) (tableExists, columnExists bool, err error) {
+	rows, err := tx.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return false, false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid       int
+			name, typ string
+			notNull   int
+			dflt      sql.NullString
+			pk        int
+		)
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+			return false, false, err
+		}
+		tableExists = true
+		if strings.EqualFold(name, column) {
+			columnExists = true
+		}
+	}
+	return tableExists, columnExists, rows.Err()
 }
 
 func splitSQL(content string) []string {
