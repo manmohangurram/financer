@@ -140,7 +140,7 @@ func RunMigrations(db *sql.DB) error {
 			return fmt.Errorf("committing migration %s: %w", f, err)
 		}
 		applied++
-		slog.Info("migration applied", "migration", base)
+		slog.Debug("migration applied", "migration", base)
 	}
 	if applied > 0 {
 		slog.Info("database migrations complete", "applied", applied)

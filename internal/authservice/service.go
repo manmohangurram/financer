@@ -49,6 +49,10 @@ func (s *Service) Signup(email, password, name string) (*model.AuthResponse, err
 	}
 	id, err := s.repo.Create(email, string(hash), name)
 	if err != nil {
+		// The users.email unique constraint is the one expected failure here.
+		if strings.Contains(strings.ToLower(err.Error()), "unique constraint failed: users.email") {
+			return nil, errors.Conflict("email already exists")
+		}
 		return nil, err
 	}
 	return s.issueTokens(id, email, name)

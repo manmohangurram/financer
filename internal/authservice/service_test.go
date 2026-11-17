@@ -8,6 +8,7 @@ import (
 
 	"github.com/mohan9182/financer/internal/auth"
 	"github.com/mohan9182/financer/internal/db"
+	apierrors "github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/repo/sqlite"
 )
 
@@ -46,6 +47,8 @@ func TestSignupLoginRefresh(t *testing.T) {
 	// Duplicate email -> conflict (already_exists).
 	if _, err := s.Signup("a@b.c", "password", "Bob"); err == nil {
 		t.Fatal("expected conflict for duplicate email")
+	} else if apiErr, ok := err.(*apierrors.Error); !ok || apiErr.Status != 409 || apiErr.Code != "already_exists" {
+		t.Fatalf("duplicate signup error = %#v, want 409 already_exists", err)
 	}
 
 	// Login.
