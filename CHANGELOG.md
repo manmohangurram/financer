@@ -6,6 +6,21 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.14.4] — 2026-11-17
+
+### Fixed
+
+- **New HDFC statement layout imported as “no transactions”.** These statements use
+  2-digit years (`01/04/26`) and only two amounts per row, so the date regex missed every
+  row and direction could not be told from the text.
+- **Column-aware parsing.** When the header names the amount columns
+  (`Withdrawal`/`Deposit`, `Debit`/`Credit`, `Balance`), each number is assigned by its
+  x-position, with the header labels acting as column boundaries (amounts are
+  right-aligned inside their column). Statements without a header keep the existing
+  3-number / Dr-Cr / balance-delta behaviour.
+- Verified on the two new statements: 28 pages → 303 rows and 97 pages → 997 rows, both
+  with `balances match`. Covered by a positioned-columns test.
+
 ## [0.14.3] — 2026-11-17
 
 ### Fixed

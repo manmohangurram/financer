@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStatementText } from './statementPdf';
+import { parseStatement, parseStatementText } from './statementPdf';
 
 const STATEMENT = `--- PAGE 1 ---
 Page 1 of 1
@@ -78,6 +78,33 @@ describe('statement column layouts', () => {
     expect(out.layout).toBe('amount-only');
     expect(out.rows).toHaveLength(1);
     expect(out.rows[0]).toMatchObject({ amount: 1000, type: 'DEBIT' });
+    expect(out.valid).toBe(true);
+  });
+});
+
+describe('positioned columns (new HDFC layout)', () => {
+  const mk = (x: number, s: string) => ({ x, s });
+  const lines = [
+    { text: 'Date Narration Chq./Ref.No. Value Dt Withdrawal Amt. Deposit Amt. Closing Balance', items: [
+      mk(40, 'Date'), mk(144, 'Narration'), mk(284, 'Chq./Ref.No.'), mk(362, 'Value Dt'),
+      mk(405, 'Withdrawal Amt.'), mk(491, 'Deposit Amt.'), mk(564, 'Closing Balance')
+    ] },
+    { text: '01/04/26 UPI-A 0000316604154309 01/04/26 50,000.00 232,229.71', items: [
+      mk(34, '01/04/26'), mk(72, 'UPI-A'), mk(289, '0000316604154309'), mk(362, '01/04/26'),
+      mk(438, '50,000.00'), mk(591, '232,229.71')
+    ] },
+    { text: '01/04/26 UPI-B 0000064559085757 01/04/26 1,591.00 233,820.71', items: [
+      mk(34, '01/04/26'), mk(72, 'UPI-B'), mk(289, '0000064559085757'), mk(362, '01/04/26'),
+      mk(520, '1,591.00'), mk(591, '233,820.71')
+    ] }
+  ];
+
+  it('uses the header x positions to tell debit from credit', () => {
+    const out = parseStatement(lines);
+    expect(out.rows).toHaveLength(2);
+    expect(out.rows[0]).toMatchObject({ amount: 50000, type: 'DEBIT', occurredAt: '2026-04-01' });
+    expect(out.rows[1]).toMatchObject({ amount: 1591, type: 'CREDIT' });
+    expect(out.layout).toBe('columns');
     expect(out.valid).toBe(true);
   });
 });

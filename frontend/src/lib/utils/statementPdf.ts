@@ -1,15 +1,13 @@
-// Reads a bank statement PDF in the browser and turns it into transactions.
-// Statements differ in columns, so the parser detects the row layout:
-//   · withdrawal + deposit + balance   (HDFC style)
-//   · amount + balance, direction from a Dr/Cr marker
-//   · amount + balance, direction from the running balance
-//   · amount + Dr/Cr only, no balance
+// Parses bank statement PDFs in the browser into transactions.
+// Columns are read from the header row when it exists (Withdrawal/Deposit,
+// Debit/Credit, Balance), so the same parser handles statements where the amount
+// column depends on x-position as well as plain 2/3-number tables.
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
-export type StatementLayout = 'withdrawal-deposit' | 'amount-marker' | 'amount-delta' | 'amount-only';
+export type StatementLayout = 'columns' | 'withdrawal-deposit' | 'amount-marker' | 'amount-delta' | 'amount-only';
 
 export interface ParsedTxn {
   name: string;
@@ -31,9 +29,15 @@ export interface StatementParse {
   layout: StatementLayout;
 }
 
-type Direction = 'DEBIT' | 'CREDIT';
+export interface StatementLine {
+  text: string;
+  items: Array<{ x: number; s: string }>;
+}
 
-const HEAD = /^(\d{2}\/\d{2}\/\d{4})\s+(.*?)\s+(\d{2}\/\d{2}\/\d{4})\s+(.*)$/;
+type Direction = 'DEBIT' | 'CREDIT';
+type Column = 'debit' | 'credit' | 'balance';
+
+const HEAD = /^(\d{2}\/\d{2}\/\d{2,4})\s+(.*?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+(.*)$/;
 const PREFIX = /^(UPI-|NPS-|NEFT|FT-|POS\b|IMPS|ATM|MB-|VSI|ACH|SI-|BILL|TXN)/i;
 const NUM = /-?\d[\d,]*\.\d{2}/g;
 const MARKER = /\b(dr|cr)\b/i;
@@ -63,105 +67,203 @@ function cleanName(narration: string): string {
   return (name || base.slice(0, 60)).slice(0, 80);
 }
 
-function markerToDirection(marker: string | null, amount: number): Direction | null {
-  if (marker) return marker.toLowerCase() === 'dr' ? 'DEBIT' : 'CREDIT';
-  if (amount < 0) return 'DEBIT';
+interface ColumnHeader {
+  debitX: number | null;
+  creditX: number | null;
+  balanceX: number | null;
+}
+
+function readHeader(lines: StatementLine[]): ColumnHeader | null {
+  for (const line of lines) {
+    const lower = line.text.toLowerCase();
+    if (!/withdraw|deposit|debit|credit|balance/.test(lower)) continue;
+    if (!/narration|description|particular|date/i.test(lower)) continue;
+    const h: ColumnHeader = { debitX: null, creditX: null, balanceX: null };
+    for (const item of line.items) {
+      const t = item.s.toLowerCase();
+      if (/withdraw|debit/.test(t) && h.debitX === null) h.debitX = item.x;
+      if (/deposit|credit/.test(t) && h.creditX === null) h.creditX = item.x;
+      if (/balance/.test(t) && h.balanceX === null) h.balanceX = item.x;
+    }
+    if (h.debitX !== null || h.creditX !== null || h.balanceX !== null) return h;
+  }
   return null;
 }
 
-/** Parses already-extracted statement text (one visual line per row). */
-export function parseStatementText(text: string, forced?: StatementLayout): StatementParse {
-  const lines = text.split(/\r?\n/);
-  const raw: Array<{ date: string; narration: string; tail: string }> = [];
+/** Nearest named column within a tolerance; amounts are right-aligned-ish. */
+function columnOf(x: number, header: ColumnHeader): Column | null {
+  // Columns start at their header label; amounts are right-aligned inside them,
+  // so the header positions are boundaries rather than centres.
+  const slack = 8;
+  if (header.balanceX !== null && x >= header.balanceX - slack) return 'balance';
+  if (header.creditX !== null && x >= header.creditX - slack) return 'credit';
+  if (header.debitX !== null && x >= header.debitX - slack) return 'debit';
+  return null;
+}
+
+function toLines(text: string): StatementLine[] {
+  return text.split(/\r?\n/).map((line) => ({ text: line, items: [{ x: 0, s: line }] }));
+}
+
+/** Parses statement lines (text or positioned items). */
+export function parseStatement(lines: StatementLine[] | string, forced?: StatementLayout): StatementParse {
+  const rowsIn = typeof lines === 'string' ? toLines(lines) : lines;
+  const header = readHeader(rowsIn);
+  const useColumns = !forced && !!header && rowsIn.some((l) => l.items.some((i) => i.x > 0));
+  const parsed: Array<{
+    date: string;
+    narration: string;
+    debit: number;
+    credit: number;
+    balance?: number;
+    marker: string | null;
+    amountHint?: number;
+  }> = [];
+  let sawMarker = false;
+  let sawThree = false;
+  let sawDelta = false;
+
   let pending: string[] = [];
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line || line.startsWith('--- PAGE')) continue;
-    if (/^Page \d+ of \d+/.test(line) || /^Date Narration/.test(line) || /^Statement From/i.test(line)) {
+  for (let i = 0; i < rowsIn.length; i++) {
+    const line = rowsIn[i];
+    const text = line.text.trim();
+    if (!text || text.startsWith('--- PAGE')) continue;
+    if (/^Page\s*(No)?\.?\s*:?\s*\d+/i.test(text) || /^Date Narration/i.test(text) || /^From\s*:/i.test(text)) {
       pending = [];
       continue;
     }
 
-    const m = line.match(HEAD);
+    const m = text.match(HEAD);
     if (!m) {
-      pending.push(line);
+      pending.push(...line.items.map((it) => it.s.trim()).filter(Boolean));
       continue;
     }
 
     const [, date, inline, , tail] = m;
-    const pre = pending;
+    const pre = pending.join(' ').replace(/\s+/g, ' ').trim();
     pending = [];
 
-    // Continuation lines belong to this row until the next transaction starts.
     const post: string[] = [];
-    while (i + 1 < lines.length) {
-      const next = lines[i + 1].trim();
-      if (!next || next.startsWith('--- PAGE') || /^Page \d+ of \d+/.test(next)) break;
-      if (HEAD.test(next) || PREFIX.test(next)) break;
-      if (next.startsWith('-') || /^[A-Z0-9]{4,}-/.test(next) || /^(ONE|TWO|THREE)$/i.test(next)) {
-        post.push(next);
+    while (i + 1 < rowsIn.length) {
+      const nextText = rowsIn[i + 1].text.trim();
+      if (!nextText || nextText.startsWith('--- PAGE') || /^Page\s*(No)?\.?/i.test(nextText)) break;
+      if (HEAD.test(nextText) || PREFIX.test(nextText)) break;
+      if (nextText.startsWith('-') || /^[A-Z0-9]{4,}-/.test(nextText) || /^(ONE|TWO|THREE)$/i.test(nextText)) {
+        post.push(nextText);
         i++;
         continue;
       }
       break;
     }
 
-    raw.push({
+    const numbers = line.items
+      .filter((it) => /^-?[\d,]+\.\d{2}$/.test(it.s.trim()))
+      .map((it) => ({ x: it.x, v: num(it.s.trim()) }));
+
+    let debit = 0;
+    let credit = 0;
+    let balance: number | undefined;
+    let amountHint: number | undefined;
+
+    if (useColumns && header && numbers.length > 0 && numbers.some((n) => columnOf(n.x, header) !== null)) {
+      for (const n of numbers) {
+        switch (columnOf(n.x, header)) {
+          case 'debit':
+            debit += Math.abs(n.v);
+            break;
+          case 'credit':
+            credit += Math.abs(n.v);
+            break;
+          case 'balance':
+            balance = n.v;
+            break;
+        }
+      }
+    } else {
+      const values = (tail.match(NUM) || []).map(num);
+      const marker = tail.match(MARKER)?.[1] ?? null;
+      if (values.length >= 3) {
+        debit = values[0];
+        credit = values[1];
+        balance = values[2];
+        sawThree = true;
+      } else if (values.length === 2) {
+        const signed = values[0];
+        balance = values[1];
+        if (marker) {
+          sawMarker = true;
+          if (marker.toLowerCase() === 'cr') credit = Math.abs(signed);
+          else debit = Math.abs(signed);
+        } else if (signed < 0) {
+          debit = Math.abs(signed);
+        } else {
+          // Direction will be resolved from the balance delta below.
+          debit = -1;
+          amountHint = Math.abs(signed);
+        }
+      } else if (values.length === 1 && marker) {
+        sawMarker = true;
+        if (marker.toLowerCase() === 'cr') credit = Math.abs(values[0]);
+        else debit = Math.abs(values[0]);
+      }
+    }
+
+    parsed.push({
       date: toISO(date),
-      narration: [...pre, inline, ...post].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
-      tail
+      narration: [pre, inline, ...post].join(' ').replace(/\s+/g, ' ').trim(),
+      debit,
+      credit,
+      balance,
+      marker: tail.match(MARKER)?.[1] ?? null,
+      amountHint
     });
   }
 
   const rows: ParsedTxn[] = [];
-  let detected: StatementLayout = 'amount-only';
   let prev: number | null = null;
-  let firstWidth = 0;
+  let layout: StatementLayout = useColumns ? 'columns' : 'amount-only';
 
-  for (const r of raw) {
-    const numbers = (r.tail.match(NUM) || []).map(num);
-    const marker = r.tail.match(MARKER)?.[1] ?? null;
+  for (const p of parsed) {
+    let type: Direction | null = null;
     let amount = 0;
-    let direction: Direction | null = null;
-    let balance: number | undefined;
 
-    if (forced === 'withdrawal-deposit' || (!forced && numbers.length >= 3)) {
-      amount = numbers[1] > 0 ? numbers[1] : numbers[0];
-      direction = numbers[1] > 0 ? 'CREDIT' : 'DEBIT';
-      balance = numbers[2];
-      detected = 'withdrawal-deposit';
-    } else if (forced === 'amount-marker' || (!forced && numbers.length === 2 && marker)) {
-      amount = Math.abs(numbers[0]);
-      direction = markerToDirection(marker, numbers[0]);
-      balance = numbers[1];
-      detected = 'amount-marker';
-    } else if (forced === 'amount-delta' || (!forced && numbers.length === 2)) {
-      amount = Math.abs(numbers[0]);
-      balance = numbers[1];
-      direction = markerToDirection(marker, numbers[0]);
-      if (!direction && prev !== null) direction = balance >= prev ? 'CREDIT' : 'DEBIT';
-      if (!direction) direction = balance - amount >= 0 ? 'CREDIT' : 'DEBIT';
-      detected = 'amount-delta';
-    } else {
-      amount = Math.abs(numbers[0] ?? 0);
-      direction = markerToDirection(marker, numbers[0] ?? 0);
-      detected = 'amount-only';
+    if (p.debit >= 0 && p.credit > 0) {
+      type = 'CREDIT';
+      amount = p.credit;
+    } else if (p.debit > 0) {
+      type = 'DEBIT';
+      amount = p.debit;
+    } else if (p.debit === -1) {
+      // Two values without a marker: use the running balance to decide.
+      const hint = p.amountHint ?? 0;
+      if (p.balance !== undefined && prev !== null) {
+        type = p.balance >= prev ? 'CREDIT' : 'DEBIT';
+        amount = Math.abs(p.balance - prev);
+      } else if (p.balance !== undefined && hint > 0) {
+        type = p.balance - hint >= 0 ? 'CREDIT' : 'DEBIT';
+        amount = hint;
+      }
+      sawDelta = true;
     }
 
-    if (detected === 'withdrawal-deposit') firstWidth ||= 3;
-    if (detected !== 'withdrawal-deposit') firstWidth ||= 2;
-
-    if (!amount || !direction) continue;
+    if (!type || !amount) continue;
     rows.push({
-      name: cleanName(r.narration),
+      name: cleanName(p.narration),
       amount: round(amount),
-      type: direction,
-      occurredAt: r.date,
-      ...(balance === undefined ? {} : { balanceAfter: round(balance) })
+      type,
+      occurredAt: p.date,
+      ...(p.balance === undefined ? {} : { balanceAfter: round(p.balance) })
     });
-    if (balance !== undefined) prev = balance;
+    if (p.balance !== undefined) prev = p.balance;
   }
+
+  if (!useColumns) {
+    if (sawMarker) layout = 'amount-marker';
+    else if (sawDelta) layout = 'amount-delta';
+    else if (sawThree) layout = 'withdrawal-deposit';
+  }
+  if (forced) layout = forced;
 
   const credits = round(rows.filter((r) => r.type === 'CREDIT').reduce((s, r) => s + r.amount, 0));
   const debits = round(rows.filter((r) => r.type === 'DEBIT').reduce((s, r) => s + r.amount, 0));
@@ -171,7 +273,6 @@ export function parseStatementText(text: string, forced?: StatementLayout): Stat
   if (rows.length === 0) {
     problem = 'No transactions found in this PDF.';
   } else if (withBalance.length > 1) {
-    // Row-to-row: each balance must equal the previous one ± the amount.
     let running = withBalance[0].balanceAfter as number;
     for (const t of withBalance.slice(1)) {
       const expected = round(running + (t.type === 'CREDIT' ? t.amount : -t.amount));
@@ -183,12 +284,8 @@ export function parseStatementText(text: string, forced?: StatementLayout): Stat
     }
   }
 
-  const first = raw[0];
-  const firstNumbers = first ? (first.tail.match(NUM) || []).map(num) : [];
-  const opening =
-    firstNumbers.length >= 3
-      ? round(firstNumbers[2] - firstNumbers[1] + firstNumbers[0])
-      : undefined;
+  const first = parsed[0];
+  const opening = first && first.balance !== undefined && first.debit >= 0 ? round(first.balance - first.credit + first.debit) : undefined;
   const closing = withBalance.length ? withBalance[withBalance.length - 1].balanceAfter : undefined;
 
   if (!problem && opening !== undefined && closing !== undefined) {
@@ -197,32 +294,43 @@ export function parseStatementText(text: string, forced?: StatementLayout): Stat
     }
   }
 
-  return { rows, opening, closing, credits, debits, valid: !problem, problem, pages: 1, layout: detected };
+  return { rows, opening, closing, credits, debits, valid: !problem, problem, pages: 1, layout };
 }
 
-/** Extracts text from a PDF, preserving visual line order. */
-export async function readStatement(file: File, forced?: StatementLayout): Promise<StatementParse> {
+/** Backwards-compatible text entry point. */
+export function parseStatementText(text: string, forced?: StatementLayout): StatementParse {
+  return parseStatement(text, forced);
+}
+
+async function pdfLines(file: File): Promise<{ lines: StatementLine[]; pages: number }> {
   const data = new Uint8Array(await file.arrayBuffer());
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true, disableFontFace: true }).promise;
-  const pages: string[] = [];
+  const lines: StatementLine[] = [];
 
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
-    const rows = new Map<number, Array<{ x: number; s: string }>>();
+    const byY = new Map<number, Array<{ x: number; s: string }>>();
     for (const item of content.items) {
       if (!('str' in item) || !item.str) continue;
       const y = Math.round(item.transform[5] * 2) / 2;
       const x = item.transform[4];
-      if (!rows.has(y)) rows.set(y, []);
-      rows.get(y)!.push({ x, s: item.str });
+      if (!byY.has(y)) byY.set(y, []);
+      byY.get(y)!.push({ x, s: item.str });
     }
-    const lines = [...rows.entries()]
-      .sort((a, b) => b[0] - a[0])
-      .map(([, items]) => items.sort((a, b) => a.x - b.x).map((i) => i.s).join(' ').replace(/\s+/g, ' ').trim());
-    pages.push(lines.filter(Boolean).join('\n'));
+    lines.push({ text: `--- PAGE ${p} ---`, items: [] });
+    for (const [, items] of [...byY.entries()].sort((a, b) => b[0] - a[0])) {
+      const sorted = items.sort((a, b) => a.x - b.x);
+      const text = sorted.map((i) => i.s).join(' ').replace(/\s+/g, ' ').trim();
+      if (text) lines.push({ text, items: sorted });
+    }
   }
+  return { lines, pages: doc.numPages };
+}
 
-  const text = pages.map((p, i) => `--- PAGE ${i + 1} ---\n${p}`).join('\n');
-  return { ...parseStatementText(text, forced), pages: doc.numPages };
+/** Extracts a PDF and parses it. */
+export async function readStatement(file: File, forced?: StatementLayout): Promise<StatementParse> {
+  const { lines, pages } = await pdfLines(file);
+  const out = { ...parseStatement(lines, forced), pages };
+  return out;
 }
