@@ -24,4 +24,4 @@ Spec: `docs/specs/mail-templates/SPEC.md` · Plan: `docs/specs/mail-templates/pl
 - [x] Client + docs + UI gates
 
 ## Phase 5 — Release
-- [ ] Docs, changelog, version, tag, arm64 image, release
+- [x] Docs, changelog, version, tag, arm64 image, release (`v0.7.0-alpha`)
