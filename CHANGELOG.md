@@ -6,6 +6,44 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) with an `-alpha` suff
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
+## [0.5.0-alpha] — 2026-11-17
+
+The backend rewrite release. The API is now a clean-slate Go service; the Rust
+implementation is gone and the database is adopted in place.
+
+### Changed
+
+- **The backend is Go.** Gin router, `glebarez/sqlite` (pure Go, WAL), one writer
+  + read pool, embedded migrations and timezone data. The `/api` contract,
+  SQLite schema, env vars and JWT/API-key formats are unchanged; an existing
+  database is adopted via its sqlx migration history. (#174)
+- **Rules still snapshot at write time**, and transfer rules create/link the
+  missing counterpart on create.
+- **Mail ingest, API keys, MCP (`/mcp`) and OpenAPI (`/docs`, `/openapi.json`)
+  are implemented in Go**, including the arm64 image path.
+- **Images are built only when a `v*` tag is created**, for `linux/arm64` only.
+
+### Added
+
+- **Structured logging** via `FINANCER_LOG_LEVEL` and `FINANCER_LOG_FILE`:
+  request lines with status/duration/user, 5xx causes, panic stacks, startup and
+  migration summaries. A file-backed log rotates at 10 MB and keeps 3 files.
+- Graceful startup summary of the resolved configuration (never secrets).
+
+### Removed
+
+- **Statement import** (CSV/XLSX/PDF) from the backend and UI.
+- The Rust implementation, `Cargo.toml`/`Cargo.lock`, `clippy.toml` and
+  `.cargo/`; the architecture docs and standards now describe the Go service.
+
+### Fixed
+
+- Duplicate signup returns `409 already_exists` instead of a 500 leaking the
+  SQLite unique-constraint message.
+- Timestamps render in the configured timezone for driver-returned RFC3339
+  values; the IANA database is embedded.
+- 5xx responses log their underlying cause.
+
 ## [0.4.0-alpha] — 2026-11-15
 
 A redesign release. The frontend was rebuilt on one design system — tokens, primitives, and then every
