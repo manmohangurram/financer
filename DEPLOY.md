@@ -68,8 +68,8 @@ There is no config directory — configuration is env-only. Migrations and the t
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | PR gate: gofmt/vet/build/test/govulncheck + frontend type-check/vitest/build + arm64 image build |
-| `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR on tag |
+| `.github/workflows/ci.yml` | PR gate: gofmt/vet/build/test/govulncheck + frontend type-check/vitest/build |
+| `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR when a `v*` tag is created |
 | `.github/workflows/prune-packages.yml` | Weekly: delete old image versions from GHCR (keeps the newest 5 releases) |
 | `Dockerfile` | Multi-stage build (frontend + Go + runtime) |
 | `.dockerignore` | Exclude `target/`, `data/`, `node_modules/`, `.git` from build context |
@@ -127,9 +127,9 @@ docker buildx build --platform linux/arm64 -t ghcr.io/<owner>/<image>:test --loa
 
 If you get `no matching manifest for linux/arm64`, run `docker buildx create --use` once to enable the builder. Building with `--platform linux/amd64` is rejected on purpose — this project ships arm64 only.
 
-### Manual trigger (no tag)
+### Trigger
 
-The workflow also supports `workflow_dispatch` — run it from the Actions tab on any branch. Note: manual runs tag the image with branch/sha (no `latest`); `latest` is only applied on tag pushes.
+The image is built **only** when a `v*` tag is created (`git push origin v1.0.0` or a GitHub Release that creates the tag). Pull requests and branch pushes never build or publish an image.
 
 ---
 
@@ -196,4 +196,3 @@ Configuration is env-only (no config file). See the table in `README.md`.
 | Wrong timestamps / `UTC` instead of the configured zone | The zone name is invalid; the IANA database is embedded, so only the name can be wrong. |
 | IMAP polling fails with `x509: certificate signed by unknown authority` | The runtime image is missing `ca-certificates` (the provided Dockerfile installs it). |
 | Full dependency rebuild on every release | The registry build cache expires after 7 days of inactivity; a tag push after that gap rebuilds the deps once. |
-| Docker image tag is branch/sha not version | Manual `workflow_dispatch` run; `latest`/version tags apply only on `v*` tag pushes. |

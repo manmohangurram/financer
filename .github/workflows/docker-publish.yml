@@ -1,12 +1,11 @@
 name: Docker
 
-# Builds and pushes the image to GHCR on git tag creation (e.g. `v1.0.0`).
+# Builds and pushes the image to GHCR only when a version tag (v*) is created.
 # arm64 only, built on a native runner (no QEMU).
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
