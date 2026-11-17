@@ -1,6 +1,7 @@
-// Package migrate embeds the SQLite migration SQL files at compile time so the
-// binary is self-contained (matches the Rust backend's sqlx embed). The files
-// live in db/migrations/ and are the single source of truth shared with Rust.
+// Package migrate embeds the SQLite schema at compile time so the binary is
+// self-contained. db/migrations/ holds the single baseline schema; future
+// changes are added as numbered *.up.sql / *.down.sql pairs and applied in
+// order by internal/db.
 package migrate
 
 import "embed"
