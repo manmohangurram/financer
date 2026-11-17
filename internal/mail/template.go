@@ -235,16 +235,50 @@ func capture(re *regexp.Regexp, text, name string) string {
 }
 
 func parseAmountValue(raw string) (float64, error) {
-	clean := strings.TrimSpace(raw)
-	clean = strings.ReplaceAll(clean, ",", "")
-	clean = strings.TrimPrefix(clean, "₹")
-	clean = strings.TrimPrefix(clean, "INR")
-	clean = strings.TrimSpace(clean)
+	clean := keepAmountDigits(raw)
+	clean = normalizeAmountSeparators(clean)
 	v, err := strconv.ParseFloat(clean, 64)
 	if err != nil || v <= 0 {
 		return 0, fmt.Errorf("invalid amount %q", raw)
 	}
 	return v, nil
+}
+
+// keepAmountDigits drops currency symbols, ISO codes and spaces, so
+// "Rs.2050.00", "₹ 1,234.50", "USD 12.50" and "12.50 EUR" all become numbers.
+func keepAmountDigits(raw string) string {
+	var b strings.Builder
+	for _, r := range raw {
+		if (r >= '0' && r <= '9') || r == '.' || r == ',' {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimLeft(b.String(), ".,")
+}
+
+// normalizeAmountSeparators drops thousands grouping and keeps the decimal
+// mark, so 1,234.56 and 1.234,56 both become 1234.56.
+func normalizeAmountSeparators(s string) string {
+	lastComma := strings.LastIndex(s, ",")
+	lastDot := strings.LastIndex(s, ".")
+	switch {
+	case lastComma >= 0 && lastDot >= 0:
+		if lastComma > lastDot {
+			// 1.234,56 — the comma is the decimal mark.
+			s = strings.ReplaceAll(s, ".", "")
+			return strings.ReplaceAll(s, ",", ".")
+		}
+		return strings.ReplaceAll(s, ",", "")
+	case lastComma >= 0:
+		// One comma with two trailing digits is a decimal mark (12,50);
+		// anything else groups thousands (1,234 or 1,234,567).
+		if strings.Count(s, ",") == 1 && len(s)-lastComma-1 == 2 {
+			return strings.ReplaceAll(s, ",", ".")
+		}
+		return strings.ReplaceAll(s, ",", "")
+	default:
+		return s
+	}
 }
 
 func lastFour(raw string) string {
@@ -263,6 +297,8 @@ func lastFour(raw string) string {
 var dateLayouts = []string{
 	"02 Jan 2006", "2 Jan 2006", "02 January 2006", "2 January 2006",
 	"02/01/2006", "2/1/2006", "02-01-2006", "2-1-2006",
+	"02/01/06", "2/1/06", "02-01-06", "2-1-6",
+	"02 Jan 06", "2 Jan 06",
 	"2006-01-02",
 }
 

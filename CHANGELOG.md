@@ -6,6 +6,24 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Changed
+
+- **AI template prompt teaches by example.** The system prompt now carries two worked
+  examples (UPI debit with `Rs.`/`INR`, card spend with a month-name date) and rules
+  learned from real failures: capture the number only, never hardcode one currency
+  (`\p{Sc}` plus ISO codes, prefix or suffix), use `\s+` between words because
+  quoted-printable wraps sentences, bound merchant text with the following literal,
+  allow 2-digit years and `XX` account masks.
+- **Any currency parses.** Amounts accept symbols and ISO codes on either side
+  (`₹`, `Rs.`, `$`, `£`, `EUR`, `CHF`, …), both `1,234.56` and `1.234,56`, and
+  `12,50`.
+- **2-digit years parse.** `12-11-26`, `12/11/26` and `12 Nov 26` normalise to
+  `2026-11-12`; previously such dates failed with "date not parsed".
+- **Merchant names normalise whitespace**, so `BALAJI WINES WALK  IN` becomes
+  `BALAJI WINES WALK IN`.
+
 ## [0.10.7] — 2026-11-17
 
 ### Added

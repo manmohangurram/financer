@@ -131,3 +131,61 @@ func TestAmountAndAccountParsing(t *testing.T) {
 		t.Fatalf("short digits = %q", got)
 	}
 }
+
+func TestTemplateExtractHDFCSampleTwoDigitYear(t *testing.T) {
+	spec := TemplateSpec{
+		Name: "HDFC UPI debit",
+		Guards: TemplateGuards{
+			BodyContains: "debited",
+		},
+		Patterns: TemplatePatterns{
+			Amount:   `Rs\.?\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)`,
+			Debit:    `(?i)\bdebited\b`,
+			Credit:   `(?i)\bcredited\b`,
+			Account:  `(?i)account ending\s*(?P<account>\d{4})`,
+			Merchant: `(?i)towards VPA\s+\S+\s*\((?P<merchant>[^)]+)\)`,
+			Date:     `(?i)\bon\s+(?P<date>\d{2}-\d{2}-\d{2})`,
+		},
+	}
+	tpl, err := CompileTemplate(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "Rs.2050.00 is debited from your account ending 7713 towards VPA ******8172@ybl (BALAJI WINES WALK  IN) on 12-11-26."
+	match, matched := tpl.Extract("You have done a UPI txn. Check details!", body)
+	if !matched || match == nil || !match.Complete || match.Extraction == nil {
+		t.Fatalf("match = %+v matched=%v", match, matched)
+	}
+	e := match.Extraction
+	if e.Amount != 2050 || e.Direction != DirectionDebit {
+		t.Fatalf("extraction = %+v", e)
+	}
+	if e.AccountHint == nil || *e.AccountHint != "7713" {
+		t.Fatalf("account = %v", e.AccountHint)
+	}
+	if e.Merchant != "BALAJI WINES WALK IN" {
+		t.Fatalf("merchant = %q", e.Merchant)
+	}
+	if e.OccurredAt == nil || *e.OccurredAt != "2026-11-12" {
+		t.Fatalf("date = %v", e.OccurredAt)
+	}
+}
+
+func TestParseAmountValueFormats(t *testing.T) {
+	cases := map[string]float64{
+		"2050.00":    2050,
+		"Rs.2050.00": 2050,
+		"1,234.56":   1234.56,
+		"1.234,56":   1234.56,
+		"1,234":      1234,
+		"12,50":      12.5,
+		"1,234,567":  1234567,
+		"50.00":      50,
+	}
+	for raw, want := range cases {
+		got, err := parseAmountValue(raw)
+		if err != nil || got != want {
+			t.Fatalf("parseAmountValue(%q) = %v, %v; want %v", raw, got, err, want)
+		}
+	}
+}

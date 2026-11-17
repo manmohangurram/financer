@@ -65,7 +65,43 @@ Field rules:
   MIME boundaries and headers included), not a decoded or prettified version.
 - Every template in the array must parse every sample into amount (>0), exactly one
   direction, and a date (plus an account when an account pattern is present).
-  Do not invent values that are not in the sample.`
+  Do not invent values that are not in the sample.
+
+Worked examples. Copy these shapes and adapt the literals to the samples.
+
+Example 1 - UPI debit:
+  Text: Rs.2050.00 is debited from your account ending 7713 towards VPA ******8172@ybl (BALAJI WINES WALK  IN) on 12-11-26.
+  amount:   (?:(?:Rs\.?|INR|USD|EUR|GBP|AED|SGD)\s*|\p{Sc}\s*)?(?P<amount>[\d,]+(?:\.\d{1,2})?)
+  debit:    (?i)\bdebited\b
+  credit:   (?i)\bcredited\b
+  account:  (?i)account ending\s*(?P<account>\d{4})
+  merchant: (?i)towards VPA\s+\S+\s*\((?P<merchant>[^)]+)\)
+  date:     (?i)\bon\s+(?P<date>\d{1,2}[-/]\d{1,2}[-/]\d{2,4})
+
+Example 2 - card spend:
+  Text: INR 1,234.00 spent on your IDFC FIRST BANK Credit Card ending XX5678 at CAFE COFFEE DAY on 12 Nov 2026.
+  amount:   (?:(?:INR|Rs\.?|USD|EUR|GBP|AED|SGD)\s*|\p{Sc}\s*)?(?P<amount>[\d,]+(?:\.\d{1,2})?)
+  debit:    (?i)\bspent\b|(?i)\bdebited\b
+  credit:   (?i)\bcredited\b
+  account:  (?i)card ending\s*(?:XX)?(?P<account>\d{4})
+  merchant: (?i)\bat\s+(?P<merchant>.+?)\s+on\s+
+  date:     (?i)\bon\s+(?P<date>\d{1,2}[-/. ][A-Za-z]{3,9}[-/. ]\d{4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})
+
+Pattern-writing rules that come from real failures:
+- In amount, capture the NUMBER only. Put the currency in a non-capturing group so the
+  extractor never sees it.
+- Never hardcode one currency or one bank's prefix: accept any symbol with \p{Sc}, plus
+  the ISO codes that actually appear in the samples. Accept the currency before OR after
+  the number.
+- Use \s+ between words in long anchors: quoted-printable wrapping inserts soft line
+  breaks inside a sentence, so a literal single space can fail.
+- Bound free-text groups (merchant) with the literal that follows them. Never end a
+  pattern with a bare greedy .+; use .+? plus the next literal.
+- Accept 2-digit years and every date form visible in the samples; the extractor
+  normalises day/month/year order. Include a month-name form when a sample uses one.
+- Account is four digits; allow the XX or *** mask in front of it.
+- Match the operative wording only: "spent on your" is a debit for a card, so it belongs
+  in the debit pattern, and debit/credit must still never both match one sample.`
 
 // GenerateTemplates asks the model for template variants and validates each one
 // against every sample before returning it.

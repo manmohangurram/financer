@@ -105,9 +105,12 @@ func (TemplateExtractor) Extract(subject, body string) *Extraction {
 	}
 }
 
-// trimMerchant keeps only the merchant from "SWIGGY on 12/09/2026".
+// trimMerchant keeps only the merchant from "SWIGGY on 12/09/2026" and
+// normalises runs of whitespace (bank bodies often double-space names).
 func trimMerchant(raw string) string {
-	return strings.TrimRight(merchantTail.ReplaceAllString(raw, ""), "., ")
+	clean := merchantTail.ReplaceAllString(raw, "")
+	clean = strings.Join(strings.Fields(clean), " ")
+	return strings.TrimRight(clean, "., ")
 }
 
 // ResolveAccount returns the single account whose stored trailing digits match
