@@ -506,6 +506,8 @@ func components() map[string]any {
 			"failureThreshold":        map[string]any{"type": "integer"},
 			"cooldownMinutes":         map[string]any{"type": "integer"},
 			"autoPollThrottleMinutes": map[string]any{"type": "integer"},
+			"reasoningEnabled":        map[string]any{"type": "boolean"},
+			"reasoningEffort":         str(),
 			"updatedAt":               str(),
 		}),
 		"ReqLLMSettings": obj(map[string]any{
@@ -517,6 +519,8 @@ func components() map[string]any {
 			"failureThreshold":        map[string]any{"type": "integer"},
 			"cooldownMinutes":         map[string]any{"type": "integer"},
 			"autoPollThrottleMinutes": map[string]any{"type": "integer"},
+			"reasoningEnabled":        map[string]any{"type": "boolean"},
+			"reasoningEffort":         map[string]any{"type": "string", "enum": []any{"", "low", "medium", "high"}},
 		}),
 		"LLMTestResult": obj(map[string]any{
 			"ok": map[string]any{"type": "boolean"}, "message": str(),

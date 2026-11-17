@@ -6,6 +6,17 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Added
+
+- **Reasoning controls in Inbox AI:** an “Enable thinking” toggle and a Reasoning
+  effort select (provider default / low / medium / high) are stored per user and sent
+  as `thinking: {"type":"enabled"}` + `reasoning_effort`. Timeout now accepts up to
+  300 s, and thinking runs enforce a 120 s minimum.
+- JSON mode falls back automatically: if the provider rejects `response_format`, the
+  request is retried once without it and the JSON is parsed from the text.
+
 ## [0.9.1] — 2026-11-17
 
 ### Added

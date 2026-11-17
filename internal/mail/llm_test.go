@@ -108,3 +108,24 @@ func TestChatEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestChatPayloadIncludesReasoning(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"content": `{"templates":[]}`}}},
+		})
+	}))
+	defer srv.Close()
+	_, _ = GenerateTemplates(context.Background(), LLMSettings{
+		BaseURL: srv.URL, Model: "deepseek-flash", APIKey: "k",
+		ReasoningEnabled: true, ReasoningEffort: "high", Timeout: 5 * time.Second,
+	}, []LLMSample{{From: "a@b.c", Subject: "s", Body: "b"}})
+	if _, ok := got["thinking"]; !ok {
+		t.Fatal("thinking was not sent")
+	}
+	if got["reasoning_effort"] != "high" {
+		t.Fatalf("reasoning_effort = %v", got["reasoning_effort"])
+	}
+}

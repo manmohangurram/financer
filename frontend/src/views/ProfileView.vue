@@ -133,7 +133,9 @@ const llmForm = ref({
   minSamples: 3,
   failureThreshold: 3,
   cooldownMinutes: 60,
-  autoPollThrottleMinutes: 5
+  autoPollThrottleMinutes: 5,
+  reasoningEnabled: false,
+  reasoningEffort: ''
 });
 const apiKeySet = ref(false);
 const llmUpdatedAt = ref('');
@@ -155,7 +157,9 @@ async function loadLlm() {
       minSamples: s.minSamples || 3,
       failureThreshold: s.failureThreshold || 3,
       cooldownMinutes: s.cooldownMinutes || 60,
-      autoPollThrottleMinutes: s.autoPollThrottleMinutes || 5
+      autoPollThrottleMinutes: s.autoPollThrottleMinutes || 5,
+      reasoningEnabled: !!s.reasoningEnabled,
+      reasoningEffort: s.reasoningEffort || ''
     };
     apiKeySet.value = !!s.apiKeySet;
     llmUpdatedAt.value = s.updatedAt || '';
@@ -491,14 +495,30 @@ onMounted(() => {
           <details class="rounded-control border border-rule-soft px-3 py-2">
             <summary class="cursor-pointer text-[12.5px] text-ink-soft">Advanced</summary>
             <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <AppInput v-model.number="llmForm.timeoutSecs" label="Timeout (s)" type="number" min="5" max="120" />
+              <AppInput v-model.number="llmForm.timeoutSecs" label="Timeout (s)" type="number" min="5" max="300" />
               <AppInput v-model.number="llmForm.minSamples" label="Samples to activate" type="number" min="1" max="10" />
               <AppInput v-model.number="llmForm.cooldownMinutes" label="Cooldown (min)" type="number" min="5" max="1440" />
               <AppInput v-model.number="llmForm.autoPollThrottleMinutes" label="Poll throttle (min)" type="number" min="1" max="60" />
             </div>
-            <div class="mt-3 max-w-[220px]">
+            <div class="mt-3 grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <AppInput v-model.number="llmForm.failureThreshold" label="Failures before rebuild" type="number" min="1" max="10" />
+              <label class="flex h-[38px] items-center gap-2 self-end rounded-control border border-rule bg-page-sunk px-3 text-[13px] text-ink">
+                <input v-model="llmForm.reasoningEnabled" type="checkbox" class="checkbox checkbox-sm" />
+                Enable thinking
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Reasoning effort</span>
+                <select v-model="llmForm.reasoningEffort" class="select select-bordered w-full text-[13.5px]" :disabled="!llmForm.reasoningEnabled">
+                  <option value="">Provider default</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
             </div>
+            <p class="mt-2 text-[11.5px] text-ink-mute">
+              Thinking is for providers that support it (DeepSeek). It is slower — raise the timeout to 120–300s.
+            </p>
           </details>
 
           <p v-if="llmUpdatedAt" class="text-[11px] text-ink-faint">Last saved {{ formatDate(llmUpdatedAt) }}</p>

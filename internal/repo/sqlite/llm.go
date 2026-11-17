@@ -18,15 +18,17 @@ func NewLLMSettingsRepo(db *sql.DB) *LLMSettingsRepo {
 
 func (r *LLMSettingsRepo) Get(userID string) (*repo.LLMSettingsRow, error) {
 	var s repo.LLMSettingsRow
-	var enabled int
+	var enabled, reasoning int
 	err := r.db.QueryRow(
 		`SELECT base_url, model, api_key_enc, timeout_secs, enabled, min_samples,
-		        failure_threshold, cooldown_minutes, auto_poll_throttle_minutes, updated_at
+		        failure_threshold, cooldown_minutes, auto_poll_throttle_minutes,
+		        reasoning_enabled, reasoning_effort, updated_at
 		 FROM user_llm_settings WHERE user_id = ?`,
 		userID,
 	).Scan(
 		&s.BaseURL, &s.Model, &s.APIKeyEnc, &s.TimeoutSecs, &enabled, &s.MinSamples,
-		&s.FailureThreshold, &s.CooldownMinutes, &s.AutoPollThrottleMinutes, &s.UpdatedAt,
+		&s.FailureThreshold, &s.CooldownMinutes, &s.AutoPollThrottleMinutes,
+		&reasoning, &s.ReasoningEffort, &s.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -36,6 +38,7 @@ func (r *LLMSettingsRepo) Get(userID string) (*repo.LLMSettingsRow, error) {
 	}
 	s.UserID = userID
 	s.Enabled = enabled != 0
+	s.ReasoningEnabled = reasoning != 0
 	return &s, nil
 }
 
@@ -44,8 +47,9 @@ func (r *LLMSettingsRepo) Upsert(s *repo.LLMSettingsRow) error {
 	_, err := r.db.Exec(
 		`INSERT INTO user_llm_settings
 			(user_id, base_url, model, api_key_enc, timeout_secs, enabled,
-			 min_samples, failure_threshold, cooldown_minutes, auto_poll_throttle_minutes, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 min_samples, failure_threshold, cooldown_minutes, auto_poll_throttle_minutes,
+			 reasoning_enabled, reasoning_effort, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(user_id) DO UPDATE SET
 			base_url = excluded.base_url,
 			model = excluded.model,
@@ -56,9 +60,12 @@ func (r *LLMSettingsRepo) Upsert(s *repo.LLMSettingsRow) error {
 			failure_threshold = excluded.failure_threshold,
 			cooldown_minutes = excluded.cooldown_minutes,
 			auto_poll_throttle_minutes = excluded.auto_poll_throttle_minutes,
+			reasoning_enabled = excluded.reasoning_enabled,
+			reasoning_effort = excluded.reasoning_effort,
 			updated_at = excluded.updated_at`,
 		s.UserID, s.BaseURL, s.Model, s.APIKeyEnc, s.TimeoutSecs, boolToInt(s.Enabled),
-		s.MinSamples, s.FailureThreshold, s.CooldownMinutes, s.AutoPollThrottleMinutes, s.UpdatedAt,
+		s.MinSamples, s.FailureThreshold, s.CooldownMinutes, s.AutoPollThrottleMinutes,
+		boolToInt(s.ReasoningEnabled), s.ReasoningEffort, s.UpdatedAt,
 	)
 	return err
 }

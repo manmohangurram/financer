@@ -12,6 +12,8 @@ type LLMSettingsRow struct {
 	FailureThreshold        int64
 	CooldownMinutes         int64
 	AutoPollThrottleMinutes int64
+	ReasoningEnabled        bool
+	ReasoningEffort         string
 	UpdatedAt               string
 }
 

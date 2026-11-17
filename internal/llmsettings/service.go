@@ -73,11 +73,22 @@ func (s *Service) Update(userID string, req model.ReqLLMSettings) (*model.LLMSet
 		return nil, errors.BadRequest("model must be at most 100 characters")
 	}
 
-	timeout := clampDefault(req.TimeoutSecs, defaultTimeout, 5, 120)
+	timeout := clampDefault(req.TimeoutSecs, defaultTimeout, 5, 300)
 	samples := clampDefault(req.MinSamples, defaultSamples, 1, 10)
 	failures := clampDefault(req.FailureThreshold, defaultFailures, 1, 10)
 	cooldown := clampDefault(req.CooldownMinutes, defaultCooldown, 5, 1440)
 	throttle := clampDefault(req.AutoPollThrottleMinutes, defaultThrottle, 1, 60)
+	reasoning := false
+	if req.ReasoningEnabled != nil {
+		reasoning = *req.ReasoningEnabled
+	}
+	effort := strings.ToLower(strings.TrimSpace(req.ReasoningEffort))
+	if effort != "" && effort != "low" && effort != "medium" && effort != "high" {
+		return nil, errors.BadRequest("reasoningEffort must be low, medium or high")
+	}
+	if !reasoning {
+		effort = ""
+	}
 
 	existing, err := s.repo.Get(userID)
 	if err != nil {
@@ -110,6 +121,7 @@ func (s *Service) Update(userID string, req model.ReqLLMSettings) (*model.LLMSet
 		TimeoutSecs: timeout, Enabled: enabled, MinSamples: samples,
 		FailureThreshold: failures, CooldownMinutes: cooldown,
 		AutoPollThrottleMinutes: throttle,
+		ReasoningEnabled:        reasoning, ReasoningEffort: effort,
 	}
 	if err := s.repo.Upsert(row); err != nil {
 		return nil, err
@@ -144,7 +156,8 @@ func (s *Service) Config(userID string) (*mail.LLMSettings, error) {
 	}
 	return &mail.LLMSettings{
 		BaseURL: row.BaseURL, APIKey: key, Model: row.Model,
-		Timeout: time.Duration(row.TimeoutSecs) * time.Second,
+		Timeout:          time.Duration(row.TimeoutSecs) * time.Second,
+		ReasoningEnabled: row.ReasoningEnabled, ReasoningEffort: row.ReasoningEffort,
 	}, nil
 }
 
@@ -157,7 +170,7 @@ func (s *Service) Test(ctx context.Context, userID string) error {
 	if cfg == nil {
 		return errors.BadRequest("Inbox AI is not configured")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	return mail.TestLLM(ctx, *cfg)
 }
@@ -227,6 +240,8 @@ func toWire(row *repo.LLMSettingsRow) *model.LLMSettings {
 		MinSamples: row.MinSamples, FailureThreshold: row.FailureThreshold,
 		CooldownMinutes:         row.CooldownMinutes,
 		AutoPollThrottleMinutes: row.AutoPollThrottleMinutes,
+		ReasoningEnabled:        row.ReasoningEnabled,
+		ReasoningEffort:         row.ReasoningEffort,
 		UpdatedAt:               tim.TSRFC3339(row.UpdatedAt),
 	}
 }

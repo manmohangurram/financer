@@ -38,7 +38,7 @@ func TestMigrationsApply(t *testing.T) {
 	if len(versions) == 0 || !strings.HasPrefix(versions[0], "000001_initial_schema") {
 		t.Fatalf("applied migrations = %v, want the baseline first", versions)
 	}
-	if versions[len(versions)-1] != "000005_mail_sender_index.up.sql" {
+	if versions[len(versions)-1] != "000006_llm_reasoning.up.sql" {
 		t.Fatalf("last migration = %q", versions[len(versions)-1])
 	}
 

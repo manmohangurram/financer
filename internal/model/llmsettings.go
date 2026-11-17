@@ -14,6 +14,8 @@ type LLMSettings struct {
 	FailureThreshold        int64  `json:"failureThreshold"`
 	CooldownMinutes         int64  `json:"cooldownMinutes"`
 	AutoPollThrottleMinutes int64  `json:"autoPollThrottleMinutes"`
+	ReasoningEnabled        bool   `json:"reasoningEnabled"`
+	ReasoningEffort         string `json:"reasoningEffort"`
 	UpdatedAt               string `json:"updatedAt"`
 }
 
@@ -29,6 +31,8 @@ type ReqLLMSettings struct {
 	FailureThreshold        int64           `json:"failureThreshold"`
 	CooldownMinutes         int64           `json:"cooldownMinutes"`
 	AutoPollThrottleMinutes int64           `json:"autoPollThrottleMinutes"`
+	ReasoningEnabled        *bool           `json:"reasoningEnabled"`
+	ReasoningEffort         string          `json:"reasoningEffort"`
 }
 
 // LLMTestResult is the response of the settings test action.

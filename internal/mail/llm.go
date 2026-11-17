@@ -21,6 +21,10 @@ type LLMSettings struct {
 	APIKey  string
 	Model   string
 	Timeout time.Duration
+
+	// Reasoning controls are sent only when enabled (DeepSeek thinking mode).
+	ReasoningEnabled bool
+	ReasoningEffort  string
 }
 
 // LLMSample is one email given to the model as evidence.
@@ -133,19 +137,26 @@ func chat(ctx context.Context, settings LLMSettings, messages []map[string]strin
 	if timeout <= 0 {
 		timeout = 20 * time.Second
 	}
+	// Thinking models are slower than a plain chat: never use less than 2 min.
+	if settings.ReasoningEnabled && timeout < 120*time.Second {
+		timeout = 120 * time.Second
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	body, err := json.Marshal(map[string]any{
+	payload := map[string]any{
 		"model":       settings.Model,
 		"messages":    messages,
 		"temperature": 0,
 		"response_format": map[string]string{
 			"type": "json_object",
 		},
-	})
-	if err != nil {
-		return "", err
+	}
+	if settings.ReasoningEnabled {
+		payload["thinking"] = map[string]string{"type": "enabled"}
+		if settings.ReasoningEffort != "" {
+			payload["reasoning_effort"] = settings.ReasoningEffort
+		}
 	}
 	endpoint := chatEndpoint(settings.BaseURL)
 	target, err := url.Parse(endpoint)
@@ -155,23 +166,48 @@ func chat(ctx context.Context, settings LLMSettings, messages []map[string]strin
 	if err := netguard.Resolve(target.Hostname()); err != nil {
 		return "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("building LLM request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if settings.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+settings.APIKey)
+	attempt := func(withJSONMode bool) (*http.Response, []byte, error) {
+		payloadCopy := make(map[string]any, len(payload))
+		for k, v := range payload {
+			payloadCopy[k] = v
+		}
+		if !withJSONMode {
+			delete(payloadCopy, "response_format")
+		}
+		body, marshalErr := json.Marshal(payloadCopy)
+		if marshalErr != nil {
+			return nil, nil, marshalErr
+		}
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if reqErr != nil {
+			return nil, nil, fmt.Errorf("building LLM request: %w", reqErr)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if settings.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+settings.APIKey)
+		}
+		resp, doErr := http.DefaultClient.Do(req)
+		if doErr != nil {
+			return nil, nil, fmt.Errorf("LLM request failed: %w", doErr)
+		}
+		defer resp.Body.Close()
+		raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		if readErr != nil {
+			return resp, nil, fmt.Errorf("reading LLM response: %w", readErr)
+		}
+		return resp, raw, nil
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, raw, err := attempt(true)
 	if err != nil {
-		return "", fmt.Errorf("LLM request failed: %w", err)
+		return "", err
 	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return "", fmt.Errorf("reading LLM response: %w", err)
+	if resp.StatusCode == http.StatusBadRequest && bytes.Contains(raw, []byte("response_format")) {
+		// Some reasoning endpoints reject JSON mode; retry once without it.
+		resp, raw, err = attempt(false)
+		if err != nil {
+			return "", err
+		}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return "", fmt.Errorf("LLM returned HTTP %d: %s", resp.StatusCode, truncate(string(raw), 200))
