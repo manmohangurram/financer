@@ -129,3 +129,17 @@ func TestChatPayloadIncludesReasoning(t *testing.T) {
 		t.Fatalf("reasoning_effort = %v", got["reasoning_effort"])
 	}
 }
+
+func TestGenerateTemplatesReportsValidationReason(t *testing.T) {
+	spec := debitTemplate("alerts@bank.com")
+	srv, _ := fakeLiteLLM(t, testSpecJSON(spec), http.StatusOK)
+	_, err := GenerateTemplates(context.Background(), LLMSettings{
+		BaseURL: srv.URL, Model: "deepseek", APIKey: "test-key", Timeout: 5 * time.Second,
+	}, []LLMSample{{From: "alerts@bank.com", Subject: "Debited", Body: "No numbers here."}})
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "sample 1") {
+		t.Fatalf("error should name the failing sample: %v", err)
+	}
+}

@@ -35,10 +35,30 @@ type LLMSample struct {
 }
 
 const templateSystemPrompt = `You generate parsing templates for bank transaction alert emails.
-Return ONLY JSON: {"templates":[{"name":string,"guards":{"subject_contains":string,"body_contains":string,"body_not_contains":[string]},"patterns":{"amount":string,"debit":string,"credit":string,"account":string,"merchant":string,"date":string}}]}.
-Patterns are Go RE2 regexes. amount/date are required; debit or credit is required; account/merchant are optional.
-Use named capture groups amount, account, merchant, date where possible. Guards must be short literal substrings, not regexes.
-Every template must parse every sample into amount (>0), direction, and date. Do not invent fields.`
+
+Return ONE JSON object and nothing else. Its shape is exactly:
+
+{"templates":[{
+  "name":"short label",
+  "guards":{"subject_contains":"literal text","body_contains":"literal text","body_not_contains":["OTP"]},
+  "patterns":{"amount":"regex","debit":"regex","credit":"regex","account":"regex","merchant":"regex","date":"regex"}
+}]}
+
+That object is the only thing Financer reads: it validates it, stores exactly these
+fields, and later runs the regexes to extract transactions. Do not add fields, do not
+wrap it in prose or markdown, and do not return a different shape.
+
+Field rules:
+- guards: literal substrings (not regex). Use "" or [] when not needed.
+- patterns are Go RE2 regexes: no lookaround, no backreferences.
+- amount and date are required; debit or credit is required; account and merchant are optional.
+- Use named capture groups amount, account, merchant, date where applicable.
+- The samples below are COMPLETE raw RFC822 messages with headers. Patterns run against
+  that exact text, so they must match the raw message (quoted-printable line breaks,
+  MIME boundaries and headers included), not a decoded or prettified version.
+- Every template in the array must parse every sample into amount (>0), exactly one
+  direction, and a date (plus an account when an account pattern is present).
+  Do not invent values that are not in the sample.`
 
 // GenerateTemplates asks the model for template variants and validates each one
 // against every sample before returning it.
@@ -75,34 +95,75 @@ func GenerateTemplates(ctx context.Context, settings LLMSettings, samples []LLMS
 	}
 	content = stripCodeFence(content)
 
+	accepted, reasons := validateCandidates(content, samples)
+	if len(accepted) == 0 {
+		// One corrective round: feed the validation reasons back to the model.
+		retry := sb.String() + "\n\nYour previous answer failed validation:\n- " +
+			strings.Join(reasons, "\n- ") +
+			"\n\nReturn corrected JSON only. Patterns must match the raw sample text above."
+		second, err := chat(ctx, settings, []map[string]string{
+			{"role": "system", "content": templateSystemPrompt},
+			{"role": "user", "content": retry},
+		})
+		if err == nil {
+			retryAccepted, more := validateCandidates(stripCodeFence(second), samples)
+			if len(retryAccepted) > 0 {
+				accepted = retryAccepted
+			}
+			reasons = append(reasons, more...)
+		}
+	}
+	if len(accepted) == 0 {
+		if len(reasons) > 4 {
+			reasons = reasons[:4]
+		}
+		return nil, fmt.Errorf("LLM produced no template that parses every sample: %s", strings.Join(reasons, "; "))
+	}
+	return accepted, nil
+}
+
+// validateCandidates compiles the model output and applies each template to every
+// sample, returning the accepted specs and why the others were rejected.
+func validateCandidates(content string, samples []LLMSample) ([]TemplateSpec, []string) {
 	var payload struct {
 		Templates []TemplateSpec `json:"templates"`
 	}
 	if err := json.Unmarshal([]byte(content), &payload); err != nil {
-		// Some models return a bare array.
 		var direct []TemplateSpec
 		if err2 := json.Unmarshal([]byte(content), &direct); err2 != nil {
-			return nil, fmt.Errorf("LLM returned unreadable JSON: %w", err)
+			return nil, []string{"unreadable JSON"}
 		}
 		payload.Templates = direct
 	}
 
 	var accepted []TemplateSpec
+	var reasons []string
 	seen := map[string]bool{}
 	for _, spec := range payload.Templates {
 		tpl, err := CompileTemplate(spec)
 		if err != nil {
+			reasons = append(reasons, err.Error())
 			continue
 		}
-		ok := true
-		for _, sample := range samples {
+		failed := ""
+		for i, sample := range samples {
 			match, matched := tpl.Extract(sample.Subject, sample.Body)
-			if !matched || match == nil || !match.Complete || match.Extraction == nil {
-				ok = false
+			switch {
+			case !matched:
+				failed = fmt.Sprintf("template %q guards did not match sample %d", spec.Name, i+1)
+			case match == nil || match.Extraction == nil || !match.Complete:
+				reason := "incomplete"
+				if match != nil && match.Reason != "" {
+					reason = match.Reason
+				}
+				failed = fmt.Sprintf("template %q sample %d: %s", spec.Name, i+1, reason)
+			}
+			if failed != "" {
 				break
 			}
 		}
-		if !ok {
+		if failed != "" {
+			reasons = append(reasons, failed)
 			continue
 		}
 		key := spec.Name + "|" + spec.Guards.SubjectContains + "|" + spec.Guards.BodyContains + "|" + spec.Patterns.Amount
@@ -112,10 +173,7 @@ func GenerateTemplates(ctx context.Context, settings LLMSettings, samples []LLMS
 		seen[key] = true
 		accepted = append(accepted, spec)
 	}
-	if len(accepted) == 0 {
-		return nil, fmt.Errorf("LLM produced no template that parses every sample")
-	}
-	return accepted, nil
+	return accepted, reasons
 }
 
 // TestLLM performs a tiny request to verify the endpoint/model/key.

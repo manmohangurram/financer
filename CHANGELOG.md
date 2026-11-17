@@ -6,6 +6,14 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Fixed
+
+- Template generation no longer fails silently: rejected candidates now report which
+  sample and field failed, the prompt states that samples are raw RFC822 text, and a
+  failed round is retried once with those reasons fed back to the model.
+
 ## [0.10.0] — 2026-11-17
 
 ### Added
