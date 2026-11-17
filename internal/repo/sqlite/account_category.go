@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	cursorlib "github.com/mohan9182/financer/internal/cursor"
 	"github.com/mohan9182/financer/internal/repo"
 )
 
@@ -89,6 +90,44 @@ func (r *AccountRepo) List(userID string) ([]*repo.AccountRow, error) {
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+// ListPage returns one keyset page of accounts plus the next token.
+func (r *AccountRepo) ListPage(userID string, limit int64, cursor *repo.AccountCursor) ([]*repo.AccountRow, string, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	query := "SELECT id, bank_name, nickname, balance, type, ending_numbers, CAST(created_at AS TEXT) FROM accounts WHERE user_id = ?"
+	args := []any{userID}
+	if cursor != nil {
+		query += " AND (created_at < ? OR (created_at = ? AND id < ?))"
+		args = append(args, cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+	}
+	query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+	args = append(args, limit+1)
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+	var out []*repo.AccountRow
+	for rows.Next() {
+		a, err := scanAccountRow(rows)
+		if err != nil {
+			return nil, "", err
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	next := ""
+	if int64(len(out)) > limit {
+		out = out[:limit]
+		last := out[len(out)-1]
+		next = cursorlib.Encode(last.CreatedAt, last.ID)
+	}
+	return out, next, nil
 }
 
 func (r *AccountRepo) SumBalance(userID string) (float64, error) {

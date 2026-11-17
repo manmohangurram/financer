@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mohan9182/financer/internal/accountservice"
+	cursorlib "github.com/mohan9182/financer/internal/cursor"
 	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/llmsettings"
 	"github.com/mohan9182/financer/internal/mail"
@@ -133,6 +134,30 @@ func (s *Service) List(userID string) ([]*model.MailAccount, error) {
 		out = append(out, accountWire(row))
 	}
 	return out, nil
+}
+
+// ListPage returns one cursor page of mailboxes and the next token.
+func (s *Service) ListPage(userID string, limit int64, pageToken string) ([]*model.MailAccount, string, error) {
+	values, err := cursorlib.Decode(pageToken)
+	if err != nil {
+		return nil, "", err
+	}
+	var cur *repo.MailAccountCursor
+	if values != nil {
+		if len(values) != 2 {
+			return nil, "", errors.BadRequest("invalid pageToken")
+		}
+		cur = &repo.MailAccountCursor{CreatedAt: values[0], ID: values[1]}
+	}
+	rows, next, err := s.repo.ListAccountsPage(userID, limit, cur)
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]*model.MailAccount, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, accountWire(row))
+	}
+	return out, next, nil
 }
 
 func (s *Service) Delete(userID, id string) error {
@@ -660,6 +685,34 @@ func (s *Service) Rules(userID string) ([]*model.MailRule, error) {
 		out = append(out, ruleWire(row))
 	}
 	return out, nil
+}
+
+// RulesPage returns one cursor page of mail rules and the next token.
+func (s *Service) RulesPage(userID string, limit int64, pageToken string) ([]*model.MailRule, string, error) {
+	values, err := cursorlib.Decode(pageToken)
+	if err != nil {
+		return nil, "", err
+	}
+	var cur *repo.MailRuleCursor
+	if values != nil {
+		if len(values) != 3 {
+			return nil, "", errors.BadRequest("invalid pageToken")
+		}
+		position, err := strconv.ParseInt(values[0], 10, 64)
+		if err != nil {
+			return nil, "", errors.BadRequest("invalid pageToken")
+		}
+		cur = &repo.MailRuleCursor{Position: position, CreatedAt: values[1], ID: values[2]}
+	}
+	rows, next, err := s.repo.ListRulesPage(userID, limit, cur)
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]*model.MailRule, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ruleWire(row))
+	}
+	return out, next, nil
 }
 
 func (s *Service) CreateRule(userID string, req model.ReqMailRule) (*model.MailRule, error) {

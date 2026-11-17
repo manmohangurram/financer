@@ -106,7 +106,8 @@ type MailActionOutcome struct {
 
 // WireMailAccounts is the GET /api/mail/accounts response.
 type WireMailAccounts struct {
-	Accounts []*MailAccount `json:"accounts"`
+	Accounts      []*MailAccount `json:"accounts"`
+	NextPageToken string         `json:"nextPageToken"`
 }
 
 // WireMailMessages is the GET /api/mail/messages response.
@@ -119,7 +120,8 @@ type WireMailMessages struct {
 
 // WireMailRules is the GET /api/mail/rules response.
 type WireMailRules struct {
-	Rules []*MailRule `json:"rules"`
+	Rules         []*MailRule `json:"rules"`
+	NextPageToken string      `json:"nextPageToken"`
 }
 
 // WirePollStatus is the async poll trigger response.

@@ -4,6 +4,9 @@
 package ruleservice
 
 import (
+	"strconv"
+
+	cursorlib "github.com/mohan9182/financer/internal/cursor"
 	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/model"
 	"github.com/mohan9182/financer/internal/repo"
@@ -77,6 +80,34 @@ func (s *Service) List(userID string) ([]*model.RuleResponse, error) {
 		out = append(out, toRuleResponse(row))
 	}
 	return out, nil
+}
+
+// ListPage returns one cursor page of rules and the next token.
+func (s *Service) ListPage(userID string, limit int64, pageToken string) ([]*model.RuleResponse, string, error) {
+	values, err := cursorlib.Decode(pageToken)
+	if err != nil {
+		return nil, "", err
+	}
+	var cur *repo.RuleCursor
+	if values != nil {
+		if len(values) != 3 {
+			return nil, "", errors.BadRequest("invalid pageToken")
+		}
+		priority, err := strconv.ParseInt(values[0], 10, 64)
+		if err != nil {
+			return nil, "", errors.BadRequest("invalid pageToken")
+		}
+		cur = &repo.RuleCursor{Priority: priority, Name: values[1], ID: values[2]}
+	}
+	rows, next, err := s.rules.ListPage(userID, limit, cur)
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]*model.RuleResponse, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toRuleResponse(row))
+	}
+	return out, next, nil
 }
 
 // Overlay applies every matching rule's actions to each view, in priority

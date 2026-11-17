@@ -46,6 +46,17 @@ func peerIsLoopback(remoteAddr string) bool {
 
 func (a *API) listMailAccounts(c *gin.Context) {
 	uid := c.GetString(userIDKey)
+	pageSize := int64(parseInt(c.Query("pageSize"), 0))
+	pageToken := c.Query("pageToken")
+	if pageSize > 0 || pageToken != "" {
+		accounts, next, err := a.mailSvc.ListPage(uid, pageSize, pageToken)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, model.WireMailAccounts{Accounts: accounts, NextPageToken: next})
+		return
+	}
 	accounts, err := a.mailSvc.List(uid)
 	if err != nil {
 		writeError(c, err)
@@ -162,6 +173,17 @@ func (a *API) mailAct(c *gin.Context) {
 
 func (a *API) listMailRules(c *gin.Context) {
 	uid := c.GetString(userIDKey)
+	pageSize := int64(parseInt(c.Query("pageSize"), 0))
+	pageToken := c.Query("pageToken")
+	if pageSize > 0 || pageToken != "" {
+		rules, next, err := a.mailSvc.RulesPage(uid, pageSize, pageToken)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, model.WireMailRules{Rules: rules, NextPageToken: next})
+		return
+	}
 	rules, err := a.mailSvc.Rules(uid)
 	if err != nil {
 		writeError(c, err)

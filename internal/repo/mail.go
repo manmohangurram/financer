@@ -111,6 +111,7 @@ type MailRuleRow struct {
 	Action          MailRuleAction
 	AccountID       *string
 	CategoryIDs     []string
+	CreatedAt       string
 }
 
 // MailRuleInput is a create/update rule payload.
@@ -125,10 +126,20 @@ type MailRuleInput struct {
 	CategoryIDs     []string
 }
 
-// MailCursor is the stable position of the last row on a queue page. RowID is
-// SQLite's insertion-ordered key, so the cursor never depends on timestamp text.
 type MailCursor struct {
 	RowID int64
+}
+
+// MailAccountCursor / MailRuleCursor are keyset positions for the small lists.
+type MailAccountCursor struct {
+	CreatedAt string
+	ID        string
+}
+
+type MailRuleCursor struct {
+	Position  int64
+	CreatedAt string
+	ID        string
 }
 
 // MailRepo is the backend-agnostic mail-ingest repository.
@@ -136,6 +147,7 @@ type MailRepo interface {
 	CreateAccount(userID string, input *NewMailAccount) (*MailAccountRow, error)
 	UpdateAccount(userID, id, label, host string, port int64, username, secretEnc string, enabled bool) (bool, error)
 	ListAccounts(userID string) ([]*MailAccountRow, error)
+	ListAccountsPage(userID string, limit int64, cursor *MailAccountCursor) ([]*MailAccountRow, string, error)
 	DeleteAccount(userID, id string) (bool, error)
 	ListPollableAccounts() ([]*MailAccountRow, error)
 	MarkPolled(accountID, errMsg string) error
@@ -148,6 +160,7 @@ type MailRepo interface {
 	GetMessage(userID, id string) (*MailMessageRow, error)
 	ResolveMessage(userID, id string, status MailStatus, approvedJSON, transactionID *string) (bool, error)
 	ListRules(userID string) ([]*MailRuleRow, error)
+	ListRulesPage(userID string, limit int64, cursor *MailRuleCursor) ([]*MailRuleRow, string, error)
 	CreateRule(userID string, input *MailRuleInput) (*MailRuleRow, error)
 	UpdateRule(userID, id string, input *MailRuleInput) (bool, error)
 	DeleteRule(userID, id string) (bool, error)

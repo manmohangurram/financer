@@ -2,9 +2,11 @@ package sqlite
 
 import (
 	"database/sql"
+	"strconv"
 
 	"github.com/google/uuid"
 
+	cursorlib "github.com/mohan9182/financer/internal/cursor"
 	"github.com/mohan9182/financer/internal/repo"
 	tim "github.com/mohan9182/financer/internal/time"
 )
@@ -146,6 +148,52 @@ func (r *RuleRepo) List(userID string) ([]*repo.RuleRow, error) {
 		}
 	}
 	return rules, nil
+}
+
+// ListPage returns one keyset page plus the token for the next one.
+func (r *RuleRepo) ListPage(userID string, limit int64, cursor *repo.RuleCursor) ([]*repo.RuleRow, string, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	query := "SELECT id, name, priority, logic, created_at FROM rules WHERE user_id = ?"
+	args := []any{userID}
+	if cursor != nil {
+		query += " AND (priority < ? OR (priority = ? AND (name > ? OR (name = ? AND id > ?))))"
+		args = append(args, cursor.Priority, cursor.Priority, cursor.Name, cursor.Name, cursor.ID)
+	}
+	query += " ORDER BY priority DESC, name ASC, id ASC LIMIT ?"
+	args = append(args, limit+1)
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+	var rules []*repo.RuleRow
+	for rows.Next() {
+		var row repo.RuleRow
+		if err := rows.Scan(&row.ID, &row.Name, &row.Priority, &row.Logic, &row.CreatedAt); err != nil {
+			return nil, "", err
+		}
+		rules = append(rules, &row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	next := ""
+	if int64(len(rules)) > limit {
+		rules = rules[:limit]
+		last := rules[len(rules)-1]
+		next = cursorlib.Encode(strconv.FormatInt(last.Priority, 10), last.Name, last.ID)
+	}
+	for _, row := range rules {
+		if row.Conditions, err = r.conditionsForRule(row.ID); err != nil {
+			return nil, "", err
+		}
+		if row.Actions, err = r.actionsForRule(row.ID); err != nil {
+			return nil, "", err
+		}
+	}
+	return rules, next, nil
 }
 
 func (r *RuleRepo) ListForOverlay(userID string) ([]*repo.OverlayRule, error) {

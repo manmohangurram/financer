@@ -4,6 +4,7 @@ package accountservice
 import (
 	"math"
 
+	cursorlib "github.com/mohan9182/financer/internal/cursor"
 	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/model"
 	"github.com/mohan9182/financer/internal/repo"
@@ -71,6 +72,30 @@ func (s *Service) List(userID string) ([]*model.AccountResponse, error) {
 		out = append(out, fromRow(r))
 	}
 	return out, nil
+}
+
+// ListPage returns one cursor page of accounts and the next token.
+func (s *Service) ListPage(userID string, limit int64, pageToken string) ([]*model.AccountResponse, string, error) {
+	values, err := cursorlib.Decode(pageToken)
+	if err != nil {
+		return nil, "", err
+	}
+	var cur *repo.AccountCursor
+	if values != nil {
+		if len(values) != 2 {
+			return nil, "", errors.BadRequest("invalid pageToken")
+		}
+		cur = &repo.AccountCursor{CreatedAt: values[0], ID: values[1]}
+	}
+	rows, next, err := s.repo.ListPage(userID, limit, cur)
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]*model.AccountResponse, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, fromRow(r))
+	}
+	return out, next, nil
 }
 
 func (s *Service) SumBalance(userID string) (float64, error) {

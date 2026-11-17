@@ -39,7 +39,8 @@ type ReqAccount struct {
 }
 
 type ListAccountsResult struct {
-	Accounts []AccountResponse `json:"accounts"`
+	Accounts      []AccountResponse `json:"accounts"`
+	NextPageToken string            `json:"nextPageToken"`
 }
 
 type CategoryRow struct {

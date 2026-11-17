@@ -3,10 +3,12 @@ package sqlite
 import (
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 
+	cursorlib "github.com/mohan9182/financer/internal/cursor"
 	"github.com/mohan9182/financer/internal/repo"
 	tim "github.com/mohan9182/financer/internal/time"
 )
@@ -362,7 +364,76 @@ func (r *MailRepo) ResolveMessage(userID, id string, status repo.MailStatus, app
 	return n > 0, nil
 }
 
-const mailRuleColumns = "id, position, enabled, from_pattern, subject_contains, body_contains, action, account_id, category_ids"
+const mailRuleColumns = "id, position, enabled, from_pattern, subject_contains, body_contains, action, account_id, category_ids, CAST(created_at AS TEXT)"
+
+// ListAccountsPage returns one keyset page of mailboxes plus the next token.
+func (r *MailRepo) ListAccountsPage(userID string, limit int64, cursor *repo.MailAccountCursor) ([]*repo.MailAccountRow, string, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	query := "SELECT id, user_id, label, imap_host, imap_port, username, secret_enc, enabled, last_polled_at, last_error, CAST(created_at AS TEXT) FROM mail_accounts WHERE user_id = ?"
+	args := []any{userID}
+	if cursor != nil {
+		query += " AND (created_at > ? OR (created_at = ? AND id > ?))"
+		args = append(args, cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+	}
+	query += " ORDER BY created_at, id LIMIT ?"
+	args = append(args, limit+1)
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+	out, err := scanMailAccounts(rows)
+	if err != nil {
+		return nil, "", err
+	}
+	next := ""
+	if int64(len(out)) > limit {
+		out = out[:limit]
+		last := out[len(out)-1]
+		next = cursorlib.Encode(last.CreatedAt, last.ID)
+	}
+	return out, next, nil
+}
+
+// ListRulesPage returns one keyset page of mail rules plus the next token.
+func (r *MailRepo) ListRulesPage(userID string, limit int64, cursor *repo.MailRuleCursor) ([]*repo.MailRuleRow, string, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	query := "SELECT " + mailRuleColumns + " FROM mail_rules WHERE user_id = ?"
+	args := []any{userID}
+	if cursor != nil {
+		query += " AND (position > ? OR (position = ? AND (created_at > ? OR (created_at = ? AND id > ?))))"
+		args = append(args, cursor.Position, cursor.Position, cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+	}
+	query += " ORDER BY position, created_at, id LIMIT ?"
+	args = append(args, limit+1)
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, "", err
+	}
+	defer rows.Close()
+	var out []*repo.MailRuleRow
+	for rows.Next() {
+		rule, err := scanMailRule(rows)
+		if err != nil {
+			return nil, "", err
+		}
+		out = append(out, rule)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	next := ""
+	if int64(len(out)) > limit {
+		out = out[:limit]
+		last := out[len(out)-1]
+		next = cursorlib.Encode(strconv.FormatInt(last.Position, 10), last.CreatedAt, last.ID)
+	}
+	return out, next, nil
+}
 
 func (r *MailRepo) ListRules(userID string) ([]*repo.MailRuleRow, error) {
 	rows, err := r.db.Query(
@@ -455,7 +526,7 @@ func scanMailRule(rows *sql.Rows) (*repo.MailRuleRow, error) {
 	var catJSON string
 	if err := rows.Scan(
 		&rule.ID, &rule.Position, &enabled, &rule.FromPattern, &rule.SubjectContains,
-		&rule.BodyContains, &action, &accountID, &catJSON,
+		&rule.BodyContains, &action, &accountID, &catJSON, &rule.CreatedAt,
 	); err != nil {
 		return nil, err
 	}

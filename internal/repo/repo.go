@@ -33,12 +33,18 @@ type AccountRow struct {
 	CreatedAt     string
 }
 
+type AccountCursor struct {
+	CreatedAt string
+	ID        string
+}
+
 type AccountRepo interface {
 	Create(userID, bankName, nickname, accountType, endingNumbers string) (*AccountRow, error)
 	GetByID(userID, id string) (*AccountRow, error)
 	Update(userID, id, bankName, nickname, accountType, endingNumbers string) (*AccountRow, error)
 	Delete(userID, id string) (bool, error)
 	List(userID string) ([]*AccountRow, error)
+	ListPage(userID string, limit int64, cursor *AccountCursor) ([]*AccountRow, string, error)
 	SumBalance(userID string) (float64, error)
 	SumTotals(userID string) (credit, debit float64, err error)
 }

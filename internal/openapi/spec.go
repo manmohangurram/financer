@@ -34,6 +34,16 @@ func tag(name, desc string) map[string]any {
 	return map[string]any{"name": name, "description": desc}
 }
 
+// paginated is a list operation that accepts pageSize/pageToken.
+func paginated(tagName, summary, schema string) map[string]any {
+	o := op(tagName, summary, "", okResp(summary, schema))
+	o["parameters"] = []any{
+		map[string]any{"name": "pageSize", "in": "query", "schema": map[string]any{"type": "integer"}},
+		map[string]any{"name": "pageToken", "in": "query", "schema": map[string]any{"type": "string"}},
+	}
+	return o
+}
+
 func op(tagName, summary string, body string, ok map[string]any) map[string]any {
 	o := map[string]any{
 		"tags":    []any{tagName},
@@ -125,7 +135,7 @@ func paths() map[string]any {
 			},
 		},
 		"/api/accounts": map[string]any{
-			"get":  op("accounts", "List accounts", "", okResp("Accounts", "ListAccounts")),
+			"get":  paginated("accounts", "List accounts", "ListAccounts"),
 			"post": op("accounts", "Create an account", "ReqAccount", okResp("Account", "Account")),
 		},
 		"/api/accounts/{id}": map[string]any{
@@ -170,7 +180,7 @@ func paths() map[string]any {
 			"post": op("transactions", "Create the missing side of a transfer", "ReqCounterpart", okResp("Counterpart", "TransferCounterpart")),
 		},
 		"/api/rules": map[string]any{
-			"get":  op("rules", "List rules", "", okResp("Rules", "ListRules")),
+			"get":  paginated("rules", "List rules", "ListRules"),
 			"post": op("rules", "Create a rule", "ReqRule", okResp("Rule", "Rule")),
 		},
 		"/api/rules/{id}": map[string]any{
@@ -212,7 +222,7 @@ func paths() map[string]any {
 			},
 		},
 		"/api/mail/accounts": map[string]any{
-			"get":  op("mail", "List linked mailboxes", "", okResp("Mailboxes", "ListMailAccounts")),
+			"get":  paginated("mail", "List linked mailboxes", "ListMailAccounts"),
 			"post": op("mail", "Link a mailbox", "ReqMailAccount", okResp("Mailbox", "MailAccount")),
 		},
 		"/api/mail/accounts/{id}": map[string]any{
@@ -280,7 +290,7 @@ func paths() map[string]any {
 			},
 		},
 		"/api/mail/rules": map[string]any{
-			"get":  op("mail", "List mail rules", "", okResp("Rules", "ListMailRules")),
+			"get":  paginated("mail", "List mail rules", "ListMailRules"),
 			"post": op("mail", "Create a mail rule", "ReqMailRule", okResp("Rule", "MailRule")),
 		},
 		"/api/mail/rules/{id}": map[string]any{
@@ -317,7 +327,7 @@ func components() map[string]any {
 			"id": str(), "bankName": str(), "nickname": str(),
 			"endingNumbers": str(), "type": ref("AccountType"),
 		}),
-		"ListAccounts": obj(map[string]any{"accounts": ref("[]Account")}),
+		"ListAccounts": obj(map[string]any{"accounts": ref("[]Account"), "nextPageToken": str()}),
 		"Transaction": obj(map[string]any{
 			"id": str(), "name": str(), "amount": map[string]any{"type": "number"},
 			"type": ref("TransactionType"), "occurredAt": str(), "accountId": str(),
@@ -356,7 +366,7 @@ func components() map[string]any {
 			"conditions": ref("[]RuleCondition"), "actions": ref("[]RuleAction"),
 			"createdAt": str(),
 		}),
-		"ListRules": obj(map[string]any{"rules": ref("[]Rule")}),
+		"ListRules": obj(map[string]any{"rules": ref("[]Rule"), "nextPageToken": str()}),
 		"ReqRule": obj(map[string]any{
 			"name": str(), "priority": map[string]any{"type": "integer"},
 			"logic":      map[string]any{"type": "string", "enum": []any{"OR", "AND"}},
@@ -489,7 +499,7 @@ func components() map[string]any {
 		"LLMTestResult": obj(map[string]any{
 			"ok": map[string]any{"type": "boolean"}, "message": str(),
 		}),
-		"ListMailAccounts": obj(map[string]any{"accounts": ref("[]MailAccount")}),
+		"ListMailAccounts": obj(map[string]any{"accounts": ref("[]MailAccount"), "nextPageToken": str()}),
 		"MailMessage": obj(map[string]any{
 			"id": str(), "messageId": str(), "mailAccountId": str(),
 			"fromAddr": str(), "fromName": str(), "subject": str(),
@@ -521,7 +531,7 @@ func components() map[string]any {
 			"accountId":   nullable(str()),
 			"categoryIds": map[string]any{"type": "array", "items": str()},
 		}),
-		"ListMailRules": obj(map[string]any{"rules": ref("[]MailRule")}),
+		"ListMailRules": obj(map[string]any{"rules": ref("[]MailRule"), "nextPageToken": str()}),
 		"ReqMailAction": obj(map[string]any{
 			"messages": map[string]any{"type": "array", "items": obj(map[string]any{
 				"id": str(), "action": map[string]any{"type": "string", "enum": []any{"APPROVE", "REJECT"}},

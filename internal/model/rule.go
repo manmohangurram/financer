@@ -100,7 +100,8 @@ type ReqPreview struct {
 
 // WireRuleList is the GET /api/rules response.
 type WireRuleList struct {
-	Rules []*RuleResponse `json:"rules"`
+	Rules         []*RuleResponse `json:"rules"`
+	NextPageToken string          `json:"nextPageToken"`
 }
 
 // WirePreview is the POST /api/rules/preview response.

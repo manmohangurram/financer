@@ -462,12 +462,31 @@ func (a *API) avatar(c *gin.Context) {
 
 func (a *API) listAccounts(c *gin.Context) {
 	uid := c.GetString(string(userIDKey))
+	pageSize := int64(parseInt(c.Query("pageSize"), 0))
+	pageToken := c.Query("pageToken")
+	if pageSize > 0 || pageToken != "" {
+		items, next, err := a.accountSvc.ListPage(uid, pageSize, pageToken)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, model.ListAccountsResult{Accounts: accountValues(items), NextPageToken: next})
+		return
+	}
 	items, err := a.accountSvc.List(uid)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"accounts": items})
+	c.JSON(http.StatusOK, model.ListAccountsResult{Accounts: accountValues(items)})
+}
+
+func accountValues(items []*model.AccountResponse) []model.AccountResponse {
+	out := make([]model.AccountResponse, 0, len(items))
+	for _, it := range items {
+		out = append(out, *it)
+	}
+	return out
 }
 
 func (a *API) createAccount(c *gin.Context) {

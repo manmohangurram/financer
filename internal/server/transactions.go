@@ -258,6 +258,17 @@ func (a *API) createTransferCounterpart(c *gin.Context) {
 
 func (a *API) listRules(c *gin.Context) {
 	uid := c.GetString(userIDKey)
+	pageSize := int64(parseInt(c.Query("pageSize"), 0))
+	pageToken := c.Query("pageToken")
+	if pageSize > 0 || pageToken != "" {
+		rules, next, err := a.ruleSvc.ListPage(uid, pageSize, pageToken)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, model.WireRuleList{Rules: rules, NextPageToken: next})
+		return
+	}
 	rules, err := a.ruleSvc.List(uid)
 	if err != nil {
 		writeError(c, err)

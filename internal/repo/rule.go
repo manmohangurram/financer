@@ -36,11 +36,18 @@ type OverlayRule struct {
 }
 
 // RuleRepo is the backend-agnostic rules repository.
+type RuleCursor struct {
+	Priority int64
+	Name     string
+	ID       string
+}
+
 type RuleRepo interface {
 	Create(userID, name string, priority int64, logic string, conditions []RuleConditionRow, actions []RuleActionRow) (*RuleRow, error)
 	Update(userID, id, name string, priority int64, logic string, conditions []RuleConditionRow, actions []RuleActionRow) (bool, error)
 	Delete(userID, id string) (bool, error)
 	GetByID(userID, id string) (*RuleRow, error)
 	List(userID string) ([]*RuleRow, error)
+	ListPage(userID string, limit int64, cursor *RuleCursor) ([]*RuleRow, string, error)
 	ListForOverlay(userID string) ([]*OverlayRule, error)
 }
