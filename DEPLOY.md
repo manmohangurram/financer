@@ -180,7 +180,7 @@ Configuration is env-only (no config file). See the table in `README.md`.
 | `FINANCER_SECRET_KEY` | for the Inbox | 64 hex chars (`openssl rand -hex 32`); encrypts mailbox passwords, and must stay stable — changing it makes stored passwords unreadable |
 | `FINANCER_MAIL_POLL_SECS` | no | background mail poll interval, seconds (default `300`, min `30`) |
 | `FINANCER_LOG_LEVEL` | no | `debug`, `info` (default), `warn`, `error` |
-| `FINANCER_LOG_FILE` | no | append logs to a file instead of stderr; with the default volume use `/data/financer.log`, otherwise read `docker logs` |
+| `FINANCER_LOG_FILE` | no | append logs to a file instead of stderr; rotates at 10 MB and keeps at most 3 files (`financer.log`, `.1`, `.2` — the oldest is deleted). With the default volume use `/data/financer.log`, otherwise read `docker logs` |
 | `FINANCER_ALLOW_INSECURE_HTTP` | no | set to `1` only behind a trusted proxy that terminates TLS; otherwise mailbox/auth endpoints require HTTPS (loopback is exempt) |
 
 ---
