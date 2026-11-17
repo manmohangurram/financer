@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/mohan9182/financer/internal/repo"
@@ -144,6 +145,10 @@ func pollAccount(
 		// Ignore rules run first: never fetch an LLM or parse junk mail.
 		if rule := firstRule(rules, repo.MailRuleActionIgnore, header, rawText); rule != nil {
 			pending = append(pending, buildMessage(account, header, rawText, repo.MailStatusIgnored, nil, 0, "rule", nil))
+			slog.Info("mail matched",
+				"user", account.UserID, "account", account.ID, "rule", rule.ID, "action", string(rule.Action),
+				"message_id", header.MessageID, "from", header.FromAddr, "subject", header.Subject,
+				"status", string(repo.MailStatusIgnored))
 			summary.Stored++
 			if len(pending) >= batchSize {
 				if err := flush(); err != nil {
@@ -154,10 +159,15 @@ func pollAccount(
 		}
 
 		// Rule gating: unmatched mail is noise and is never stored.
-		if firstRule(rules, repo.MailRuleActionReview, header, rawText) == nil &&
-			firstRule(rules, repo.MailRuleActionAuto, header, rawText) == nil {
+		reviewRule := firstRule(rules, repo.MailRuleActionReview, header, rawText)
+		autoRule := firstRule(rules, repo.MailRuleActionAuto, header, rawText)
+		if reviewRule == nil && autoRule == nil {
 			summary.Skipped++
 			continue
+		}
+		matchedRule := reviewRule
+		if matchedRule == nil {
+			matchedRule = autoRule
 		}
 
 		extraction, status, templateID, templateIsActive, sourceName := parseWithTemplates(store, account.UserID, header, rawText, minSamples)
@@ -222,6 +232,16 @@ func pollAccount(
 		if extraction != nil {
 			confidence = extraction.Confidence
 		}
+		ruleID := ""
+		ruleAction := ""
+		if matchedRule != nil {
+			ruleID = matchedRule.ID
+			ruleAction = string(matchedRule.Action)
+		}
+		slog.Info("mail matched",
+			"user", account.UserID, "account", account.ID, "rule", ruleID, "action", ruleAction,
+			"message_id", header.MessageID, "from", header.FromAddr, "subject", header.Subject,
+			"status", string(status), "extractor", sourceName, "confidence", confidence)
 		pending = append(pending, buildMessage(account, header, rawText, status, parsed, confidence, sourceName, templateID))
 		summary.Stored++
 		if len(pending) >= batchSize {
