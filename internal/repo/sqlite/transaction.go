@@ -136,6 +136,46 @@ func (r *TransactionRepo) ExistingTransactionKeys(userID, accountID, from, to st
 	return out, rows.Err()
 }
 
+// ExistingRefNos reports which of the given reference numbers the account already
+// holds; references are the strongest duplicate signal when a statement has them.
+func (r *TransactionRepo) ExistingRefNos(userID, accountID string, refs []string) (map[string]bool, error) {
+	found := map[string]bool{}
+	for start := 0; start < len(refs); start += 500 {
+		end := start + 500
+		if end > len(refs) {
+			end = len(refs)
+		}
+		chunk := refs[start:end]
+		placeholders := strings.Repeat("?,", len(chunk))
+		placeholders = placeholders[:len(placeholders)-1]
+		args := make([]any, 0, len(chunk)+2)
+		args = append(args, userID, accountID)
+		for _, ref := range chunk {
+			args = append(args, ref)
+		}
+		rows, err := r.db.Query(
+			"SELECT ref_no FROM transactions WHERE user_id = ? AND account_id = ? AND ref_no IN ("+placeholders+")",
+			args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var ref string
+			if err := rows.Scan(&ref); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			found[ref] = true
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		rows.Close()
+	}
+	return found, nil
+}
+
 func (r *TransactionRepo) FindTransferCounterpart(userID, accountID, typ string, amount float64, around string) (*repo.TransactionRow, error) {
 	aroundStr := around
 	if len(aroundStr) > 19 {

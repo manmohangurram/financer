@@ -107,6 +107,8 @@ type TransactionRepo interface {
 	// ExistingTransactionKeys returns the (date, type, amount) keys already stored
 	// for an account between two YYYY-MM-DD dates, for duplicate detection.
 	ExistingTransactionKeys(userID, accountID, from, to string) ([]TransactionKey, error)
+	// ExistingRefNos returns which reference numbers already exist for the account.
+	ExistingRefNos(userID, accountID string, refs []string) (map[string]bool, error)
 	Create(userID string, inputs []CreateTransactionInput) (*CreateOutcome, error)
 	Update(userID string, inputs []UpdateTransactionInput) ([]string, error)
 	ApplyRuleResult(userID, id string, cleanName *string, categoryIDs []string) error

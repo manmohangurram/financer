@@ -6,6 +6,27 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.15.0] — 2026-11-18
+
+### Added
+
+- **Reference numbers on transactions.** `refNo` is stored on every transaction
+  (migration `000008_transaction_ref`), accepted on create and update, returned by
+  `GET /api/transactions` and by the MCP `list_transactions`.
+- **PDF import extracts the reference.** The `Chq./Ref.No.` column is read per row and
+  shown as `REFERENCE` in the Map and Review tables; when a statement provides
+  references, every row must have one before the import is allowed.
+- **Manual add/edit** exposes an optional `Reference no` field.
+- **Duplicates prefer the reference.** When a row has a `refNo`, that alone decides:
+  the same reference in the same account is a duplicate even if date or amount changed,
+  and a new reference is not a duplicate even if date/amount match. Rows without a
+  reference keep the date + type + amount check.
+
+### Upgrade notes
+
+- Migration `000008` runs on boot; existing rows get an empty reference.
+- Sending an empty `refNo` on update keeps the stored one.
+
 ## [0.14.5] — 2026-11-17
 
 ### Fixed

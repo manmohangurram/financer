@@ -143,6 +143,43 @@ func (s *Service) applyRules(userID string, inputs []repo.CreateTransactionInput
 // legitimately repeats an amount is not flagged twice.
 func (s *Service) FindDuplicates(userID string, reqs []Request) ([]bool, error) {
 	out := make([]bool, len(reqs))
+
+	// Reference numbers are the strongest signal: a statement's ref is unique per
+	// transaction, so a matching ref means the row is already stored even if the
+	// date or amount were edited.
+	refsByAccount := map[string][]string{}
+	for _, r := range reqs {
+		ref := strings.TrimSpace(r.RefNo)
+		if r.AccountID == "" || ref == "" {
+			continue
+		}
+		refsByAccount[r.AccountID] = append(refsByAccount[r.AccountID], ref)
+	}
+	existingRefs := map[string]int{}
+	for accountID, refs := range refsByAccount {
+		found, err := s.txns.ExistingRefNos(userID, accountID, refs)
+		if err != nil {
+			return nil, err
+		}
+		for ref := range found {
+			existingRefs[accountID+"|"+ref]++
+		}
+	}
+	for i, r := range reqs {
+		if r.AccountID == "" {
+			continue
+		}
+		ref := strings.TrimSpace(r.RefNo)
+		if ref == "" {
+			continue
+		}
+		key := r.AccountID + "|" + ref
+		if existingRefs[key] > 0 {
+			out[i] = true
+			existingRefs[key]--
+		}
+	}
+
 	type span struct{ from, to string }
 	spans := map[string]span{}
 	for _, r := range reqs {
@@ -176,7 +213,9 @@ func (s *Service) FindDuplicates(userID string, reqs []Request) ([]bool, error) 
 	}
 
 	for i, r := range reqs {
-		if r.AccountID == "" || r.OccurredAt == "" || r.Amount <= 0 {
+		// With a reference number the ref decides; the date/amount heuristic is
+		// only for rows that have none.
+		if out[i] || strings.TrimSpace(r.RefNo) != "" || r.AccountID == "" || r.OccurredAt == "" || r.Amount <= 0 {
 			continue
 		}
 		key := dupKey(dateOf(r.OccurredAt), strings.ToUpper(r.Type), round2(r.Amount))
