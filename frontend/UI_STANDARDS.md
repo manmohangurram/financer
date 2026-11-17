@@ -399,15 +399,27 @@ Focal: **the ledger**, framed by four facts. A bento on a 12-column grid:
 
 1. Page head: title `Spending`, the period tabs (`7D 1M 6M 1Y Custom`) and the resolved date range on
    the right of the title, `Add entry` as the one solid button.
-2. Four fact tiles across the top — `Spent`, `Largest`, `Categories`, `Average / day` — each a folio
-   with a label, one figure, and one line of context. These replace the old KPI boxes: four facts, not
-   four metrics.
+2. Four fact tiles across the top — `Budget`, `Spent`, `Categories`, `Average / day` — each a folio
+   with a label, one figure, and one line of context. The Budget tile is wider, shows what is left
+   (or over) this month with a progress bar, and falls back to a link to Budgets when no limits exist.
 3. Left (7/12): `Spending over time`, the day columns of §5.8 filling the panel.
-4. Right (5/12): `Where it went`, the allocation strip plus its legend.
+4. Right (5/12): with budgets, `Budget by category` — budgeted rows first (spent / limit, left or over,
+   bar), unbudgeted rows in grey; without budgets, `Where it went`'s allocation strip plus legend.
 5. Full width below: the ledger (§5.3) — account filter, four-way sort, pagination, carried-forward
-   footer. No bulk-selection column: this page is for reading, not for batch editing.
+   footer pinned to the bottom of the ledger area. No bulk-selection column: this page is for reading,
+   not for batch editing.
 
 The page fills the viewport at 940px and above; only the ledger scrolls. No empty band under the table.
+
+### 6.6a Budgets — `/accounts/budgets`
+Focal: **the plan**. One page, MANAGE nav, whatever the month:
+
+1. Head: `Budgets`, one-line purpose, the current month on the right.
+2. Summary band: Planned · Spent · Left · Used bar (debit-red and "over" past 100%).
+3. Table: Category · Monthly budget (input, commits on blur/Enter) · This month · Left · Used bar.
+   Over-limit rows get a debit wash, an `over` badge and "₹x over"; unbudgeted rows read `—` and
+   *unbudgeted*. Income categories are listed but need no limit.
+4. Amounts repeat every month, apply to debit spend only, and never roll over.
 
 ### 6.7 Rules — `/accounts/rules`
 Focal: what is automatic. Left: the rule list — numbered rows in the margin (priority is literal here), name,

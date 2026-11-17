@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ArrowRight, Loader2, Play } from '@lucide/vue';
+import { ArrowRight, Loader2, Pencil, Play, Trash2 } from '@lucide/vue';
 import { rules } from '@/lib/api/client';
 import AppButton from '@/components/ui/AppButton.vue';
 import AppEmpty from '@/components/ui/AppEmpty.vue';
@@ -9,7 +9,12 @@ import AppStamp from '@/components/ui/AppStamp.vue';
 // Rules as ledger rows: the priority in the margin, then what it matches and
 // what it does. Only the row that is running shows a spinner.
 const props = defineProps<{ rules: any[]; categories: any[]; accounts?: any[] }>();
-const emit = defineEmits<{ (e: 'edit', rule: any): void; (e: 'refresh'): void; (e: 'create'): void }>();
+const emit = defineEmits<{
+  (e: 'edit', rule: any): void;
+  (e: 'delete', rule: any): void;
+  (e: 'refresh'): void;
+  (e: 'create'): void;
+}>();
 
 const matchFields: Record<string, string> = { NAME: 'Name', AMOUNT: 'Amount', TYPE: 'Type', CATEGORY: 'Category', ACCOUNT: 'Account' };
 const operators: Record<string, string> = {
@@ -65,9 +70,9 @@ async function runNow(rule: any) {
     <div class="flex items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
       <span class="w-8 text-center">#</span>
       <span class="flex-1">Rule</span>
-      <span class="w-[30%]">Matches</span>
-      <span class="w-[26%]">Then</span>
-      <span class="w-[92px]"></span>
+      <span class="w-[28%]">Matches</span>
+      <span class="w-[24%]">Then</span>
+      <span class="w-[150px]"></span>
     </div>
 
     <div
@@ -81,16 +86,18 @@ async function runNow(rule: any) {
 
       <button type="button" class="flex-1 min-w-0 text-left" @click="emit('edit', rule)">
         <span class="block truncate text-[13px] text-ink">{{ rule.name }}</span>
-        <span class="mt-0.5 block"><AppStamp>{{ rule.logic === 'AND' ? 'AND' : 'OR' }}</AppStamp></span>
+        <span v-if="(rule.conditions || []).length > 1" class="mt-0.5 block">
+          <AppStamp>{{ rule.logic === 'ALL' ? 'AND' : 'OR' }}</AppStamp>
+        </span>
       </button>
 
-      <span class="w-[30%] min-w-0">
+      <span class="w-[28%] min-w-0">
         <span v-for="(line, i) in condLines(rule).slice(0, 2)" :key="'c' + i" class="block truncate text-[11.5px] text-ink-soft">{{ line }}</span>
         <span v-if="condLines(rule).length > 2" class="block text-[11px] text-ink-mute">+{{ condLines(rule).length - 2 }} more</span>
         <span v-if="!condLines(rule).length" class="block text-[11.5px] text-ink-faint">No conditions</span>
       </span>
 
-      <span class="w-[26%] min-w-0">
+      <span class="w-[24%] min-w-0">
         <span v-for="(line, i) in actionLines(rule).slice(0, 2)" :key="'a' + i" class="flex items-center gap-1.5 truncate text-[11.5px] text-ink-soft">
           <ArrowRight class="h-3 w-3 shrink-0 text-accent" stroke-width="2" />
           <span class="truncate">{{ line }}</span>
@@ -99,7 +106,7 @@ async function runNow(rule: any) {
         <span v-if="!actionLines(rule).length" class="block text-[11.5px] text-ink-faint">No outputs</span>
       </span>
 
-      <span class="w-[92px] shrink-0 text-right">
+      <span class="flex w-[150px] shrink-0 items-center justify-end gap-1">
         <AppButton
           variant="quiet"
           size="sm"
@@ -110,6 +117,12 @@ async function runNow(rule: any) {
           <Loader2 v-if="running === rule.id" class="h-3.5 w-3.5 animate-spin" stroke-width="2" />
           <Play v-else class="h-3.5 w-3.5" stroke-width="2" />
           {{ running === rule.id ? 'Running' : 'Run' }}
+        </AppButton>
+        <AppButton variant="icon" size="sm" label="Edit rule" @click="emit('edit', rule)">
+          <Pencil class="h-[14px] w-[14px]" stroke-width="1.7" />
+        </AppButton>
+        <AppButton variant="icon" size="sm" label="Delete rule" @click="emit('delete', rule)">
+          <Trash2 class="h-[14px] w-[14px]" stroke-width="1.7" />
         </AppButton>
       </span>
     </div>

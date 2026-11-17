@@ -174,7 +174,7 @@ async function poll(force = false) {
   try {
     const res = await mail().pollAll(force ? { force: 1 } : {});
     if (res?.status === 'throttled') {
-      notice.value = 'Mail was checked recently.';
+      if (force) notice.value = 'Mail was checked recently.';
       checking.value = false;
       await load();
       return;
@@ -343,8 +343,15 @@ onUnmounted(() => {
           <div v-if="loading" class="py-16 text-center text-[13px] text-ink-mute">Loading…</div>
           <div v-else-if="!filtered.length" class="flex flex-col items-center gap-2 px-6 py-16 text-center">
             <InboxIcon class="h-8 w-8 text-ink-faint" aria-hidden="true" />
-            <p class="text-[13px] text-ink-mute">Nothing to review here.</p>
-            <p class="text-[12px] text-ink-faint">New mail appears automatically after a poll.</p>
+            <template v-if="!accounts.length">
+              <p class="text-[13px] text-ink-mute">No mailboxes yet.</p>
+              <p class="text-[12px] text-ink-faint">Link one to start reading bank alerts.</p>
+              <button class="btn btn-sm btn-primary mt-1" @click="showMailboxForm = true">Add mailbox</button>
+            </template>
+            <template v-else>
+              <p class="text-[13px] text-ink-mute">Nothing to review here.</p>
+              <p class="text-[12px] text-ink-faint">New mail appears automatically after a poll.</p>
+            </template>
           </div>
           <button
             v-for="m in filtered"
