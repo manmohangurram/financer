@@ -134,6 +134,10 @@ function api(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string) {
         (err as any).status = r.status;
         throw err;
       }
+      // Mutations that can move a balance tell the shell to refresh the sidebar.
+      if (method !== 'GET' && /^\/api\/(transactions|accounts|transfer-links|rules|mail\/messages|mail\/accounts)/.test(path)) {
+        window.dispatchEvent(new CustomEvent('financer:accounts-changed'));
+      }
       return data;
     });
   };

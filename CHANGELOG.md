@@ -6,6 +6,15 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Fixed
+
+- **Sidebar balances refresh automatically.** Any mutation that can move a balance
+  (transactions, accounts, transfers, rule runs, mail approve/reject) and every route
+  change now reloads the ACCOUNTS block, and focusing the window re-syncs it too. No
+  more stale credit/debit figures after booking an entry.
+
 ## [0.10.2] — 2026-11-17
 
 ### Fixed

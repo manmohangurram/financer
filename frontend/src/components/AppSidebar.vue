@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/lib/stores/auth';
 import { useAccountsStore } from '@/lib/stores/accounts';
@@ -78,13 +78,32 @@ function handleLogout() {
   router.replace('/login');
 }
 
-onMounted(async () => {
+async function loadAccounts() {
   try {
     const resp = await accountsApi().listAccounts({});
     accountList.value = resp.accounts || [];
   } catch {
     // The nav is still usable without the balance list.
   }
+}
+
+// Balances move when transactions, transfers, rules or mail approvals happen,
+// and when the page changes; keep the ACCOUNTS block in sync.
+watch(() => route.path, () => loadAccounts());
+
+function onAccountsChanged() {
+  loadAccounts();
+}
+
+onMounted(async () => {
+  await loadAccounts();
+  window.addEventListener('financer:accounts-changed', onAccountsChanged);
+  window.addEventListener('focus', onAccountsChanged);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('financer:accounts-changed', onAccountsChanged);
+  window.removeEventListener('focus', onAccountsChanged);
 });
 </script>
 
