@@ -30,6 +30,7 @@ const customEnd = ref(toLocalDateString(new Date()));
 
 const buckets = ref<any[]>([]);
 const spendingCats = ref<any[]>([]);
+const monthCats = ref<any[]>([]);
 const selectedKey = ref<string | null>(null);
 const drillTxns = ref<any[]>([]);
 const drillTotal = ref(0);
@@ -106,6 +107,52 @@ const composition = computed(() => {
   return rest > 0 ? [...head, { name: 'Others', amount: rest }] : head;
 });
 
+/** Budgets are monthly, so their progress always uses the current calendar month,
+ *  independent of the 7D/1M/6M range that drives the chart and ledger. */
+const monthSpendById = computed<Record<string, number>>(() => {
+  const out: Record<string, number> = {};
+  for (const c of monthCats.value) out[c.id] = Math.abs(c.debit || 0);
+  return out;
+});
+const budgetedCats = computed(() =>
+  categoryList.value
+    .filter((c: any) => (c.monthlyBudget || 0) > 0)
+    .map((c: any) => {
+      const budget = c.monthlyBudget || 0;
+      const spent = monthSpendById.value[c.id] || 0;
+      return {
+        id: c.id,
+        name: c.name,
+        budget,
+        spent,
+        left: budget - spent,
+        over: spent > budget,
+        used: budget > 0 ? Math.min(100, (spent / budget) * 100) : 0
+      };
+    })
+    .sort((a, b) => b.used - a.used)
+);
+const unbudgetedCats = computed(() => {
+  const budgeted = new Set(budgetedCats.value.map((b) => b.id));
+  return monthCats.value
+    .filter((c: any) => !budgeted.has(c.id) && Math.abs(c.debit || 0) > 0)
+    .map((c: any) => ({ id: c.id, name: c.name, spent: Math.abs(c.debit || 0) }))
+    .sort((a, b) => b.spent - a.spent);
+});
+const budgetTotals = computed(() => {
+  const planned = budgetedCats.value.reduce((s, c) => s + c.budget, 0);
+  const spent = budgetedCats.value.reduce((s, c) => s + c.spent, 0);
+  return {
+    planned,
+    spent,
+    left: planned - spent,
+    over: spent > planned,
+    used: planned > 0 ? Math.min(100, (spent / planned) * 100) : 0
+  };
+});
+const hasBudgets = computed(() => budgetedCats.value.length > 0);
+const monthLabel = computed(() => new Date().toLocaleDateString(undefined, { month: 'long' }));
+
 function categoryName(t: any): string {
   const ids: string[] = t.categoryIds || [];
   if (!ids.length) return '—';
@@ -162,6 +209,19 @@ async function loadSpending() {
   spendingCats.value = resp.categories || [];
 }
 
+// The calendar month behind the budget card, independent of the range tabs.
+async function loadMonth() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const resp = await analytics().spending({
+    dateFrom: toLocalDateString(from),
+    dateTo: toLocalDateString(to),
+    accountId: store.state.selectedAccountId || undefined
+  });
+  monthCats.value = resp.categories || [];
+}
+
 function fullRange(): { from: string; to: string } {
   const now = new Date();
   if (range.value === '7D') return { from: toLocalDateString(new Date(now.getTime() - 6 * 86400000)), to: toLocalDateString(now) };
@@ -207,7 +267,7 @@ async function refresh() {
   failed.value = false;
   drillPage.value = 0;
   try {
-    await Promise.all([loadSpending(), loadDrillPage(0)]);
+    await Promise.all([loadSpending(), loadMonth(), loadDrillPage(0)]);
   } catch {
     failed.value = true;
   }
@@ -313,17 +373,37 @@ onMounted(loadAll);
 
     <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12 lg:grid-rows-[auto_minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <!-- the four facts of the period, each with a second line that means something -->
-      <div class="grid grid-cols-2 gap-3 lg:col-span-12 lg:grid-cols-4">
+      <div class="grid grid-cols-2 gap-3 lg:col-span-12 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <AppFolio class="justify-center" body-class="flex flex-col justify-center">
+          <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Budget · {{ monthLabel }}</p>
+          <template v-if="hasBudgets">
+            <p class="tabular mt-1 flex items-baseline gap-1.5 font-display text-[26px] leading-none tracking-[-0.02em]" :class="budgetTotals.over ? 'text-debit' : 'text-ink'">
+              {{ budgetTotals.over ? '−' : '' }}{{ formatCurrency(Math.abs(budgetTotals.left)) }}
+              <span class="font-ui text-[11px] tracking-normal text-ink-mute">{{ budgetTotals.over ? 'over' : 'left' }}</span>
+            </p>
+            <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-page-sunk">
+              <div
+                class="h-full rounded-full"
+                :class="budgetTotals.over ? 'bg-debit' : 'bg-accent'"
+                :style="{ width: `${Math.max(budgetTotals.used, 2)}%` }"
+              ></div>
+            </div>
+            <p class="mt-1.5 text-[11.5px] text-ink-mute">
+              {{ formatCurrency(budgetTotals.spent) }} of {{ formatCurrency(budgetTotals.planned) }} · {{ Math.round(budgetTotals.used) }}% used
+            </p>
+          </template>
+          <template v-else>
+            <p class="mt-1 text-[20px] leading-none text-ink">No budgets yet</p>
+            <p class="mt-1.5 text-[11.5px] text-ink-mute">
+              <router-link to="/accounts/categories" class="text-accent hover:text-accent-hover">Set monthly limits →</router-link>
+            </p>
+          </template>
+        </AppFolio>
         <AppFolio class="justify-center" body-class="flex flex-col justify-center">
           <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Spent</p>
           <p v-if="loading" class="mt-1.5 h-7 w-28 animate-pulse rounded-full bg-page-sunk"></p>
           <p v-else class="tabular mt-1 font-display text-[26px] leading-none tracking-[-0.02em] text-ink">{{ formatCurrency(periodTotal) }}</p>
           <p class="mt-1.5 text-[11.5px] text-ink-mute">{{ drillTotal }} entries in this period</p>
-        </AppFolio>
-        <AppFolio class="justify-center" body-class="flex flex-col justify-center">
-          <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Largest</p>
-          <p class="mt-1 truncate text-[20px] leading-none text-ink">{{ composition[0]?.name || '—' }}</p>
-          <p class="mt-1.5 text-[11.5px] text-ink-mute">{{ composition[0] ? formatCurrency(composition[0].amount) : 'nothing booked' }}</p>
         </AppFolio>
         <AppFolio class="justify-center" body-class="flex flex-col justify-center">
           <p class="text-label font-medium uppercase tracking-[0.07em] text-ink-mute">Categories</p>
@@ -355,15 +435,46 @@ onMounted(loadAll);
         <AppEmpty v-else title="Nothing in this range." hint="Try a wider period, or clear the account filter." />
       </AppFolio>
 
-      <!-- what it went on: one bar, amounts in the legend, share on hover -->
+      <!-- what it went on: monthly budgets take precedence, otherwise the range share -->
       <AppFolio
-        title="Where it went"
-        subtitle="top 6 by spend · others folded in"
+        :title="hasBudgets ? 'Budget by category' : 'Where it went'"
+        :subtitle="hasBudgets ? `this month vs monthly budget · ${monthLabel}` : 'top 6 by spend · others folded in'"
         class="min-h-0 lg:col-span-5"
         body-class="flex min-h-0 flex-1 flex-col"
         flush
       >
-        <div v-if="composition.length" class="flex min-h-0 flex-1 flex-col">
+        <div v-if="hasBudgets" class="flex min-h-0 flex-1 flex-col overflow-auto">
+          <div
+            v-for="c in budgetedCats"
+            :key="c.id"
+            class="border-b border-rule-soft px-4 py-2.5 last:border-0"
+            :class="c.over ? 'bg-debit/5' : ''"
+          >
+            <div class="flex items-baseline gap-2">
+              <span class="h-[9px] w-[9px] shrink-0 rounded-full" :class="c.over ? 'bg-debit' : 'bg-accent'" aria-hidden="true" />
+              <span class="min-w-0 flex-1 truncate text-[12.5px] text-ink-soft">{{ c.name }}</span>
+              <span class="tabular whitespace-nowrap text-[12px] text-ink-mute">{{ formatCurrency(c.spent) }} / {{ formatCurrency(c.budget) }}</span>
+              <span class="tabular w-[86px] shrink-0 text-right text-[12px] font-medium" :class="c.over ? 'text-debit' : 'text-credit'">
+                {{ c.over ? '−' : '' }}{{ formatCurrency(Math.abs(c.left)) }} {{ c.over ? 'over' : 'left' }}
+              </span>
+            </div>
+            <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-page-sunk">
+              <div class="h-full rounded-full" :class="c.over ? 'bg-debit' : 'bg-accent'" :style="{ width: `${Math.max(c.used, 1.5)}%` }"></div>
+            </div>
+          </div>
+          <div
+            v-for="c in unbudgetedCats"
+            :key="c.id"
+            class="flex items-center gap-2.5 border-b border-rule-soft px-4 py-2 last:border-0"
+          >
+            <span class="h-[9px] w-[9px] shrink-0 rounded-full bg-ink-faint" aria-hidden="true" />
+            <span class="min-w-0 flex-1 truncate text-[12.5px] text-ink-soft">{{ c.name }}</span>
+            <span class="tabular text-[12px] text-ink">{{ formatCurrency(c.spent) }}</span>
+            <span class="w-[86px] shrink-0 text-right text-[11.5px] text-ink-faint">unbudgeted</span>
+          </div>
+        </div>
+
+        <div v-else-if="composition.length" class="flex min-h-0 flex-1 flex-col">
           <div class="px-4 pt-4">
             <CategoryShareBar :items="composition" :height="30" />
           </div>
@@ -437,14 +548,14 @@ onMounted(loadAll);
                 <template #action><AppButton size="sm" @click="adding = true">Add entry</AppButton></template>
               </AppEmpty>
             </template>
-            <template #footer>
-              <tr>
-                <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute">Carried forward · this page</td>
-                <td class="bg-page-sunk"></td>
-                <td class="tabular bg-page-sunk px-3 py-2.5 text-right font-display text-[15px] text-ink">{{ formatCurrency(pageSum) }}</td>
-              </tr>
-            </template>
           </AppTable>
+
+          <!-- The carried-forward line closes the page: it sits at the bottom of
+               the ledger even when the range has only a few rows. -->
+          <div v-if="!loading && drillTxns.length" class="mt-auto flex items-center border-t border-rule bg-page-sunk px-3 py-2.5">
+            <span class="flex-1 text-[12px] text-ink-mute">Carried forward · this page</span>
+            <span class="tabular w-[140px] pr-3 text-right font-display text-[15px] text-ink">{{ formatCurrency(pageSum) }}</span>
+          </div>
         </div>
 
         <template #footer>

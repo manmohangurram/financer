@@ -159,7 +159,7 @@ func (r *CategoryRepo) Create(userID string, inputs []repo.CategoryCreateInput) 
 
 func (r *CategoryRepo) GetByID(userID, id string) (*repo.CategoryRow, error) {
 	return r.scanCategory(r.db.QueryRow(
-		"SELECT id, name, created_at FROM categories WHERE id = ? AND user_id = ? LIMIT 1", id, userID,
+		"SELECT id, name, monthly_budget, created_at FROM categories WHERE id = ? AND user_id = ? LIMIT 1", id, userID,
 	))
 }
 
@@ -200,7 +200,7 @@ func (r *CategoryRepo) Delete(userID string, ids []string) ([]string, error) {
 
 func (r *CategoryRepo) List(userID string, pageSize int64, pageToken string) (*repo.ListCategoriesResult, error) {
 	cursor := decodeCatCursor(pageToken)
-	query := "SELECT id, name, created_at FROM categories WHERE user_id = ?"
+	query := "SELECT id, name, monthly_budget, created_at FROM categories WHERE user_id = ?"
 	args := []any{userID}
 	if cursor != nil {
 		query += " AND (name > ? OR (name = ? AND id > ?))"
@@ -240,7 +240,7 @@ func (r *CategoryRepo) List(userID string, pageSize int64, pageToken string) (*r
 
 func (r *CategoryRepo) scanCategory(row *sql.Row) (*repo.CategoryRow, error) {
 	var c repo.CategoryRow
-	if err := row.Scan(&c.ID, &c.Name, &c.CreatedAt); err != nil {
+	if err := row.Scan(&c.ID, &c.Name, &c.MonthlyBudget, &c.CreatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -251,10 +251,23 @@ func (r *CategoryRepo) scanCategory(row *sql.Row) (*repo.CategoryRow, error) {
 
 func scanCategoryRow(rows *sql.Rows) (*repo.CategoryRow, error) {
 	var c repo.CategoryRow
-	if err := rows.Scan(&c.ID, &c.Name, &c.CreatedAt); err != nil {
+	if err := rows.Scan(&c.ID, &c.Name, &c.MonthlyBudget, &c.CreatedAt); err != nil {
 		return nil, err
 	}
 	return &c, nil
+}
+
+// SetBudget stores the category's recurring monthly limit (0 = no budget).
+func (r *CategoryRepo) SetBudget(userID, id string, budget float64) (bool, error) {
+	res, err := r.db.Exec(
+		"UPDATE categories SET monthly_budget = ? WHERE id = ? AND user_id = ?",
+		budget, id, userID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // --- cursor ---

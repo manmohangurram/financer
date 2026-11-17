@@ -46,9 +46,10 @@ type AccountRepo interface {
 // ---- categories ----
 
 type CategoryRow struct {
-	ID        string
-	Name      string
-	CreatedAt string
+	ID            string
+	Name          string
+	MonthlyBudget float64
+	CreatedAt     string
 }
 
 type CategoryCreateInput struct {
@@ -71,4 +72,5 @@ type CategoryRepo interface {
 	Update(userID string, inputs []CategoryUpdateInput) ([]string, error)
 	Delete(userID string, ids []string) ([]string, error)
 	List(userID string, pageSize int64, pageToken string) (*ListCategoriesResult, error)
+	SetBudget(userID, id string, budget float64) (bool, error)
 }

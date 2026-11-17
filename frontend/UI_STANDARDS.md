@@ -423,7 +423,8 @@ Focal: **the plan**. One page, MANAGE nav, whatever the month:
 
 ### 6.7 Rules — `/accounts/rules`
 Focal: what is automatic. Left: the rule list — numbered rows in the margin (priority is literal here), name,
-conditions line in `--ink-soft`, action line with category/account stamps, `Preview` and row actions.
+conditions line in `--ink-soft`, action line with category/account stamps, and `Run` as the only inline action.
+A row (the first four columns) opens the edit popup; Delete lives in that popup. No edit/delete icons.
 Right (or below on mobile): the preview panel — the last 5 transactions the rule matched, ruled rows.
 Rule form is a modal, 760px, in two columns: conditions (AND/OR tab) and actions; a live "matches N of the
 last 200 entries" line at the bottom updates as you edit.
@@ -452,8 +453,15 @@ arrives at once), so the margin carries a checkbox and the actions are named but
 lives in the ledger margin (§5.6) for matched transfers.
 
 ### 6.9 Categories — `/accounts/categories`
-Focal: order. A ledger table: margin (monogram), name, usage count, last used, row actions. Header has the
-count and `New category`. Inline create row rather than a modal — a category is one word.
+Focal: order **and the monthly plan**. One page owns both:
+
+1. Header: `Categories`, the purpose line, `Add category`.
+2. Summary band once a limit exists: Planned · Spent · Left · Used bar.
+3. Ledger table: Category · Share this month · Spent · Entries · Monthly budget (input,
+   commits on blur/Enter) · Used bar · Left. Over-limit rows get a debit wash, `over`
+   badge and "₹x over"; unbudgeted rows read `—` / *unbudgeted*. A row opens the
+   edit popup (name + budget), which also carries Delete.
+4. Amounts repeat every month, apply to debit spend only, and never roll over.
 
 ### 6.12 Settings — `/settings`
 Focal: account hygiene. One folio of hairline-separated sections, each with a 15px title and a one-line

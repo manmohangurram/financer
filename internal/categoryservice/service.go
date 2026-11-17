@@ -2,10 +2,16 @@
 package categoryservice
 
 import (
+	"fmt"
+	"math"
+
+	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/model"
 	"github.com/mohan9182/financer/internal/repo"
 	"github.com/mohan9182/financer/internal/time"
 )
+
+const maxMonthlyBudget = 1_000_000_000
 
 type Service struct {
 	repo repo.CategoryRepo
@@ -23,12 +29,48 @@ func (s *Service) List(userID string, pageSize int64, pageToken string) ([]*mode
 	out := make([]*model.CategoryResponse, 0, len(res.Categories))
 	for _, c := range res.Categories {
 		out = append(out, &model.CategoryResponse{
-			ID:        c.ID,
-			Name:      c.Name,
-			CreatedAt: time.TSRFC3339(c.CreatedAt),
+			ID:            c.ID,
+			Name:          c.Name,
+			MonthlyBudget: c.MonthlyBudget,
+			CreatedAt:     time.TSRFC3339(c.CreatedAt),
 		})
 	}
 	return out, res.NextPageToken, nil
+}
+
+// SetBudget stores a category's recurring monthly limit. 0 clears it; the
+// amount is rounded to paise and validated so bad input never reaches SQLite.
+func (s *Service) SetBudget(userID, id string, budget float64) (*model.CategoryResponse, error) {
+	if math.IsNaN(budget) || math.IsInf(budget, 0) {
+		return nil, errors.BadRequest("monthlyBudget must be a number")
+	}
+	if budget < 0 {
+		return nil, errors.BadRequest("monthlyBudget cannot be negative")
+	}
+	if budget > maxMonthlyBudget {
+		return nil, errors.BadRequest(fmt.Sprintf("monthlyBudget must be at most %d", maxMonthlyBudget))
+	}
+	budget = math.Round(budget*100) / 100
+	ok, err := s.repo.SetBudget(userID, id, budget)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.NotFound("category " + id + " not found")
+	}
+	row, err := s.repo.GetByID(userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, errors.NotFound("category " + id + " not found")
+	}
+	return &model.CategoryResponse{
+		ID:            row.ID,
+		Name:          row.Name,
+		MonthlyBudget: row.MonthlyBudget,
+		CreatedAt:     time.TSRFC3339(row.CreatedAt),
+	}, nil
 }
 
 func (s *Service) Create(userID string, names []string) *model.BulkResult {

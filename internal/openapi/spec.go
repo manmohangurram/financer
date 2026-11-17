@@ -147,6 +147,15 @@ func paths() map[string]any {
 			"put":    op("categories", "Update categories", "ReqCategoriesUpdate", okResp("Result", "BulkResult")),
 			"delete": op("categories", "Delete categories", "ReqCategoriesDelete", okResp("Result", "BulkResult")),
 		},
+		"/api/categories/{id}/budget": map[string]any{
+			"put": map[string]any{
+				"tags": []any{"categories"}, "summary": "Set or clear a category's recurring monthly budget (0 clears it)",
+				"parameters": []any{idParam()},
+				"requestBody": map[string]any{"required": true, "content": map[string]any{
+					"application/json": map[string]any{"schema": ref("ReqCategoryBudget")}}},
+				"responses": map[string]any{"200": okResp("Category", "Category"), "400": errRef("invalid_argument"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
 		"/api/transactions": map[string]any{
 			"get":    op("transactions", "List transactions", "", okResp("Transactions", "ListTransactions")),
 			"post":   op("transactions", "Create transactions", "ReqTransactions", okResp("Result", "BulkResult")),
@@ -320,7 +329,10 @@ func components() map[string]any {
 			"failedIds": map[string]any{"type": "array", "items": str()},
 			"skipped":   map[string]any{"type": "integer"},
 		}),
-		"Category": obj(map[string]any{"id": str(), "name": str(), "createdAt": str()}),
+		"Category": obj(map[string]any{
+			"id": str(), "name": str(), "monthlyBudget": map[string]any{"type": "number"}, "createdAt": str(),
+		}),
+		"ReqCategoryBudget": obj(map[string]any{"monthlyBudget": map[string]any{"type": "number"}}),
 		"ListCategories": obj(map[string]any{
 			"categories": ref("[]Category"), "nextPageToken": str(),
 		}),

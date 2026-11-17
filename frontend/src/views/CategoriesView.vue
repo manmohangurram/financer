@@ -6,11 +6,10 @@ import AppButton from '@/components/ui/AppButton.vue';
 import CategoriesTab from '@/components/workspace/CategoriesTab.vue';
 import EditItemModal from '@/components/workspace/EditItemModal.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
-import { categories, transactions } from '@/lib/api/client';
+import { categories } from '@/lib/api/client';
 import { Plus } from '@lucide/vue';
 
 const categoryList = ref<any[]>([]);
-const txnList = ref<any[]>([]);
 const loading = ref(true);
 const error = ref('');
 
@@ -22,31 +21,51 @@ async function loadAll() {
   loading.value = true;
   error.value = '';
   try {
-    const [catResp, txnResp] = await Promise.all([
-      categories().listCategories({ pageSize: 10000 }),
-      transactions().listTransactions({ pageSize: 10000 })
-    ]);
+    const catResp = await categories().listCategories({ pageSize: 10000 });
     categoryList.value = catResp.categories || [];
-    txnList.value = (txnResp.transactions || []);
-  } catch (e: any) { error.value = e?.message || 'Failed to load categories'; }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to load categories';
+  }
   loading.value = false;
 }
 
 function openCreateItem() {
-  editingItem.value = null; showItemModal.value = true;
+  editingItem.value = null;
+  showItemModal.value = true;
 }
 function openEditItem(item: any) {
-  editingItem.value = item; showItemModal.value = true;
+  editingItem.value = item;
+  showItemModal.value = true;
 }
+
+async function saveBudget(id: string, raw: string | number | undefined) {
+  const value = raw === '' || raw === undefined ? 0 : Number(raw);
+  if (!Number.isFinite(value) || value < 0) throw new Error('Monthly budget must be zero or a positive amount.');
+  await categories().setCategoryBudget({ id, monthlyBudget: value });
+}
+
 async function submitItem(payload: any) {
   error.value = '';
   try {
-    if (editingItem.value) await categories().updateCategories({ categories: [{ id: editingItem.value.id, name: payload.name }] });
-    else await categories().createCategories({ categories: [{ name: payload.name }] });
+    const name = String(payload.name || '').trim();
+    if (!name) throw new Error('Name is required');
+    if (editingItem.value) {
+      await categories().updateCategories({ categories: [{ id: editingItem.value.id, name }] });
+      await saveBudget(editingItem.value.id, payload.monthlyBudget);
+    } else {
+      await categories().createCategories({ categories: [{ name }] });
+      // The bulk create endpoint returns no ids, so resolve the new row by name.
+      const resp = await categories().listCategories({ pageSize: 10000 });
+      const created = (resp.categories || []).find((c: any) => c.name === name);
+      if (created) await saveBudget(created.id, payload.monthlyBudget);
+    }
     showItemModal.value = false;
     await loadAll();
-  } catch (e: any) { error.value = e?.message || 'Failed to save category'; }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to save category';
+  }
 }
+
 function requestDeleteItem(item: any) {
   confirmDelete.value = { ids: [item.id], label: item.name };
 }
@@ -57,7 +76,9 @@ async function confirmDeleteNow() {
     await categories().deleteCategories({ ids: confirmDelete.value.ids });
     showItemModal.value = false;
     await loadAll();
-  } catch (e: any) { error.value = e?.message || 'Failed to delete category'; }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to delete category';
+  }
   confirmDelete.value = null;
 }
 
@@ -66,7 +87,7 @@ onMounted(loadAll);
 
 <template>
   <div class="w-full flex flex-col gap-4">
-    <SectionHeader title="Categories" subtitle="Organize spending into categories">
+    <SectionHeader title="Categories" subtitle="Organise spending and set a monthly budget per category">
       <template #actions>
         <AppButton @click="openCreateItem">
           <Plus class="h-[15px] w-[15px]" stroke-width="1.8" />
@@ -78,11 +99,11 @@ onMounted(loadAll);
     <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">{{ error }}</div>
 
     <AppFolio v-if="!loading" class="min-h-0" :title="undefined" flush>
-      <CategoriesTab :categories="categoryList" :txns="txnList" @edit="openEditItem" @delete="requestDeleteItem" />
+      <CategoriesTab :categories="categoryList" @edit="openEditItem" @delete="requestDeleteItem" />
     </AppFolio>
     <AppFolio v-else flush>
       <div class="flex flex-col gap-2 p-4">
-        <span v-for="i in 5" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
+        <span v-for="i in 4" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
       </div>
     </AppFolio>
 
@@ -102,7 +123,7 @@ onMounted(loadAll);
     <ConfirmDialog
       v-if="confirmDelete"
       title="Delete category"
-      :message="`Delete &quot;${confirmDelete.label}&quot;? This can't be undone.`"
+      :message="`Delete “${confirmDelete.label}”? Transactions keep their history but lose this category.`"
       @confirm="confirmDeleteNow"
       @cancel="confirmDelete = null"
     />
