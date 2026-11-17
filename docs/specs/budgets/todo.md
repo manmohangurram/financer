@@ -20,4 +20,4 @@ Spec: `docs/specs/budgets/SPEC.md` · Plan: `docs/specs/budgets/plan.md`
 ## Release
 - [x] Gates: gofmt/vet/build/test, vue-tsc/npm test/build
 - [x] Browser smoke: set/edit/clear a budget; card and rows reflect it
-- [ ] Docs/changelog + PR
+- [x] Docs/changelog, merged in #180, released as v0.8.0
