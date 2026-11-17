@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 # Single container: the Go server serves both the API and the built Vue app
-# (no nginx). Both build stages run on BUILDPLATFORM (native speed, no QEMU)
-# and cross-compile; the SQLite driver is pure Go (glebarez/modernc), so no C
-# toolchain or target-specific linker is needed.
+# (no nginx). The image is ARM64 ONLY. Both build stages run on BUILDPLATFORM
+# (native speed, no QEMU) and cross-compile the Go binary; the SQLite driver is
+# pure Go (glebarez/modernc), so no C toolchain or target linker is needed.
 
 FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /app/frontend
@@ -20,6 +20,10 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 ARG TARGETOS=linux
 ARG TARGETARCH=arm64
+# Fail fast instead of publishing an image this project does not support.
+RUN if [ "${TARGETARCH}" != "arm64" ]; then \
+        echo "financer publishes arm64 only (requested ${TARGETARCH})" >&2; exit 1; \
+    fi
 # CGO_ENABLED=0 keeps the binary static and makes the arm64 cross-build a plain
 # GOARCH switch. Migrations are embedded, so the binary is self-contained.
 RUN --mount=type=cache,target=/go/pkg/mod \

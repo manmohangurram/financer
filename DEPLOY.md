@@ -82,10 +82,10 @@ There is no config directory — configuration is env-only. Migrations and the t
 
 ### How it works
 
-The build is a **pure-Go cross-build**: `CGO_ENABLED=0` with `GOARCH=$TARGETARCH`. The SQLite driver (`glebarez/sqlite`, backed by `modernc.org/sqlite`) is pure Go, so there is **no cross-compiler, no `gcc-aarch64-linux-gnu`, and no target-specific linker**.
+The image is **linux/arm64 only**. The build is a **pure-Go cross-build**: `CGO_ENABLED=0` with `GOARCH=arm64`. The SQLite driver (`glebarez/sqlite`, backed by `modernc.org/sqlite`) is pure Go, so there is **no cross-compiler, no `gcc-aarch64-linux-gnu`, and no target-specific linker**.
 
 - **arm64 on an arm runner** → native build (what CI does)
-- **arm64 under emulation/x86** → same Dockerfile, Go cross-compiles the binary; no extra toolchain
+- **any other build host** → the Dockerfile cross-compiles the arm64 binary; the build fails fast if a different `TARGETARCH` is requested
 
 The final image is Alpine with `ca-certificates` (outbound IMAP TLS needs system roots). Timezones are embedded in the binary, so `tzdata` is not installed.
 
@@ -125,7 +125,7 @@ No repo variable to configure; every `v*` tag ships the image.
 docker buildx build --platform linux/arm64 -t ghcr.io/<owner>/<image>:test --load .
 ```
 
-If you get `no matching manifest for linux/arm64`, run `docker buildx create --use` once to enable the builder.
+If you get `no matching manifest for linux/arm64`, run `docker buildx create --use` once to enable the builder. Building with `--platform linux/amd64` is rejected on purpose — this project ships arm64 only.
 
 ### Manual trigger (no tag)
 
@@ -138,7 +138,7 @@ The workflow also supports `workflow_dispatch` — run it from the Actions tab o
 1. Merge feature branches to the default branch (each PR runs `ci.yml`)
 2. Tag a release: `git tag v1.0.0 && git push origin v1.0.0`
 3. `docker-publish.yml` builds the arm64 image, pushes `ghcr.io/<owner>/<image>:v1.0.0` and `:latest`
-4. Deploy:
+4. Deploy on an **arm64 host** (the image has no amd64 variant):
 
 ```bash
 docker run -d \

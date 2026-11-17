@@ -86,8 +86,8 @@ jobs:
         working-directory: frontend
 
   # The image is only published on tags, so validate the Dockerfile on every PR.
-  # Both build stages run on BUILDPLATFORM and cross-compile; the arm64 runtime
-  # base is only pulled, so no QEMU is needed.
+  # arm64 is the only supported platform; both build stages run on BUILDPLATFORM
+  # and cross-compile, and the runtime base is only pulled, so no QEMU is needed.
   docker:
     runs-on: ubuntu-latest
     steps:
