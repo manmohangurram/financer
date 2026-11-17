@@ -411,6 +411,16 @@ Focal: **the ledger**, framed by four facts. A bento on a 12-column grid:
 
 The page fills the viewport at 940px and above; only the ledger scrolls. No empty band under the table.
 
+### 6.6a Budgets — `/accounts/budgets`
+Focal: **the plan**. One page, MANAGE nav, whatever the month:
+
+1. Head: `Budgets`, one-line purpose, the current month on the right.
+2. Summary band: Planned · Spent · Left · Used bar (debit-red and "over" past 100%).
+3. Table: Category · Monthly budget (input, commits on blur/Enter) · This month · Left · Used bar.
+   Over-limit rows get a debit wash, an `over` badge and "₹x over"; unbudgeted rows read `—` and
+   *unbudgeted*. Income categories are listed but need no limit.
+4. Amounts repeat every month, apply to debit spend only, and never roll over.
+
 ### 6.7 Rules — `/accounts/rules`
 Focal: what is automatic. Left: the rule list — numbered rows in the margin (priority is literal here), name,
 conditions line in `--ink-soft`, action line with category/account stamps, and `Run` as the only inline action.
