@@ -135,3 +135,75 @@ func validAccountType(v string) bool {
 	}
 	return false
 }
+
+type listMailReq struct {
+	Status    string `json:"status,omitempty"`
+	AccountID string `json:"accountId,omitempty"`
+	Search    string `json:"search,omitempty"`
+	Limit     int64  `json:"limit,omitempty"`
+}
+
+type mailIDReq struct {
+	ID string `json:"id"`
+}
+
+type mailActionItemReq struct {
+	ID          string   `json:"id"`
+	Action      string   `json:"action"`
+	AccountID   *string  `json:"accountId,omitempty"`
+	CategoryIDs []string `json:"categoryIds,omitempty"`
+}
+
+type mailActReq struct {
+	Messages []mailActionItemReq `json:"messages"`
+}
+
+type rejectAllMailReq struct {
+	Confirm   bool   `json:"confirm"`
+	Status    string `json:"status,omitempty"`
+	AccountID string `json:"accountId,omitempty"`
+	Search    string `json:"search,omitempty"`
+}
+
+type mailRuleReq struct {
+	Position        int64                       `json:"position,omitempty"`
+	Enabled         *bool                       `json:"enabled,omitempty"`
+	FromPattern     string                      `json:"fromPattern,omitempty"`
+	SubjectContains string                      `json:"subjectContains,omitempty"`
+	BodyContains    string                      `json:"bodyContains,omitempty"`
+	Action          string                      `json:"action,omitempty"`
+	AccountID       *string                     `json:"accountId,omitempty"`
+	CategoryIDs     []string                    `json:"categoryIds,omitempty"`
+	Template        *model.MailTemplatePatterns `json:"template,omitempty"`
+}
+
+func (r mailRuleReq) toReq() model.ReqMailRule {
+	return model.ReqMailRule{
+		Position: r.Position, Enabled: r.Enabled, FromPattern: r.FromPattern,
+		SubjectContains: r.SubjectContains, BodyContains: r.BodyContains,
+		Action: r.Action, AccountID: r.AccountID, CategoryIDs: r.CategoryIDs,
+		Template: r.Template,
+	}
+}
+
+type updateMailRuleReq struct {
+	ID              string                      `json:"id"`
+	Position        int64                       `json:"position,omitempty"`
+	Enabled         *bool                       `json:"enabled,omitempty"`
+	FromPattern     string                      `json:"fromPattern,omitempty"`
+	SubjectContains string                      `json:"subjectContains,omitempty"`
+	BodyContains    string                      `json:"bodyContains,omitempty"`
+	Action          string                      `json:"action,omitempty"`
+	AccountID       *string                     `json:"accountId,omitempty"`
+	CategoryIDs     []string                    `json:"categoryIds,omitempty"`
+	Template        *model.MailTemplatePatterns `json:"template,omitempty"`
+}
+
+func (r updateMailRuleReq) toReq() model.ReqMailRule {
+	return model.ReqMailRule{
+		Position: r.Position, Enabled: r.Enabled, FromPattern: r.FromPattern,
+		SubjectContains: r.SubjectContains, BodyContains: r.BodyContains,
+		Action: r.Action, AccountID: r.AccountID, CategoryIDs: r.CategoryIDs,
+		Template: r.Template,
+	}
+}

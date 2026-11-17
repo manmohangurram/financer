@@ -6,6 +6,30 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.12.0] — 2026-11-17
+
+### Added
+
+- **Mail over MCP.** The MCP server now covers the inbox:
+  - `list_mailboxes`
+  - `list_mail_messages` — filter by `status`, `search`, `accountId`; returns parsed
+    amount/direction/date/account/merchant instead of raw JSON (default 50, max 200)
+  - `get_mail_message` — one message with decoded body
+  - `act_on_mail` — **bulk approve/reject** up to 500 items, with optional account and
+    category overrides
+  - `reject_all_mail` — filtered bulk reject (default `PENDING`), requires
+    `"confirm": true`, capped at 200
+  - `list_mail_rules`, `create_mail_rule`, `update_mail_rule`, `delete_mail_rule`,
+    including the manual extraction template
+- **MCP reference.** [docs/MCP.md](docs/MCP.md) documents every tool, its arguments,
+  scope and examples, plus the template shape and the untrusted-content rule.
+
+### Notes
+
+- Mail writes require a `read_write` API key; `read` keys get the usual refusal.
+- No HTTP gaps: mailbox CRUD, message list/get, batch act, poll, AI parse, rule CRUD and
+  template validation were already exposed.
+
 ## [0.11.1] — 2026-11-17
 
 ### Added

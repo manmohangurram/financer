@@ -17,7 +17,7 @@ Financer: a personal finance tracker. Go backend (Gin, plain HTTP/JSON, pure-Go 
 
 - **Commands:** `go run ./cmd/financer` (API on :8080; config from `FINANCER_*` env, schema applied at boot), `go build ./...`, `go vet ./...`, `go test ./...`, `govulncheck ./...`; frontend: `npm run dev` / `npm run build` / `npm test` (details in [skills/STANDARDS.md](skills/STANDARDS.md)).
 - **Architecture:** repo → service → server layering; SQLite via `glebarez/sqlite` with WAL (write + read pools in `internal/db/sqlite.go`); migrations embedded from `db/migrations/` and applied at boot; plain-string ids on the wire; per-user scoping by `user_id` (details in [architecture/](architecture/)).
-- **API docs:** Swagger UI at `/docs`, hand-written spec at `/openapi.json`; MCP at `/mcp` (API-key auth).
+- **API docs:** Swagger UI at `/docs`, hand-written spec at `/openapi.json`; MCP at `/mcp` (API-key auth) — tool reference in [docs/MCP.md](docs/MCP.md).
 - **Deployment:** see [DEPLOY.md](DEPLOY.md).
 
 ## Workflow rules

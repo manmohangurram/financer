@@ -280,6 +280,13 @@ Authenticate with a per-user API key (created in **Settings → API keys**):
 
 Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `list_categories`, `list_rules`, `preview_rule`, plus write tools when the key has `read_write` scope.
 
+Mail is covered too: `list_mailboxes`, `list_mail_messages` (filter by `status`, `search`, account),
+`get_mail_message`, `act_on_mail` (bulk approve/reject), `reject_all_mail` (filtered, requires
+`"confirm": true`, max 200), and `list_mail_rules` / `create_mail_rule` / `update_mail_rule` /
+`delete_mail_rule` — including the manual extraction template.
+
+Every tool, its arguments, scope and examples: **[docs/MCP.md](docs/MCP.md)**.
+
 ## Development
 
 **Prerequisites:** Go ≥ 1.27 and Node 22.

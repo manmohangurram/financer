@@ -19,6 +19,7 @@ import (
 	"github.com/mohan9182/financer/internal/db"
 	"github.com/mohan9182/financer/internal/keyservice"
 	"github.com/mohan9182/financer/internal/mailservice"
+	"github.com/mohan9182/financer/internal/repo"
 	"github.com/mohan9182/financer/internal/repo/sqlite"
 	"github.com/mohan9182/financer/internal/ruleservice"
 	"github.com/mohan9182/financer/internal/transactionservice"
@@ -27,11 +28,12 @@ import (
 )
 
 type testServer struct {
-	api    *API
-	keySvc *keyservice.Service
-	uid    string
-	url    string
-	close  func()
+	api      *API
+	keySvc   *keyservice.Service
+	mailRepo repo.MailRepo
+	uid      string
+	url      string
+	close    func()
 }
 
 func newTestServer(t *testing.T) *testServer {
@@ -77,7 +79,7 @@ func newTestServer(t *testing.T) *testServer {
 	})
 	srv := httptest.NewServer(api.Handler())
 	return &testServer{
-		api: api, keySvc: keySvc, uid: uid, url: srv.URL,
+		api: api, keySvc: keySvc, mailRepo: mails, uid: uid, url: srv.URL,
 		close: func() {
 			srv.Close()
 			dbs.Write.Close()

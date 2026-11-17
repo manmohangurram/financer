@@ -97,6 +97,7 @@ func New(d Deps) *API {
 			Rules:         d.Rule,
 			Transfers:     d.Transfer,
 			TransferRules: d.TransferRule,
+			Mail:          d.Mail,
 		},
 		jwtSecret:     d.JWTSecret,
 		staticDir:     d.StaticDir,
