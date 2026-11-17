@@ -6,6 +6,24 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Added
+
+- **Rule-gated Inbox:** a normal poll stores only mail that matches a rule; unmatched
+  mail is skipped and never appears. Ignored matches stay stored (hidden) for dedupe.
+- **Full poll** (`POST /api/mail/poll/full`): background scan of the whole mailbox with
+  no date window; matched rows insert in batches of 100.
+- **Startup cleanup:** unmatched, transaction-free mail is deleted on boot; booked and
+  rejected history stays.
+- **AI parse** (`POST/GET /api/mail/ai-parse`): per-sender background job using up to
+  five unrejected bodies, forcing template generation past the cooldown, then
+  re-parsing that sender's pending mail. While it runs, approve/reject returns 409 and
+  the Inbox disables the buttons and shows sender progress.
+- **Create the missing account:** when no account matches the mail's ending digits,
+  approving offers to create one with that number and books automatically. Existing
+  matches are selected without asking.
+
 ## [0.9.0] — 2026-11-17
 
 ### Fixed

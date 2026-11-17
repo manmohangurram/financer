@@ -37,12 +37,16 @@ type Service struct {
 	throttleMu sync.Mutex
 	lastPoll   map[string]time.Time
 	lastLearn  map[string]time.Time
+
+	aiMu     sync.Mutex
+	aiStates map[string]*model.AIParseStatus
 }
 
 func New(r repo.MailRepo, secret *string, txns *transactionservice.Service, accounts *accountservice.Service, llm *llmsettings.Service) *Service {
 	return &Service{
 		repo: r, secret: secret, txns: txns, accounts: accounts, llm: llm,
 		lastPoll: map[string]time.Time{}, lastLearn: map[string]time.Time{},
+		aiStates: map[string]*model.AIParseStatus{},
 	}
 }
 
@@ -314,6 +318,9 @@ func clampLimit(limit int64) int64 {
 // Act approves or rejects a batch. Approve items may override any extracted
 // field; the effective values are stored in approved_json as training evidence.
 func (s *Service) Act(userID string, items []model.MailActionItem) (*model.MailActionOutcome, error) {
+	if s.aiRunning(userID) {
+		return nil, errors.Conflict("AI parse is running; wait for it to finish")
+	}
 	out := &model.MailActionOutcome{Succeeded: []string{}, Failed: []model.MailActionFailure{}}
 	for _, item := range items {
 		if err := s.actOne(userID, item); err != nil {
@@ -525,6 +532,11 @@ func (s *Service) pollUser(userID string) (int, error) {
 }
 
 func (s *Service) pollAccount(ctx context.Context, account *repo.MailAccountRow) (*mail.PollSummary, error) {
+	return s.pollAccountMode(ctx, account, false)
+}
+
+// pollAccountMode connects and polls; full scans the whole INBOX.
+func (s *Service) pollAccountMode(ctx context.Context, account *repo.MailAccountRow, full bool) (*mail.PollSummary, error) {
 	if s.secret == nil {
 		return nil, errors.BadRequest("FINANCER_SECRET_KEY is not set")
 	}
@@ -538,18 +550,289 @@ func (s *Service) pollAccount(ctx context.Context, account *repo.MailAccountRow)
 	}
 	defer source.Close()
 	settings := s.settings(account.UserID)
-	summary, err := mail.PollAccount(ctx, source, s.repo, account, s.generateTemplates, settings.MinSamples)
+	var summary *mail.PollSummary
+	if full {
+		summary, err = mail.PollAccountFull(ctx, source, s.repo, account, s.generateTemplates, settings.MinSamples)
+	} else {
+		summary, err = mail.PollAccount(ctx, source, s.repo, account, s.generateTemplates, settings.MinSamples)
+	}
 	if err != nil {
 		return nil, err
 	}
-	slog.Info("mail poll complete", "account", account.ID, "user", account.UserID,
+	slog.Info("mail poll complete", "account", account.ID, "user", account.UserID, "full", full,
 		"matched", summary.Matched, "stored", summary.Stored, "skipped", summary.Skipped)
 	return summary, nil
+}
+
+// CleanupUnmatched deletes stored mail that matches no current rule and never
+// produced a transaction or an approval. Runs once at boot.
+func (s *Service) CleanupUnmatched() (int, error) {
+	users, err := s.repo.DistinctMailUsers()
+	if err != nil {
+		return 0, err
+	}
+	total := 0
+	for _, userID := range users {
+		rules, err := s.repo.ListRules(userID)
+		if err != nil {
+			return total, err
+		}
+		rows, err := s.repo.ListCleanupCandidates(userID)
+		if err != nil {
+			return total, err
+		}
+		var doomed []string
+		for _, row := range rows {
+			if row.TransactionID != nil || row.ApprovedJSON != nil || row.Status == repo.MailStatusRejected {
+				continue
+			}
+			header := &mail.MailHeader{FromAddr: row.FromAddr, Subject: row.Subject}
+			body := ""
+			if row.RawText != nil {
+				body = *row.RawText
+			}
+			matched := false
+			for _, rule := range rules {
+				if rule.Enabled && mail.RuleMatches(rule, header, body) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				doomed = append(doomed, row.ID)
+			}
+		}
+		if len(doomed) == 0 {
+			continue
+		}
+		n, err := s.repo.DeleteMessages(doomed)
+		if err != nil {
+			return total, err
+		}
+		total += int(n)
+		slog.Info("mail cleanup", "user", userID, "deleted", n)
+	}
+	return total, nil
+}
+
+// --- AI re-parse job ---
+
+func (s *Service) aiRunning(userID string) bool {
+	s.aiMu.Lock()
+	defer s.aiMu.Unlock()
+	st := s.aiStates[userID]
+	return st != nil && st.Running
+}
+
+// AIParseStatus returns a copy of the user's job state.
+func (s *Service) AIParseStatus(userID string) model.AIParseStatus {
+	s.aiMu.Lock()
+	defer s.aiMu.Unlock()
+	st := s.aiStates[userID]
+	if st == nil {
+		return model.AIParseStatus{}
+	}
+	return *st
+}
+
+// StartAIParse launches the background per-sender re-parse job.
+func (s *Service) StartAIParse(userID string) (model.AIParseStatus, error) {
+	s.aiMu.Lock()
+	if st := s.aiStates[userID]; st != nil && st.Running {
+		s.aiMu.Unlock()
+		return model.AIParseStatus{}, errors.Conflict("AI parse is already running")
+	}
+	st := &model.AIParseStatus{Running: true, StartedAt: time.Now().Format(time.RFC3339)}
+	s.aiStates[userID] = st
+	s.aiMu.Unlock()
+	go s.runAIParse(userID, st)
+	return *st, nil
+}
+
+func (s *Service) runAIParse(userID string, st *model.AIParseStatus) {
+	finish := func(msg string) {
+		s.aiMu.Lock()
+		st.Running = false
+		st.CurrentSender = ""
+		st.FinishedAt = time.Now().Format(time.RFC3339)
+		if msg != "" {
+			st.Error = msg
+		}
+		s.aiMu.Unlock()
+	}
+	defer finish("")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	var rows []*repo.MailMessageRow
+	for _, status := range []repo.MailStatus{repo.MailStatusPending, repo.MailStatusUnparsed} {
+		list, err := s.repo.ListMessages(userID, &status, 500)
+		if err != nil {
+			finish(err.Error())
+			return
+		}
+		rows = append(rows, list...)
+	}
+	groups := map[string][]*repo.MailMessageRow{}
+	for _, row := range rows {
+		groups[row.FromAddr] = append(groups[row.FromAddr], row)
+	}
+	rules, err := s.repo.ListRules(userID)
+	if err != nil {
+		finish(err.Error())
+		return
+	}
+	settings := s.settings(userID)
+
+	s.aiMu.Lock()
+	st.TotalSenders = int64(len(groups))
+	s.aiMu.Unlock()
+
+	for sender, group := range groups {
+		s.aiMu.Lock()
+		st.CurrentSender = sender
+		s.aiMu.Unlock()
+
+		samples := s.samplesFor(ctx, userID, sender, group, 5)
+		if len(samples) == 0 {
+			s.aiMu.Lock()
+			st.DoneSenders++
+			s.aiMu.Unlock()
+			continue
+		}
+		specs, genErr := s.generateTemplatesForce(ctx, userID, sender, samples, true)
+		if genErr != nil {
+			s.aiMu.Lock()
+			st.Error = genErr.Error()
+			st.DoneSenders++
+			s.aiMu.Unlock()
+			continue
+		}
+		applied := false
+		for _, spec := range specs {
+			tpl, compileErr := mail.CompileTemplate(spec)
+			if compileErr != nil {
+				continue
+			}
+			stored, storeErr := s.storeTemplate(userID, sender, spec, int64(len(samples)), settings.MinSamples)
+			if storeErr != nil {
+				continue
+			}
+			active := stored.Status == "active"
+			// Use the new template on every pending row from this sender.
+			for _, row := range group {
+				if row.RawText == nil {
+					continue
+				}
+				match, ok := tpl.Extract(row.Subject, *row.RawText)
+				if !ok || !match.Complete || match.Extraction == nil || match.NeedsReview {
+					continue
+				}
+				b, _ := json.Marshal(match.Extraction)
+				parsed := string(b)
+				status := repo.MailStatusPending
+				if active && match.Extraction.AccountHint != nil {
+					header := &mail.MailHeader{FromAddr: row.FromAddr, Subject: row.Subject}
+					for _, rule := range rules {
+						if rule.Enabled && rule.Action == repo.MailRuleActionAuto && mail.RuleMatches(rule, header, *row.RawText) {
+							status = repo.MailStatusAuto
+							break
+						}
+					}
+				}
+				if err := s.repo.UpdateMessageExtraction(userID, row.ID, &parsed, status, match.Extraction.Confidence, &stored.ID); err == nil {
+					applied = true
+				}
+			}
+			if applied {
+				break
+			}
+		}
+		s.aiMu.Lock()
+		st.DoneSenders++
+		s.aiMu.Unlock()
+	}
+	s.autoCreate(userID)
+}
+
+// samplesFor picks up to limit newest unrejected bodies for a sender.
+func (s *Service) samplesFor(_ context.Context, userID, sender string, group []*repo.MailMessageRow, limit int) []mail.LLMSample {
+	rows, err := s.repo.RecentMessagesFromSender(userID, sender, 20)
+	if err != nil {
+		rows = group
+	}
+	out := make([]mail.LLMSample, 0, limit)
+	for _, row := range rows {
+		if row.Status == repo.MailStatusRejected || row.RawText == nil {
+			continue
+		}
+		out = append(out, mail.LLMSample{From: row.FromAddr, Subject: row.Subject, Body: *row.RawText})
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+// storeTemplate persists a validated generated template (provisional until the
+// configured sample count is reached).
+func (s *Service) storeTemplate(userID, sender string, spec mail.TemplateSpec, samples, minSamples int64) (*repo.MailTemplateRow, error) {
+	guards, err := json.Marshal(spec.Guards)
+	if err != nil {
+		return nil, err
+	}
+	patterns, err := json.Marshal(spec.Patterns)
+	if err != nil {
+		return nil, err
+	}
+	if minSamples < 1 {
+		minSamples = 1
+	}
+	status := "provisional"
+	if samples >= minSamples {
+		status = "active"
+	}
+	return s.repo.CreateTemplate(userID, &repo.MailTemplateRow{
+		Sender: sender, Name: spec.Name, GuardsJSON: string(guards),
+		PatternsJSON: string(patterns), Status: status, SampleCount: samples,
+	})
+}
+
+// PollFullAsync scans the whole mailbox of every enabled account in the
+// background; matched mail is stored in batches by the poll.
+func (s *Service) PollFullAsync(userID string) string {
+	go func() {
+		accounts, err := s.repo.ListAccounts(userID)
+		if err != nil {
+			slog.Warn("full poll: could not list mailboxes", "user", userID, "err", err)
+			return
+		}
+		for _, account := range accounts {
+			if !account.Enabled {
+				continue
+			}
+			if _, err := s.pollAccountMode(context.Background(), account, true); err != nil {
+				slog.Warn("full poll failed", "account", account.ID, "user", userID, "err", err)
+				_ = s.repo.MarkPolled(account.ID, err.Error())
+				continue
+			}
+			_ = s.repo.MarkPolled(account.ID, "")
+		}
+		s.autoCreate(userID)
+	}()
+	return "started"
 }
 
 // generateTemplates is the LLM hook used by the poll. It enforces the user's
 // per-sender cooldown before calling LiteLLM.
 func (s *Service) generateTemplates(ctx context.Context, userID, sender string, samples []mail.LLMSample) ([]mail.TemplateSpec, error) {
+	return s.generateTemplatesForce(ctx, userID, sender, samples, false)
+}
+
+// generateTemplatesForce runs the template generator; force bypasses the
+// per-sender cooldown for an explicit user action.
+func (s *Service) generateTemplatesForce(ctx context.Context, userID, sender string, samples []mail.LLMSample, force bool) ([]mail.TemplateSpec, error) {
 	if s.llm == nil {
 		return nil, nil
 	}
@@ -568,9 +851,11 @@ func (s *Service) generateTemplates(ctx context.Context, userID, sender string, 
 	}
 	key := userID + "|" + sender
 	s.throttleMu.Lock()
-	if last := s.lastLearn[key]; !last.IsZero() && time.Since(last) < cooldown {
-		s.throttleMu.Unlock()
-		return nil, nil
+	if !force {
+		if last := s.lastLearn[key]; !last.IsZero() && time.Since(last) < cooldown {
+			s.throttleMu.Unlock()
+			return nil, nil
+		}
 	}
 	s.lastLearn[key] = time.Now()
 	s.throttleMu.Unlock()

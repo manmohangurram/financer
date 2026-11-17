@@ -106,6 +106,11 @@ func main() {
 		WithTransferRule(transferRuleSvc)
 
 	mailSvc := mailservice.New(mailRepo, cfg.Server.SecretKey, txnSvc, accountSvc, llmSvc)
+	if n, err := mailSvc.CleanupUnmatched(); err != nil {
+		slog.Warn("mail cleanup failed", "err", err)
+	} else if n > 0 {
+		slog.Info("mail cleanup complete", "deleted", n)
+	}
 	mailSvc.Spawn(stdtime.Duration(cfg.Server.MailPollSecs) * stdtime.Second)
 	keySvc := keyservice.New(keyRepo)
 

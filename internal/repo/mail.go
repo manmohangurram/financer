@@ -153,12 +153,17 @@ type MailRepo interface {
 	MarkPolled(accountID, errMsg string) error
 	KnownMessageIDs(userID string, ids []string) ([]string, error)
 	InsertMessage(userID string, msg *NewMailMessage) (bool, error)
+	InsertMessagesBatch(userID string, msgs []*NewMailMessage) (int, error)
 	ListMessages(userID string, status *MailStatus, limit int64) ([]*MailMessageRow, error)
+	DistinctMailUsers() ([]string, error)
+	ListCleanupCandidates(userID string) ([]*MailMessageRow, error)
+	DeleteMessages(ids []string) (int64, error)
 	// ListMessagesFiltered pages the queue with the filters the Inbox offers.
 	ListMessagesFiltered(userID string, statuses []MailStatus, accountID, search string, limit int64, cursor *MailCursor) ([]*MailMessageRow, error)
 	CountMessagesFiltered(userID string, statuses []MailStatus, accountID, search string) (int64, error)
 	GetMessage(userID, id string) (*MailMessageRow, error)
 	ResolveMessage(userID, id string, status MailStatus, approvedJSON, transactionID *string) (bool, error)
+	UpdateMessageExtraction(userID, id string, parsedJSON *string, status MailStatus, confidence float64, templateID *string) error
 	ListRules(userID string) ([]*MailRuleRow, error)
 	ListRulesPage(userID string, limit int64, cursor *MailRuleCursor) ([]*MailRuleRow, string, error)
 	CreateRule(userID string, input *MailRuleInput) (*MailRuleRow, error)

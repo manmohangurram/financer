@@ -46,6 +46,9 @@ export interface MailServiceClient {
   deleteAccount: (req: unknown) => Promise<any>;
   pollAccount: (req: unknown) => Promise<any>;
   pollAll: (req: unknown) => Promise<any>;
+  pollFull: (req: unknown) => Promise<any>;
+  aiParse: (req: unknown) => Promise<any>;
+  aiParseStatus: (req: unknown) => Promise<any>;
   getMessage: (req: unknown) => Promise<any>;
   listMessages: (req: unknown) => Promise<any>;
   act: (req: unknown) => Promise<any>;
@@ -182,6 +185,9 @@ export function mail(): MailServiceClient {
       deleteAccount: api('DELETE', '/api/mail/accounts/{id}'),
       pollAccount: api('POST', '/api/mail/accounts/{id}/poll'),
       pollAll: api('POST', '/api/mail/poll'),
+      pollFull: api('POST', '/api/mail/poll/full'),
+      aiParse: api('POST', '/api/mail/ai-parse'),
+      aiParseStatus: api('GET', '/api/mail/ai-parse'),
       listMessages: api('GET', '/api/mail/messages'),
       getMessage: api('GET', '/api/mail/messages/{id}'),
       act: api('POST', '/api/mail/messages'),

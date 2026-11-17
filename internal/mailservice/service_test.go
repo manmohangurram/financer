@@ -536,3 +536,17 @@ func TestMessagesFilters(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+func TestActBlockedWhileAIParseRuns(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	msgID := seedMessage(t, e, "<locked>", "1234")
+	e.svc.aiStates[e.uid] = &model.AIParseStatus{Running: true}
+	if _, err := e.svc.Act(e.uid, []model.MailActionItem{{ID: msgID, Action: "REJECT"}}); err == nil {
+		t.Fatal("decisions must be refused while AI parse runs")
+	}
+	e.svc.aiStates[e.uid] = &model.AIParseStatus{Running: false}
+	if _, err := e.svc.Act(e.uid, []model.MailActionItem{{ID: msgID, Action: "REJECT"}}); err != nil {
+		t.Fatalf("decision after the job failed: %v", err)
+	}
+}

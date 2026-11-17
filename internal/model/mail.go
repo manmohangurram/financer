@@ -124,6 +124,17 @@ type WireMailRules struct {
 	NextPageToken string      `json:"nextPageToken"`
 }
 
+// AIParseStatus is the progress of the per-sender AI re-parse job.
+type AIParseStatus struct {
+	Running       bool   `json:"running"`
+	TotalSenders  int64  `json:"totalSenders"`
+	DoneSenders   int64  `json:"doneSenders"`
+	CurrentSender string `json:"currentSender"`
+	StartedAt     string `json:"startedAt"`
+	FinishedAt    string `json:"finishedAt"`
+	Error         string `json:"error"`
+}
+
 // WirePollStatus is the async poll trigger response.
 type WirePollStatus struct {
 	Status string `json:"status"` // started | throttled

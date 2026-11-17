@@ -68,47 +68,65 @@ func (s *IMAPSource) Headers(sinceDays int) ([]MailHeader, error) {
 		return nil, apierrors.BadGateway(fmt.Sprintf("imap SEARCH failed: %v", err))
 	}
 	all := data.AllUIDs()
-	if len(all) == 0 {
-		return nil, nil
-	}
 	if len(all) > maxMessages {
 		all = all[len(all)-maxMessages:]
 	}
-	uids := make([]imap.UID, 0, len(all))
-	for _, uid := range all {
-		uids = append(uids, imap.UID(uid))
-	}
+	return s.fetchHeadersLocked(all)
+}
 
-	msgs, err := s.client.Fetch(imap.UIDSetNum(uids...), &imap.FetchOptions{
-		UID:      true,
-		Envelope: true,
-	}).Collect()
+// HeadersAll returns every envelope in the INBOX (full poll: no date window).
+func (s *IMAPSource) HeadersAll() ([]MailHeader, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == nil {
+		return nil, apierrors.BadGateway("imap session closed")
+	}
+	data, err := s.client.UIDSearch(&imap.SearchCriteria{}, nil).Wait()
 	if err != nil {
-		return nil, apierrors.BadGateway(fmt.Sprintf("imap FETCH headers failed: %v", err))
+		return nil, apierrors.BadGateway(fmt.Sprintf("imap SEARCH ALL failed: %v", err))
 	}
+	return s.fetchHeadersLocked(data.AllUIDs())
+}
 
-	out := make([]MailHeader, 0, len(msgs))
-	for _, msg := range msgs {
-		// No Message-ID means no idempotency key, so the message is skipped.
-		if msg.Envelope == nil || msg.Envelope.MessageID == "" {
-			continue
+// fetchHeadersLocked fetches envelopes in chunks so a large mailbox does not
+// arrive as one response. The caller holds s.mu.
+func (s *IMAPSource) fetchHeadersLocked(all []imap.UID) ([]MailHeader, error) {
+	const chunk = 500
+	out := make([]MailHeader, 0, len(all))
+	for start := 0; start < len(all); start += chunk {
+		end := start + chunk
+		if end > len(all) {
+			end = len(all)
 		}
-		from := ""
-		if len(msg.Envelope.From) > 0 {
-			from = msg.Envelope.From[0].Addr()
+		msgs, err := s.client.Fetch(imap.UIDSetNum(all[start:end]...), &imap.FetchOptions{
+			UID:      true,
+			Envelope: true,
+		}).Collect()
+		if err != nil {
+			return nil, apierrors.BadGateway(fmt.Sprintf("imap FETCH headers failed: %v", err))
 		}
-		var receivedAt *string
-		if !msg.Envelope.Date.IsZero() {
-			v := msg.Envelope.Date.Format(time.RFC3339)
-			receivedAt = &v
+		for _, msg := range msgs {
+			// No Message-ID means no idempotency key, so the message is skipped.
+			if msg.Envelope == nil || msg.Envelope.MessageID == "" {
+				continue
+			}
+			from := ""
+			if len(msg.Envelope.From) > 0 {
+				from = msg.Envelope.From[0].Addr()
+			}
+			var receivedAt *string
+			if !msg.Envelope.Date.IsZero() {
+				v := msg.Envelope.Date.Format(time.RFC3339)
+				receivedAt = &v
+			}
+			out = append(out, MailHeader{
+				UID:        uint32(msg.UID),
+				MessageID:  msg.Envelope.MessageID,
+				FromAddr:   from,
+				Subject:    msg.Envelope.Subject,
+				ReceivedAt: receivedAt,
+			})
 		}
-		out = append(out, MailHeader{
-			UID:        uint32(msg.UID),
-			MessageID:  msg.Envelope.MessageID,
-			FromAddr:   from,
-			Subject:    msg.Envelope.Subject,
-			ReceivedAt: receivedAt,
-		})
 	}
 	return out, nil
 }

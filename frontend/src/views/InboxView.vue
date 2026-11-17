@@ -7,6 +7,8 @@ import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
 import MailQueue from '@/components/mail/MailQueue.vue';
 import EmailReader from '@/components/mail/EmailReader.vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
+import AppModal from '@/components/AppModal.vue';
+import AppInput from '@/components/AppInput.vue';
 import { Plus, RefreshCw, Settings2 } from '@lucide/vue';
 
 interface MailAccount {
@@ -52,6 +54,11 @@ const form = ref({
 });
 const formErrors = ref<string[]>([]);
 const PAGE_SIZE = 20;
+const aiStatus = ref<any>({ running: false, totalSenders: 0, doneSenders: 0, currentSender: '' });
+const accountPrompt = ref<string | null>(null);
+const newAccount = ref({ bankName: '', nickname: '' });
+const creatingAccount = ref(false);
+let aiTimer: number | null = null;
 let refreshTimer: number | null = null;
 
 const total = ref(0);
@@ -201,6 +208,74 @@ async function load(opts: { silent?: boolean } = {}) {
   }
 }
 
+async function createAccountAndApprove() {
+  const hint = accountPrompt.value;
+  if (!hint) return;
+  creatingAccount.value = true;
+  error.value = '';
+  try {
+    const created = await accountsApi().createAccount({
+      bankName: newAccount.value.bankName.trim() || `Account ···${hint}`,
+      nickname: newAccount.value.nickname.trim(),
+      type: 'SAVINGS',
+      endingNumbers: hint
+    });
+    accountPrompt.value = null;
+    await loadMeta();
+    form.value.accountId = created?.id || accounts.value.find((a) => a.endingNumbers === hint)?.id || '';
+    await approve();
+  } catch (e: any) {
+    error.value = e?.message || 'Could not create the account';
+  }
+  creatingAccount.value = false;
+}
+
+async function pollFull() {
+  error.value = '';
+  notice.value = 'Full poll started — scanning the whole mailbox.';
+  try {
+    await mail().pollFull({});
+    startRefresh();
+  } catch (e: any) {
+    error.value = e?.message || 'Could not start the full poll';
+  }
+}
+
+async function startAiParse() {
+  if (aiStatus.value.running) return;
+  error.value = '';
+  notice.value = 'AI parse started.';
+  try {
+    aiStatus.value = await mail().aiParse({});
+    watchAi();
+  } catch (e: any) {
+    error.value = e?.message || 'Could not start AI parsing';
+  }
+}
+
+function watchAi() {
+  stopAi();
+  aiTimer = window.setInterval(async () => {
+    try {
+      const st = await mail().aiParseStatus({});
+      aiStatus.value = st;
+      if (!st.running) {
+        stopAi();
+        notice.value = 'AI parse finished.';
+        await load({ silent: true });
+        await loadMeta();
+      }
+    } catch {
+      /* keep the banner until the next tick succeeds */
+    }
+  }, 2000);
+}
+
+function stopAi() {
+  if (aiTimer) window.clearInterval(aiTimer);
+  aiTimer = null;
+}
+
 function startRefresh() {
   if (refreshTimer) window.clearInterval(refreshTimer);
   let ticks = 0;
@@ -244,7 +319,19 @@ function validate(): string[] {
 }
 
 async function approve() {
-  if (!selected.value) return;
+  if (!selected.value || aiStatus.value.running) return;
+  // A deleted/new account: resolve the last-4 hint, else ask to create it.
+  if (!form.value.accountId && parsed.value?.accountHint) {
+    const hint = parsed.value.accountHint;
+    const match = accounts.value.find((a) => (a.endingNumbers || '') === hint);
+    if (match) {
+      form.value.accountId = match.id;
+    } else {
+      accountPrompt.value = hint;
+      formErrors.value = [];
+      return;
+    }
+  }
   formErrors.value = validate();
   if (formErrors.value.length) return;
   busy.value = true;
@@ -280,7 +367,7 @@ async function approve() {
 }
 
 async function reject() {
-  if (!selected.value) return;
+  if (!selected.value || aiStatus.value.running) return;
   busy.value = true;
   error.value = '';
   try {
@@ -311,10 +398,18 @@ onMounted(async () => {
   await loadMeta();
   await load();
   poll(false);
+  try {
+    const st = await mail().aiParseStatus({});
+    aiStatus.value = st;
+    if (st?.running) watchAi();
+  } catch {
+    /* status is best-effort */
+  }
 });
 onUnmounted(() => {
   if (refreshTimer) window.clearInterval(refreshTimer);
   if (searchTimer) window.clearTimeout(searchTimer);
+  stopAi();
 });
 </script>
 
@@ -322,10 +417,16 @@ onUnmounted(() => {
   <div class="flex min-h-0 w-full flex-1 flex-col gap-3">
     <SectionHeader title="Inbox" subtitle="Read the alert, correct the fields, book it">
       <template #actions>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <button class="btn btn-sm btn-outline" :disabled="checking" @click="poll(true)">
             <RefreshCw class="h-4 w-4" :class="checking ? 'animate-spin' : ''" aria-hidden="true" />
             Poll now
+          </button>
+          <button class="btn btn-sm btn-outline" :disabled="checking" @click="pollFull">
+            Full poll
+          </button>
+          <button class="btn btn-sm btn-outline" :disabled="aiStatus.running" @click="startAiParse">
+            {{ aiStatus.running ? 'AI parsing…' : 'Parse with AI' }}
           </button>
           <button class="btn btn-sm btn-ghost" @click="router.push('/settings?tab=mailboxes')">
             <Settings2 class="h-4 w-4" aria-hidden="true" />
@@ -341,6 +442,12 @@ onUnmounted(() => {
 
     <p v-if="error" role="alert" class="rounded-card border border-debit/40 px-3.5 py-2 text-[12.5px] text-debit">{{ error }}</p>
     <p v-if="notice" class="rounded-card border border-credit/40 px-3.5 py-2 text-[12.5px] text-credit">{{ notice }}</p>
+
+    <div v-if="aiStatus.running" role="status" class="rounded-card border border-accent/40 bg-accent-wash px-3.5 py-2 text-[12.5px] text-ink">
+      AI parsing {{ aiStatus.doneSenders }}/{{ aiStatus.totalSenders }} senders
+      <span v-if="aiStatus.currentSender" class="text-ink-mute">· {{ aiStatus.currentSender }}</span>
+      <span class="text-ink-mute"> — approve/reject is paused until it finishes.</span>
+    </div>
 
     <div class="grid min-h-0 flex-1 overflow-hidden rounded-card border border-rule bg-page lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
       <!-- Queue -->
@@ -458,8 +565,8 @@ onUnmounted(() => {
             </div>
 
             <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-rule-soft pt-4">
-              <button type="submit" class="btn btn-primary" :disabled="busy || !actionable">Approve</button>
-              <button type="button" class="btn btn-outline" :disabled="busy || !actionable" @click="reject">Reject</button>
+              <button type="submit" class="btn btn-primary" :disabled="busy || !actionable || aiStatus.running">Approve</button>
+              <button type="button" class="btn btn-outline" :disabled="busy || !actionable || aiStatus.running" @click="reject">Reject</button>
               <span v-if="!actionable" class="ml-auto text-[11px] text-ink-faint">Already decided</span>
             </div>
           </div>
@@ -468,6 +575,23 @@ onUnmounted(() => {
     </div>
 
     <MailboxFormModal v-if="showMailboxForm" :account="null" @close="showMailboxForm = false" @saved="load(); poll(false)" />
+
+    <AppModal v-if="accountPrompt" title="Create the account" @close="accountPrompt = null">
+      <form class="flex flex-col gap-4 px-5 py-4" @submit.prevent="createAccountAndApprove">
+        <p class="text-[12.5px] text-ink-mute">
+          No account ends with <span class="mono text-ink">···{{ accountPrompt }}</span>. Create it to book this
+          transaction; the mail is linked automatically.
+        </p>
+        <AppInput v-model="newAccount.bankName" label="Bank" placeholder="e.g. HDFC Bank" required />
+        <AppInput v-model="newAccount.nickname" label="Nickname" placeholder="e.g. Everyday" hint="Optional" />
+        <div class="flex justify-end gap-2 border-t border-rule pt-3">
+          <button type="button" class="btn btn-sm btn-ghost" @click="accountPrompt = null">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-primary" :disabled="creatingAccount">
+            {{ creatingAccount ? 'Creating…' : 'Create and approve' }}
+          </button>
+        </div>
+      </form>
+    </AppModal>
   </div>
 </template>
 

@@ -53,6 +53,15 @@ func newMailEnv(t *testing.T) (repo.MailRepo, *repo.MailAccountRow, string, func
 	}
 }
 
+func seedReviewRule(t *testing.T, store repo.MailRepo, uid, sender string) {
+	t.Helper()
+	if _, err := store.CreateRule(uid, &repo.MailRuleInput{
+		Position: 1, Enabled: true, FromPattern: sender, Action: repo.MailRuleActionReview,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func header(uid uint32, messageID, from string) MailHeader {
 	return MailHeader{UID: uid, MessageID: messageID, FromAddr: from, Subject: "Debited"}
 }
@@ -89,6 +98,7 @@ func seedTemplate(t *testing.T, store repo.MailRepo, uid, sender string, spec Te
 func TestPollAccountStoresAndSkips(t *testing.T) {
 	mailRepo, account, uid, cleanup := newMailEnv(t)
 	defer cleanup()
+	seedReviewRule(t, mailRepo, uid, "alerts@bank.com")
 
 	src := &fakeSource{
 		headers: []MailHeader{
@@ -143,6 +153,7 @@ func TestPollAccountStoresAndSkips(t *testing.T) {
 func TestPollUsesStoredTemplate(t *testing.T) {
 	mailRepo, account, uid, cleanup := newMailEnv(t)
 	defer cleanup()
+	seedReviewRule(t, mailRepo, uid, "alerts@bank.com")
 	seedTemplate(t, mailRepo, uid, "alerts@bank.com", debitTemplate("alerts@bank.com"), "active", 3)
 
 	src := &fakeSource{
@@ -186,6 +197,7 @@ func TestPollUsesStoredTemplate(t *testing.T) {
 func TestPollGeneratesTemplateOnFailure(t *testing.T) {
 	mailRepo, account, uid, cleanup := newMailEnv(t)
 	defer cleanup()
+	seedReviewRule(t, mailRepo, uid, "newbank@example.com")
 
 	src := &fakeSource{
 		headers: []MailHeader{header(1, "<m1>", "newbank@example.com")},

@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/mohan9182/financer/internal/repo"
@@ -50,6 +51,7 @@ func RuleMatches(rule *repo.MailRuleRow, header *MailHeader, body string) bool {
 
 // PollAccount fetches the recent window, decides each message's disposition and
 // stores it. Templates parse first; the generator runs only on failure.
+// PollAccount scans the recent window and stores only rule-matched mail.
 func PollAccount(
 	ctx context.Context,
 	source MailSource,
@@ -58,7 +60,41 @@ func PollAccount(
 	generate TemplateGenerator,
 	minSamples int64,
 ) (*PollSummary, error) {
-	headers, err := source.Headers(WindowDays)
+	return pollAccount(ctx, source, store, account, generate, minSamples, false)
+}
+
+// PollAccountFull scans the whole INBOX (no date window) and batches inserts.
+func PollAccountFull(
+	ctx context.Context,
+	source MailSource,
+	store repo.MailRepo,
+	account *repo.MailAccountRow,
+	generate TemplateGenerator,
+	minSamples int64,
+) (*PollSummary, error) {
+	return pollAccount(ctx, source, store, account, generate, minSamples, true)
+}
+
+func pollAccount(
+	ctx context.Context,
+	source MailSource,
+	store repo.MailRepo,
+	account *repo.MailAccountRow,
+	generate TemplateGenerator,
+	minSamples int64,
+	full bool,
+) (*PollSummary, error) {
+	var headers []MailHeader
+	var err error
+	if full {
+		fullSource, ok := source.(interface{ HeadersAll() ([]MailHeader, error) })
+		if !ok {
+			return nil, fmt.Errorf("mail source does not support a full scan")
+		}
+		headers, err = fullSource.HeadersAll()
+	} else {
+		headers, err = source.Headers(WindowDays)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +116,17 @@ func PollAccount(
 	}
 
 	summary := &PollSummary{Matched: len(headers)}
+	var pending []*repo.NewMailMessage
+	flush := func() error {
+		if len(pending) == 0 {
+			return nil
+		}
+		if _, err := store.InsertMessagesBatch(account.UserID, pending); err != nil {
+			return err
+		}
+		pending = pending[:0]
+		return nil
+	}
 	for i := range headers {
 		header := &headers[i]
 		if known[header.MessageID] {
@@ -93,10 +140,20 @@ func PollAccount(
 
 		// Ignore rules run first: never fetch an LLM or parse junk mail.
 		if rule := firstRule(rules, repo.MailRuleActionIgnore, header, rawText); rule != nil {
-			if err := insertMessage(store, account, header, rawText, repo.MailStatusIgnored, nil, 0, "rule", nil); err != nil {
-				return nil, err
-			}
+			pending = append(pending, buildMessage(account, header, rawText, repo.MailStatusIgnored, nil, 0, "rule", nil))
 			summary.Stored++
+			if len(pending) >= 100 {
+				if err := flush(); err != nil {
+					return nil, err
+				}
+			}
+			continue
+		}
+
+		// Rule gating: unmatched mail is noise and is never stored.
+		if firstRule(rules, repo.MailRuleActionReview, header, rawText) == nil &&
+			firstRule(rules, repo.MailRuleActionAuto, header, rawText) == nil {
+			summary.Skipped++
 			continue
 		}
 
@@ -159,10 +216,16 @@ func PollAccount(
 		if extraction != nil {
 			confidence = extraction.Confidence
 		}
-		if err := insertMessage(store, account, header, rawText, status, parsed, confidence, sourceName, templateID); err != nil {
-			return nil, err
-		}
+		pending = append(pending, buildMessage(account, header, rawText, status, parsed, confidence, sourceName, templateID))
 		summary.Stored++
+		if len(pending) >= 100 {
+			if err := flush(); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := flush(); err != nil {
+		return nil, err
 	}
 	return summary, nil
 }
@@ -270,15 +333,15 @@ func compileRow(row *repo.MailTemplateRow) (*Template, error) {
 	return CompileTemplate(spec)
 }
 
-func insertMessage(store repo.MailRepo, account *repo.MailAccountRow, header *MailHeader, raw string,
-	status repo.MailStatus, parsed *string, confidence float64, source string, templateID *string) error {
+// buildMessage parses the display form once and returns the row to insert.
+func buildMessage(account *repo.MailAccountRow, header *MailHeader, raw string,
+	status repo.MailStatus, parsed *string, confidence float64, source string, templateID *string) *repo.NewMailMessage {
 	display := ParseEmail(raw)
-	_, err := store.InsertMessage(account.UserID, &repo.NewMailMessage{
+	return &repo.NewMailMessage{
 		MailAccountID: account.ID, MessageID: header.MessageID, FromAddr: header.FromAddr,
 		FromName: display.FromName, ReceivedAt: header.ReceivedAt, Subject: header.Subject,
 		RawText: raw, BodyText: display.Body,
 		Status: status, ParsedJSON: parsed, Confidence: confidence,
 		ExtractorSource: source, TemplateID: templateID,
-	})
-	return err
+	}
 }

@@ -165,6 +165,40 @@ func (r *MailRepo) InsertMessage(userID string, msg *repo.NewMailMessage) (bool,
 	return n > 0, nil
 }
 
+// InsertMessagesBatch inserts up to a page of matched mail in one transaction.
+func (r *MailRepo) InsertMessagesBatch(userID string, msgs []*repo.NewMailMessage) (int, error) {
+	if len(msgs) == 0 {
+		return 0, nil
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	inserted := 0
+	for _, msg := range msgs {
+		res, err := tx.Exec(
+			`INSERT OR IGNORE INTO mail_messages
+				(id, user_id, mail_account_id, message_id, from_addr, from_name, received_at, subject,
+				 raw_text, body_text, status, parsed_json, confidence, extractor_source, template_id, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			uuid.New().String(), userID, msg.MailAccountID, msg.MessageID, msg.FromAddr, msg.FromName,
+			msg.ReceivedAt, msg.Subject, msg.RawText, msg.BodyText, string(msg.Status), msg.ParsedJSON,
+			msg.Confidence, msg.ExtractorSource, msg.TemplateID, tim.NowGoTS(),
+		)
+		if err != nil {
+			return inserted, err
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			inserted++
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return inserted, err
+	}
+	return inserted, nil
+}
+
 const mailMessageColumns = `id, message_id, mail_account_id, from_addr, from_name, subject, received_at, status, parsed_json,
 	approved_json, COALESCE(confidence, 0), raw_text, body_text, transaction_id, template_id`
 
@@ -198,6 +232,70 @@ func (r *MailRepo) ListMessages(userID string, status *repo.MailStatus, limit in
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// DistinctMailUsers lists users that still have stored mail (startup cleanup).
+func (r *MailRepo) DistinctMailUsers() ([]string, error) {
+	rows, err := r.db.Query("SELECT DISTINCT user_id FROM mail_messages")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// ListCleanupCandidates returns every stored message of a user with the fields
+// rule matching needs.
+func (r *MailRepo) ListCleanupCandidates(userID string) ([]*repo.MailMessageRow, error) {
+	rows, err := r.db.Query(
+		"SELECT "+mailMessageColumns+" FROM mail_messages WHERE user_id = ?", userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*repo.MailMessageRow
+	for rows.Next() {
+		m, err := scanMailMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// DeleteMessages removes the given rows in chunks.
+func (r *MailRepo) DeleteMessages(ids []string) (int64, error) {
+	var deleted int64
+	for start := 0; start < len(ids); start += 500 {
+		end := start + 500
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunk := ids[start:end]
+		placeholders := strings.Repeat("?,", len(chunk))
+		placeholders = placeholders[:len(placeholders)-1]
+		args := make([]any, len(chunk))
+		for i, id := range chunk {
+			args[i] = id
+		}
+		res, err := r.db.Exec("DELETE FROM mail_messages WHERE id IN ("+placeholders+")", args...)
+		if err != nil {
+			return deleted, err
+		}
+		n, _ := res.RowsAffected()
+		deleted += n
+	}
+	return deleted, nil
 }
 
 func (r *MailRepo) GetMessage(userID, id string) (*repo.MailMessageRow, error) {
@@ -347,6 +445,17 @@ func scanMailMessageList(rows *sql.Rows) (*repo.MailMessageRow, error) {
 		m.BodyPreview = preview.String
 	}
 	return &m, nil
+}
+
+// UpdateMessageExtraction rewrites the parsed fields after an AI re-parse.
+func (r *MailRepo) UpdateMessageExtraction(userID, id string, parsedJSON *string, status repo.MailStatus, confidence float64, templateID *string) error {
+	_, err := r.db.Exec(
+		`UPDATE mail_messages SET parsed_json = ?, status = ?, confidence = ?, template_id = ?,
+		     extractor_source = 'template'
+		 WHERE id = ? AND user_id = ?`,
+		parsedJSON, string(status), confidence, templateID, id, userID,
+	)
+	return err
 }
 
 func (r *MailRepo) ResolveMessage(userID, id string, status repo.MailStatus, approvedJSON, transactionID *string) (bool, error) {

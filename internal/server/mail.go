@@ -145,6 +145,24 @@ func (a *API) listMailMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, model.WireMailMessages{Messages: msgs, Total: total, TotalCount: total, NextPageToken: next})
 }
 
+func (a *API) pollMailFull(c *gin.Context) {
+	status := a.mailSvc.PollFullAsync(c.GetString(userIDKey))
+	c.JSON(http.StatusAccepted, model.WirePollStatus{Status: status})
+}
+
+func (a *API) startAIParse(c *gin.Context) {
+	st, err := a.mailSvc.StartAIParse(c.GetString(userIDKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, st)
+}
+
+func (a *API) getAIParseStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, a.mailSvc.AIParseStatus(c.GetString(userIDKey)))
+}
+
 func (a *API) getMailMessage(c *gin.Context) {
 	msg, err := a.mailSvc.Get(c.GetString(userIDKey), c.Param("id"))
 	if err != nil {

@@ -267,6 +267,19 @@ func paths() map[string]any {
 				"responses":  map[string]any{"200": okResp("Poll summary", "PollSummary"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
 			},
 		},
+		"/api/mail/poll/full": map[string]any{
+			"post": map[string]any{
+				"tags": []any{"mail"}, "summary": "Start a background poll of the whole mailbox",
+				"responses": map[string]any{"202": okResp("Poll status", "PollStatus"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/mail/ai-parse": map[string]any{
+			"get": op("mail", "Read the AI re-parse job state", "", okResp("Status", "AIParseStatus")),
+			"post": map[string]any{
+				"tags": []any{"mail"}, "summary": "Re-parse pending mail per sender with the model",
+				"responses": map[string]any{"202": okResp("Status", "AIParseStatus"), "409": errRef("conflict"), "401": errRef("unauthenticated")},
+			},
+		},
 		"/api/mail/messages": map[string]any{
 			"get": map[string]any{
 				"tags": []any{"mail"}, "summary": "List stored mail",
@@ -474,6 +487,15 @@ func components() map[string]any {
 		}),
 		"PollStatus": obj(map[string]any{
 			"status": map[string]any{"type": "string", "enum": []any{"started", "throttled"}},
+		}),
+		"AIParseStatus": obj(map[string]any{
+			"running":       map[string]any{"type": "boolean"},
+			"totalSenders":  map[string]any{"type": "integer"},
+			"doneSenders":   map[string]any{"type": "integer"},
+			"currentSender": str(),
+			"startedAt":     str(),
+			"finishedAt":    str(),
+			"error":         str(),
 		}),
 		"LLMSettings": obj(map[string]any{
 			"baseUrl": str(), "model": str(),
