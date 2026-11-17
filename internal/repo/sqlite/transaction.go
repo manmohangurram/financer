@@ -364,10 +364,24 @@ func (r *TransactionRepo) List(userID string, f *repo.TransactionListFilter) (*r
 		if f.SortDir == "asc" {
 			dir = "ASC"
 		}
-		query += fmt.Sprintf(` ORDER BY CASE WHEN t.type = '%s' THEN 0 ELSE 1 END,
-			CASE WHEN t.type = '%s' THEN t.amount ELSE -t.amount END %s, t.id ASC`, primary, primary, dir)
+		groupExpr := fmt.Sprintf("CASE WHEN t.type = '%s' THEN 0 ELSE 1 END", primary)
+		valueExpr := fmt.Sprintf("CASE WHEN t.type = '%s' THEN t.amount ELSE -t.amount END", primary)
+		if cur := decodeSortCursor(f.PageToken); cur != nil {
+			cmp := "<"
+			if dir == "ASC" {
+				cmp = ">"
+			}
+			query += fmt.Sprintf(" AND (%s > ? OR (%s = ? AND (%s %s ? OR (%s = ? AND t.id > ?))))",
+				groupExpr, groupExpr, valueExpr, cmp, valueExpr)
+			args = append(args, cur.Group, cur.Group, cur.Value, cur.Value, cur.ID)
+		}
+		query += fmt.Sprintf(" ORDER BY %s, %s %s, t.id ASC", groupExpr, valueExpr, dir)
 		if f.PageSize > 0 {
-			query += fmt.Sprintf(" LIMIT %d OFFSET %d", f.PageSize, f.Offset)
+			if f.Offset > 0 && f.PageToken == "" {
+				query += fmt.Sprintf(" LIMIT %d OFFSET %d", f.PageSize, f.Offset)
+			} else {
+				query += fmt.Sprintf(" LIMIT %d", f.PageSize+1)
+			}
 		}
 	}
 
@@ -404,10 +418,28 @@ func (r *TransactionRepo) List(userID string, f *repo.TransactionListFilter) (*r
 	}
 
 	var nextToken string
-	if f.SortBy == "" && f.PageSize > 0 && int64(len(items)) > f.PageSize {
-		items = items[:f.PageSize]
-		last := items[len(items)-1]
-		nextToken = encodeTransactionCursor(last.Txn.OccurredAt, last.Txn.ID)
+	if f.SortBy == "" {
+		if f.PageSize > 0 && int64(len(items)) > f.PageSize {
+			items = items[:f.PageSize]
+			last := items[len(items)-1]
+			nextToken = encodeTransactionCursor(last.Txn.OccurredAt, last.Txn.ID)
+		}
+	} else if f.PageToken != "" || f.Offset == 0 {
+		if f.PageSize > 0 && int64(len(items)) > f.PageSize {
+			items = items[:f.PageSize]
+			last := items[len(items)-1]
+			primary := "DEBIT"
+			if f.SortBy == "credit" {
+				primary = "CREDIT"
+			}
+			group := int64(1)
+			value := -last.Txn.Amount
+			if last.Txn.Type == primary {
+				group = 0
+				value = last.Txn.Amount
+			}
+			nextToken = encodeSortCursor(group, value, last.Txn.ID)
+		}
 	}
 	return &repo.ListTransactionResult{Rows: items, NextPageToken: nextToken, TotalCount: total}, nil
 }
@@ -591,6 +623,32 @@ func scanTransaction(row *sql.Row) (*repo.TransactionRow, error) {
 type transactionCursor struct {
 	OccurredAt string `json:"OccurredAt"`
 	ID         string `json:"ID"`
+}
+
+type txnSortCursor struct {
+	Group int64   `json:"g"`
+	Value float64 `json:"v"`
+	ID    string  `json:"id"`
+}
+
+func encodeSortCursor(group int64, value float64, id string) string {
+	payload, _ := json.Marshal(txnSortCursor{Group: group, Value: value, ID: id})
+	return base64.URLEncoding.EncodeToString(payload)
+}
+
+func decodeSortCursor(token string) *txnSortCursor {
+	if token == "" {
+		return nil
+	}
+	raw, err := base64.URLEncoding.DecodeString(token)
+	if err != nil {
+		return nil
+	}
+	var payload txnSortCursor
+	if err := json.Unmarshal(raw, &payload); err != nil || payload.ID == "" {
+		return nil
+	}
+	return &payload
 }
 
 func encodeTransactionCursor(occurredAt, id string) string {

@@ -29,7 +29,9 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
 - Cursor pagination on every growable list endpoint: accounts, rules, mailboxes
   and mail rules now accept `pageSize`/`pageToken` and return `nextPageToken`, in
   addition to the existing cursor pages on transactions, categories and mail
-  messages. API keys stay unpaginated because the service caps them at 50.
+  messages. Transaction views with an explicit `sortBy`/`sortDir` are cursor-
+  paginated too; `offset` remains only for the numbered ledger pages. API keys stay
+  unpaginated because the service caps them at 50.
 - Cursor-pagination tests for the mail queue (disjoint pages, final page, invalid
   token, status union, search) and accounts.
 - Mail rules can target an account and categories (AUTO pre-booking), matching the
