@@ -198,7 +198,15 @@ docker compose pull
 docker compose up -d
 ```
 
-Schema migrations run automatically at startup.
+Schema migrations run automatically at startup. The schema is a **single baseline** (migration `000001_initial_schema`); there is no migration path from a pre-0.6 database. To start fresh, stop the container and delete the SQLite files:
+
+```bash
+docker compose down
+rm -f ./data/financer.db ./data/financer.db-wal ./data/financer.db-shm
+docker compose up -d
+```
+
+(Docker volume users: `docker volume rm <name>_data` also removes avatars. Back up first if you need the old data.)
 
 ## Reverse proxy & HTTPS
 

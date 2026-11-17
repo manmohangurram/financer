@@ -4,7 +4,7 @@ The backend migration is complete: the deployed server is the Go implementation 
 
 ## Done
 
-- **Foundation** — config, SQLite pools with WAL, embedded migrations (adopts an existing sqlx history), error envelope, JWT auth.
+- **Foundation** — config, SQLite pools with WAL, a single-baseline embedded schema, error envelope, JWT auth.
 - **Accounts & categories** — CRUD, cached balances, cursor-paginated categories.
 - **Transactions & transfers** — bulk create/update/delete, server-side filters + cursor pagination, recomputed balances, transfer linking and counterpart creation.
 - **Rules** — write-time name/category snapshots, transfer-to-account actions, preview, run-on-existing, auto-backfill.
@@ -16,6 +16,5 @@ The backend migration is complete: the deployed server is the Go implementation 
 ## Post-cutover backlog
 
 - Validate the IMAP transport against a real mailbox (the only path not exercised by tests; requires credentials).
-- Rehearse the database cutover on a copy of the production SQLite file (sqlx-history adoption is covered by a simulated test).
 - Self-host the Swagger UI assets if `/docs` must work without outbound internet.
 - Optional parity polish: bcrypt cost to match the old hashes' work factor, keep the raw `Date` header for mail `receivedAt`, and align the MCP transaction payload with the HTTP list shape.
