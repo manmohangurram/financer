@@ -1,8 +1,6 @@
 # Deployment Guide
 
-How this app is built and deployed: the Rust binary serves both the API and the built frontend (single container, no nginx). This doc covers the build pipeline, how frontend↔backend link at build/runtime, the arm64 image build, and the GitHub Actions release flow.
-
-Replace `<PROJECT>` / `<owner>` / `<image>` with your project's values. Apply the same pattern to any Rust + Vue app with this layout.
+How this app is built and deployed: the Go binary serves both the API and the built frontend (single container, no nginx). This doc covers the build pipeline, how frontend↔backend link at build/runtime, the arm64 image build, and the GitHub Actions release flow.
 
 ---
 
@@ -12,22 +10,24 @@ The app ships as **one artifact** — the server statically serves the built fro
 
 ### At build time (Docker)
 
-The `Dockerfile` builds the frontend first, then the Rust binary, then copies the built assets into the runtime image:
+The `Dockerfile` builds the frontend first, then the Go binary, then copies the built assets into the runtime image:
 
 ```
 frontend stage:  node → npm ci → npm run build → frontend/dist/
-builder stage:   rust + cargo-chef → cargo build --release
-runtime stage:   debian-slim ← COPY frontend/dist + app binary
+builder stage:   golang:1.27 → go mod download → CGO_ENABLED=0 go build ./cmd/financer
+runtime stage:   alpine + ca-certificates ← COPY frontend/dist + financer binary
 ```
 
 `RUN VITE_API_URL= npm run build` — the frontend is built with an **empty** API base, meaning it calls the API on the **same origin** it's served from. No hardcoded host.
+
+The binary is self-contained: SQL migrations are embedded (`go:embed db/migrations/*.up.sql`) and the IANA timezone database is compiled in (`time/tzdata`).
 
 ### At runtime (env)
 
 | Env var | Purpose |
 |---|---|
-| `<PROJECT>_DOMAIN_URL` | External URL the app is served at. When set, the server injects `<script>window.__API_BASE__=...` into the served `index.html`, and the frontend uses it as the API base. **Empty/omitted → same-origin** (default). |
-| `<PROJECT>_STATIC_DIR` | Where the built frontend lives (default `frontend/dist`). Omit → API-only mode (dev). |
+| `FINANCER_DOMAIN_URL` | External URL the app is served at. When set, the server injects `<script>window.__API_BASE__=...` into the served `index.html`, and the frontend uses it as the API base. **Empty/omitted → same-origin** (default). |
+| `FINANCER_STATIC_DIR` | Where the built frontend lives (image default `/app/frontend/dist`). Omit → API-only mode (dev). |
 
 Frontend resolution order (`frontend/src/lib/api/client.ts`):
 
@@ -41,7 +41,7 @@ Frontend resolution order (`frontend/src/lib/api/client.ts`):
 
 ```bash
 # Terminal 1 — backend (API on :8080)
-FINANCER_JWT_SECRET=devsecret cargo run
+FINANCER_JWT_SECRET=devsecret go run ./cmd/financer
 
 # Terminal 2 — frontend (vite dev, calls the API directly)
 cd frontend
@@ -56,12 +56,11 @@ The runtime image copies these from the build:
 
 | Path in image | From | Purpose |
 |---|---|---|
-| `/app/<binary>` | builder stage | the compiled binary |
+| `/app/financer` | builder stage | the compiled Go binary |
 | `/app/frontend/dist` | frontend stage | the built SPA |
-| `/app/config` | repo `config/` | app config templates |
-| `/data` (volume) | — | runtime data: DB, uploads |
+| `/data` (volume) | — | runtime data: DB, avatars |
 
-These must be present at build context (the workflow checks out the whole repo, so they are). Do not gitignore `config/`.
+There is no config directory — configuration is env-only. Migrations and the timezone database live inside the binary.
 
 ---
 
@@ -69,12 +68,13 @@ These must be present at build context (the workflow checks out the whole repo, 
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | PR gate: cargo build/clippy/test + frontend type-check/vitest/build |
-| `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR on tag |
+| `.github/workflows/ci.yml` | PR gate: gofmt/vet/build/test/govulncheck + frontend type-check/vitest/build |
+| `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR when a `v*` tag is created |
 | `.github/workflows/prune-packages.yml` | Weekly: delete old image versions from GHCR (keeps the newest 5 releases) |
-| `Dockerfile` | Multi-stage build (frontend + cargo-chef + runtime) |
+| `Dockerfile` | Multi-stage build (frontend + Go + runtime) |
 | `.dockerignore` | Exclude `target/`, `data/`, `node_modules/`, `.git` from build context |
-| `config/` | Runtime asset copied into the image |
+| `go.mod` / `go.sum` | Pinned Go toolchain version and module checksums |
+| `db/migrations/` | Embedded SQL migrations — the binary applies pending ones at boot |
 
 ---
 
@@ -82,12 +82,12 @@ These must be present at build context (the workflow checks out the whole repo, 
 
 ### How it works
 
-CI builds `linux/arm64` natively on an arm runner — no QEMU. The Dockerfile also handles `TARGETARCH`, so a cross-build works with the toolchain below:
+The image is **linux/arm64 only**. The build is a **pure-Go cross-build**: `CGO_ENABLED=0` with `GOARCH=arm64`. The SQLite driver (`glebarez/sqlite`, backed by `modernc.org/sqlite`) is pure Go, so there is **no cross-compiler, no `gcc-aarch64-linux-gnu`, and no target-specific linker**.
 
-- **arm64 on an arm runner** → native build
-- **arm64 under emulation** → `rustup target add aarch64-unknown-linux-gnu` + apt cross-gcc (`gcc-aarch64-linux-gnu`, `libc6-dev-arm64-cross`) → `cargo build --release --target aarch64-unknown-linux-gnu`
+- **arm64 on an arm runner** → native build (what CI does)
+- **any other build host** → the Dockerfile cross-compiles the arm64 binary; the build fails fast if a different `TARGETARCH` is requested
 
-Why a cross-C toolchain when cross-compiling: ring/rustls (reqwest) need a C linker for the final binary on arm64.
+The final image is Alpine with `ca-certificates` (outbound IMAP TLS needs system roots). Timezones are embedded in the binary, so `tzdata` is not installed.
 
 ### Via GitHub Actions (recommended)
 
@@ -110,7 +110,7 @@ The workflow (`docker-publish.yml`) builds and pushes one image, on an arm runne
 
 1. Builds `linux/arm64` on the native arm runner
 2. Pushes and tags `ghcr.io/<owner>/<image>` as above
-3. Reuses the Actions build cache (`type=gha`) so cargo-chef dep layers persist across releases — only the app crate recompiles
+3. Reuses the registry build cache (`type=registry`) so unchanged layers — including `go mod download` — persist across releases
 
 No repo variable to configure; every `v*` tag ships the image.
 
@@ -125,11 +125,11 @@ No repo variable to configure; every `v*` tag ships the image.
 docker buildx build --platform linux/arm64 -t ghcr.io/<owner>/<image>:test --load .
 ```
 
-If you get `no matching manifest for linux/arm64`, run `docker buildx create --use` once to enable the builder.
+If you get `no matching manifest for linux/arm64`, run `docker buildx create --use` once to enable the builder. Building with `--platform linux/amd64` is rejected on purpose — this project ships arm64 only.
 
-### Manual trigger (no tag)
+### Trigger
 
-The workflow also supports `workflow_dispatch` — run it from the Actions tab on any branch. Note: manual runs tag the image with branch/sha (no `latest`); `latest` is only applied on tag pushes.
+The image is built **only** when a `v*` tag is created (`git push origin v1.0.0` or a GitHub Release that creates the tag). Pull requests and branch pushes never build or publish an image.
 
 ---
 
@@ -138,7 +138,7 @@ The workflow also supports `workflow_dispatch` — run it from the Actions tab o
 1. Merge feature branches to the default branch (each PR runs `ci.yml`)
 2. Tag a release: `git tag v1.0.0 && git push origin v1.0.0`
 3. `docker-publish.yml` builds the arm64 image, pushes `ghcr.io/<owner>/<image>:v1.0.0` and `:latest`
-4. Deploy:
+4. Deploy on an **arm64 host** (the image has no amd64 variant):
 
 ```bash
 docker run -d \
@@ -173,11 +173,15 @@ Configuration is env-only (no config file). See the table in `README.md`.
 | `FINANCER_JWT_SECRET` | **yes** | token signing secret; the server refuses to start without it |
 | `FINANCER_ADDR` | no | listen address (default `0.0.0.0:8080`) |
 | `FINANCER_DATA_DIR` | no | runtime data root (default `/data`, bind a volume) |
+| `FINANCER_STATIC_DIR` | no | built SPA location (image default `/app/frontend/dist`) |
 | `FINANCER_DOMAIN_URL` | no | set only if the SPA is served from a different host |
-| `FINANCER_TIMEZONE` | no | IANA zone (default `Asia/Kolkata`) |
-| `FINANCER_SQLITE_PATH` | no | SQLite file (default `/data/financer.db`) |
+| `FINANCER_TIMEZONE` | no | IANA zone (default `Asia/Kolkata`); resolved from embedded tzdata |
+| `FINANCER_SQLITE_PATH` | no | SQLite file (default `/data/financer.db`); WAL mode is enabled at boot |
 | `FINANCER_SECRET_KEY` | for the Inbox | 64 hex chars (`openssl rand -hex 32`); encrypts mailbox passwords, and must stay stable — changing it makes stored passwords unreadable |
 | `FINANCER_MAIL_POLL_SECS` | no | background mail poll interval, seconds (default `300`, min `30`) |
+| `FINANCER_LOG_LEVEL` | no | `debug`, `info` (default), `warn`, `error` |
+| `FINANCER_LOG_FILE` | no | append logs to a file instead of stderr; rotates at 10 MB and keeps at most 3 files (`financer.log`, `.1`, `.2` — the oldest is deleted). With the default volume use `/data/financer.log`, otherwise read `docker logs` |
+| `FINANCER_ALLOW_INSECURE_HTTP` | no | set to `1` only behind a trusted proxy that terminates TLS; otherwise mailbox/auth endpoints require HTTPS (loopback is exempt) |
 
 ---
 
@@ -188,6 +192,7 @@ Configuration is env-only (no config file). See the table in `README.md`.
 | Frontend calls `localhost:8080` instead of the site URL | `VITE_API_URL` baked into a dev build; rebuild with `VITE_API_URL=`. In Docker the frontend is built with empty base → same-origin. |
 | 404 on `/api/...` after deploy | Wrong `DOMAIN_URL` injection; or unknown API path (SPA returns 404 JSON for unknown `/api/*`). |
 | `no matching manifest for linux/arm64` locally | buildx builder missing: `docker buildx create --use`. |
-| arm64 build fails on ring/cc | Cross-gcc missing — the Dockerfile installs `gcc-aarch64-linux-gnu` + `libc6-dev-arm64-cross` automatically. |
-| Full dependency rebuild on every release | The Actions cache (`type=gha`) expires after 7 days of inactivity; a tag push after that gap rebuilds the deps once. |
-| Docker image tag is branch/sha not version | Manual `workflow_dispatch` run; `latest`/version tags apply only on `v*` tag pushes. |
+| `cgo: C compiler not found` while building | Something re-enabled CGO; the SQLite stack is pure Go — keep `CGO_ENABLED=0`. |
+| Wrong timestamps / `UTC` instead of the configured zone | The zone name is invalid; the IANA database is embedded, so only the name can be wrong. |
+| IMAP polling fails with `x509: certificate signed by unknown authority` | The runtime image is missing `ca-certificates` (the provided Dockerfile installs it). |
+| Full dependency rebuild on every release | The registry build cache expires after 7 days of inactivity; a tag push after that gap rebuilds the deps once. |

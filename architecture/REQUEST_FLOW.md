@@ -1,3 +1,8 @@
 # Architecture — Request Flow
 
-`src/main.rs` opens the SQLite pools and applies the migrations (`repo::db::repo_set`), constructs repositories → services, then registers HTTP handlers via `src/http/mod.rs` `router()`. REST JSON under `/api/...`; routes per feature in `src/http/<feature>.rs` via axum `Router::route`; path params via `Path`/`Path(String)` extractors. JWT auth via `require_user(headers, &jwt)`; only `/api/auth/{signup,login,refresh}` are public.
+`cmd/financer/main.go` loads config, opens the SQLite pools (applying migrations), constructs repositories → services, then builds the Gin router in `internal/server/router.go`.
+
+- Public routes: `/api/auth/{signup,login,refresh}` (HTTPS-guarded). Everything else under `/api` goes through the bearer-JWT middleware, which validates the token and stores the user id in the Gin context.
+- Per-feature handlers live in `internal/server/*.go`; routes are registered per method in `router.go` (`/api/transactions` handles GET/POST/PUT/DELETE on the same path).
+- `/mcp` is a separate streamable-HTTP handler authenticated by a per-user API key (not the JWT); `/docs` and `/openapi.json` serve the API description; everything else falls back to the SPA.
+- A background goroutine polls linked mailboxes every `FINANCER_MAIL_POLL_SECS`.

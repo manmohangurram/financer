@@ -1,21 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import AppModal from '@/components/AppModal.vue';
-import AppSelect from '@/components/AppSelect.vue';
-import AppTabs from '@/components/ui/AppTabs.vue';
 import TransactionForm from '@/components/workspace/TransactionForm.vue';
 import { transactions } from '@/lib/api/client';
 import { dateToUnixSeconds, toLocalDateString } from '@/lib/utils/format';
 import { roundMoney } from '@/lib/utils/money';
-import { guessMapping, type CsvField } from '@/lib/utils/csv';
-import { Upload } from '@lucide/vue';
 
 const props = defineProps<{ accounts: any[]; categories: any[]; defaultAccountId: string }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'imported'): void }>();
-
-type Mode = 'manual' | 'csv';
-const mode = ref<Mode>('manual');
-
 
 const txnForm = ref<{
   name: string; amount: number; type: 'DEBIT' | 'CREDIT';
@@ -27,110 +19,8 @@ const txnForm = ref<{
   categoryIds: []
 });
 
-const step = ref(1);
-const accountId = ref(props.defaultAccountId);
-const headers = ref<string[]>([]);
-const rowCount = ref(0);
-const importId = ref('');
 const error = ref('');
 const submitting = ref(false);
-const importing = ref(false);
-const dragOver = ref(false);
-const formatMode = ref<'single' | 'split'>('single');
-const fileInput = ref<HTMLInputElement | null>(null);
-
-type FieldKey = 'date' | 'description' | 'amount' | 'type' | 'debit' | 'credit';
-
-const requiredFields = computed<{ key: FieldKey; label: string }[]>(() =>
-  formatMode.value === 'single'
-    ? [
-        { key: 'date', label: 'Date' },
-        { key: 'description', label: 'Description' },
-        { key: 'amount', label: 'Amount' },
-        { key: 'type', label: 'Type (Credit/Debit)' }
-      ]
-    : [
-        { key: 'date', label: 'Date' },
-        { key: 'description', label: 'Description' },
-        { key: 'debit', label: 'Debit amount' },
-        { key: 'credit', label: 'Credit amount' }
-      ]
-);
-
-const fieldToCol = ref<Record<FieldKey, number>>({ date: -1, description: -1, amount: -1, type: -1, debit: -1, credit: -1 });
-
-function guessForMode(header: string): CsvField {
-  const g = guessMapping(header);
-  if (formatMode.value === 'single' && (g === 'debit' || g === 'credit')) return 'amount';
-  if (formatMode.value === 'split' && (g === 'amount' || g === 'type')) return 'ignore';
-  return g;
-}
-
-function guessFields() {
-  for (const k of Object.keys(fieldToCol.value) as FieldKey[]) fieldToCol.value[k] = -1;
-  for (let i = 0; i < headers.value.length; i++) {
-    const g = guessForMode(headers.value[i]);
-    if (g !== 'ignore' && fieldToCol.value[g] === -1) fieldToCol.value[g] = i;
-  }
-}
-
-function switchFormat(mode: 'single' | 'split') {
-  formatMode.value = mode;
-  guessFields();
-}
-
-const modeTabs = [
-  { key: 'manual', label: 'Manual' },
-  { key: 'csv', label: 'Import file' }
-];
-const formatTabs = [
-  { key: 'single', label: 'Single amount column' },
-  { key: 'split', label: 'Debit + credit columns' }
-];
-
-const headerOptions = computed(() => [
-  { value: '-1', label: '— None —' },
-  ...headers.value.map((h: string, i: number) => ({ value: String(i), label: h }))
-]);
-
-function onFieldChange(field: { key: FieldKey }, value: string | number | undefined) {
-  fieldToCol.value[field.key] = parseInt(String(value ?? '-1'), 10);
-}
-
-function switchMode(m: Mode) {
-  mode.value = m;
-  error.value = '';
-}
-
-async function processFile(file: File | undefined | null) {
-  if (!file) return;
-  error.value = '';
-  try {
-    const parsed = await transactions().importFile(file);
-    if (!parsed.headers.length) { error.value = 'No table found in that file.'; return; }
-    importId.value = parsed.id;
-    headers.value = parsed.headers;
-    rowCount.value = parsed.rowCount;
-    // Statements usually carry separate Withdrawal/Deposit columns.
-    const guesses = headers.value.map((h) => guessMapping(h));
-    formatMode.value = guesses.includes('debit') && guesses.includes('credit') ? 'split' : 'single';
-    guessFields();
-    step.value = 2;
-  } catch (err: any) {
-    error.value = err?.message || 'Could not read that file.';
-  }
-}
-
-async function handleFile(e: Event) {
-  const input = e.target as HTMLInputElement;
-  processFile(input.files?.[0]);
-  input.value = '';
-}
-
-function handleDrop(e: DragEvent) {
-  dragOver.value = false;
-  processFile(e.dataTransfer?.files?.[0]);
-}
 
 async function submitManual() {
   submitting.value = true;
@@ -145,30 +35,12 @@ async function submitManual() {
   }
   submitting.value = false;
 }
-
-async function runImport() {
-  importing.value = true;
-  error.value = '';
-  try {
-    await transactions().commitImportFile({ id: importId.value, accountId: accountId.value, mapping: fieldToCol.value });
-    emit('imported');
-    emit('close');
-  } catch (e: any) {
-    error.value = e.message || 'Import failed';
-  } finally {
-    importing.value = false;
-  }
-}
 </script>
 
 <template>
   <AppModal title="Add transaction" @close="emit('close')">
     <div class="px-5 py-4">
-      <div class="mb-4">
-        <AppTabs :items="modeTabs" @update:model-value="switchMode($event as 'manual' | 'csv')" />
-      </div>
-
-      <form v-if="mode === 'manual'" class="flex flex-col gap-4" @submit.prevent="submitManual">
+      <form class="flex flex-col gap-4" @submit.prevent="submitManual">
         <TransactionForm v-model="txnForm" :accounts="accounts" :categories="categories" />
         <p v-if="error" class="text-[13px] text-debit">{{ error }}</p>
         <div class="flex items-center justify-end gap-2 pt-1">
@@ -178,53 +50,6 @@ async function runImport() {
           </button>
         </div>
       </form>
-
-      <div v-else>
-        <template v-if="step === 1">
-          <AppSelect v-model="accountId" label="Account">
-            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
-          </AppSelect>
-          <div
-            class="mt-4 border-2 border-dashed rounded-card p-8 text-center transition-colors"
-            :class="dragOver ? 'border-primary-500 bg-accent/5' : 'border-rule hover:border-primary-500/40'"
-            @dragover.prevent="dragOver = true"
-            @dragleave.prevent="dragOver = false"
-            @drop.prevent="handleDrop"
-          >
-            <Upload class="w-10 h-10 mx-auto mb-3 text-ink-faint" stroke-width="1.5" />
-            <p class="text-[14px] text-ink-soft mb-2">Drop CSV, XLSX or PDF file, or click to browse</p>
-            <button type="button" class="ns-quiet" @click="fileInput?.click()">Choose file</button>
-            <input ref="fileInput" type="file" accept=".csv,.xlsx,.pdf" class="hidden" @change="handleFile" />
-          </div>
-          <p v-if="error" class="text-[13px] text-debit mt-2">{{ error }}</p>
-        </template>
-        <template v-else>
-          <div class="mb-3">
-            <AppTabs :items="formatTabs" @update:model-value="switchFormat($event as 'single' | 'split')" />
-          </div>
-          <p class="text-[13px] text-ink-soft mb-3">Map your columns to the transaction fields:</p>
-          <div class="space-y-2 max-h-60 overflow-y-auto">
-            <div v-for="f in requiredFields" :key="f.key" class="flex items-center gap-3">
-              <span class="text-[13px] text-ink w-36 shrink-0">{{ f.label }}</span>
-              <div class="min-w-0 flex-1">
-                <AppSelect
-                  :model-value="String(fieldToCol[f.key])"
-                  :options="headerOptions"
-                  placeholder="— None —"
-                  @update:model-value="onFieldChange(f, $event)"
-                />
-              </div>
-            </div>
-          </div>
-          <div class="mt-4 flex items-center justify-between">
-            <button class="ns-quiet" @click="step = 1">Back</button>
-            <button class="ns-primary" :disabled="importing" @click="runImport">
-              {{ importing ? 'Importing…' : `Import ${rowCount} rows` }}
-            </button>
-          </div>
-          <p v-if="error" class="text-[13px] text-debit mt-2">{{ error }}</p>
-        </template>
-      </div>
     </div>
   </AppModal>
 </template>

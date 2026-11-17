@@ -1,9 +1,9 @@
 name: CI
 
-# The merge gate: Rust clippy (-D warnings) + tests, frontend type-check,
-# vitest and build. Runs on pull requests, and on pushes to main because that
-# run is what saves the cargo cache every PR then restores — with PR-only
-# triggers each PR started cold and re-downloaded the whole registry.
+# The merge gate: Go formatting/vet/build/tests/vulnerability scan plus frontend
+# type-check, vitest and build. Runs on pull requests, and on pushes to main
+# because that run warms the Go and npm caches every PR restores.
+
 on:
   pull_request:
   push:
@@ -16,30 +16,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@1.100.0
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          components: clippy
+          go-version-file: go.mod
+          cache: true
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          # Keep the cache when the run fails, so a red PR still warms the next one.
-          cache-on-failure: true
+      # gofmt is not part of `go vet`; fail on any file that needs rewriting.
+      - name: Formatting
+        run: |
+          unformatted="$(gofmt -l cmd internal migrate.go)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt required for:"; echo "$unformatted"
+            exit 1
+          fi
 
-      - name: Clippy
-        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
 
       - name: Test
-        run: cargo test --locked
+        run: go test ./...
 
-      # Prebuilt binary: `cargo install cargo-audit` compiles it from source on
-      # every run, which was the longest step in this job.
-      - name: Install cargo-audit
-        uses: taiki-e/install-action@cargo-audit
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - name: Audit
-        run: cargo audit
+      - name: Vulnerability scan
+        run: govulncheck ./...
 
   frontend:
     runs-on: ubuntu-latest

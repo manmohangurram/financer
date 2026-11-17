@@ -4,12 +4,12 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Preconditions
 
-- Backend: `cargo run` (axum JSON server on :8080; migrations auto-applied on boot). No seed binary — seed demo data via the API or a script.
+- Backend: `go run ./cmd/financer` (Gin JSON server on :8080; migrations auto-applied on boot). No seed binary — seed demo data via the API or a script.
 - Frontend: `npm run dev` (vite on :5173)
 - Sign in at `http://localhost:5173` as `demo@financer.app` / `password123`
 - Baseline demo data: **3 accounts, 18 transactions, 3+ rules, 8 categories**
   - Accounts: Main Checking (CURRENT) · Emergency Fund (SAVINGS) · Credit Card (CREDIT_CARD)
-- Fresh DB before testing (delete `data/db/financer.db`, restart backend, reseed via API)
+- Fresh DB before testing (delete the SQLite file under `FINANCER_DATA_DIR` — default `/data/financer.db` — restart backend, reseed via API)
 
 ## Authentication
 
@@ -23,7 +23,7 @@ Every run against the running backend before a release or after any backend/fron
 
 ## App shell / navigation
 
-- Sidebar shows only **Dashboard**, **Accounts** and **Investments** (no Spending/Transactions/Rules/Categories items)
+- Sidebar shows **Dashboard**, **Accounts**, **Spending** and **Inbox**
 - User popup (bottom avatar) shows **Settings** and **Logout**
 - **Sidebar collapse:** the Collapse/Expand button (above the user box) narrows the sidebar to an icon rail and back; state persists on reload; auto-collapses below 1024px (resize the window); active nav highlight is a rounded rectangle in both states
 - **Theme toggle:** Settings → Appearance → Light/Dark switches instantly and persists on reload (no flash); both themes pass Lighthouse accessibility 100 on /accounts and /login
@@ -35,11 +35,9 @@ Every run against the running backend before a release or after any backend/fron
 ## Dashboard (`/dashboard`)
 
 - Login lands on Dashboard
-- Stat cards show Net Worth (accounts + portfolio), Total Income, Total Expenses, and Account count matching the backend (`GET /api/dashboard` returns all values in one request; zero client-side math)
-- Portfolio Snapshot lists accounts (compact cards) with correct balances
-- Investments Portfolio lists investments sorted by P&L (or the empty state when none)
-- "View all" links to /investments
-- Net Worth = account balance sum + portfolio current value
+- Stat cards show Net Worth (accounts), Total Income, Total Expenses, and Account count matching the backend (`GET /api/dashboard` returns all values in one request; zero client-side math)
+- Account cards list the accounts (compact) with correct balances
+- Net Worth = account balance sum
 
 ## Spending (`/accounts/spending`)
 
@@ -67,12 +65,9 @@ Every run against the running backend before a release or after any backend/fron
 - Delete Transaction removes the row, counter decrements, balance moves back
 - Account filter buttons (All / each account) narrow the list
 - Pagination — next/prev work when more rows than page size
-- **CSV import:** Add → Import CSV → upload a file → column mapping auto-guesses (Date/Description/Debit/Credit); both "Single amount column" and "Debit + Credit columns" formats work; preview shows the row count; Import creates the transactions, the list refreshes, and the account balances on the page update without a reload
-- Imports larger than 500 rows are split into 500-per-request batches; a >1000-row CSV still imports (chunked)
-- **Idempotent retry:** importing the same CSV twice creates rows only the first time — the second reports `skipped` and balances do not move again (crash-resume safe)
+- **Statement import is unsupported:** the Add Transaction modal offers manual entry only — there is no import tab, file picker or column mapping
 - `POST /api/transactions` with >1000 transactions is rejected with 400
 - `PUT /api/transactions` with >1000 transactions is rejected with 400
-- Invalid CSV (no header, zero rows) shows an inline error
 - **Categories on a transaction:** create a transaction with a category; edit it and change the category — the row shows the new category (always-replace on update)
 
 ## Filters
@@ -130,22 +125,15 @@ Every run against the running backend before a release or after any backend/fron
 - Add a rule (set-category action) → matching transactions show the new category
 - Delete the rule → matching rows revert in the list
 
-## Investments (`/investments`, `/investments/:id`)
+## Inbox (`/inbox`)
 
-- Empty state shows "Add your first investment" when no investments
-- Add Investment (Stock requires a symbol; Mutual Fund uses Manual NAV) → appears in the table
-- Invalid investment type is rejected client-side
-- Edit Investment opens a pre-filled modal and saves
-- Delete Investment removes it (with confirmation)
-- **Lots:** add buy lots → quantity / invested amount update in the table
-- **Sell lots:** add a sell lot → FIFO P&L updates; selling more than held is rejected
-- Manual NAV mutual fund shows the NAV as its current price
-- Portfolio summary cards (invested, current value, P&L) match the table
-- Price refresh button calls `/api/investments/refresh-prices` and updates prices (offline: error shown, cached prices kept)
-- Investment detail page lists lots with buy/sell side; the hover edit icon opens an Edit Lot modal (quantity/price/date + Delete inside)
-- Price history chart loads (range selector); no data shows an empty state
-- **Bulk import:** Add Investment → Import → upload a broker CSV/XLSX (junk rows above/below the table OK — the parser auto-locates it) → columns auto-map (symbol/name/type/side/quantity/price/date) → Import creates investments + lots; existing symbols merge (lots added, not duplicated); re-importing the same file reports skipped; sell-beyond-holdings rows are skipped
-- Transactions import accepts .xlsx in addition to CSV (same mapping/preview flow)
+- With `FINANCER_SECRET_KEY` set, link a mailbox (host must be port 993); it appears in the list with its allowlist and no password shown
+- **Poll now** runs a one-off poll and reports matched/stored/skipped
+- Messages list can be filtered by status (`pending`, `unparsed`, `ignored`, `auto`, `rejected`, `all`); an unknown status shows an error
+- **Approve** a pending message → a transaction appears in the account matched by the mail's ending digits (or the chosen account); the row becomes `auto` and points at the transaction
+- **Reject** marks the row `rejected` and creates nothing
+- An ambiguous ending-digits match fails the row with "no account matches…" instead of guessing; retrying an already-decided row fails per row
+- Mail rules: create/update/delete with at least one condition; first match by position wins (`IGNORE` / `REVIEW` / `AUTO`)
 
 ## Settings (`/settings`, user popup)
 
@@ -168,15 +156,15 @@ Every run against the running backend before a release or after any backend/fron
 
 - Production bundle < 200KB gzip (~80KB total: index + AppLayout)
 - Dashboard LCP < 2.5s and CLS < 0.1 (measured 297ms / 0.00)
-- `/api/dashboard` is one request with server-side math; the transaction list is a single SQL query (window COUNT + GROUP_CONCAT)
-- No N+1 in hot paths; the known per-investment lot query is acceptable at personal scale
+- `/api/dashboard` is one request with server-side math; the transaction list is a single SQL query
+- No N+1 in hot paths
 
 ## Theme sweep — contrast on every screen (light + dark)
 
 Run this for **every** page, popup/modal, dropdown, and component state, in **both** Light and Dark themes. Toggle via Settings → Appearance (persists; no reload needed). Every text/color introduced on the screen must pass WCAG AA (≥ 4.5:1 body/labels, ≥ 3:1 large text/UI):
 
-- **Every page:** Dashboard, Accounts, Transactions (embedded), Accounts Manage, Rules, Categories, Spending, Investments, Investment detail, Settings, Login, Signup
-- **Every popup/modal:** Add/Edit Transaction, Add/Edit Account, Transfer modal, ConfirmDialog, Add Investment, Edit Investment, Buy/Sell/Edit Lot, Add/Edit Rule, Add/Edit Category, Filter popup, CSV/XLSX import mapping, user popup
+- **Every page:** Dashboard, Accounts, Transactions (embedded), Accounts Manage, Rules, Categories, Spending, Inbox, Settings, Login, Signup
+- **Every popup/modal:** Add/Edit Transaction, Add/Edit Account, Transfer modal, ConfirmDialog, Add/Edit Rule, Add/Edit Category, Filter popup, Add Mailbox, Add/Edit Mail Rule, user popup
 - **Every state on each screen:** normal, hover, focus, active, disabled, loading/spinner, empty state, and **error states** (inline error banners, red-bordered invalid inputs, toast/notice messages)
 - **Text classes:** `text-text`, `text-text-secondary`, `text-subtle`, `text-faint`, `text-muted` on both themes (regression: light-theme error messages previously rendered near-black on a light banner → failed AA)
 - **Colored text:** income/expense/p&l values (`text-income`/`text-expense`), category badges (all 16 `CATEGORY_PALETTE` colors), primary/error/success buttons and their text
@@ -194,14 +182,14 @@ Run this for **every** page, popup/modal, dropdown, and component state, in **bo
 - Forms use labeled controls (`AppInput`/`AppSelect`/`AppModal`); interactive elements are keyboard-reachable
 - Modals (`AppModal`): ESC closes, focus moves into the dialog on open and returns to the trigger on close; the × button has a "Close" label
 - Mobile: when the off-canvas sidebar is closed its links are not focusable (inert); the hamburger has `aria-expanded`; the overlay is `aria-hidden`
-- CSV/XLSX "Choose file" is a real button (keyboard-openable file picker), not a hidden-label trick
-- Investments table rows open via Enter/Space (focusable, `role="link"`); credit amounts are prefixed with `+` (not color-only)
+- File pickers (avatar upload) are real keyboard-openable buttons, not hidden-label tricks
+- Credit amounts are prefixed with `+` (not color-only)
 - Hover-revealed controls (edit icons, HScroll arrows, transfer buttons) stay visible on keyboard focus (`focus-visible:opacity-100`)
 
 ## Backend smoke (curl)
 
 - Login returns accessToken + refreshToken
-- Authed `GET /api/dashboard` returns `totalBalance`, `totalIncome`, `totalExpenses`, `portfolioValue`, `accounts`, `investments` in one request (no client math)
+- Authed `GET /api/dashboard` returns `totalBalance`, `totalIncome`, `totalExpenses`, `accounts` in one request (no client math)
 - Authed `GET /api/spending?range=1M` returns `buckets` and `categories`; linking a non-debt transfer removes both sides from the aggregates
 - Dashboard income/expense come from the cached per-account `total_credit`/`total_debit` and stay consistent with the transaction list (create/edit/delete a transaction, then reload dashboard)
 - Transfer counterpart creation moves the target account's balance and totals (regression: was skipped)
@@ -211,11 +199,12 @@ Run this for **every** page, popup/modal, dropdown, and component state, in **bo
 - Authed `POST /api/transactions` returns **201**; `DELETE /api/transactions` returns **204** (no body)
 - `POST /api/transfer-links` returns **201**; `DELETE /api/transfer-links` returns **204**
 - `GET /api/rules` returns rules; `POST /api/rules` returns **201**; `DELETE /api/rules/{id}` returns **204**
-- `POST /api/investments` returns **201**; `GET /api/portfolio/summary` returns the 4 totals
-- Rule overlay: `GET /api/transactions` returns the overlaid name/categoryId for matched transactions (no DB write)
+- Rule overlay: creating a transaction that matches a rule stores the resolved display name in `clean_name` (the raw `name` is preserved) and `GET /api/transactions` returns the resolved name
 - Wrong-password login → 401 `{code:"unauthenticated", message}` (single error shape)
+- `GET /api/me/keys` returns masked keys; `POST /api/me/keys` returns **201** with the plaintext key once; `DELETE /api/me/keys/{id}` returns **204**
+- `GET /openapi.json` returns the spec and `/docs` loads Swagger UI
 
 ## Data hygiene
 
 - Demo data is back to baseline (3 accounts, 18 transactions, 5 rules, 9 categories) after testing
-- Any account/transaction/rule/category/investment/lot created during testing is deleted before shipping
+- Any account/transaction/rule/category/mailbox created during testing is deleted before shipping

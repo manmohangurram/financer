@@ -4,7 +4,7 @@
 
 **A self-hosted personal finance tracker.**
 
-Rust backend · Vue 3 frontend · single container · SQLite
+Go backend · Vue 3 frontend · single container · SQLite
 
 [![CI](https://github.com/manmohangurram/financer/actions/workflows/ci.yml/badge.svg)](https://github.com/manmohangurram/financer/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/manmohangurram/financer?display_name=tag)](https://github.com/manmohangurram/financer/releases)
@@ -16,7 +16,7 @@ Rust backend · Vue 3 frontend · single container · SQLite
 > [!WARNING]
 > **Alpha — still under active development, not ready for production.** Expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
 
-Financer tracks accounts, transactions, transfers, spending, rules (auto-categorization), and investments — in one place, with a dark, dense dashboard UI. It ships as **one container**: the Rust binary serves both the API and the built frontend (no nginx).
+Financer tracks accounts, transactions, transfers, spending, and rules (auto-categorization) — in one place, with a dark, dense dashboard UI. It ships as **one container**: the Go binary serves both the API and the built frontend (no nginx).
 
 ---
 
@@ -40,26 +40,25 @@ Financer tracks accounts, transactions, transfers, spending, rules (auto-categor
 
 - **Auth** — signup, login, JWT access + refresh tokens.
 - **Accounts & categories** — full CRUD; account types (Current, Savings, Credit Card, Loan); balances stay in sync as transactions change.
-- **Transactions** — create (single + bulk), edit, delete, **CSV/XLSX/PDF statement import** (upload → map columns → commit, server-parsed), server-side filters (date, amount, name, category) and cursor pagination.
-- **Transfers** — link two transactions as a transfer, unlink, or create the missing counterpart; candidate matching (±5 days, ±10% amount) and fee-tolerant amounts.
+- **Transactions** - create (single + bulk), edit, delete, server-side filters (date, amount, name, category) and cursor pagination.
+- **Transfers** — link two transactions as a transfer, unlink, or create the missing counterpart; matching looks for the opposite leg in the target account within ±3 days for the same amount.
 - **Rules** — conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR) with outputs (rename, set category, transfer to account). Rules are applied **at write time** and snapshot the resolved name + category onto the transaction; the raw bank string is preserved.
 - **Spending analytics** — server-computed buckets (7D/1M/6M/1Y/custom, day or month granularity), per-category debit/credit pies with drill-down, and transfer exclusion (debt accounts count as real spending).
-- **Dashboard** — one summary endpoint: net worth, income, expenses, portfolio value, account cards, P&L.
-- **Investments** — instruments (stock/mutual fund), buy/sell lots with FIFO cost basis, live Yahoo quotes, price-history chart, portfolio summary (invested / current / unrealized / realized P&L).
+- **Dashboard** — one summary endpoint: net worth, income, expenses, and account cards.
 - **Inbox** — link an IMAP mailbox (app password, encrypted at rest), poll it on a timer, and turn bank-statement mail into transactions: disposition rules send each sender to Ignore / Review / Auto, and the Inbox approves or rejects what needs a person.
 - **API keys + MCP** — per-user API keys (scoped read / read_write) and an MCP server at `/mcp` for external AI agents.
 
-All finance math (aggregation, filtering, transfer resolution, FIFO) lives in the backend; the frontend renders server-computed results.
+All finance math (aggregation, filtering, transfer resolution) lives in the backend; the frontend renders server-computed results.
 
 ## Tech stack
 
 | Layer | Stack |
 |---|---|
-| Backend | Rust (axum on tokio), JWT (`jsonwebtoken`), OpenAPI via `utoipa` |
-| Storage | **SQLite** (`sqlx` + migrations in `db/migrations/`) |
+| Backend | Go (Gin) — JWT (`golang-jwt`), OpenAPI at `/docs` + `/openapi.json`, MCP at `/mcp` |
+| Storage | **SQLite** (`glebarez/sqlite`, pure Go; migrations in `db/migrations/`) |
 | Frontend | Vue 3 + Vite + TypeScript |
 | Styling | Tailwind CSS v4 + daisyUI v5 (dark `financer` theme), `@lucide/vue` icons |
-| Packaging | Single container — Rust binary serves API **and** built SPA |
+| Packaging | Single container — Go binary serves API **and** built SPA |
 
 ## Quick start
 
@@ -118,11 +117,15 @@ Configuration is **entirely environment variables** — there is no config file.
 | `FINANCER_JWT_SECRET` | **required** | Token signing secret (e.g. `openssl rand -hex 32`) |
 | `FINANCER_ADDR` | `0.0.0.0:8080` | Listen address |
 | `FINANCER_DATA_DIR` | `/data` | Runtime data root |
+| `FINANCER_STATIC_DIR` | `frontend/dist` | Built SPA location (the image sets `/app/frontend/dist`) |
 | `FINANCER_DOMAIN_URL` | *(empty)* | External URL, if the SPA is served from a different origin |
 | `FINANCER_TIMEZONE` | `Asia/Kolkata` | IANA timezone for day/month bucketing and date ranges |
-| `FINANCER_SQLITE_PATH` | `/data/financer.db` | SQLite file |
+| `FINANCER_SQLITE_PATH` | `/data/financer.db` | SQLite file (WAL mode is enabled at boot) |
 | `FINANCER_SECRET_KEY` | *(unset)* | 32-byte hex key (64 chars) encrypting mailbox passwords; the mail feature needs it |
 | `FINANCER_MAIL_POLL_SECS` | `300` | How often the background poll runs (minimum 30) |
+| `FINANCER_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
+| `FINANCER_LOG_FILE` | *(empty)* | Append logs to this file instead of stderr; rotates at 10 MB and keeps at most 3 files (older ones are deleted) |
+| `FINANCER_ALLOW_INSECURE_HTTP` | `false` | `1`/`true`/`yes` only behind a TLS-terminating proxy; otherwise credential endpoints require HTTPS (loopback exempt) |
 
 **Frontend API base:** in the container the frontend is built same-origin, so it talks to the API on whatever host serves the page. For local dev set `VITE_API_URL` (see [`frontend/.env.example`](frontend/.env.example)).
 
@@ -244,10 +247,9 @@ Manage personal API keys (for the MCP server and other clients) at `GET/POST /ap
 
 ### Statement import
 
-Importing a CSV, XLSX or PDF is a two-step flow so the column mapping happens after parsing — the client never parses the file:
-
-1. `POST /api/transactions/import/file` (multipart `file`) → `{ id, headers, rowCount }`; the file is stored server-side under an opaque id.
-2. `POST /api/transactions/import/file/commit` `{ id, accountId, mapping }` → parses, applies the mapping and creates the transactions. Columns map to `date | description | amount | type | debit | credit`; re-importing the same file is skipped (deduped by file hash + row index).
+Statement import is **not supported**: the Go backend exposes no CSV/XLSX/PDF
+import routes, and the app has no import UI. Add transactions manually, via the
+API, or from bank-alert mail (see the inbox).
 
 ## MCP server
 
@@ -266,15 +268,15 @@ Authenticate with a per-user API key (created in **Settings → API keys**):
 }
 ```
 
-Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `get_portfolio`, `list_categories`, plus write tools when the key has `read_write` scope.
+Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `list_categories`, `list_rules`, `preview_rule`, plus write tools when the key has `read_write` scope.
 
 ## Development
 
-**Prerequisites:** Rust ≥ 1.85 (edition 2024) and Node 22.
+**Prerequisites:** Go ≥ 1.27 and Node 22.
 
 ```bash
 # Backend — API on :8080 (set FINANCER_JWT_SECRET, see Configuration)
-cargo run
+go run ./cmd/financer
 
 # Frontend — Vite dev server on :5173, calls the API directly (CORS)
 cd frontend
@@ -287,8 +289,8 @@ Open http://localhost:5173.
 ### Tests
 
 ```bash
-# Backend: unit + repo (SQLite tempfile) + HTTP integration tests (SQLite)
-cargo test
+# Backend: unit + repo (SQLite tempfile) + HTTP/MCP integration tests
+go test ./...
 
 # Frontend
 cd frontend && npm test
@@ -297,35 +299,41 @@ cd frontend && npm test
 Quality gate (all must pass before a PR):
 
 ```bash
-cargo build --locked
-cargo clippy --all-targets -- -D warnings
-cargo test
-cargo audit          # advisories ignored are documented in .cargo/audit.toml
+gofmt -l cmd internal migrate.go   # must print nothing
+go vet ./...
+go build ./...
+go test ./...
+go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 ```
 
 ### Project structure
 
 ```
-src/
-  main.rs                 # wiring: repo set, services, HTTP server
-  auth.rs                 # JWT creation/validation
-  config.rs               # env config + defaults
-  error.rs                # ApiError → HTTP status mapping
-  http/                   # REST handlers (account, transaction, rule, investment, analytics, settings, …)
-  mcp/                    # MCP server tools + models
-  repo/
-    traits/               # repo traits + row/input types (shared)
-    sqlite/               # SQLite implementation (sqlx)
-  service/                # business logic (rules, transfers, FIFO, Yahoo, …)
-  tests/                  # HTTP integration tests (SQLite, in-process)
-db/migrations/            # SQLite migrations (applied at boot)
+cmd/financer/main.go        # wiring: config → DB → repos → services → Gin server
+internal/
+  config/                   # env config + defaults
+  db/                       # SQLite pools (WAL) + migration runner
+  errors/                   # API error envelope {code, message}
+  auth/                     # JWT creation/validation
+  model/                    # camelCase wire types
+  repo/                     # repo interfaces + row types
+    sqlite/                 # SQLite implementations
+  authservice/ userservice/ accountservice/ categoryservice/
+  transactionservice/ transferservice/ ruleservice/ mailservice/ keyservice/
+  mail/                     # IMAP source, alert extractor, credential crypto
+  mcp/                      # MCP tool handlers
+  openapi/                  # /openapi.json spec
+  server/                   # Gin router, handlers, middleware
+  time/                     # stored-timestamp + timezone helpers
+migrate.go                  # embeds db/migrations/*.up.sql
+db/migrations/              # SQLite migrations (applied at boot)
 frontend/src/
-  views/                  # route pages
-  components/             # shared UI
-  lib/api/                # fetch API client
-  lib/stores/             # auth + account selection state
-  lib/utils/              # pure helpers (formatting, filters)
-architecture/             # layering, data flow, naming, conventions
+  views/                    # route pages
+  components/               # shared UI
+  lib/api/                  # fetch API client
+  lib/stores/               # auth + account selection state
+  lib/utils/                # pure helpers (formatting, filters)
+architecture/               # design notes: layering, request flow, naming, conventions
 ```
 
 ## Deployment reference
