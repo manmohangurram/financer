@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mohan9182/financer/internal/db"
@@ -395,5 +396,65 @@ func TestManualTemplateOutranksLearnedAndIsNeverOverwritten(t *testing.T) {
 		if row.Status != repo.MailTemplateManual && row.Name == sampleTemplate().Name {
 			t.Fatalf("AI stored a competing template: %+v", row)
 		}
+	}
+}
+
+func TestManualTemplateRunsOnDecodedBody(t *testing.T) {
+	mailRepo, account, uid, cleanup := newMailEnv(t)
+	defer cleanup()
+	seedReviewRule(t, mailRepo, uid, "alerts@hdfcbank.net")
+
+	manual := sampleTemplate()
+	manual.Name = "manual"
+	manual.Guards = TemplateGuards{}
+	manual.Patterns.Amount = PatternList{`Rs\.?\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)`}
+	manual.Patterns.Account = PatternList{`(?i)account ending\s*(?P<account>\d{4})`}
+	manual.Patterns.Merchant = PatternList{`(?i)towards VPA\s+\S+\s*\((?P<merchant>[^)]+)\)`}
+	manual.Patterns.Date = PatternList{`(?i)\bon\s+(?P<date>\d{2}-\d{2}-\d{2})`}
+	guards, _ := json.Marshal(manual.Guards)
+	patterns, _ := json.Marshal(manual.Patterns)
+	if _, err := mailRepo.UpsertManualTemplate(uid, &repo.MailTemplateRow{
+		Sender: "alerts@hdfcbank.net", Name: manual.Name,
+		GuardsJSON: string(guards), PatternsJSON: string(patterns),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Quoted-printable wraps the payee, so the raw text holds "BA=\nLAJI".
+	raw := strings.Join([]string{
+		"From: alerts@hdfcbank.net",
+		"Subject: Debit alert",
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=UTF-8",
+		"Content-Transfer-Encoding: quoted-printable",
+		"",
+		"Rs.2050.00 is debited from your account ending 7713 towards VPA ******8172@ybl",
+		" (BA=",
+		"LAJI WINES WALK  IN) on 12-11-26.",
+	}, "\r\n")
+
+	src := &fakeSource{
+		headers: []MailHeader{header(1, "<qp>", "alerts@hdfcbank.net")},
+		bodies:  map[uint32]string{1: raw},
+	}
+	if _, err := PollAccount(context.Background(), src, mailRepo, account, nil, 3); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := mailRepo.ListMessages(uid, nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ParsedJSON == nil {
+		t.Fatalf("rows = %+v", rows)
+	}
+	var parsed Extraction
+	if err := json.Unmarshal([]byte(*rows[0].ParsedJSON), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Amount != 2050 || parsed.AccountHint == nil || *parsed.AccountHint != "7713" {
+		t.Fatalf("extraction = %+v", parsed)
+	}
+	if parsed.Merchant != "BALAJI WINES WALK IN" {
+		t.Fatalf("merchant = %q (manual templates must run on the decoded body)", parsed.Merchant)
 	}
 }

@@ -16,6 +16,10 @@ stored in `mail_templates` with `status = 'manual'`.
   wins. That is how one sender's several mail shapes are covered.
 - A field's value comes from the named group (`(?P<amount>…)`) or its first capture
   group; a pattern without a group falls back to the whole match.
+- **Manual patterns run against the decoded plain-text body**, the mail the user
+  actually reads. Learned/AI patterns keep running against the raw RFC822 source they
+  were generated from. This stops quoted-printable soft breaks (`BA=` ↵ `LAJI`) leaking
+  into a captured payee.
 - `amount`, `date` and at least one of `debit`/`credit` are required.
 - Account and merchant are optional; a missing account pattern no longer triggers
   "account differs from regex hint".

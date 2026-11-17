@@ -430,13 +430,24 @@ func parseWithTemplates(store repo.MailRepo, userID string, header *MailHeader, 
 	if minSamples < 1 {
 		minSamples = 1
 	}
+	// Manual patterns are written against the visible mail, so they run on the
+	// decoded body; learned/AI patterns were generated from raw samples and keep
+	// matching the raw source.
+	decoded := body
+	if parsed := ParseEmail(body); parsed.Body != "" {
+		decoded = parsed.Body
+	}
 	for _, row := range templates {
 		manual := row.Status == repo.MailTemplateManual
 		tpl, err := compileRow(row)
 		if err != nil {
 			continue
 		}
-		match, matched := tpl.Extract(header.Subject, body)
+		text := body
+		if manual {
+			text = decoded
+		}
+		match, matched := tpl.Extract(header.Subject, text)
 		if !matched {
 			continue
 		}

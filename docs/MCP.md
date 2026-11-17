@@ -99,7 +99,8 @@ Create a key in **Settings → API keys** (scope `read` or `read_write`), then:
 }
 ```
 
-A manual template is a list of regexes per field — first match wins:
+A manual template is a list of regexes per field — first match wins. Manual patterns run
+against the decoded plain-text body, so what you see in the mail is what you match.
 
 ```json
 {

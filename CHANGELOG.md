@@ -6,6 +6,15 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.13.1] — 2026-11-17
+
+### Fixed
+
+- **Manual templates match the decoded mail body**, not the raw RFC822 source. A
+  quoted-printable soft break inside a payee no longer leaks into the extraction
+  (`BA=` ↵ `LAJI` became `BA= LAJI WINES…`; it now reads `BALAJI WINES WALK IN`).
+  Learned/AI templates still run against the raw source they were generated from.
+
 ## [0.13.0] — 2026-11-17
 
 ### Added
