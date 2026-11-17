@@ -44,7 +44,13 @@ const ruleForm = ref(
     : { name: '', priority: 0, logic: 'OR', conditions: [{ matchField: 'NAME', operator: 'CONTAINS', pattern: '' }], outputs: [emptyOutput()] }
 );
 
-const catForm = ref({ name: props.type === 'category' && props.editingItem ? props.editingItem.name : '' });
+const catForm = ref({
+  name: props.type === 'category' && props.editingItem ? props.editingItem.name : '',
+  monthlyBudget:
+    props.type === 'category' && props.editingItem && props.editingItem.monthlyBudget
+      ? String(props.editingItem.monthlyBudget)
+      : ''
+});
 
 const titles: Record<ModalType, string> = { transaction: 'transaction', rule: 'rule', category: 'category' };
 

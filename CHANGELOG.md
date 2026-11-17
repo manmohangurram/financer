@@ -46,9 +46,10 @@ git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
   empty state has an `Add account` action.
 - Rules showed `OR` for `ALL` logic and a meaningless `AND`/`OR` stamp on
   single-condition rules; the label is now correct and hidden when there is one
-  condition. Edit and delete actions on a rule were unreachable and are now visible.
-- Row actions on Manage Accounts and Categories were invisible until hover; they are
-  always visible.
+  condition. Rule rows open the edit popup (Delete lives there) and the columns are
+  grid-aligned; `Run` is the only inline action.
+- Category rows are a name and a monthly budget; analysis stays on Spending. A row
+  opens the edit popup (name + budget + Delete); no inline inputs or icons.
 - The Transactions search field no longer stretches across the toolbar.
 - ApexCharts received an ignored top-level `type`; the chart type is now set via
   `chart.type`.

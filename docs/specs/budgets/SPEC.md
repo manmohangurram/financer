@@ -14,20 +14,15 @@ per-month history, no rollover, no overall cap.
 
 ### Categories page (`/accounts/categories`, MANAGE)
 
-Budgets live on the Categories page — one page owns the list and the plan.
+Budgets live on the Categories page, and the page stays deliberately small: a
+category is a **name and a monthly budget**. Analysis belongs to Spending.
 
 - Header: `Categories`, one-line purpose, `Add category`.
-- Summary band (visible once any limit exists): **Planned** (sum of limits),
-  **Spent** (this month, debit only, budgeted categories), **Left** (planned − spent;
-  debit-red and labelled *over* when negative), **Used** bar (capped at 100%).
-- Table, one row per category:
-  `Category · Share this month · Spent · Entries · Monthly budget (input) · Used bar · Left`.
-- Amounts commit on blur or Enter; an empty field means no budget (0). Invalid or
-  negative values show an inline error and are not saved.
-- Over-limit rows get a debit wash, an `over` badge and a red "₹x over"; unbudgeted
-  rows show `—` and *unbudgeted*.
-- Income-only categories are listed but can stay unbudgeted; budgets only measure
-  **debit** spend, for the current calendar month.
+- Table, one row per category: `Category · Monthly budget` (read-only figure, or
+  "No budget").
+- A row opens the edit popup, which carries **Name**, **Monthly budget** and Delete.
+  There are no inline inputs and no edit/delete icons.
+- Budgets repeat every month, apply to debit spend only, and never roll over.
 - No categories: the existing empty state, wording mentions limits.
 
 ### Spending page

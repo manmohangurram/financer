@@ -81,7 +81,7 @@ onMounted(loadAll);
     <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">{{ error }}</div>
 
     <AppFolio v-if="!loading" flush>
-      <RulesTab :rules="ruleList" :categories="categoryList" :accounts="accountList" @edit="openEditItem" @delete="requestDeleteItem" @refresh="loadAll" @create="openCreateItem" />
+      <RulesTab :rules="ruleList" :categories="categoryList" :accounts="accountList" @edit="openEditItem" @refresh="loadAll" @create="openCreateItem" />
     </AppFolio>
     <AppFolio v-else flush>
       <div class="flex flex-col gap-2 p-4">

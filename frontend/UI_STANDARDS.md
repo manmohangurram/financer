@@ -413,7 +413,8 @@ The page fills the viewport at 940px and above; only the ledger scrolls. No empt
 
 ### 6.7 Rules — `/accounts/rules`
 Focal: what is automatic. Left: the rule list — numbered rows in the margin (priority is literal here), name,
-conditions line in `--ink-soft`, action line with category/account stamps, `Preview` and row actions.
+conditions line in `--ink-soft`, action line with category/account stamps, and `Run` as the only inline action.
+A row (the first four columns) opens the edit popup; Delete lives in that popup. No edit/delete icons.
 Right (or below on mobile): the preview panel — the last 5 transactions the rule matched, ruled rows.
 Rule form is a modal, 760px, in two columns: conditions (AND/OR tab) and actions; a live "matches N of the
 last 200 entries" line at the bottom updates as you edit.
@@ -448,8 +449,8 @@ Focal: order **and the monthly plan**. One page owns both:
 2. Summary band once a limit exists: Planned · Spent · Left · Used bar.
 3. Ledger table: Category · Share this month · Spent · Entries · Monthly budget (input,
    commits on blur/Enter) · Used bar · Left. Over-limit rows get a debit wash, `over`
-   badge and "₹x over"; unbudgeted rows read `—` / *unbudgeted*. Row actions (edit,
-   delete) are always visible.
+   badge and "₹x over"; unbudgeted rows read `—` / *unbudgeted*. A row opens the
+   edit popup (name + budget), which also carries Delete.
 4. Amounts repeat every month, apply to debit spend only, and never roll over.
 
 ### 6.12 Settings — `/settings`
