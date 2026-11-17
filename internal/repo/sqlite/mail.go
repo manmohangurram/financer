@@ -218,6 +218,9 @@ func (r *MailRepo) GetMessage(userID, id string) (*repo.MailMessageRow, error) {
 
 func (r *MailRepo) ListMessagesFiltered(userID string, statuses []repo.MailStatus, accountID, search string, limit int64, cursor *repo.MailCursor) ([]*repo.MailMessageRow, error) {
 	where, args := mailFilter(userID, statuses, accountID, search)
+	// Cursor is the SQLite rowid: insertion order, stable for a page. A manual
+	// VACUUM can renumber rowids for a table with a non-integer primary key, so
+	// tokens are intentionally short-lived rather than permanent share links.
 	if cursor != nil {
 		where += " AND rowid < ?"
 		args = append(args, cursor.RowID)
