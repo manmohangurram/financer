@@ -150,7 +150,7 @@ The server reads bank-statement mail over IMAP and turns it into transactions.
    - No sender allowlist: every recent mail is scanned and your **mail rules** decide what is ignored, reviewed or auto-created.
    - Private/LAN hosts are allowed, cloud metadata addresses are not.
    - Mailboxes can be edited (host, username, password, polling on/off) or removed later.
-3. In **Settings → Inbox AI**, configure your self-hosted LiteLLM endpoint (base URL, model alias, API key) and the template thresholds. Emails are parsed by stored regex templates; when parsing fails, Financer asks the model to **generate a template** from up to 3 samples — the model is not called per email.
+3. In **Settings → Inbox AI**, configure any OpenAI-compatible endpoint (base URL, model, API key — LiteLLM, DeepSeek, OpenAI, Ollama) and the template thresholds. Emails are parsed by stored regex templates; when parsing fails, Financer asks the model to **generate a template** from up to 3 samples — the model is not called per email.
 4. Polling runs in the background every `FINANCER_MAIL_POLL_SECS` (default 300s, minimum 30), and asynchronously on login and when the Inbox opens (throttled, default 5 minutes). “Poll now” forces it.
 5. Disposition rules decide what happens to each parsed match, first rule wins:
 

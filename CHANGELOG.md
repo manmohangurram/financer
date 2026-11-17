@@ -10,6 +10,11 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
 
 ### Changed
 
+- **Inbox AI wording is provider-neutral.** The settings tab now talks about an
+  OpenAI-compatible base URL and model (LiteLLM, DeepSeek direct, OpenAI, Ollama)
+  instead of naming LiteLLM. Pasting a provider's full `…/chat/completions` URL is
+  accepted as-is; a base URL still gets `/chat/completions` appended. The connection
+  test prompt contains the word “json” so JSON-mode providers accept it.
 - Inbox queue is cursor-paginated: `GET /api/mail/messages` takes `pageToken`,
   `limit` (default 20), `accountId` and `search`, and returns `total` +
   `nextPageToken`. Filters (status, mailbox, search) now run in SQL, so each page is

@@ -113,7 +113,7 @@ func GenerateTemplates(ctx context.Context, settings LLMSettings, samples []LLMS
 // TestLLM performs a tiny request to verify the endpoint/model/key.
 func TestLLM(ctx context.Context, settings LLMSettings) error {
 	content, err := chat(ctx, settings, []map[string]string{
-		{"role": "user", "content": `Reply with exactly {"ok":true}`},
+		{"role": "user", "content": `Reply with this json only: {"ok":true}`},
 	})
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func chat(ctx context.Context, settings LLMSettings, messages []map[string]strin
 	if err != nil {
 		return "", err
 	}
-	endpoint := strings.TrimRight(settings.BaseURL, "/") + "/chat/completions"
+	endpoint := chatEndpoint(settings.BaseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("building LLM request: %w", err)
@@ -180,6 +180,16 @@ func chat(ctx context.Context, settings LLMSettings, messages []map[string]strin
 		return "", fmt.Errorf("LLM response had no choices")
 	}
 	return decoded.Choices[0].Message.Content, nil
+}
+
+// chatEndpoint accepts either a base URL (…/v1) or a full completions URL, so a
+// pasted endpoint from a provider's docs works without editing.
+func chatEndpoint(base string) string {
+	b := strings.TrimRight(strings.TrimSpace(base), "/")
+	if strings.HasSuffix(b, "/chat/completions") {
+		return b
+	}
+	return b + "/chat/completions"
 }
 
 func stripCodeFence(s string) string {

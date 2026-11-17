@@ -22,16 +22,19 @@ Success:
 - LLM is called only on parse failure/refresh, and never blocks the inbox.
 - AUTO creates a transaction only when extraction is complete and ambiguous-free.
 - Every unparsed/partial email can be completed and approved in the UI.
-- Each user configures their own LiteLLM endpoint/model/key in Settings, and
-  mail is polled automatically on login and when the Inbox opens (throttled).
+- Each user configures their own OpenAI-compatible endpoint (base URL, model, key)
+  in Settings, and mail is polled automatically on login and when the Inbox opens
+  (throttled).
 
 ## Assumptions
 
-1. LiteLLM is self-hosted and reachable from the Financer container; full email
-   text may be sent to it. Each user supplies their own base URL, model alias and
-   API key in Settings; there are no server-wide LLM env vars.
-2. The configured model is a DeepSeek model alias exposed by the user's LiteLLM
-   proxy and returns JSON (`response_format: json_object`).
+1. The endpoint is OpenAI-compatible (self-hosted LiteLLM, DeepSeek direct,
+   OpenAI, Ollama…) and reachable from the Financer container; full email text may
+   be sent to it. Each user supplies their own base URL, model and API key in
+   Settings; there are no server-wide LLM env vars.
+2. The configured model is the chat model behind that endpoint (for example
+   `deepseek-chat` on DeepSeek, or a LiteLLM alias) and returns JSON
+   (`response_format: json_object`).
 3. Databases may be reset (single baseline migration; no upgrade path).
 4. Go's RE2 engine is used for all generated regexes (linear time, no
    backtracking).

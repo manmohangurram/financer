@@ -94,3 +94,17 @@ func TestStripCodeFence(t *testing.T) {
 		t.Fatalf("stripCodeFence = %q", got)
 	}
 }
+
+func TestChatEndpoint(t *testing.T) {
+	cases := map[string]string{
+		"https://api.deepseek.com":                     "https://api.deepseek.com/chat/completions",
+		"https://api.deepseek.com/v1/":                 "https://api.deepseek.com/v1/chat/completions",
+		"https://api.deepseek.com/v1/chat/completions": "https://api.deepseek.com/v1/chat/completions",
+		"http://litellm:4000/v1":                       "http://litellm:4000/v1/chat/completions",
+	}
+	for in, want := range cases {
+		if got := chatEndpoint(in); got != want {
+			t.Errorf("chatEndpoint(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

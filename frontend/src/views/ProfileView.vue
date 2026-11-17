@@ -458,7 +458,8 @@ onMounted(() => {
             <div>
               <h2 class="text-[15px] font-semibold text-ink">Inbox AI</h2>
               <p class="text-[12px] text-ink-mute">
-                Your LiteLLM endpoint. It is used only to generate parsing templates when an email cannot be parsed.
+                Any OpenAI-compatible chat endpoint (LiteLLM, DeepSeek, OpenAI, Ollama…). Used only to generate parsing
+                templates when an email cannot be parsed.
               </p>
             </div>
             <label class="flex items-center gap-2 text-[12.5px] text-ink">
@@ -471,15 +472,20 @@ onMounted(() => {
           <p v-if="llmNotice" class="text-[12.5px] text-credit">{{ llmNotice }}</p>
 
           <div class="grid gap-4 sm:grid-cols-2">
-            <AppInput v-model="llmForm.baseUrl" label="LiteLLM base URL" placeholder="http://litellm:4000/v1" />
-            <AppInput v-model="llmForm.model" label="Model alias" placeholder="e.g. deepseek-chat" />
+            <AppInput
+              v-model="llmForm.baseUrl"
+              label="API base URL"
+              placeholder="https://api.deepseek.com/v1"
+              hint="OpenAI-compatible; /chat/completions is appended"
+            />
+            <AppInput v-model="llmForm.model" label="Model" placeholder="e.g. deepseek-chat" />
           </div>
           <AppInput
             v-model="llmForm.apiKey"
             label="API key"
             type="password"
             autocomplete="new-password"
-            :hint="apiKeySet ? 'A key is stored. Leave empty to keep it.' : 'Optional if your proxy requires no auth'"
+            :hint="apiKeySet ? 'A key is stored. Leave empty to keep it.' : 'Leave empty if the endpoint needs no key'"
           />
 
           <details class="rounded-control border border-rule-soft px-3 py-2">
