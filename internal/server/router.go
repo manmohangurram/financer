@@ -6,6 +6,7 @@ package server
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -234,6 +235,13 @@ func writeError(c *gin.Context, err error) {
 		code = apiErr.Status
 		name = apiErr.Code
 		msg = apiErr.Message
+	}
+	// 5xx responses hide the cause from the client; log it so the server log
+	// explains what actually failed.
+	if code >= 500 {
+		slog.Error("request failed",
+			"method", c.Request.Method, "path", c.Request.URL.Path,
+			"status", code, "err", err)
 	}
 	c.JSON(code, gin.H{"code": name, "message": msg})
 }
