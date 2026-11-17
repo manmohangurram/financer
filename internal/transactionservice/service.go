@@ -4,6 +4,7 @@
 package transactionservice
 
 import (
+	"log/slog"
 	"math"
 	"sort"
 	"strconv"
@@ -189,7 +190,9 @@ func (s *Service) Create(userID string, reqs []Request) (*model.WireBulk, error)
 		inserted = append(inserted, t)
 	}
 	if s.transfer != nil && len(inserted) > 0 {
-		_, _, _ = s.transfer.ApplyToTransactions(userID, inserted)
+		if _, _, err := s.transfer.ApplyToTransactions(userID, inserted); err != nil {
+			slog.Warn("transfer rule application failed", "err", err)
+		}
 	}
 	if len(outcome.Errors) > 0 {
 		return &model.WireBulk{

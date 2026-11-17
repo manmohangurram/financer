@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"log/slog"
 	"strings"
 
 	"github.com/mohan9182/financer/internal/errors"
@@ -105,7 +106,9 @@ func (s *Service) Authenticate(key string) (string, string, error) {
 	if row != nil && row.ExpiresAt != nil && isExpired(*row.ExpiresAt) {
 		return "", "", errors.Unauthorized("API key expired")
 	}
-	_ = s.repo.TouchLastUsed(id)
+	if err := s.repo.TouchLastUsed(id); err != nil {
+		slog.Debug("could not record API key use", "key", id, "err", err)
+	}
 	return userID, scope, nil
 }
 

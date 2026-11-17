@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -37,6 +38,7 @@ func (a *API) mcpHandler() http.Handler {
 		}
 		uid, scope, err := a.keySvc.Authenticate(key)
 		if err != nil {
+			slog.Warn("mcp authentication failed", "ip", r.RemoteAddr, "err", err)
 			mcpUnauthorized(w)
 			return
 		}

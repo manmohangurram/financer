@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -279,8 +280,7 @@ func (a *API) createRule(c *gin.Context) {
 	}
 	// Backfill existing transactions; failures are non-fatal.
 	if _, err := a.ruleSvc.ApplyToExisting(uid); err != nil {
-		// log-only by design (matches Rust's warn)
-		_ = err
+		slog.Warn("rule backfill failed", "rule", out.ID, "err", err)
 	}
 	c.JSON(http.StatusCreated, out)
 }
@@ -299,7 +299,7 @@ func (a *API) updateRule(c *gin.Context) {
 		return
 	}
 	if _, err := a.ruleSvc.ApplyToExisting(uid); err != nil {
-		_ = err
+		slog.Warn("rule backfill failed", "rule", id, "err", err)
 	}
 	c.JSON(http.StatusOK, out)
 }

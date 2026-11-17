@@ -323,14 +323,21 @@ func (s *Service) PollOnce() (int, error) {
 	polled := 0
 	for _, account := range accounts {
 		if err := s.pollAccount(account); err != nil {
-			_ = s.repo.MarkPolled(account.ID, err.Error())
+			slog.Warn("mail poll failed", "account", account.ID, "user", account.UserID, "err", err)
+			if markErr := s.repo.MarkPolled(account.ID, err.Error()); markErr != nil {
+				slog.Warn("could not record poll failure", "account", account.ID, "err", markErr)
+			}
 			continue
 		}
-		_ = s.repo.MarkPolled(account.ID, "")
+		if err := s.repo.MarkPolled(account.ID, ""); err != nil {
+			slog.Warn("could not record poll success", "account", account.ID, "err", err)
+		}
 		s.autoCreate(account.UserID)
 		polled++
 	}
-	_, _ = s.repo.SweepBodies()
+	if _, err := s.repo.SweepBodies(); err != nil {
+		slog.Warn("mail body sweep failed", "err", err)
+	}
 	return polled, nil
 }
 
@@ -347,8 +354,14 @@ func (s *Service) pollAccount(account *repo.MailAccountRow) error {
 		return err
 	}
 	defer source.Close()
-	_, err = mail.PollAccount(source, s.repo, account, mail.TemplateExtractor{})
-	return err
+	summary, err := mail.PollAccount(source, s.repo, account, mail.TemplateExtractor{})
+	if err != nil {
+		return err
+	}
+	slog.Info("mail poll complete",
+		"account", account.ID, "user", account.UserID,
+		"matched", summary.Matched, "stored", summary.Stored, "skipped", summary.Skipped)
+	return nil
 }
 
 // autoCreate approves rows an AUTO rule marked; anything that cannot be
@@ -377,7 +390,9 @@ func (s *Service) autoCreate(userID string) {
 	for _, failure := range outcome.Failed {
 		// Back to the queue: an ambiguous account must be reviewed, not retried
 		// every tick.
-		_, _ = s.repo.ResolveMessage(userID, failure.ID, repo.MailStatusPending, nil, nil)
+		if _, err := s.repo.ResolveMessage(userID, failure.ID, repo.MailStatusPending, nil, nil); err != nil {
+			slog.Warn("could not return auto-create row to review", "message", failure.ID, "err", err)
+		}
 		slog.Warn("auto-create skipped", "id", failure.ID, "err", failure.Error)
 	}
 }

@@ -124,6 +124,8 @@ Configuration is **entirely environment variables** — there is no config file.
 | `FINANCER_SQLITE_PATH` | `/data/financer.db` | SQLite file (WAL mode is enabled at boot) |
 | `FINANCER_SECRET_KEY` | *(unset)* | 32-byte hex key (64 chars) encrypting mailbox passwords; the mail feature needs it |
 | `FINANCER_MAIL_POLL_SECS` | `300` | How often the background poll runs (minimum 30) |
+| `FINANCER_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
+| `FINANCER_LOG_FILE` | *(empty)* | Append logs to this file instead of stderr; useful for persisting outside `docker logs` |
 | `FINANCER_ALLOW_INSECURE_HTTP` | `false` | `1`/`true`/`yes` only behind a TLS-terminating proxy; otherwise credential endpoints require HTTPS (loopback exempt) |
 
 **Frontend API base:** in the container the frontend is built same-origin, so it talks to the API on whatever host serves the page. For local dev set `VITE_API_URL` (see [`frontend/.env.example`](frontend/.env.example)).

@@ -72,6 +72,7 @@ func Open(dbPath string) (*DBs, error) {
 		return nil, err
 	}
 
+	slog.Info("database ready", "path", dbPath, "journal_mode", "wal", "write_pool", 1, "read_pool", 5)
 	return &DBs{Write: write, Read: read}, nil
 }
 
@@ -103,6 +104,7 @@ func RunMigrations(db *sql.DB) error {
 		return err
 	}
 
+	applied := 0
 	for _, f := range files {
 		base := filepath.Base(f)
 		var exists bool
@@ -137,6 +139,11 @@ func RunMigrations(db *sql.DB) error {
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("committing migration %s: %w", f, err)
 		}
+		applied++
+		slog.Info("migration applied", "migration", base)
+	}
+	if applied > 0 {
+		slog.Info("database migrations complete", "applied", applied)
 	}
 	return nil
 }

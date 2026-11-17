@@ -29,6 +29,9 @@ func TestFromEnvDefaults(t *testing.T) {
 	if cfg.Storage.SQLite.WritePoolSize != 1 || cfg.Storage.SQLite.ReadPoolSize != 5 {
 		t.Errorf("pools = %d/%d", cfg.Storage.SQLite.WritePoolSize, cfg.Storage.SQLite.ReadPoolSize)
 	}
+	if cfg.Server.LogLevel != "info" || cfg.Server.LogFile != "" {
+		t.Errorf("logging defaults = %q/%q", cfg.Server.LogLevel, cfg.Server.LogFile)
+	}
 }
 
 func TestSecretKeyValidation(t *testing.T) {

@@ -18,5 +18,8 @@ services:
       # Container clock and the app's date/time zone.
       TZ: ${TZ:-Asia/Kolkata}
       FINANCER_TIMEZONE: ${TZ:-Asia/Kolkata}
+      # Logging: stderr (docker logs) by default; set a path to append to a file.
+      FINANCER_LOG_LEVEL: ${FINANCER_LOG_LEVEL:-info}
+      FINANCER_LOG_FILE: ${FINANCER_LOG_FILE:-}
     volumes:
       - ${DATA_DIR:-./data}:/data

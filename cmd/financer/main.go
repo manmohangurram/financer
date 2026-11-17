@@ -14,6 +14,7 @@ import (
 	"github.com/mohan9182/financer/internal/config"
 	"github.com/mohan9182/financer/internal/db"
 	"github.com/mohan9182/financer/internal/keyservice"
+	"github.com/mohan9182/financer/internal/logging"
 	"github.com/mohan9182/financer/internal/mailservice"
 	"github.com/mohan9182/financer/internal/repo/sqlite"
 	"github.com/mohan9182/financer/internal/ruleservice"
@@ -25,13 +26,19 @@ import (
 )
 
 func main() {
-	log := slog.Default()
-
 	cfg, err := config.FromEnv()
 	if err != nil {
-		log.Error("config error", "err", err)
+		slog.Error("config error", "err", err)
 		os.Exit(1)
 	}
+
+	closeLogs, err := logging.Setup(cfg.Server.LogLevel, cfg.Server.LogFile)
+	if err != nil {
+		slog.Error("logging setup failed", "err", err)
+		os.Exit(1)
+	}
+	defer closeLogs()
+	log := slog.Default()
 
 	if cfg.Server.AllowInsecureHTTP {
 		log.Warn("FINANCER_ALLOW_INSECURE_HTTP is set: credentials may cross the network in plaintext")
@@ -39,7 +46,22 @@ func main() {
 
 	// Set the process timezone once, before any date/time work.
 	time.SetLoc(cfg.Server.Timezone)
-	log.Info("timezone configured", "name", cfg.Server.Timezone, "resolved", time.Loc.String())
+	if time.Loc.String() != cfg.Server.Timezone {
+		log.Warn("timezone not found; falling back", "requested", cfg.Server.Timezone, "using", time.Loc.String())
+	}
+
+	log.Info("starting financer",
+		"addr", cfg.Server.Addr,
+		"data_dir", cfg.Server.DataDir,
+		"static_dir", cfg.Server.StaticDir,
+		"sqlite_path", cfg.Storage.SQLite.Path,
+		"timezone", time.Loc.String(),
+		"mail_poll_secs", cfg.Server.MailPollSecs,
+		"secret_key_set", cfg.Server.SecretKey != nil,
+		"allow_insecure_http", cfg.Server.AllowInsecureHTTP,
+		"log_level", cfg.Server.LogLevel,
+		"log_file", cfg.Server.LogFile,
+	)
 
 	if err := os.MkdirAll(cfg.Server.DataDir, 0o755); err != nil {
 		log.Error("creating data dir", "err", err)

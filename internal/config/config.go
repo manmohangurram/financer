@@ -26,6 +26,8 @@ type Server struct {
 	SecretKey         *string
 	MailPollSecs      int
 	AllowInsecureHTTP bool
+	LogLevel          string
+	LogFile           string
 }
 
 type Storage struct {
@@ -54,6 +56,8 @@ func Default() Config {
 			Timezone:          "Asia/Kolkata",
 			MailPollSecs:      300,
 			AllowInsecureHTTP: false,
+			LogLevel:          "info",
+			LogFile:           "",
 		},
 		Storage: Storage{
 			SQLite: Sqlite{
@@ -107,6 +111,12 @@ func FromEnv() (Config, error) {
 		if n, err := strconv.Atoi(v); err == nil && n >= 30 {
 			cfg.Server.MailPollSecs = n
 		}
+	}
+	if v := os.Getenv("FINANCER_LOG_LEVEL"); v != "" {
+		cfg.Server.LogLevel = v
+	}
+	if v := os.Getenv("FINANCER_LOG_FILE"); v != "" {
+		cfg.Server.LogFile = v
 	}
 	if v := os.Getenv("FINANCER_SQLITE_PATH"); v != "" {
 		cfg.Storage.SQLite.Path = v

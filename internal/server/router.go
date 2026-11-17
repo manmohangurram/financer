@@ -5,13 +5,16 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -101,7 +104,8 @@ func New(d Deps) *API {
 func (a *API) Handler() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(recoveryMiddleware())
+	r.Use(requestLogger())
 	r.Use(cors())
 
 	// Public auth routes.
@@ -186,6 +190,61 @@ func (a *API) Handler() *gin.Engine {
 }
 
 // --- middleware ---
+
+// recoveryMiddleware turns a handler panic into a logged 500 instead of
+// terminating the process or printing an unstructured stack trace.
+func recoveryMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				slog.Error("panic recovered",
+					"panic", fmt.Sprint(recovered),
+					"method", c.Request.Method,
+					"path", c.Request.URL.Path,
+					"stack", string(debug.Stack()),
+				)
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"code": "internal", "message": "internal error",
+				})
+			}
+		}()
+		c.Next()
+	}
+}
+
+// requestLogger records one structured line per API/MCP request. Static assets
+// and the SPA shell are skipped; their volume would bury operational events.
+func requestLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if !strings.HasPrefix(path, "/api") && path != "/mcp" && !strings.HasPrefix(path, "/mcp") {
+			c.Next()
+			return
+		}
+		start := time.Now()
+		c.Next()
+
+		attrs := []any{
+			"method", c.Request.Method,
+			"path", path,
+			"status", c.Writer.Status(),
+			"duration_ms", time.Since(start).Milliseconds(),
+			"bytes", c.Writer.Size(),
+			"ip", c.ClientIP(),
+		}
+		if uid := c.GetString(userIDKey); uid != "" {
+			attrs = append(attrs, "user_id", uid)
+		}
+		switch status := c.Writer.Status(); {
+		case status >= 500:
+			slog.Error("http request", attrs...)
+		case status >= 400:
+			slog.Warn("http request", attrs...)
+		default:
+			slog.Info("http request", attrs...)
+		}
+	}
+}
 
 // cors sets CORS headers and answers preflight (permissive, mirrors Rust).
 func cors() gin.HandlerFunc {
