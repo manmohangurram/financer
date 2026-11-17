@@ -6,6 +6,15 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Added
+
+- **IMAP sender pre-filter:** when every enabled rule has a `from` condition, the poll
+  runs `SEARCH HEADER FROM` once per pattern and unions the results before fetching
+  bodies; subject/body conditions stay local. A rule without `from` (or no rules at
+  all) falls back safely, and no rules means no IMAP round-trip.
+
 ## [0.10.6] — 2026-11-17
 
 ### Changed

@@ -88,6 +88,35 @@ func (s *IMAPSource) HeadersAll() ([]MailHeader, error) {
 	return s.fetchHeadersLocked(data.AllUIDs())
 }
 
+// HeadersFiltered returns envelopes above lastUID whose From header contains any
+// of the patterns (one IMAP SEARCH per pattern, unioned locally). It still only
+// narrows the fetch: the rule engine decides disposition.
+func (s *IMAPSource) HeadersFiltered(lastUID uint32, patterns []string) ([]MailHeader, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == nil {
+		return nil, apierrors.BadGateway("imap session closed")
+	}
+	seen := map[imap.UID]bool{}
+	var fresh []imap.UID
+	for _, pattern := range patterns {
+		data, err := s.client.UIDSearch(&imap.SearchCriteria{
+			Header: []imap.SearchCriteriaHeaderField{{Key: "From", Value: pattern}},
+		}, nil).Wait()
+		if err != nil {
+			return nil, apierrors.BadGateway(fmt.Sprintf("imap SEARCH FROM %q failed: %v", pattern, err))
+		}
+		for _, uid := range data.AllUIDs() {
+			if uint32(uid) <= lastUID || seen[imap.UID(uid)] {
+				continue
+			}
+			seen[imap.UID(uid)] = true
+			fresh = append(fresh, imap.UID(uid))
+		}
+	}
+	return s.fetchHeadersLocked(fresh)
+}
+
 // HeadersAfterUID returns envelopes with a UID above the last seen one
 // (incremental polling). SEARCH returns UIDs only; envelopes are fetched for
 // the new tail.

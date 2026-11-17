@@ -17,6 +17,11 @@ per sender.
 - Each mailbox keeps a **UID cursor** (`last_uid`). A poll asks for every UID after
   the last one seen — no date window — so mail that arrived during downtime is picked
   up. A fresh mailbox (cursor 0) scans the whole INBOX once.
+- **Server-side sender pre-filter:** when every enabled rule has a `from` condition,
+  IMAP `SEARCH HEADER FROM` is run once per pattern and the results unioned; subject
+  and body conditions are still evaluated locally. If any enabled rule has no `from`
+  condition, the poll falls back to scanning all UIDs so nothing is hidden.
+- With no enabled rules, the poll returns without contacting IMAP.
 - For each message: fetch the body, evaluate the user's mail rules (IGNORE first, then
   REVIEW/AUTO).
 - **No rule matches → the message is skipped and not stored.** It is counted as

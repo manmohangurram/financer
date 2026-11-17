@@ -41,6 +41,29 @@ type PollSummary struct {
 	MaxUID  uint32
 }
 
+// fromPatterns returns the sender patterns to pre-filter with. ok is false when
+// at least one enabled rule has no from condition, because IMAP could then hide
+// mail that a subject/body rule would match.
+func fromPatterns(rules []*repo.MailRuleRow) ([]string, bool) {
+	seen := map[string]bool{}
+	var patterns []string
+	for _, rule := range rules {
+		if !rule.Enabled {
+			continue
+		}
+		pattern := strings.TrimSpace(rule.FromPattern)
+		if pattern == "" {
+			return nil, false
+		}
+		key := strings.ToLower(pattern)
+		if !seen[key] {
+			seen[key] = true
+			patterns = append(patterns, pattern)
+		}
+	}
+	return patterns, true
+}
+
 // RuleMatches: every non-empty condition must hold; empty means "don't care".
 func RuleMatches(rule *repo.MailRuleRow, header *MailHeader, body string) bool {
 	hits := func(haystack, needle string) bool {
@@ -88,20 +111,52 @@ func pollAccount(
 ) (*PollSummary, error) {
 	var headers []MailHeader
 	var err error
-	if full {
-		fullSource, ok := source.(interface{ HeadersAll() ([]MailHeader, error) })
-		if !ok {
-			return nil, fmt.Errorf("mail source does not support a full scan")
+	// Rules are needed before the search: with a from pattern on every enabled
+	// rule we can ask IMAP to return only those senders.
+	rules, err := store.ListRules(account.UserID)
+	if err != nil {
+		return nil, err
+	}
+	enabledRules := 0
+	for _, r := range rules {
+		if r.Enabled {
+			enabledRules++
 		}
-		headers, err = fullSource.HeadersAll()
-	} else if uidSource, ok := source.(interface {
-		HeadersAfterUID(uint32) ([]MailHeader, error)
-	}); ok {
-		// Incremental: everything above the last seen UID. A fresh mailbox
-		// (cursor 0) therefore scans the whole INBOX once.
-		headers, err = uidSource.HeadersAfterUID(account.LastUID)
-	} else {
-		headers, err = source.Headers(WindowDays)
+	}
+	if enabledRules == 0 {
+		return &PollSummary{}, nil
+	}
+	patterns, canFilter := fromPatterns(rules)
+	filtered := false
+	if canFilter && len(patterns) > 0 {
+		if fs, ok := source.(interface {
+			HeadersFiltered(uint32, []string) ([]MailHeader, error)
+		}); ok {
+			headers, err = fs.HeadersFiltered(account.LastUID, patterns)
+			filtered = true
+		}
+	}
+
+	if !filtered {
+		if full {
+			fullSource, ok := source.(interface{ HeadersAll() ([]MailHeader, error) })
+			if !ok {
+				return nil, fmt.Errorf("mail source does not support a full scan")
+			}
+			headers, err = fullSource.HeadersAll()
+		} else if uidSource, ok := source.(interface {
+			HeadersAfterUID(uint32) ([]MailHeader, error)
+		}); ok {
+			// Incremental: everything above the last seen UID. A fresh mailbox
+			// (cursor 0) therefore scans the whole INBOX once.
+			headers, err = uidSource.HeadersAfterUID(account.LastUID)
+		} else {
+			headers, err = source.Headers(WindowDays)
+		}
+	}
+	if filtered {
+		slog.Debug("imap from filter", "account", account.ID, "patterns", patterns,
+			"last_uid", account.LastUID)
 	}
 	if err != nil {
 		return nil, err
@@ -117,10 +172,6 @@ func pollAccount(
 	known := make(map[string]bool, len(knownList))
 	for _, id := range knownList {
 		known[id] = true
-	}
-	rules, err := store.ListRules(account.UserID)
-	if err != nil {
-		return nil, err
 	}
 
 	summary := &PollSummary{Matched: len(headers)}

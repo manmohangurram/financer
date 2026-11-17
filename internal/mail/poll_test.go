@@ -316,3 +316,19 @@ func TestGeneratedTemplateAppliesToExistingQueue(t *testing.T) {
 		t.Fatalf("existing row was not reparsed: status=%s template=%v", old.Status, old.TemplateID)
 	}
 }
+
+func TestFromPatterns(t *testing.T) {
+	rules := []*repo.MailRuleRow{
+		{Enabled: true, FromPattern: "hdfcbank", Action: repo.MailRuleActionReview},
+		{Enabled: true, FromPattern: "HDFCBANK", Action: repo.MailRuleActionAuto},
+		{Enabled: false, FromPattern: "", Action: repo.MailRuleActionReview},
+	}
+	patterns, ok := fromPatterns(rules)
+	if !ok || len(patterns) != 1 || patterns[0] != "hdfcbank" {
+		t.Fatalf("patterns=%v ok=%v", patterns, ok)
+	}
+	rules = append(rules, &repo.MailRuleRow{Enabled: true, SubjectContains: "alert", Action: repo.MailRuleActionReview})
+	if _, ok := fromPatterns(rules); ok {
+		t.Fatal("a rule without a from pattern must disable the IMAP pre-filter")
+	}
+}
