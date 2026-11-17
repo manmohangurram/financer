@@ -20,6 +20,7 @@ export interface CategoryServiceClient {
   updateCategories: (req: unknown) => Promise<any>;
   deleteCategories: (req: unknown) => Promise<any>;
   listCategories: (req: unknown) => Promise<any>;
+  setCategoryBudget: (req: unknown) => Promise<any>;
 }
 
 export interface TransactionServiceClient {
@@ -153,7 +154,8 @@ export function categories(): CategoryServiceClient {
       createCategories: api('POST', '/api/categories'),
       updateCategories: api('PUT', '/api/categories'),
       deleteCategories: api('DELETE', '/api/categories'),
-      listCategories: api('GET', '/api/categories')
+      listCategories: api('GET', '/api/categories'),
+      setCategoryBudget: api('PUT', '/api/categories/{id}/budget')
     };
   }
   return _categories;

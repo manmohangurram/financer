@@ -49,9 +49,15 @@ type CategoryRow struct {
 }
 
 type CategoryResponse struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt string `json:"createdAt"`
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	MonthlyBudget float64 `json:"monthlyBudget"`
+	CreatedAt     string  `json:"createdAt"`
+}
+
+// ReqCategoryBudget sets one category's recurring monthly budget. 0 removes it.
+type ReqCategoryBudget struct {
+	MonthlyBudget float64 `json:"monthlyBudget"`
 }
 
 type ReqCategory struct {

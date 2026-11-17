@@ -24,6 +24,7 @@ const router = createRouter({
         { path: 'dashboard', name: 'dashboard', component: DashboardView },
         { path: 'accounts', name: 'accounts', component: AccountsView },
         { path: 'accounts/manage', name: 'accounts-manage', component: AccountsManageView },
+        { path: 'accounts/budgets', name: 'budgets', component: () => import('@/views/BudgetsView.vue') },
         { path: 'accounts/spending', name: 'spending', component: SpendingView },
         { path: 'accounts/rules', name: 'rules', component: RulesView },
         { path: 'inbox', name: 'inbox', component: InboxView },

@@ -145,6 +145,7 @@ func (a *API) Handler() *gin.Engine {
 		api.GET("/categories", a.listCategories)
 		api.POST("/categories", a.createCategories)
 		api.PUT("/categories", a.updateCategories)
+		api.PUT("/categories/:id/budget", a.updateCategoryBudget)
 		api.DELETE("/categories", a.deleteCategories)
 
 		api.GET("/transactions", a.listTransactions)
@@ -574,6 +575,22 @@ func (a *API) updateCategories(c *gin.Context) {
 	}
 	res := a.categorySvc.Update(uid, pairs)
 	c.JSON(http.StatusOK, res)
+}
+
+// updateCategoryBudget sets or clears one category's recurring monthly limit.
+func (a *API) updateCategoryBudget(c *gin.Context) {
+	uid := c.GetString(string(userIDKey))
+	var in model.ReqCategoryBudget
+	if err := c.ShouldBindJSON(&in); err != nil {
+		writeError(c, errors.BadRequest(err.Error()))
+		return
+	}
+	out, err := a.categorySvc.SetBudget(uid, c.Param("id"), in.MonthlyBudget)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 func (a *API) deleteCategories(c *gin.Context) {
