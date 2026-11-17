@@ -6,7 +6,7 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
-## [Unreleased]
+## [0.10.7] — 2026-11-17
 
 ### Added
 
