@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import Pagination from '@/components/Pagination.vue';
 import TransactionTable from '@/components/workspace/TransactionTable.vue';
 import { hasActiveFilters, emptyFilters, type TransactionFilters } from '@/lib/utils/transactionFilters';
 
@@ -16,7 +15,6 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'edit', txn: any): void; (e: 'bulk-delete', ids: string[]): void; (e: 'transfer', txn: any): void }>();
 
 const filters = defineModel<TransactionFilters>('filters', { default: emptyFilters });
-const page = defineModel<number>('page', { default: 0 });
 
 const selectedIds = ref<string[]>([]);
 
@@ -65,6 +63,5 @@ function bulkDelete() {
       @edit="emit('edit', $event)"
       @transfer="emit('transfer', $event)"
     />
-    <Pagination v-if="totalPages > 1" :page="page" :total-pages="totalPages" :label="`${filteredCount} transactions`" @page-change="page = $event" />
   </div>
 </template>

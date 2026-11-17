@@ -35,7 +35,7 @@ onMounted(loadAll);
 </script>
 
 <template>
-  <div class="w-full flex flex-col gap-4">
+  <div class="w-full flex h-full min-h-0 flex-col gap-4">
     <div class="flex items-center justify-between gap-4">
       <div>
         <h1 class="text-[22px] leading-none text-ink">Accounts</h1>

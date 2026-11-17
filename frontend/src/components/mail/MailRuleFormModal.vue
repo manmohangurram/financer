@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import AppModal from '@/components/AppModal.vue';
 import AppStamp from '@/components/ui/AppStamp.vue';
+import AppSteps from '@/components/ui/AppSteps.vue';
 import MailTemplateEditor from '@/components/mail/MailTemplateEditor.vue';
 import { mail } from '@/lib/api/client';
 import { cleanedTemplate, emptyTemplate, templateProblem, type TemplatePatterns } from '@/lib/mailTemplate';
@@ -141,30 +142,7 @@ async function remove() {
 <template>
   <AppModal :title="editing ? 'Edit mail rule' : 'New mail rule'" roomy steady @close="emit('close')">
     <div class="flex h-full min-h-0 flex-col px-[26px] pt-[18px] pb-[14px]">
-      <ol class="flex shrink-0 items-center border-b border-rule pb-3.5" aria-label="Rule steps">
-        <li
-          v-for="(label, index) in steps"
-          :key="label"
-          class="flex items-center"
-          :class="index < steps.length - 1 ? 'flex-1' : ''"
-        >
-          <button
-            type="button"
-            class="flex shrink-0 items-center gap-2 rounded-control px-1 py-0.5 text-[12.5px] transition-colors"
-            :class="index === step ? 'font-semibold text-ink' : index < step ? 'text-ink-soft hover:text-ink' : 'text-ink-mute'"
-            :disabled="index > step"
-            :aria-current="index === step ? 'step' : undefined"
-            @click="goTo(index)"
-          >
-            <span
-              class="grid h-[22px] w-[22px] place-items-center rounded-full border text-[11px]"
-              :class="index === step ? 'border-accent bg-accent text-page' : index < step ? 'border-accent text-accent' : 'border-rule-strong'"
-            >{{ index < step ? '✓' : index + 1 }}</span>
-            {{ label }}
-          </button>
-          <span v-if="index < steps.length - 1" class="mx-2.5 h-px flex-1 bg-rule" aria-hidden="true" />
-        </li>
-      </ol>
+      <AppSteps :steps="steps" :current="step" @select="goTo" />
 
       <div class="flex min-h-0 flex-1 flex-col pt-4" :class="step === 0 ? 'overflow-y-auto' : 'overflow-hidden'">
         <p v-if="error" role="alert" class="mb-3 shrink-0 rounded-control border border-debit/30 bg-debit/5 px-3 py-2 text-[12.5px] text-debit">{{ error }}</p>

@@ -150,6 +150,26 @@ func (a *API) listTransactions(c *gin.Context) {
 	})
 }
 
+func (a *API) checkDuplicateTransactions(c *gin.Context) {
+	uid := c.GetString(userIDKey)
+	var in model.ReqDuplicateCheck
+	if err := c.ShouldBindJSON(&in); err != nil {
+		writeError(c, errors.BadRequest(err.Error()))
+		return
+	}
+	reqs, err := toRequests(in.Transactions, false)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	duplicates, err := a.txnSvc.FindDuplicates(uid, reqs)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, model.WireDuplicates{Duplicates: duplicates})
+}
+
 func (a *API) createTransactions(c *gin.Context) {
 	uid := c.GetString(userIDKey)
 	var in model.ReqTxn

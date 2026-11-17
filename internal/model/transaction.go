@@ -95,3 +95,13 @@ type WireSpending struct {
 	Buckets    []WireSpendingBucket   `json:"buckets"`
 	Categories []WireSpendingCategory `json:"categories"`
 }
+
+// ReqDuplicateCheck is the pre-import duplicate probe.
+type ReqDuplicateCheck struct {
+	Transactions []ReqListTxn `json:"transactions"`
+}
+
+// WireDuplicates marks which candidate rows already exist, by index.
+type WireDuplicates struct {
+	Duplicates []bool `json:"duplicates"`
+}

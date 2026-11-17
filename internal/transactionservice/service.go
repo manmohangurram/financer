@@ -8,6 +8,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -134,6 +135,67 @@ func (s *Service) applyRules(userID string, inputs []repo.CreateTransactionInput
 		inputs[i].CategoryIDs = views[i].CategoryIDs
 	}
 	return nil
+}
+
+// FindDuplicates marks requests whose (date, type, amount) already exists in the
+// same account. Each stored row can match one incoming row, so a statement that
+// legitimately repeats an amount is not flagged twice.
+func (s *Service) FindDuplicates(userID string, reqs []Request) ([]bool, error) {
+	out := make([]bool, len(reqs))
+	type span struct{ from, to string }
+	spans := map[string]span{}
+	for _, r := range reqs {
+		if r.AccountID == "" || r.OccurredAt == "" || r.Amount <= 0 {
+			continue
+		}
+		d := dateOf(r.OccurredAt)
+		cur, ok := spans[r.AccountID]
+		if !ok {
+			spans[r.AccountID] = span{d, d}
+			continue
+		}
+		if d < cur.from {
+			cur.from = d
+		}
+		if d > cur.to {
+			cur.to = d
+		}
+		spans[r.AccountID] = cur
+	}
+
+	existing := map[string]int{}
+	for accountID, rng := range spans {
+		keys, err := s.txns.ExistingTransactionKeys(userID, accountID, rng.from, rng.to)
+		if err != nil {
+			return nil, err
+		}
+		for _, k := range keys {
+			existing[dupKey(k.Date, k.Type, k.Amount)]++
+		}
+	}
+
+	for i, r := range reqs {
+		if r.AccountID == "" || r.OccurredAt == "" || r.Amount <= 0 {
+			continue
+		}
+		key := dupKey(dateOf(r.OccurredAt), strings.ToUpper(r.Type), round2(r.Amount))
+		if existing[key] > 0 {
+			out[i] = true
+			existing[key]--
+		}
+	}
+	return out, nil
+}
+
+func dateOf(stamp string) string {
+	if len(stamp) >= 10 {
+		return stamp[:10]
+	}
+	return stamp
+}
+
+func dupKey(date, typ string, amount float64) string {
+	return date + "|" + typ + "|" + strconv.FormatFloat(amount, 'f', 2, 64)
 }
 
 func (s *Service) Create(userID string, reqs []Request) (*model.WireBulk, error) {

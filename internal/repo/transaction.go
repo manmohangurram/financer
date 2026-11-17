@@ -20,6 +20,13 @@ type CreateTransactionInput struct {
 	CategoryIDs []string
 }
 
+// TransactionKey identifies a stored transaction for duplicate checks.
+type TransactionKey struct {
+	Date   string
+	Type   string
+	Amount float64
+}
+
 // UpdateTransactionInput is one transaction to update plus its full category set.
 type UpdateTransactionInput struct {
 	Txn         *TransactionRow
@@ -96,6 +103,9 @@ type TransactionRepo interface {
 	GetFull(userID, id string) (*TransactionRow, error)
 	FindTransferCounterpart(userID, accountID, typ string, amount float64, around string) (*TransactionRow, error)
 	IsTransferLinked(userID, txnID string) (bool, error)
+	// ExistingTransactionKeys returns the (date, type, amount) keys already stored
+	// for an account between two YYYY-MM-DD dates, for duplicate detection.
+	ExistingTransactionKeys(userID, accountID, from, to string) ([]TransactionKey, error)
 	Create(userID string, inputs []CreateTransactionInput) (*CreateOutcome, error)
 	Update(userID string, inputs []UpdateTransactionInput) ([]string, error)
 	ApplyRuleResult(userID, id string, cleanName *string, categoryIDs []string) error

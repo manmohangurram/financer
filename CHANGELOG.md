@@ -6,6 +6,37 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.14.0] — 2026-11-17
+
+### Added
+
+- **Statement PDF import.** `Accounts → Import` opens a three-step wizard (Upload →
+  Map columns → Review). The PDF is read in the browser, every row is checked against
+  the statement's own running balance, and nothing is booked until Import. Supports
+  withdrawal/deposit/balance tables, amount + Dr/Cr + balance, signed amount + balance
+  (direction from the balance delta) and amount + Dr/Cr without a balance; the layout
+  can be forced when detection is wrong.
+- **Duplicate check before adding.** Import checks the rows against the account and shows
+  how many already exist; duplicates are skipped unless you tick “Add the duplicates
+  too”. Adding a single transaction asks for confirmation when the same account, date,
+  type and amount is already recorded.
+- **Shared stepper.** The rule modal and the import wizard now use `AppSteps`, so the
+  step design is identical everywhere.
+
+### Fixed / Changed
+
+- **Transactions pagination works.** The page token was reset on every page change, so
+  every page loaded page 1. Tokens are now kept per page and pages chain correctly.
+- **Pagination redesigned and always visible.** The pager is a footer bar with
+  first/previous/next/last, page numbers with ellipses, `1–9 of 140` and 40px targets;
+  on phones it collapses to `Page X / Y` with prev/next.
+- **Rows per page follow the screen.** The ledger measures its available height and row
+  height and asks the API for exactly that many rows, re-measuring on resize; the table
+  scrolls inside the page and the pager never leaves the viewport.
+- **App shell scroll model.** The window scrolls the page content, not the ledger; pages
+  that want a fixed body (like the ledger) can now fill the viewport without the whole
+  page moving.
+
 ## [0.13.2] — 2026-11-17
 
 ### Fixed

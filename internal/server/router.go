@@ -152,6 +152,7 @@ func (a *API) Handler() *gin.Engine {
 
 		api.GET("/transactions", a.listTransactions)
 		api.POST("/transactions", a.createTransactions)
+		api.POST("/transactions/duplicates", a.checkDuplicateTransactions)
 		api.PUT("/transactions", a.updateTransactions)
 		api.DELETE("/transactions", a.deleteTransactions)
 

@@ -28,6 +28,7 @@ export interface TransactionServiceClient {
   updateTransactions: (req: unknown) => Promise<any>;
   deleteTransactions: (req: unknown) => Promise<any>;
   listTransactions: (req: unknown) => Promise<any>;
+  findDuplicates: (req: unknown) => Promise<any>;
 }
 
 export interface RuleServiceClient {
@@ -175,7 +176,8 @@ export function transactions(): TransactionServiceClient {
       createTransactions: api('POST', '/api/transactions'),
       updateTransactions: api('PUT', '/api/transactions'),
       deleteTransactions: api('DELETE', '/api/transactions'),
-      listTransactions: api('GET', '/api/transactions')
+      listTransactions: api('GET', '/api/transactions'),
+      findDuplicates: api('POST', '/api/transactions/duplicates')
     };
   }
   return _transactions;

@@ -112,6 +112,30 @@ func (r *TransactionRepo) GetFull(userID, id string) (*repo.TransactionRow, erro
 	return txn, nil
 }
 
+// ExistingTransactionKeys lists the stored (date, type, amount) keys for an
+// account, used to warn before importing duplicates.
+func (r *TransactionRepo) ExistingTransactionKeys(userID, accountID, from, to string) ([]repo.TransactionKey, error) {
+	rows, err := r.db.Query(
+		`SELECT substr(occurred_at, 1, 10), type, amount
+		 FROM transactions
+		 WHERE user_id = ? AND account_id = ? AND substr(occurred_at, 1, 10) BETWEEN ? AND ?`,
+		userID, accountID, from, to,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []repo.TransactionKey
+	for rows.Next() {
+		var k repo.TransactionKey
+		if err := rows.Scan(&k.Date, &k.Type, &k.Amount); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
 func (r *TransactionRepo) FindTransferCounterpart(userID, accountID, typ string, amount float64, around string) (*repo.TransactionRow, error) {
 	aroundStr := around
 	if len(aroundStr) > 19 {

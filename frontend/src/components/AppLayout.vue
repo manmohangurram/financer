@@ -36,8 +36,8 @@ const activeBarHref = computed(() => {
     <AppSidebar :open="sidebarOpen" @navigate="sidebarOpen = false" />
 
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
-      <main class="flex min-h-0 flex-1 flex-col overflow-auto">
-        <div class="flex w-full flex-1 flex-col px-4 pb-20 pt-5 md:px-8 md:py-6">
+      <main class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div class="flex w-full min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-20 pt-5 md:px-8 md:py-6">
           <router-view />
         </div>
       </main>

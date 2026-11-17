@@ -1,56 +1,97 @@
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight } from '@lucide/vue';
+import { computed } from 'vue';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from '@lucide/vue';
 
-// `‹ 1 2 3 ›` with the current page filled — the same control everywhere.
-const props = defineProps<{ page: number; totalPages: number; label?: string }>();
+const props = defineProps<{
+  page: number;
+  totalPages: number;
+  totalCount?: number;
+  pageSize?: number;
+  label?: string;
+  /** Highest page whose cursor is known; the API is cursor based. */
+  reachable?: number;
+}>();
+
 const emit = defineEmits<{ (e: 'page-change', page: number): void }>();
 
+const lastReachable = computed(() => {
+  const value = props.reachable ?? props.totalPages - 1;
+  return Math.max(0, Math.min(value, props.totalPages - 1));
+});
+
+const from = computed(() => (props.totalCount ? props.page * (props.pageSize || 0) + 1 : 0));
+const to = computed(() => {
+  if (!props.totalCount || !props.pageSize) return 0;
+  return Math.min(props.totalCount, (props.page + 1) * props.pageSize);
+});
+
 function go(p: number) {
-  if (p < 0 || p >= props.totalPages || p === props.page) return;
+  if (p < 0 || p > lastReachable.value || p === props.page) return;
   emit('page-change', p);
 }
 
-// At most five numbers, centred on the current page.
-function pages(): number[] {
-  const total = props.totalPages;
-  const from = Math.max(0, Math.min(props.page - 2, total - 5));
-  return Array.from({ length: Math.min(5, total) }, (_v, i) => from + i);
-}
+/** First, last reachable and the current page ±1, with ellipses for the gaps. */
+const pages = computed<Array<number | '…'>>(() => {
+  const reach = lastReachable.value;
+  const current = props.page;
+  const items: Array<number | '…'> = [0];
+  const start = Math.max(1, current - 1);
+  const end = Math.min(reach - 1, current + 1);
+  if (start > 1) items.push('…');
+  for (let i = start; i <= end; i++) items.push(i);
+  if (end < reach - 1) items.push('…');
+  if (reach > 0) items.push(reach);
+  return items;
+});
+
+const buttonClass =
+  'grid h-10 min-w-10 place-items-center rounded-control border border-rule px-2 text-[13px] tabular transition-colors hover:bg-page-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent';
 </script>
 
 <template>
-  <div class="flex items-center justify-between gap-3">
-    <span v-if="label" class="text-[12px] text-ink-mute">{{ label }}</span>
-    <div class="ml-auto flex items-center gap-1" role="navigation" aria-label="Pagination">
-      <button
-        type="button"
-        class="flex h-[26px] min-w-[26px] items-center justify-center rounded-control border border-rule text-ink-soft transition-colors hover:bg-page-sunk disabled:opacity-40 disabled:hover:bg-transparent"
-        :disabled="page <= 0"
-        aria-label="Previous page"
-        @click="go(page - 1)"
-      >
-        <ChevronLeft class="h-3.5 w-3.5" stroke-width="1.8" />
+  <nav
+    class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-rule bg-page px-4 py-2.5"
+    aria-label="Pagination"
+  >
+    <p class="text-[12.5px] text-ink-mute" aria-live="polite">
+      <template v-if="totalCount && pageSize">
+        <span class="tabular font-medium text-ink-soft">{{ from }}–{{ to }}</span>
+        of <span class="tabular">{{ totalCount.toLocaleString() }}</span>
+      </template>
+      <template v-else-if="label">{{ label }}</template>
+    </p>
+
+    <div class="flex items-center gap-1">
+      <button type="button" :class="buttonClass" :disabled="page <= 0" aria-label="First page" @click="go(0)">
+        <ChevronsLeft class="h-4 w-4" stroke-width="1.8" />
       </button>
-      <button
-        v-for="p in pages()"
-        :key="p"
-        type="button"
-        class="tabular h-[26px] min-w-[26px] rounded-control border px-1 text-[12px] font-medium transition-colors"
-        :class="p === page ? 'border-transparent bg-page-sunk text-ink' : 'border-rule text-ink-soft hover:bg-page-sunk'"
-        :aria-current="p === page ? 'page' : undefined"
-        @click="go(p)"
-      >
-        {{ p + 1 }}
+      <button type="button" :class="buttonClass" :disabled="page <= 0" aria-label="Previous page" @click="go(page - 1)">
+        <ChevronLeft class="h-4 w-4" stroke-width="1.8" />
       </button>
-      <button
-        type="button"
-        class="flex h-[26px] min-w-[26px] items-center justify-center rounded-control border border-rule text-ink-soft transition-colors hover:bg-page-sunk disabled:opacity-40 disabled:hover:bg-transparent"
-        :disabled="page >= totalPages - 1"
-        aria-label="Next page"
-        @click="go(page + 1)"
-      >
-        <ChevronRight class="h-3.5 w-3.5" stroke-width="1.8" />
+
+      <span class="px-1 text-[12.5px] text-ink-soft sm:hidden">Page {{ page + 1 }} / {{ totalPages }}</span>
+
+      <template v-for="(p, i) in pages" :key="`${p}-${i}`">
+        <span v-if="p === '…'" class="hidden h-10 w-6 place-items-center text-[13px] text-ink-faint sm:grid" aria-hidden="true">…</span>
+        <button
+          v-else
+          type="button"
+          class="hidden h-10 min-w-10 place-items-center rounded-control border px-2 text-[13px] font-medium tabular transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:grid"
+          :class="p === page ? 'border-transparent bg-page-sunk text-ink' : 'border-rule text-ink-soft hover:bg-page-sunk'"
+          :aria-current="p === page ? 'page' : undefined"
+          :aria-label="`Page ${p + 1}`"
+          @click="go(p)"
+        >
+          {{ p + 1 }}
+        </button>
+      </template>
+
+      <button type="button" :class="buttonClass" :disabled="page >= lastReachable" aria-label="Next page" @click="go(page + 1)">
+        <ChevronRight class="h-4 w-4" stroke-width="1.8" />
+      </button>
+      <button type="button" :class="buttonClass" :disabled="page >= lastReachable" aria-label="Last reachable page" @click="go(lastReachable)">
+        <ChevronsRight class="h-4 w-4" stroke-width="1.8" />
       </button>
     </div>
-  </div>
+  </nav>
 </template>

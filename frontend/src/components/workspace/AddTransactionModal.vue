@@ -21,13 +21,40 @@ const txnForm = ref<{
 
 const error = ref('');
 const submitting = ref(false);
+const checking = ref(false);
+const duplicateWarning = ref(false);
 
-async function submitManual() {
-  submitting.value = true;
+function payload() {
+  return {
+    ...txnForm.value,
+    amount: roundMoney(txnForm.value.amount),
+    occurredAt: { seconds: dateToUnixSeconds(txnForm.value.occurredAt), nanos: 0 }
+  };
+}
+
+async function submitManual(force = false) {
   error.value = '';
+  duplicateWarning.value = false;
+  const body = payload();
+
+  if (!force) {
+    checking.value = true;
+    try {
+      const out = await transactions().findDuplicates({ transactions: [body] });
+      if (out?.duplicates?.[0]) {
+        duplicateWarning.value = true;
+        checking.value = false;
+        return;
+      }
+    } catch {
+      // A failed probe must not block adding a transaction.
+    }
+    checking.value = false;
+  }
+
+  submitting.value = true;
   try {
-    const payload = { ...txnForm.value, amount: roundMoney(txnForm.value.amount), occurredAt: { seconds: dateToUnixSeconds(txnForm.value.occurredAt), nanos: 0 } };
-    await transactions().createTransactions({ transactions: [payload] });
+    await transactions().createTransactions({ transactions: [body] });
     emit('imported');
     emit('close');
   } catch (e: any) {
@@ -40,8 +67,17 @@ async function submitManual() {
 <template>
   <AppModal title="Add transaction" @close="emit('close')">
     <div class="px-5 py-4">
-      <form class="flex flex-col gap-4" @submit.prevent="submitManual">
+      <form class="flex flex-col gap-4" @submit.prevent="submitManual()">
         <TransactionForm v-model="txnForm" :accounts="accounts" :categories="categories" />
+        <div v-if="duplicateWarning" role="alert" class="flex flex-col gap-2 rounded-control border border-stamp/40 bg-stamp/5 px-3 py-2.5">
+          <p class="m-0 text-[12.5px] text-ink">
+            A transaction with this account, date, type and amount already exists.
+          </p>
+          <div class="flex items-center gap-2">
+            <button type="button" class="ns-primary" @click="submitManual(true)">Add anyway</button>
+            <button type="button" class="ns-quiet" @click="duplicateWarning = false">Keep editing</button>
+          </div>
+        </div>
         <p v-if="error" class="text-[13px] text-debit">{{ error }}</p>
         <div class="flex items-center justify-end gap-2 pt-1">
           <button type="button" class="ns-quiet" @click="emit('close')">Cancel</button>

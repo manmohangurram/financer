@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Statement import — design options</title>
+<style>
+  :root {
+    --paper: oklch(0.965 0.008 85);
+    --page: oklch(0.995 0.003 85);
+    --page-sunk: oklch(0.945 0.01 85);
+    --ink: oklch(0.255 0.02 245);
+    --ink-soft: oklch(0.435 0.018 245);
+    --ink-mute: oklch(0.585 0.014 245);
+    --ink-faint: oklch(0.7 0.01 245);
+    --rule: oklch(0.255 0.02 245 / 0.12);
+    --rule-soft: oklch(0.255 0.02 245 / 0.07);
+    --rule-strong: oklch(0.255 0.02 245 / 0.22);
+    --accent: oklch(0.455 0.075 205);
+    --accent-wash: oklch(0.94 0.02 205);
+    --credit: oklch(0.505 0.1 155);
+    --debit: oklch(0.52 0.15 28);
+    --stamp: oklch(0.66 0.105 78);
+    --lift: 0 0 0 0.5px var(--rule), 0 10px 28px oklch(0.255 0.02 245 / 0.12);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 40px 48px 90px; background: var(--paper); color: var(--ink); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+  h1 { font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 28px; margin: 0 0 6px; }
+  .lede { color: var(--ink-mute); margin: 0 0 34px; max-width: 900px; }
+  .opt { margin: 0 0 48px; }
+  .opt-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .tag { font-family: ui-monospace, monospace; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--ink-mute); }
+  .opt-head h2 { font-size: 17px; margin: 0; font-family: "IBM Plex Sans", sans-serif; font-weight: 600; }
+  .note { color: var(--ink-mute); font-size: 12.5px; margin: 12px 0 0; max-width: 880px; }
+  .stage { background: oklch(0.255 0.02 245 / 0.05); padding: 34px; border-radius: 14px; }
+  .modal { width: 880px; margin: 0 auto; background: var(--page); border: 1px solid var(--rule); border-radius: 12px; box-shadow: var(--lift); overflow: hidden; }
+  .m-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 26px; border-bottom: 1px solid var(--rule); }
+  .m-head h3 { margin: 0; font-size: 16px; }
+  .x { color: var(--ink-mute); font-size: 18px; }
+  .m-body { padding: 26px; display: flex; flex-direction: column; gap: 20px; }
+  .m-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 26px; border-top: 1px solid var(--rule); }
+  .m-foot .right { display: flex; gap: 8px; }
+  .label { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; margin-bottom: 6px; }
+  .field { height: 40px; border: 1px solid var(--rule); background: var(--page-sunk); border-radius: 4px; padding: 0 12px; display: flex; align-items: center; font-size: 13.5px; color: var(--ink); }
+  .btn { height: 32px; padding: 0 14px; border-radius: 4px; border: 1px solid var(--rule-strong); background: transparent; color: var(--ink); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--page); }
+  .btn.quiet { border-color: transparent; color: var(--ink-soft); }
+  .btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+  .stamp { font-family: ui-monospace, monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid var(--rule-strong); border-radius: 999px; padding: 2px 8px; color: var(--ink-mute); white-space: nowrap; }
+  .stamp.ok { color: var(--credit); border-color: color-mix(in oklch, var(--credit) 40%, transparent); }
+  .stamp.bad { color: var(--debit); border-color: color-mix(in oklch, var(--debit) 40%, transparent); }
+  .stamp.accent { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 40%, transparent); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  .drop { border: 1.5px dashed var(--rule-strong); border-radius: 8px; padding: 22px; display: flex; align-items: center; gap: 16px; background: var(--page-sunk); }
+  .drop .icon { width: 42px; height: 42px; border-radius: 8px; display: grid; place-items: center; background: var(--accent-wash); color: var(--accent); font-size: 18px; }
+  .drop .t { font-size: 13.5px; font-weight: 600; }
+  .drop .s { font-size: 12px; color: var(--ink-mute); }
+  .drop .btn { margin-left: auto; }
+
+  .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 6px; background: var(--page-sunk); font-size: 12.5px; }
+  .summary .sep { color: var(--ink-faint); }
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-mute); }
+  .stat .v { font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .stat .v.credit { color: var(--credit); }
+  .stat .v.debit { color: var(--debit); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-mute); background: var(--page-sunk); padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--rule-soft); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cols { display: flex; flex-wrap: wrap; gap: 8px; }
+  .colchip { display: flex; flex-direction: column; gap: 1px; border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; min-width: 140px; background: var(--page); }
+  .colchip .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
+  .colchip .v { font-size: 12.5px; font-weight: 600; }
+  .colchip.on { border-color: color-mix(in oklch, var(--accent) 55%, transparent); background: var(--accent-wash); }
+
+  .steps { display: flex; align-items: center; padding: 14px 26px; border-bottom: 1px solid var(--rule); background: var(--page-sunk); }
+  .step { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-mute); white-space: nowrap; }
+  .step .n { width: 22px; height: 22px; border-radius: 999px; border: 1px solid var(--rule-strong); display: grid; place-items: center; font-size: 11px; }
+  .step.on { color: var(--ink); font-weight: 600; }
+  .step.on .n { background: var(--accent); border-color: var(--accent); color: var(--page); }
+  .step.done .n { border-color: var(--accent); color: var(--accent); }
+  .hr { flex: 1; height: 1px; background: var(--rule); margin: 0 10px; }
+
+  .map { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 10px 16px; align-items: center; }
+  .map .need { font-size: 12.5px; color: var(--ink-soft); }
+  .map .need b { display: block; font-size: 12.5px; color: var(--ink); }
+  .map .need span { font-size: 11px; color: var(--ink-mute); }
+  .select { height: 38px; border: 1px solid var(--rule); background: var(--page-sunk); border-radius: 4px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--ink); }
+  .muted { color: var(--ink-mute); }
+</style>
+</head>
+<body>
+  <h1>Statement import — design options</h1>
+  <p class="lede">Three ways to handle the PDF → Financer column mapping. Same job: pick a file, prove the columns, check the balances, then book.</p>
+
+  <section class="opt">
+    <div class="opt-head"><span class="tag">Option A</span><h2>Drop + confirm (one screen)</h2></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="m-head"><h3>Import a bank statement</h3><span class="x">×</span></div>
+        <div class="m-body">
+          <div class="drop">
+            <div class="icon">↑</div>
+            <div>
+              <div class="t">hdfc-7713-2024-25.pdf</div>
+              <div class="s">4,108 rows read · 78 pages · detected Withdrawal · Deposit · Balance</div>
+            </div>
+            <button class="btn">Replace</button>
+          </div>
+
+          <div class="summary">
+            <span class="mono muted">alerts@hdfc…</span><span class="sep">·</span>
+            <span>Template <b>not needed</b></span><span class="sep">·</span>
+            <span class="stamp ok">balances match</span>
+            <span class="stamp accent">layout detected</span>
+          </div>
+
+          <div class="grid4">
+            <div class="stat"><span class="k">Rows</span><span class="v">4,108</span></div>
+            <div class="stat"><span class="k">Opening</span><span class="v">1,541.31</span></div>
+            <div class="stat"><span class="k">Closing</span><span class="v">51,032.18</span></div>
+            <div class="stat"><span class="k">Rows without balance</span><span class="v">0</span></div>
+          </div>
+
+          <div class="cols">
+            <div class="colchip on"><span class="k">Date</span><span class="v">01/04/2024</span></div>
+            <div class="colchip on"><span class="k">Withdrawal</span><span class="v">1,200.00</span></div>
+            <div class="colchip on"><span class="k">Deposit</span><span class="v">—</span></div>
+            <div class="colchip on"><span class="k">Closing balance</span><span class="v">341.31</span></div>
+          </div>
+
+          <table>
+            <thead><tr><th>Date</th><th>Name</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+            <tbody>
+              <tr><td>01 Apr 24</td><td>UPI-SWIGGY</td><td class="num">248.00</td><td class="num">—</td><td class="num">1,293.31</td></tr>
+              <tr><td>02 Apr 24</td><td>SALARY</td><td class="num">—</td><td class="num">80,000.00</td><td class="num">81,293.31</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="m-foot">
+          <button class="btn quiet">Cancel</button>
+          <div class="right"><button class="btn primary">Import 4,108 transactions</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Why:</b> fastest path; auto-detect covers the two common layouts and the user only acts when detection is wrong. <b>Cost:</b> the mapping is implicit — a wrong guess is a dropdown away, but not visible as a step.</p>
+  </section>
+
+  <section class="opt">
+    <div class="opt-head"><span class="tag">Option B</span><h2>Map the columns (one screen, explicit)</h2></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="m-head"><h3>Import a bank statement</h3><span class="x">×</span></div>
+        <div class="m-body">
+          <div class="drop">
+            <div class="icon">↑</div>
+            <div><div class="t">idfc-2023-24.pdf</div><div class="s">1,003 rows found · 53 pages</div></div>
+            <button class="btn">Replace</button>
+          </div>
+
+          <div class="grid4">
+            <div class="stat"><span class="k">Opening</span><span class="v">275.18</span></div>
+            <div class="stat"><span class="k">Credits</span><span class="v credit">1,293,901.59</span></div>
+            <div class="stat"><span class="k">Debits</span><span class="v debit">1,292,635.46</span></div>
+            <div class="stat"><span class="k">Closing</span><span class="v">1,541.31</span></div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <span class="label" style="margin:0">Map the PDF columns</span>
+            <span class="stamp ok">opening + credits − debits = closing</span>
+          </div>
+
+          <div class="map">
+            <div class="need"><b>Date</b><span>transaction date</span></div>
+            <div class="select">Column 1 — “01/04/2023” <span>▾</span></div>
+            <div class="need"><b>Amount</b><span>one signed column, or the debit column</span></div>
+            <div class="select">Column 2 — “1,200.00” <span>▾</span></div>
+            <div class="need"><b>Direction</b><span>Dr/Cr marker, column order, or balance delta</span></div>
+            <div class="select">Infer from balance <span>▾</span></div>
+            <div class="need"><b>Balance</b><span>used to validate every row</span></div>
+            <div class="select">Column 4 — “341.31” <span>▾</span></div>
+          </div>
+
+          <table>
+            <thead><tr><th>Date</th><th>Name</th><th class="num">Amount</th><th class="num">Balance</th><th>Maps to</th></tr></thead>
+            <tbody>
+              <tr><td>01 Apr 23</td><td>UPI-SWIGGY</td><td class="num">248.00</td><td class="num">27.18</td><td><span class="stamp">debit · delta</span></td></tr>
+              <tr><td>02 Apr 23</td><td>SALARY</td><td class="num">8,000.00</td><td class="num">8,027.18</td><td><span class="stamp">credit · delta</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="m-foot">
+          <button class="btn quiet">Cancel</button>
+          <div class="right"><button class="btn quiet">Back to auto-detect</button><button class="btn primary">Import 1,003 transactions</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Why:</b> the mapping is a first-class control; every amount column has a name and a sample value, and the direction rule is visible. <b>Cost:</b> more controls than most statements need; long for a phone.</p>
+  </section>
+
+  <section class="opt">
+    <div class="opt-head"><span class="tag">Option C</span><h2>Three-step wizard — Upload → Map → Review</h2></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="m-head"><h3>Import a bank statement</h3><span class="x">×</span></div>
+        <div class="steps">
+          <div class="step done"><span class="n">✓</span> Upload</div><div class="hr"></div>
+          <div class="step on"><span class="n">2</span> Map columns</div><div class="hr"></div>
+          <div class="step"><span class="n">3</span> Review</div>
+        </div>
+        <div class="m-body" style="min-height:360px">
+          <div class="summary">
+            <span class="mono muted">idfc-2023-24.pdf</span><span class="sep">·</span>
+            <span>1,003 rows</span><span class="sep">·</span>
+            <span class="stamp accent">layout detected</span><span class="sep">·</span>
+            <span class="stamp ok">balances match</span>
+          </div>
+
+          <div class="map">
+            <div class="need"><b>Date</b><span>transaction date</span></div>
+            <div class="select">Column 1 — “01/04/2023” <span>▾</span></div>
+            <div class="need"><b>Amount</b><span>signed or debit column</span></div>
+            <div class="select">Column 2 — “1,200.00” <span>▾</span></div>
+            <div class="need"><b>Direction</b><span>Dr/Cr, order, or balance delta</span></div>
+            <div class="select">Dr/Cr marker <span>▾</span></div>
+            <div class="need"><b>Balance</b><span>validates every row</span></div>
+            <div class="select">Column 4 — “341.31” <span>▾</span></div>
+          </div>
+
+          <table>
+            <thead><tr><th>Date</th><th>Name</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+            <tbody>
+              <tr><td>01 Apr 23</td><td>UPI-SWIGGY</td><td class="num">248.00</td><td class="num">—</td><td class="num">27.18</td></tr>
+              <tr><td>02 Apr 23</td><td>SALARY</td><td class="num">—</td><td class="num">8,000.00</td><td class="num">8,027.18</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="m-foot">
+          <button class="btn quiet">Back</button>
+          <div class="right"><button class="btn quiet">Skip mapping</button><button class="btn primary">Continue</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Why:</b> each step is one decision; mapping gets the full width and the review step can show totals + account. Matches the existing rule modal. <b>Cost:</b> three clicks; the file summary moves off-screen while mapping.</p>
+  </section>
+</body>
+</html>
