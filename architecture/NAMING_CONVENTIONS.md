@@ -1,13 +1,10 @@
-# Naming Conventions (Rust)
+# Naming Conventions (Go)
 
-- **Full words, no abbreviations.** Types/structs/fns/fields spell out domain nouns: `TransactionType`, `TransactionRepo`, `TransactionService`, `account_repo`, `transaction_repo` — never `TxnType`/`TxnRepo`/`txn_repo`. Short names allowed only for universally-clear locals (`id`, `req`, `row`, `svc`, `repo`).
-- **No entity-prefix on fields.** A field on its own struct doesn't repeat the struct's noun: `Transaction.type` not `Transaction.transaction_type`, `Account.type` not `Account.account_type`. Use a raw identifier (`r#type`) for keyword collisions — never `type_`/`type_enum`.
-- **No entity-prefix on functions.** Within a module, helpers don't repeat the module name: `wire()` not `txn_wire()`, `type_value()` not `account_type_value()`. Cross-module disambiguation lives in the module path (`http::transaction::wire`), not the name.
-- **Enums over ints/string-maps.** Real Rust enums with `#[repr(i64)]` for the DB column, `#[serde(rename = "...")]` for the exact wire name. No protobuf-style `PREFIX_ENUM_NAME` variant names — the Rust variant is `Checking`, wire `"ACCOUNT_TYPE_CHECKING"` is a serde rename.
-- **Strict validation, no sentinel variants.** No `Unspecified`/zero-value default. A missing or unknown enum value is a 400 at the boundary. Valid values are exactly what the enum defines.
-- **One object, no wire structs.** The domain/service struct IS the JSON response — `#[serde(rename_all = "camelCase")]` + `#[serde(rename)]` + `serialize_with` cover Go's wire mapping. No separate `WireXxx` type unless the wire shape genuinely differs (e.g. transactions flatten a join row, null-vs-empty `categoryIds`). Request structs stay (they parse `any`-typed fields).
-- **SQL column and wire names are sacred but standard.** Column and JSON names match the Go contract (`type` for accounts/transactions, `accountType`/`occurredAt` on the wire) and are NOT re-prefixed to look like Rust. `#[serde(rename)]` maps Rust field ↔ wire key. Columns keep the Go-era snake_case names; a field rename ships as a migration in `db/migrations/`. Dev databases are disposable.
-- **Repo field names short and type-qualified when ambiguous:** a service holding two repos uses `account_repo`/`transaction_repo` (the suffix disambiguates); a field of a single type is `repo`.
-- **Name by role, not by shape:** `repo`/`svc`/`id`/`req`/`row` are fine; `string`/`vec`/`list`/`data`/`value` for a typed thing are not.
-- **Booleans read as predicates** (`is_linked`, `inserted`, `success`); verbs for actions (`create`, `link`, `delete`).
-- **snake_case** for everything in Rust (fields, locals, fns, files). Types/structs PascalCase, consts SCREAMING_SNAKE.
+- **Full words, no abbreviations.** Types, functions and fields spell out domain nouns: `TransactionRepo`, `TransactionService`, `AccountService`, `CategoryRow`, `EndingNumbers`. Universally-clear locals are fine (`id`, `req`, `row`, `err`, `ok`). Established short field names in repos (`txns`, `accounts`) are acceptable when the type is obvious.
+- **No stutter.** A method on `TransactionService` is `Create`, not `CreateTransaction`; the package name already supplies the noun. Avoid repeating the package name in identifiers (`transactionservice.New`, not `NewTransactionService`).
+- **Wire vs storage types are separate on purpose.** `internal/model` holds camelCase JSON structs; `internal/repo` holds row/input structs with plain fields. Services translate. Enum values are string constants rendered as `SCREAMING_SNAKE_CASE` on the wire.
+- **Strict validation, no sentinels.** Unknown enum/wire values are a 400 at the handler/service boundary. No `Unspecified`/zero-value default.
+- **SQL column and wire names are sacred.** Columns stay `snake_case` (`user_id`, `occurred_at`); JSON stays camelCase (`userId`, `occurredAt`, `type`). A rename ships as a migration in `db/migrations/`.
+- **Name by role, not shape.** `repo`, `svc`, `id`, `req`, `row` are fine; `data`, `value`, `list`, `string` for a typed thing are not.
+- **Booleans read as predicates** (`isLinked`, `inserted`, `success`); actions are verbs (`Create`, `Link`, `Delete`).
+- **Formatting:** `gofmt`/`goimports` decide layout; files are `snake_case.go` (e.g. `account_category.go`), exported identifiers PascalCase, unexported camelCase, constants camelCase unless they are wire values.

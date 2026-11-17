@@ -1,3 +1,8 @@
 # Architecture — Rule Engine
 
-`src/service/rule.rs` + `src/repo/rule.rs`: user rules auto-categorize transactions by conditions (field: name/amount/type/category/account; operator: contains/starts_with/ends_with/equals/gt/lt/regex; AND/OR logic). Each rule carries **output actions** — rename, set category, or **transfer-to-account** (`RuleAction`). Matching is **non-destructive, applied at read time**: `RuleService::overlay` loads rules once (`list_for_overlay`, priority-ordered) and applies all matching actions per transaction; later/lower-priority rules override earlier setters. `SET_TRANSFER_ACCOUNT` actions are handled at write time by `src/service/transfer_rule.rs` (`TransferRuleService`): it finds-or-creates the counterpart across accounts and links them; `POST /api/rules/{id}/run` runs one rule against existing transactions.
+`internal/ruleservice/` implements behavior rules. A rule has a logic mode (`OR`/`AND`), conditions (field: name/amount/type/category/account; operator: contains/starts_with/ends_with/equals/gt/lt/regex; case-insensitive where relevant) and **output actions**: rename (`RENAME`/`ADD_PREFIX`/`ADD_SUFFIX`), set category, or transfer-to-account.
+
+- Rules run **at write time**: on transaction create, the overlay (`RuleService.Overlay`) matches the new rows and snapshots the resolved display name into `clean_name` and the chosen category into the join table. The raw bank `name` is never overwritten; reads return `clean_name` when present.
+- `SET_TRANSFER_ACCOUNT` is handled by `internal/ruleservice/transferrule.go`: on create it finds or creates the counterpart transaction in the target account and links them (`ResolveTransfer`).
+- `POST /api/rules/{id}/run` applies one rule to existing rows; `POST /api/rules/preview` matches conditions without mutating.
+- Rule CRUD lives in `internal/ruleservice/service.go` + `internal/repo/sqlite/rule.go`; creating or updating a rule backfills existing transactions.

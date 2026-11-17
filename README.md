@@ -41,15 +41,14 @@ Financer tracks accounts, transactions, transfers, spending, and rules (auto-cat
 - **Auth** — signup, login, JWT access + refresh tokens.
 - **Accounts & categories** — full CRUD; account types (Current, Savings, Credit Card, Loan); balances stay in sync as transactions change.
 - **Transactions** - create (single + bulk), edit, delete, server-side filters (date, amount, name, category) and cursor pagination.
-- **Transfers** — link two transactions as a transfer, unlink, or create the missing counterpart; candidate matching (±5 days, ±10% amount) and fee-tolerant amounts.
+- **Transfers** — link two transactions as a transfer, unlink, or create the missing counterpart; matching looks for the opposite leg in the target account within ±3 days for the same amount.
 - **Rules** — conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR) with outputs (rename, set category, transfer to account). Rules are applied **at write time** and snapshot the resolved name + category onto the transaction; the raw bank string is preserved.
 - **Spending analytics** — server-computed buckets (7D/1M/6M/1Y/custom, day or month granularity), per-category debit/credit pies with drill-down, and transfer exclusion (debt accounts count as real spending).
-- **Dashboard** — one summary endpoint: net worth, income, expenses, portfolio value, account cards, P&L.
-- **Investments** — instruments (stock/mutual fund), buy/sell lots with FIFO cost basis, live Yahoo quotes, price-history chart, portfolio summary (invested / current / unrealized / realized P&L).
+- **Dashboard** — one summary endpoint: net worth, income, expenses, and account cards.
 - **Inbox** — link an IMAP mailbox (app password, encrypted at rest), poll it on a timer, and turn bank-statement mail into transactions: disposition rules send each sender to Ignore / Review / Auto, and the Inbox approves or rejects what needs a person.
 - **API keys + MCP** — per-user API keys (scoped read / read_write) and an MCP server at `/mcp` for external AI agents.
 
-All finance math (aggregation, filtering, transfer resolution, FIFO) lives in the backend; the frontend renders server-computed results.
+All finance math (aggregation, filtering, transfer resolution) lives in the backend; the frontend renders server-computed results.
 
 ## Tech stack
 
@@ -334,10 +333,8 @@ frontend/src/
   lib/api/                  # fetch API client
   lib/stores/               # auth + account selection state
   lib/utils/                # pure helpers (formatting, filters)
-architecture/               # layering, data flow, naming, conventions
+architecture/               # design notes: layering, request flow, naming, conventions
 ```
-
-> The Rust implementation under `src/` is retained as a reference until the Go backend fully replaces it in production; it is no longer the deployed server.
 
 ## Deployment reference
 

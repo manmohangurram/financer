@@ -1,3 +1,5 @@
 # Architecture — API Types
 
-API types are hand-written Rust structs in the repo/service layer, serialized by serde: `#[serde(rename_all = "camelCase")]` + `#[serde(rename)]` + `serialize_with` map Rust fields ↔ wire. Enums use `strum::Display`/`EnumString` + serde `rename_all` for the wire string (e.g. `TransactionType::Debit` ↔ `"DEBIT"`). No getters — fields are exported and accessed directly. OpenAPI spec is generated with `utoipa` (`#[utoipa::path]` on handlers, `ToSchema`/`IntoParams` on types); Swagger UI at `/docs`, spec at `/openapi.json`.
+Wire types are hand-written Go structs in `internal/model/*.go` with `json:"camelCase"` tags; repository row types live in `internal/repo/*.go` and use plain Go fields (no JSON tags). Services map rows → wire types. Closed sets are string constants (`AccountType`, `TransactionType`, `RuleLogic`, `MatchField`, `MatchOperator`, `ActionOp`, `ActionType`) rendered as `SCREAMING_SNAKE_CASE`; an unknown value is a 400 at the boundary, never a silent default.
+
+The OpenAPI document is hand-written in `internal/openapi/spec.go` and served at `/openapi.json`; Swagger UI is at `/docs`. Keep the spec in sync when a route or payload changes (a test asserts the documented paths).
