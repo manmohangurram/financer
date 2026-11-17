@@ -40,6 +40,10 @@ type Service struct {
 
 	aiMu     sync.Mutex
 	aiStates map[string]*model.AIParseStatus
+
+	// Re-application is triggered from rule saves, which run in the background;
+	// serialising it keeps two concurrent runs from racing over auto-booking.
+	reapplyMu sync.Mutex
 }
 
 func New(r repo.MailRepo, secret *string, txns *transactionservice.Service, accounts *accountservice.Service, llm *llmsettings.Service) *Service {
@@ -854,6 +858,9 @@ func (s *Service) storeTemplate(userID, sender string, spec mail.TemplateSpec, s
 // queue, so a rule added after the mail arrived still takes effect. Returns the
 // number of rows whose disposition changed.
 func (s *Service) ReapplyRules(userID string) int {
+	s.reapplyMu.Lock()
+	defer s.reapplyMu.Unlock()
+
 	rows, err := s.queuedMessages(userID)
 	if err != nil {
 		slog.Warn("reapply rules: could not list mail", "user", userID, "err", err)

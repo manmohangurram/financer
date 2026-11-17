@@ -6,6 +6,16 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.14.3] — 2026-11-17
+
+### Fixed
+
+- **Concurrent rule re-application could double-book.** Saving a rule starts a background
+  re-application while the caller may run one too; two runs could both move a mail to
+  `AUTO` and race on booking, leaving it `AUTO` without a transaction. Re-application is
+  now serialised, so the second run sees the booked row and leaves it alone.
+  (This is the flake behind the failed CI run on v0.14.2.)
+
 ## [0.14.2] — 2026-11-17
 
 ### Fixed
