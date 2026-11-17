@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Mail rule + template — design options</title>
+<style>
+  :root {
+    --paper: oklch(0.965 0.008 85);
+    --page: oklch(0.995 0.003 85);
+    --page-sunk: oklch(0.945 0.01 85);
+    --ink: oklch(0.255 0.02 245);
+    --ink-soft: oklch(0.435 0.018 245);
+    --ink-mute: oklch(0.585 0.014 245);
+    --ink-faint: oklch(0.7 0.01 245);
+    --rule: oklch(0.255 0.02 245 / 0.12);
+    --rule-soft: oklch(0.255 0.02 245 / 0.07);
+    --rule-strong: oklch(0.255 0.02 245 / 0.22);
+    --accent: oklch(0.455 0.075 205);
+    --accent-wash: oklch(0.94 0.02 205);
+    --credit: oklch(0.505 0.1 155);
+    --debit: oklch(0.52 0.15 28);
+    --stamp: oklch(0.66 0.105 78);
+    --lift: 0 0 0 0.5px var(--rule), 0 6px 20px oklch(0.255 0.02 245 / 0.1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 36px 40px 80px;
+    background: var(--paper); color: var(--ink);
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.45;
+  }
+  h1 { font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 26px; margin: 0 0 4px; }
+  .lede { color: var(--ink-mute); margin: 0 0 28px; max-width: 820px; }
+  .opt { margin: 0 0 40px; }
+  .opt-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .opt-head h2 { font-size: 16px; margin: 0; }
+  .tag { font-family: ui-monospace, monospace; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-mute); }
+  .note { color: var(--ink-mute); font-size: 12.5px; margin: 10px 0 0; max-width: 780px; }
+  .note b { color: var(--ink-soft); font-weight: 600; }
+
+  .stage { background: oklch(0.255 0.02 245 / 0.06); padding: 28px; border-radius: 14px; }
+  .modal {
+    width: 760px; margin: 0 auto; background: var(--page); border: 1px solid var(--rule);
+    border-radius: 10px; box-shadow: var(--lift); overflow: hidden;
+  }
+  .modal.narrow { width: 560px; }
+  .m-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+  .m-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  .x { color: var(--ink-mute); font-size: 18px; }
+  .m-body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .m-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--rule); background: var(--page); }
+
+  .label { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; margin-bottom: 5px; }
+  .field { height: 36px; border: 1px solid var(--rule); background: var(--page-sunk); border-radius: 4px; padding: 0 10px; display: flex; align-items: center; color: var(--ink); font-size: 13.5px; }
+  .field.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink-soft); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn { height: 30px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--rule-strong); background: transparent; color: var(--ink); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--page); }
+  .btn.quiet { border-color: transparent; color: var(--ink-soft); }
+  .stamp { font-family: ui-monospace, monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid var(--rule-strong); border-radius: 999px; padding: 2px 7px; color: var(--ink-mute); white-space: nowrap; }
+  .stamp.ok { color: var(--credit); border-color: color-mix(in oklch, var(--credit) 40%, transparent); }
+  .stamp.bad { color: var(--debit); border-color: color-mix(in oklch, var(--debit) 40%, transparent); }
+  .stamp.warn { color: var(--stamp); border-color: color-mix(in oklch, var(--stamp) 45%, transparent); }
+
+  /* Option A */
+  .collapsed-row { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; background: var(--page); }
+  .collapsed-row .l { display: flex; flex-direction: column; gap: 2px; }
+  .inset-head .l { display: flex; flex-direction: column; gap: 2px; }
+  .state-tag { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 6px; }
+  .collapsed-row .t { font-size: 13px; font-weight: 600; }
+  .collapsed-row .s { font-size: 11.5px; color: var(--ink-mute); }
+  .inset { border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .inset-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--page-sunk); border-bottom: 1px solid var(--rule); }
+  .inset-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; max-height: 300px; overflow: auto; }
+  .fieldcard { border: 1px solid var(--rule-soft); border-radius: 6px; padding: 8px 9px; background: var(--page); }
+  .fieldcard .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .fieldcard .name { font-size: 11.5px; font-weight: 600; color: var(--ink); }
+  .patrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .patrow .in { flex: 1; height: 30px; border: 1px solid var(--rule); border-radius: 4px; background: var(--page-sunk); font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); display: flex; align-items: center; padding: 0 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .add { font-size: 11px; color: var(--ink-mute); }
+  .testbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--rule); background: var(--page); }
+
+  /* Option B */
+  .steps { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--rule); background: var(--page-sunk); }
+  .step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-mute); }
+  .step .n { width: 20px; height: 20px; border-radius: 999px; border: 1px solid var(--rule-strong); display: grid; place-items: center; font-size: 10.5px; }
+  .step.on { color: var(--ink); font-weight: 600; }
+  .step.on .n { background: var(--accent); border-color: var(--accent); color: var(--page); }
+  .step.done .n { border-color: var(--accent); color: var(--accent); }
+  .hr { flex: 1; height: 1px; background: var(--rule); }
+  .split { display: grid; grid-template-columns: minmax(0,1fr) 250px; gap: 16px; }
+  .rail { border-left: 1px solid var(--rule); padding-left: 16px; }
+  .rail h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-mute); }
+  .kv { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--rule-soft); font-size: 12px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv span:first-child { color: var(--ink-mute); }
+  .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .textarea { border: 1px solid var(--rule); background: var(--page-sunk); border-radius: 4px; height: 82px; padding: 8px 10px; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ink-soft); }
+
+  /* Option C */
+  .drawer-stage { position: relative; height: 470px; }
+  .drawer-stage .modal { position: absolute; left: 0; top: 0; opacity: .9; }
+  .drawer { position: absolute; right: 0; top: 0; bottom: 0; width: 470px; background: var(--page); border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--lift); display: flex; flex-direction: column; }
+  .drawer .m-body { flex: 1; overflow: auto; }
+  .summary-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px; border: 1px dashed var(--rule-strong); border-radius: 6px; background: var(--accent-wash); }
+  .summary-line .t { font-size: 12.5px; font-weight: 600; }
+  .summary-line .s { font-size: 11px; color: var(--ink-mute); }
+</style>
+</head>
+<body>
+  <h1>Mail rule + extraction template</h1>
+  <p class="lede">Three ways to place the template editor so “Use template” does not explode the form. Same fields, same test, different container. Pick one letter.</p>
+
+  <section class="opt">
+    <div class="opt-head"><span class="tag">Option A</span><h2>Compact section, two-column field grid</h2></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="m-head"><h3>New mail rule</h3><span class="x">×</span></div>
+        <div class="m-body">
+          <div class="grid2">
+            <div><span class="label">From contains</span><div class="field">alerts@hdfcbank.net</div></div>
+            <div><span class="label">Subject contains</span><div class="field">Debit Alert</div></div>
+          </div>
+          <div><span class="label">Body contains</span><div class="field">debited</div></div>
+
+          <p class="state-tag">Collapsed state</p>
+          <div class="collapsed-row">
+            <div class="l"><span class="t">Extraction template</span><span class="s">Not set · manual › learned › AI</span></div>
+            <button class="btn">Set up</button>
+          </div>
+
+          <p class="state-tag">Expanded state</p>
+          <div class="inset">
+            <div class="inset-head">
+              <div class="l"><span class="t" style="font-size:12.5px">Extraction template</span><span class="s">6 fields · first matching pattern wins</span></div>
+              <span class="stamp ok">manual</span>
+            </div>
+            <div class="inset-body">
+              <div class="grid2">
+                <div class="fieldcard">
+                  <div class="top"><span class="name">AMOUNT *</span><span class="stamp ok">2,050.00</span></div>
+                  <div class="patrow"><div class="in">Rs\.?\s*(?P&lt;amount&gt;[\d,]+…)</div><span class="x" style="font-size:13px">×</span></div>
+                  <div class="patrow"><div class="in">INR\s*(?P&lt;amount&gt;[\d,]+…)</div><span class="x" style="font-size:13px">×</span></div>
+                  <div class="add">+ Add amount pattern</div>
+                </div>
+                <div class="fieldcard">
+                  <div class="top"><span class="name">DATE *</span><span class="stamp ok">12 Nov 26</span></div>
+                  <div class="patrow"><div class="in">on\s+(?P&lt;date&gt;\d{2}-\d{2}-\d{2})</div><span class="x" style="font-size:13px">×</span></div>
+                  <div class="add">+ Add date pattern</div>
+                </div>
+                <div class="fieldcard">
+                  <div class="top"><span class="name">DEBIT WORDING</span><span class="stamp ok">debited</span></div>
+                  <div class="patrow"><div class="in">(?i)\bdebited\b</div><span class="x" style="font-size:13px">×</span></div>
+                  <div class="add">+ Add debit pattern</div>
+                </div>
+                <div class="fieldcard">
+                  <div class="top"><span class="name">ACCOUNT ENDING</span><span class="stamp">7713</span></div>
+                  <div class="patrow"><div class="in">account ending\s*(?P&lt;account&gt;\d{4})</div><span class="x" style="font-size:13px">×</span></div>
+                  <div class="add">+ Add account pattern</div>
+                </div>
+              </div>
+            </div>
+            <div class="testbar">
+              <button class="btn quiet">Test against a mail ▾</button>
+              <span style="font-size:11.5px;color:var(--ink-mute)">Not tested yet</span>
+            </div>
+          </div>
+        </div>
+        <div class="m-foot"><button class="btn quiet">Cancel</button><button class="btn primary">Save rule</button></div>
+      </div>
+    </div>
+    <p class="note"><b>Why:</b> the modal stays short until asked; the editor gets its own bordered inset with a scrolling body, so six fields never push the footer off-screen. <b>Cost:</b> still one tall modal at 760px.</p>
+  </section>
+
+  <section class="opt">
+    <div class="opt-head"><span class="tag">Option B</span><h2>Stepped modal — Match → Template → Booking</h2></div>
+    <div class="stage">
+      <div class="modal">
+        <div class="m-head"><h3>New mail rule</h3><span class="x">×</span></div>
+        <div class="steps">
+          <div class="step done"><span class="n">✓</span> Match</div><div class="hr"></div>
+          <div class="step on"><span class="n">2</span> Template</div><div class="hr"></div>
+          <div class="step"><span class="n">3</span> Booking</div>
+        </div>
+        <div class="m-body">
+          <div class="split">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="fieldcard">
+                <div class="top"><span class="name">AMOUNT *</span><span class="stamp ok">2,050.00</span></div>
+                <div class="patrow"><div class="in">Rs\.?\s*(?P&lt;amount&gt;[\d,]+(?:\.\d{1,2})?)</div><span class="x" style="font-size:13px">×</span></div>
+                <div class="patrow"><div class="in">INR\s*(?P&lt;amount&gt;[\d,]+(?:\.\d{1,2})?)</div><span class="stamp bad">no match</span><span class="x" style="font-size:13px">×</span></div>
+                <div class="add">+ Add amount pattern</div>
+              </div>
+              <div class="fieldcard">
+                <div class="top"><span class="name">DIRECTION *</span><span class="stamp ok">DEBIT</span></div>
+                <div class="patrow"><div class="in">(?i)\bdebited\b</div><span class="x" style="font-size:13px">×</span></div>
+                <div class="add">+ Add debit pattern</div>
+              </div>
+              <div class="fieldcard">
+                <div class="top"><span class="name">DATE *</span><span class="stamp ok">2026-11-12</span></div>
+                <div class="patrow"><div class="in">on\s+(?P&lt;date&gt;\d{2}-\d{2}-\d{2})</div><span class="x" style="font-size:13px">×</span></div>
+                <div class="add">+ Add date pattern</div>
+              </div>
+            </div>
+            <div class="rail">
+              <h4>Test result</h4>
+              <div class="kv"><span>Amount</span><span class="amount">2,050.00</span></div>
+              <div class="kv"><span>Direction</span><span>DEBIT</span></div>
+              <div class="kv"><span>Account</span><span>···7713</span></div>
+              <div class="kv"><span>Merchant</span><span>BALAJI WINES</span></div>
+              <div class="kv"><span>Date</span><span>12 Nov 2026</span></div>
+              <div class="kv"><span>Status</span><span class="stamp ok">complete</span></div>
+              <h4 style="margin-top:14px">Sample mail</h4>
+              <div class="textarea">Rs.2050.00 is debited from your account ending 7713 towards VPA ******8172@ybl (BALAJI WINES WALK IN) on 12-11-26.</div>
+            </div>
+          </div>
+        </div>
+        <div class="m-foot"><button class="btn quiet">Back</button><button class="btn primary">Continue</button></div>
+      </div>
+    </div>
+    <p class="note"><b>Why:</b> each step is one job; the result rail makes the test permanent feedback, not a panel you scroll to. Best on phones. <b>Cost:</b> three clicks, and the template step hides the match conditions you are writing against.</p>
+  </section>
+
+  <section class="opt">
+    <div class="opt-head"><span class="tag">Option C</span><h2>Rule modal stays compact, template opens in a right drawer</h2></div>
+    <div class="stage">
+      <div class="drawer-stage">
+        <div class="modal narrow" style="height:470px">
+          <div class="m-head"><h3>New mail rule</h3><span class="x">×</span></div>
+          <div class="m-body" style="filter:blur(0.3px)">
+            <div><span class="label">From contains</span><div class="field">alerts@hdfcbank.net</div></div>
+            <div><span class="label">Subject contains</span><div class="field">Debit Alert</div></div>
+            <div class="summary-line">
+              <div><div class="t">Extraction template</div><div class="s">6 fields · tested against 1 mail</div></div>
+              <button class="btn">Edit</button>
+            </div>
+            <div><span class="label">Book to account</span><div class="field">HDFC · Main</div></div>
+            <div><span class="label">Action</span><div class="field">Review — wait in the Inbox</div></div>
+          </div>
+          <div class="m-foot"><button class="btn quiet">Cancel</button><button class="btn primary">Save rule</button></div>
+        </div>
+        <div class="drawer">
+          <div class="m-head"><h3>Extraction template</h3><span class="x">×</span></div>
+          <div class="m-body" style="gap:10px">
+            <p style="margin:0;font-size:11.5px;color:var(--ink-mute)">alerts@hdfcbank.net · manual wins over learned and AI.</p>
+            <div class="fieldcard">
+              <div class="top"><span class="name">AMOUNT *</span><span class="stamp ok">2,050.00</span></div>
+              <div class="patrow"><div class="in">Rs\.?\s*(?P&lt;amount&gt;[\d,]+(?:\.\d{1,2})?)</div><span class="x" style="font-size:13px">×</span></div>
+              <div class="patrow"><div class="in">INR\s*(?P&lt;amount&gt;[\d,]+(?:\.\d{1,2})?)</div><span class="x" style="font-size:13px">×</span></div>
+              <div class="add">+ Add amount pattern</div>
+            </div>
+            <div class="fieldcard">
+              <div class="top"><span class="name">DATE *</span><span class="stamp ok">2026-11-12</span></div>
+              <div class="patrow"><div class="in">on\s+(?P&lt;date&gt;\d{2}-\d{2}-\d{2})</div><span class="x" style="font-size:13px">×</span></div>
+              <div class="add">+ Add date pattern</div>
+            </div>
+            <div class="fieldcard">
+              <div class="top"><span class="name">ACCOUNT ENDING</span><span class="stamp">7713</span></div>
+              <div class="patrow"><div class="in">account ending\s*(?P&lt;account&gt;\d{4})</div><span class="x" style="font-size:13px">×</span></div>
+              <div class="add">+ Add account pattern</div>
+            </div>
+            <div class="textarea">Paste a sample mail to test…</div>
+          </div>
+          <div class="m-foot"><button class="btn quiet">Done</button><button class="btn primary">Apply to rule</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>Why:</b> the rule form keeps its 520px width and never grows; the drawer owns the tall work and can use the full window height. <b>Cost:</b> a second surface to learn, and two “save” moments unless Apply is explicit.</p>
+  </section>
+</body>
+</html>

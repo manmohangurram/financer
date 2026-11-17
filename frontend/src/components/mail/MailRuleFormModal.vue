@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppModal from '@/components/AppModal.vue';
 import AppInput from '@/components/AppInput.vue';
 import MailTemplateEditor from '@/components/mail/MailTemplateEditor.vue';
 import { mail } from '@/lib/api/client';
-import { cleanedTemplate, templateProblem, type TemplatePatterns } from '@/lib/mailTemplate';
+import { cleanedTemplate, emptyTemplate, templateProblem, type TemplatePatterns } from '@/lib/mailTemplate';
 
 const props = defineProps<{
   rule?: any | null;
@@ -14,6 +14,8 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 
 const editing = !!props.rule;
+const steps = ['Match', 'Template', 'Booking'];
+const step = ref(0);
 const form = ref({
   fromPattern: props.rule?.fromPattern || '',
   subjectContains: props.rule?.subjectContains || '',
@@ -34,20 +36,62 @@ function toggleCategory(id: string) {
     : [...form.value.categoryIds, id];
 }
 
-async function submit() {
+function goTo(index: number) {
+  if (index <= step.value) step.value = index;
+}
+
+function next() {
   error.value = '';
-  if (!form.value.fromPattern.trim() && !form.value.subjectContains.trim() && !form.value.bodyContains.trim()) {
-    error.value = 'Add at least one condition: sender, subject or body.';
-    return;
-  }
-  if (form.value.template) {
-    if (!form.value.fromPattern.trim()) {
-      error.value = 'A template needs a From condition.';
+  if (step.value === 0) {
+    if (!form.value.fromPattern.trim() && !form.value.subjectContains.trim() && !form.value.bodyContains.trim()) {
+      error.value = 'Add at least one condition: sender, subject or body.';
       return;
     }
+    // A template belongs to a sender; dropping the sender drops the template.
+    if (!form.value.fromPattern.trim()) form.value.template = null;
+    // Entering the template step starts one, so “Skip template” is a real choice.
+    if (!form.value.template && form.value.fromPattern.trim()) form.value.template = emptyTemplate();
+    step.value = 1;
+    return;
+  }
+  if (step.value === 1) {
+    if (form.value.template) {
+      const problem = templateProblem(form.value.template);
+      if (problem) {
+        error.value = problem;
+        return;
+      }
+    }
+    step.value = 2;
+  }
+}
+
+function skipTemplate() {
+  form.value.template = null;
+  error.value = '';
+  step.value = 2;
+}
+
+function back() {
+  error.value = '';
+  if (step.value > 0) step.value -= 1;
+}
+
+const summary = computed(() => {
+  const clean = form.value.template ? cleanedTemplate(form.value.template) : null;
+  const fields = clean
+    ? Object.values(clean).filter((list) => list.length > 0).length
+    : 0;
+  return { fields, hasTemplate: !!clean };
+});
+
+async function submit() {
+  error.value = '';
+  if (form.value.template) {
     const problem = templateProblem(form.value.template);
     if (problem) {
       error.value = problem;
+      step.value = 1;
       return;
     }
   }
@@ -93,69 +137,148 @@ async function remove() {
 </script>
 
 <template>
-  <AppModal :title="editing ? 'Edit mail rule' : 'New mail rule'" wide @close="emit('close')">
-    <form class="flex flex-col gap-4 px-5 py-4" @submit.prevent="submit">
-      <p v-if="error" role="alert" class="rounded-control border border-debit/30 bg-debit/5 px-3 py-2 text-[12.5px] text-debit">{{ error }}</p>
-      <p class="text-[12.5px] text-ink-mute">
-        Every condition is a case-insensitive contains check; leave one empty to ignore it. The first matching rule wins.
-      </p>
-
-      <AppInput v-model="form.fromPattern" label="From contains" placeholder="alerts@hdfcbank.net" />
-      <AppInput v-model="form.subjectContains" label="Subject contains" placeholder="Debit Alert" />
-      <AppInput v-model="form.bodyContains" label="Body contains" placeholder="debited" />
-
-      <MailTemplateEditor v-model="form.template" :from-pattern="form.fromPattern" />
-
-      <label class="flex flex-col gap-1.5">
-        <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Book to account (optional)</span>
-        <select v-model="form.accountId" class="select select-bordered w-full text-[13.5px]">
-          <option value="">No fixed account</option>
-          <option v-for="a in accounts || []" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
-        </select>
-        <span class="text-[11.5px] text-ink-mute">AUTO uses this account when the mail has no ending digits.</span>
-      </label>
-
-      <div v-if="(categories || []).length" class="flex flex-col gap-1.5">
-        <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Categories (optional)</span>
-        <div class="flex flex-wrap gap-1.5">
+  <AppModal :title="editing ? 'Edit mail rule' : 'New mail rule'" xwide steady @close="emit('close')">
+    <div class="flex h-full min-h-0 flex-col px-6 pt-3.5 pb-4">
+      <ol class="flex shrink-0 items-center border-b border-rule pb-3.5" aria-label="Rule steps">
+        <li
+          v-for="(label, index) in steps"
+          :key="label"
+          class="flex items-center"
+          :class="index < steps.length - 1 ? 'flex-1' : ''"
+        >
           <button
-            v-for="c in categories"
-            :key="c.id"
             type="button"
-            class="btn btn-xs"
-            :class="form.categoryIds.includes(c.id) ? 'btn-primary' : 'btn-outline'"
-            :aria-pressed="form.categoryIds.includes(c.id)"
-            @click="toggleCategory(c.id)"
+            class="flex shrink-0 items-center gap-2 rounded-control px-1 py-0.5 text-[12.5px] transition-colors"
+            :class="index === step ? 'font-semibold text-ink' : index < step ? 'text-ink-soft hover:text-ink' : 'text-ink-mute'"
+            :disabled="index > step"
+            :aria-current="index === step ? 'step' : undefined"
+            @click="goTo(index)"
           >
-            {{ c.name }}
+            <span
+              class="grid h-[22px] w-[22px] place-items-center rounded-full border text-[11px]"
+              :class="index === step ? 'border-accent bg-accent text-page' : index < step ? 'border-accent text-accent' : 'border-rule-strong'"
+            >{{ index < step ? '✓' : index + 1 }}</span>
+            {{ label }}
+          </button>
+          <span v-if="index < steps.length - 1" class="mx-2.5 h-px flex-1 bg-rule" aria-hidden="true" />
+        </li>
+      </ol>
+
+      <div class="flex min-h-0 flex-1 flex-col pt-4" :class="step === 1 ? 'overflow-hidden' : 'overflow-y-auto'">
+        <p v-if="error" role="alert" class="mb-3 shrink-0 rounded-control border border-debit/30 bg-debit/5 px-3 py-2 text-[12.5px] text-debit">{{ error }}</p>
+
+        <!-- Step 1: match -->
+        <div v-if="step === 0" class="flex flex-col gap-4">
+          <p class="m-0 text-[13px] text-ink-mute">
+            Only mail that matches this rule is stored. Leave a field empty to ignore it — matching is case-insensitive.
+          </p>
+          <div class="flex flex-col gap-1.5">
+            <AppInput v-model="form.fromPattern" label="From contains" placeholder="alerts@hdfcbank.net" />
+            <span class="text-[11.5px] text-ink-mute">
+              A substring of the sender address. Use <code class="font-mono">hdfcbank</code> to cover more than one address.
+            </span>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <AppInput v-model="form.subjectContains" label="Subject contains" placeholder="Debit Alert" />
+            <span class="text-[11.5px] text-ink-mute">Optional.</span>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <AppInput v-model="form.bodyContains" label="Body contains" placeholder="debited" />
+            <span class="text-[11.5px] text-ink-mute">Optional. Checked against the plain-text body.</span>
+          </div>
+        </div>
+
+        <!-- Step 2: template -->
+        <div v-else-if="step === 1 && form.template" class="min-h-0 flex-1">
+          <MailTemplateEditor v-model="form.template" />
+        </div>
+
+        <!-- Step 3: booking -->
+        <div v-else class="flex flex-col gap-5">
+          <div class="flex flex-wrap items-center gap-2 rounded-control border border-rule bg-page-sunk px-3.5 py-2.5 text-[12.5px]">
+            <span class="font-mono text-ink-soft">{{ form.fromPattern || '—' }}</span>
+            <span class="text-ink-faint">·</span>
+            <span>Template</span>
+            <span v-if="summary.hasTemplate" class="stamp text-accent border-accent/40">{{ summary.fields }} fields</span>
+            <span v-else class="stamp text-ink-mute">none</span>
+          </div>
+
+          <div class="grid gap-6 sm:grid-cols-2">
+            <div class="flex flex-col gap-1.5">
+              <h4 class="m-0 text-[11px] font-medium uppercase tracking-[0.07em] text-ink-mute">Where it goes</h4>
+              <label class="mt-2 flex flex-col gap-1.5">
+                <span class="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-mute">Book to account</span>
+                <select v-model="form.accountId" class="select select-bordered w-full text-[13.5px]">
+                  <option value="">No fixed account</option>
+                  <option v-for="a in accounts || []" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
+                </select>
+              </label>
+              <span class="text-[11.5px] text-ink-mute">Used when the mail has no ending digits.</span>
+
+              <div v-if="(categories || []).length" class="mt-4 flex flex-col gap-1.5">
+                <span class="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-mute">Categories</span>
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    v-for="c in categories"
+                    :key="c.id"
+                    type="button"
+                    class="btn btn-xs"
+                    :class="form.categoryIds.includes(c.id) ? 'btn-primary' : 'btn-outline'"
+                    :aria-pressed="form.categoryIds.includes(c.id)"
+                    @click="toggleCategory(c.id)"
+                  >{{ c.name }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <h4 class="m-0 text-[11px] font-medium uppercase tracking-[0.07em] text-ink-mute">What happens</h4>
+              <label
+                v-for="option in [
+                  { value: 'REVIEW', title: 'Review', text: 'Wait in the Inbox for approval. Safest.' },
+                  { value: 'AUTO', title: 'Auto', text: 'Book immediately when the template extracts cleanly.' },
+                  { value: 'IGNORE', title: 'Ignore', text: 'Never store or surface this mail.' }
+                ]"
+                :key="option.value"
+                class="flex cursor-pointer items-start gap-2.5 rounded-control border px-3 py-2.5"
+                :class="form.action === option.value ? 'border-accent/50 bg-accent-wash' : 'border-rule'"
+              >
+                <input v-model="form.action" type="radio" :value="option.value" class="radio radio-sm mt-0.5" />
+                <span class="flex flex-col">
+                  <span class="text-[13px] font-medium text-ink">{{ option.title }}</span>
+                  <span class="text-[11.5px] text-ink-mute">{{ option.text }}</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <label class="flex items-center gap-2 border-t border-rule pt-4 text-[13px] text-ink">
+            <input v-model="form.enabled" type="checkbox" class="checkbox checkbox-sm" />
+            Rule is enabled
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-3 flex shrink-0 items-center justify-between gap-2 border-t border-rule pt-3">
+        <div class="flex items-center gap-2">
+          <button v-if="step === 0" type="button" class="btn btn-sm btn-ghost" @click="emit('close')">Cancel</button>
+          <button v-else type="button" class="btn btn-sm btn-ghost" @click="back">Back</button>
+          <button
+            v-if="editing && step === 2"
+            type="button"
+            class="btn btn-sm btn-outline border-debit/30 text-debit hover:bg-debit/10"
+            :disabled="saving"
+            @click="remove"
+          >{{ confirmingDelete ? 'Confirm delete' : 'Delete' }}</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button v-if="step === 1" type="button" class="btn btn-sm btn-ghost" @click="skipTemplate">Skip template</button>
+          <button v-if="step < 2" type="button" class="btn btn-sm btn-primary" @click="next">Continue</button>
+          <button v-else type="button" class="btn btn-sm btn-primary" :disabled="saving" @click="submit">
+            {{ saving ? 'Saving…' : editing ? 'Save rule' : 'Create rule' }}
           </button>
         </div>
       </div>
-
-      <label class="flex flex-col gap-1.5">
-        <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Action</span>
-        <select v-model="form.action" class="select select-bordered w-full text-[13.5px]">
-          <option value="REVIEW">Review — wait in the Inbox</option>
-          <option value="AUTO">Auto — book when the template is active</option>
-          <option value="IGNORE">Ignore — never surface it</option>
-        </select>
-      </label>
-
-      <label class="flex items-center gap-2 text-[13px] text-ink">
-        <input v-model="form.enabled" type="checkbox" class="checkbox checkbox-sm" />
-        Enabled
-      </label>
-
-      <div class="flex items-center justify-between border-t border-rule pt-3">
-        <button v-if="editing" type="button" class="btn btn-sm btn-outline border-debit/30 text-debit hover:bg-debit/10" :disabled="saving" @click="remove">
-          {{ confirmingDelete ? 'Confirm delete' : 'Delete' }}
-        </button>
-        <span v-else></span>
-        <div class="flex items-center gap-2">
-          <button type="button" class="btn btn-sm btn-ghost" @click="emit('close')">Cancel</button>
-          <button type="submit" class="btn btn-sm btn-primary" :disabled="saving">{{ saving ? 'Saving…' : editing ? 'Save rule' : 'Create rule' }}</button>
-        </div>
-      </div>
-    </form>
+    </div>
   </AppModal>
 </template>

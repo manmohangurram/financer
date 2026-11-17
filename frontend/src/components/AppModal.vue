@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-defineProps<{ title: string; wide?: boolean; xwide?: boolean }>();
+defineProps<{ title: string; wide?: boolean; xwide?: boolean; steady?: boolean }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 
 const panelEl = ref<HTMLElement | null>(null);
@@ -31,7 +31,7 @@ onUnmounted(() => {
       aria-modal="true"
       :aria-label="title"
       class="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-overlay border border-rule bg-page shadow-lift"
-      :class="xwide ? 'max-w-4xl' : wide ? 'max-w-2xl' : 'max-w-lg'"
+      :class="[xwide ? 'max-w-4xl' : wide ? 'max-w-2xl' : 'max-w-lg', steady ? 'h-[min(85vh,660px)]' : '']"
     >
       <div class="flex shrink-0 items-center justify-between gap-4 border-b border-rule px-5 py-3.5">
         <h3 class="text-[15px] font-semibold text-ink">{{ title }}</h3>
