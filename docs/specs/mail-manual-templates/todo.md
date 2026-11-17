@@ -12,3 +12,6 @@
 - [x] Tests: pattern lists, priority, overwrite guard, rule CRUD, editor helpers
 - [ ] Optional: `{…}` shorthand sugar
 - [ ] Optional: reorder patterns
+- [x] Editing a template re-parses queued mail and applies the rule action
+- [x] AUTO books only when every declared field extracts cleanly
+- [x] Re-application reads the full raw message (list rows omit bodies)

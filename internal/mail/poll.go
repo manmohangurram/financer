@@ -396,6 +396,17 @@ func firstRule(rules []*repo.MailRuleRow, action repo.MailRuleAction, header *Ma
 	return nil
 }
 
+// Reparse applies the sender's templates to an already-stored message the same
+// way a poll would, so an edited template reaches mail that is already queued.
+func Reparse(store repo.MailRepo, userID string, row *repo.MailMessageRow, minSamples int64) (*Extraction, repo.MailStatus, *string, bool, string) {
+	header := &MailHeader{FromAddr: row.FromAddr, Subject: row.Subject}
+	body := ""
+	if row.RawText != nil {
+		body = *row.RawText
+	}
+	return parseWithTemplates(store, userID, header, body, minSamples)
+}
+
 func parseWithTemplates(store repo.MailRepo, userID string, header *MailHeader, body string, minSamples int64) (*Extraction, repo.MailStatus, *string, bool, string) {
 	// Manual templates outrank learned ones and are keyed by the rule's sender
 	// pattern, which may be a substring rather than the full address.

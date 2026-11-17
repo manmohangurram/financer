@@ -640,3 +640,114 @@ func TestDeleteRuleRemovesManualTemplate(t *testing.T) {
 		t.Fatalf("manual template survived rule delete: %+v", row)
 	}
 }
+
+// seedRawMessage stores an unparsed message with a real body, like a poll would.
+func seedRawMessage(t *testing.T, e *env, messageID, from, subject, raw string) string {
+	t.Helper()
+	acct, err := e.mailRepo.CreateAccount(e.uid, &repo.NewMailAccount{
+		Label: "P", IMAPHost: "imap.x.com", IMAPPort: 993,
+		Username: "a@x.com", SecretEnc: "x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.mailRepo.InsertMessage(e.uid, &repo.NewMailMessage{
+		MailAccountID: acct.ID, MessageID: messageID, FromAddr: from, FromName: "Bank",
+		Subject: subject, RawText: raw, Status: repo.MailStatusPending,
+		Confidence: 0, ExtractorSource: "template",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := e.mailRepo.ListMessages(e.uid, nil, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if row.MessageID == messageID {
+			return row.ID
+		}
+	}
+	t.Fatalf("seeded message %s not found", messageID)
+	return ""
+}
+
+func hdfcTemplate() *model.MailTemplatePatterns {
+	return &model.MailTemplatePatterns{
+		Amount:  []string{`Rs\.?\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)`},
+		Debit:   []string{`(?i)\bdebited\b`},
+		Account: []string{`(?i)account ending\s*(?P<account>\d{4})`},
+		Date:    []string{`(?i)\bon\s+(?P<date>\d{2}-\d{2}-\d{2})`},
+	}
+}
+
+func TestReapplyRulesReparsesQueuedMailWithNewTemplate(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	id := seedRawMessage(t, e, "<m3>", "alerts@hdfcbank.net", "Debit Alert",
+		"Rs.2050.00 is debited from your account ending 1234 towards VPA x on 12-11-26.")
+
+	before, err := e.mailRepo.GetMessage(e.uid, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.ParsedJSON != nil {
+		t.Fatalf("message should start unparsed: %+v", before.ParsedJSON)
+	}
+
+	if _, err := e.svc.CreateRule(e.uid, model.ReqMailRule{
+		FromPattern: "alerts@hdfcbank.net", Action: "REVIEW", Template: hdfcTemplate(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	e.svc.ReapplyRules(e.uid)
+
+	msg, err := e.mailRepo.GetMessage(e.uid, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.ParsedJSON == nil {
+		t.Fatal("queued mail was not re-parsed by the new template")
+	}
+	var extraction mail.Extraction
+	if err := json.Unmarshal([]byte(*msg.ParsedJSON), &extraction); err != nil {
+		t.Fatal(err)
+	}
+	if extraction.Amount != 2050 || extraction.Direction != mail.DirectionDebit {
+		t.Fatalf("extraction = %+v", extraction)
+	}
+	if extraction.AccountHint == nil || *extraction.AccountHint != "1234" {
+		t.Fatalf("account = %v", extraction.AccountHint)
+	}
+	if msg.Status != repo.MailStatusPending {
+		t.Fatalf("status = %s", msg.Status)
+	}
+}
+
+func TestReapplyRulesAutoBooksWhenEveryFieldExtracts(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	id := seedRawMessage(t, e, "<m4>", "alerts@hdfcbank.net", "Debit Alert",
+		"Rs.250.00 is debited from your account ending 1234 on 12-11-26.")
+
+	if _, err := e.svc.CreateRule(e.uid, model.ReqMailRule{
+		FromPattern: "alerts@hdfcbank.net", Action: "AUTO", Template: hdfcTemplate(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	e.svc.ReapplyRules(e.uid)
+
+	msg, err := e.mailRepo.GetMessage(e.uid, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.TransactionID == nil {
+		t.Fatalf("complete extraction should have been booked: status=%s parsed=%v", msg.Status, msg.ParsedJSON)
+	}
+	rows, err := e.txnRepo.List(e.uid, &repo.TransactionListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows.TotalCount != 1 || rows.Rows[0].Txn.Amount != 250 {
+		t.Fatalf("transactions = %+v", rows.Rows)
+	}
+}

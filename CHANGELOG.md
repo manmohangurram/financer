@@ -6,6 +6,20 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Added
+
+- **Editing a template re-parses mail that is already queued.** Saving a rule (create
+  or update) now re-runs the sender’s template against pending/unparsed mail and stores
+  the fresh extraction, so a fixed pattern takes effect without waiting for new mail.
+- **AUTO books once every field extracts.** For an AUTO rule, a queued mail is booked
+  automatically when the template produces amount, direction, date (and account when the
+  template declares one) with no review flag; if booking fails (unknown/ambiguous
+  account) it returns to Review instead of being dropped.
+- Re-application now reads the full raw message; the queue list omits bodies, which
+  previously left body conditions and templates blind to queued mail.
+
 ## [0.11.0] — 2026-11-17
 
 ### Added

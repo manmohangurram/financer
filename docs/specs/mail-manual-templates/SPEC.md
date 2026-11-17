@@ -31,6 +31,19 @@ AI generation never overwrites or competes with a manual template: `storeTemplat
 returns the manual row instead of inserting, and the manual row is never promoted,
 sample-counted or disabled by learning.
 
+## Re-application
+
+Creating or editing a rule re-runs its template against queued (pending/unparsed) mail:
+the extraction and status are rewritten, then the rule action is applied.
+
+- `IGNORE` hides the mail.
+- `AUTO` books it **only when every declared field extracted cleanly** — amount,
+  direction and date, plus account when the template declares an account pattern, and no
+  review flag. Booking failures (unknown or ambiguous account) return it to Review.
+- `REVIEW` leaves it in the inbox with the refreshed extraction.
+
+Re-application reads the full raw message; the queue listing omits bodies.
+
 ## Editor
 
 `MailRuleFormModal` → `MailTemplateEditor`:

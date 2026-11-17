@@ -843,12 +843,36 @@ func (s *Service) ReapplyRules(userID string) int {
 		return 0
 	}
 	changed := 0
+	settings := s.settings(userID)
 	for _, row := range rows {
-		body := ""
-		if row.RawText != nil {
-			body = *row.RawText
+		// ListMessages omits the raw body; a re-parse needs it.
+		full := row
+		if full.RawText == nil {
+			if m, err := s.repo.GetMessage(userID, row.ID); err == nil && m != nil {
+				full = m
+			}
 		}
-		header := &mail.MailHeader{FromAddr: row.FromAddr, Subject: row.Subject}
+		body := ""
+		if full.RawText != nil {
+			body = *full.RawText
+		}
+		header := &mail.MailHeader{FromAddr: full.FromAddr, Subject: full.Subject}
+
+		// A new or edited template must reach mail that is already queued.
+		extraction, status, templateID, _, _ := mail.Reparse(s.repo, userID, full, settings.MinSamples)
+		if extraction != nil {
+			if raw, err := json.Marshal(extraction); err == nil {
+				parsed := string(raw)
+				if err := s.repo.UpdateMessageExtraction(userID, row.ID, &parsed, status, extraction.Confidence, templateID); err != nil {
+					slog.Warn("reapply rules: could not update extraction", "message", row.ID, "err", err)
+				} else {
+					row.ParsedJSON, row.Status = &parsed, status
+					changed++
+					slog.Info("mail re-parsed", "user", userID, "message_id", row.MessageID,
+						"from", row.FromAddr, "status", string(status), "amount", extraction.Amount)
+				}
+			}
+		}
 		if rule := matchRule(rules, repo.MailRuleActionIgnore, header, body); rule != nil {
 			if _, err := s.repo.ResolveMessage(userID, row.ID, repo.MailStatusIgnored, nil, nil); err == nil {
 				changed++
@@ -859,9 +883,9 @@ func (s *Service) ReapplyRules(userID string) int {
 			continue
 		}
 		if rule := matchRule(rules, repo.MailRuleActionAuto, header, body); rule != nil {
-			// Only book when the extraction is complete; autoCreate verifies the
-			// account and returns failures to review.
-			if row.ParsedJSON != nil {
+			// Book only when the template extracted every required field cleanly;
+			// autoCreate verifies the account and returns failures to review.
+			if extraction != nil && status == repo.MailStatusPending {
 				if _, err := s.repo.ResolveMessage(userID, row.ID, repo.MailStatusAuto, nil, nil); err == nil {
 					changed++
 					slog.Info("mail matched", "user", userID, "rule", rule.ID, "action", string(rule.Action),
