@@ -507,6 +507,33 @@ func Build(svc Services, uid, scope string) *mcp.Server {
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "delete_mail_messages",
+		Description: `Delete stored mail by id, or everything with {"all":true,"confirm":true}. Transactions created from mail are kept. Example args: {"ids":["<id>"]}.`,
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in deleteMailReq) (*mcp.CallToolResult, any, error) {
+		if !h.canWrite() {
+			return errJSON("read-only API key; cannot delete mail"), nil, nil
+		}
+		if in.All {
+			if !in.Confirm {
+				return errJSON(`refusing to delete every mail without "confirm": true`), nil, nil
+			}
+			n, err := h.svc.Mail.DeleteAllMessages(h.uid)
+			if err != nil {
+				return errResult(err), nil, nil
+			}
+			return okResult(map[string]int64{"deleted": n}), nil, nil
+		}
+		if len(in.IDs) == 0 {
+			return errJSON("give ids, or all+confirm to delete everything"), nil, nil
+		}
+		n, err := h.svc.Mail.DeleteMessages(h.uid, in.IDs)
+		if err != nil {
+			return errResult(err), nil, nil
+		}
+		return okResult(map[string]int64{"deleted": n}), nil, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_mail_rules",
 		Description: "List mail rules with their manual templates. Example: no arguments.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct{}) (*mcp.CallToolResult, any, error) {

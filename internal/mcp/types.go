@@ -207,3 +207,9 @@ func (r updateMailRuleReq) toReq() model.ReqMailRule {
 		Template: r.Template,
 	}
 }
+
+type deleteMailReq struct {
+	IDs     []string `json:"ids,omitempty"`
+	All     bool     `json:"all,omitempty"`
+	Confirm bool     `json:"confirm,omitempty"`
+}

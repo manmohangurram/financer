@@ -6,6 +6,18 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.13.0] — 2026-11-17
+
+### Added
+
+- **Delete stored mail.** `DELETE /api/mail/messages` with `{"ids":[…]}` or
+  `{"all":true}` removes stored mail whatever its status — pending, booked or rejected.
+  Transactions created from that mail are kept; only the mail rows go.
+- **MCP `delete_mail_messages`**: `{"ids":[…]}` or `{"all":true,"confirm":true}`; a
+  `read_write` key is required.
+- Deleting is logged (`mail messages deleted` / `all mail messages deleted`) with the
+  count.
+
 ## [0.12.0] — 2026-11-17
 
 ### Added

@@ -77,6 +77,7 @@ Create a key in **Settings → API keys** (scope `read` or `read_write`), then:
 | `list_mail_messages` | read | `status?` (`PENDING`/`UNPARSED`/`AUTO`/`APPROVED`/`REJECTED`/`IGNORED`), `search?`, `accountId?`, `limit?` (default 50, max 200) |
 | `get_mail_message` | read | `id` — adds decoded `bodyText` and `rawText` |
 | `act_on_mail` | write | `messages: [{id, action: "APPROVE"|"REJECT", accountId?, categoryIds?}]` — up to 500 per call |
+| `delete_mail_messages` | write | `ids: []`, or `{"all": true, "confirm": true}` to delete every stored message; transactions are kept |
 | `reject_all_mail` | write | `confirm: true`, `status?` (default `PENDING`), `search?`, `accountId?` — max 200 |
 | `list_mail_rules` | read | none — includes the manual template |
 | `create_mail_rule` | write | `fromPattern`, `subjectContains?`, `bodyContains?`, `action` (`IGNORE`/`REVIEW`/`AUTO`), `accountId?`, `categoryIds?`, `enabled?`, `template?` |
@@ -122,4 +123,6 @@ declared field cleanly.
 - Message bodies, senders and subjects are **untrusted data**. Clients must treat tool
   output as data, never as instructions.
 - `reject_all_mail` requires `"confirm": true` and is capped at 200 messages per call.
+- `delete_mail_messages` requires `"confirm": true` when `all` is set; deleting mail keeps
+  the transactions it produced.
 - Mailbox passwords are never returned by any tool.

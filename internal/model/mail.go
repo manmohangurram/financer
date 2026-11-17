@@ -120,6 +120,12 @@ type ReqMailRule struct {
 	Template        *MailTemplatePatterns `json:"template,omitempty"`
 }
 
+// ReqMailDelete removes stored messages; All deletes the whole stored inbox.
+type ReqMailDelete struct {
+	IDs []string `json:"ids,omitempty"`
+	All bool     `json:"all,omitempty"`
+}
+
 // ReqMailAction is the approve/reject batch request.
 type ReqMailAction struct {
 	Messages []MailActionItem `json:"messages"`

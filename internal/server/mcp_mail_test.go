@@ -205,6 +205,41 @@ func TestMCPMailWriteTools(t *testing.T) {
 		t.Fatalf("reject_all_mail = %s", textOf(t, res))
 	}
 
+	// Delete one by id, then refuse a wipe without confirm, then wipe.
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "delete_mail_messages",
+		Arguments: map[string]any{"ids": []any{id}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textOf(t, res), `"deleted":1`) {
+		t.Fatalf("delete_mail_messages = %s", textOf(t, res))
+	}
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "delete_mail_messages",
+		Arguments: map[string]any{"all": true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textOf(t, res), "confirm") {
+		t.Fatalf("delete all without confirm = %s", textOf(t, res))
+	}
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "delete_mail_messages",
+		Arguments: map[string]any{"all": true, "confirm": true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(textOf(t, res), `"deleted":1`) {
+		t.Fatalf("delete all = %s", textOf(t, res))
+	}
+	if rows, err := ts.mailRepo.ListMessages(ts.uid, nil, 10); err != nil || len(rows) != 0 {
+		t.Fatalf("messages left = %d err=%v", len(rows), err)
+	}
+
 	res, err = session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "delete_mail_rule",
 		Arguments: map[string]any{"id": rule.ID},

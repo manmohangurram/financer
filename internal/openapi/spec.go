@@ -294,6 +294,11 @@ func paths() map[string]any {
 				"responses": map[string]any{"200": okResp("Messages", "ListMailMessages"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
 			},
 			"post": op("mail", "Approve or reject messages", "ReqMailAction", okResp("Outcome", "MailActionOutcome")),
+			"delete": map[string]any{
+				"tags": []any{"mail"}, "summary": "Delete stored mail by id, or every message with all=true",
+				"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": ref("ReqMailDelete")}}},
+				"responses":   map[string]any{"200": okResp("Deleted", "MailDeleteResult"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
+			},
 		},
 		"/api/mail/messages/{id}": map[string]any{
 			"get": map[string]any{
@@ -573,6 +578,11 @@ func components() map[string]any {
 		"ReqMailTemplateValidate": obj(map[string]any{
 			"subject": str(), "body": str(), "patterns": ref("MailTemplatePatterns"),
 		}),
+		"ReqMailDelete": obj(map[string]any{
+			"ids": map[string]any{"type": "array", "items": str()},
+			"all": map[string]any{"type": "boolean"},
+		}),
+		"MailDeleteResult": obj(map[string]any{"deleted": map[string]any{"type": "integer"}}),
 		"MailTemplateValidation": obj(map[string]any{
 			"fields": map[string]any{"type": "array", "items": obj(map[string]any{
 				"field": str(),

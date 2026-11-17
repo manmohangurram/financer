@@ -258,6 +258,31 @@ func decodeMailCursor(token string) (*repo.MailCursor, error) {
 
 // Get returns one message with its display body and raw source. Rows stored
 // before the parser existed are parsed on demand.
+// DeleteMessages removes specific stored messages, scoped to the user. Booked
+// transactions are kept: only the mail disappears.
+func (s *Service) DeleteMessages(userID string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, errors.BadRequest("no message ids given")
+	}
+	n, err := s.repo.DeleteMessagesForUser(userID, ids)
+	if err != nil {
+		return 0, err
+	}
+	slog.Info("mail messages deleted", "user", userID, "requested", len(ids), "deleted", n)
+	return n, nil
+}
+
+// DeleteAllMessages removes every stored message for the user, whatever its
+// status (pending, booked or rejected). Transactions stay.
+func (s *Service) DeleteAllMessages(userID string) (int64, error) {
+	n, err := s.repo.DeleteAllMessages(userID)
+	if err != nil {
+		return 0, err
+	}
+	slog.Info("all mail messages deleted", "user", userID, "deleted", n)
+	return n, nil
+}
+
 func (s *Service) Get(userID, id string) (*model.MailMessage, error) {
 	row, err := s.repo.GetMessage(userID, id)
 	if err != nil {

@@ -183,6 +183,7 @@ func (a *API) Handler() *gin.Engine {
 			mail.GET("/messages", a.listMailMessages)
 			mail.GET("/messages/:id", a.getMailMessage)
 			mail.POST("/messages", a.mailAct)
+			mail.DELETE("/messages", a.deleteMailMessages)
 			mail.GET("/rules", a.listMailRules)
 			mail.POST("/rules", a.createMailRule)
 			mail.PUT("/rules/:id", a.updateMailRule)

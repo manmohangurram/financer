@@ -170,6 +170,10 @@ type MailRepo interface {
 	DistinctMailUsers() ([]string, error)
 	ListCleanupCandidates(userID string) ([]*MailMessageRow, error)
 	DeleteMessages(ids []string) (int64, error)
+	// DeleteMessagesForUser removes specific messages, scoped to the owner.
+	DeleteMessagesForUser(userID string, ids []string) (int64, error)
+	// DeleteAllMessages removes every stored message for the user.
+	DeleteAllMessages(userID string) (int64, error)
 	// ListMessagesFiltered pages the queue with the filters the Inbox offers.
 	ListMessagesFiltered(userID string, statuses []MailStatus, accountID, search string, limit int64, cursor *MailCursor) ([]*MailMessageRow, error)
 	CountMessagesFiltered(userID string, statuses []MailStatus, accountID, search string) (int64, error)

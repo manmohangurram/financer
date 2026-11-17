@@ -189,6 +189,29 @@ func (a *API) mailAct(c *gin.Context) {
 
 // --- mail rules ---
 
+func (a *API) deleteMailMessages(c *gin.Context) {
+	uid := c.GetString(userIDKey)
+	var in model.ReqMailDelete
+	if err := c.ShouldBindJSON(&in); err != nil {
+		writeError(c, errors.BadRequest(err.Error()))
+		return
+	}
+	var (
+		n   int64
+		err error
+	)
+	if in.All {
+		n, err = a.mailSvc.DeleteAllMessages(uid)
+	} else {
+		n, err = a.mailSvc.DeleteMessages(uid, in.IDs)
+	}
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, map[string]int64{"deleted": n})
+}
+
 func (a *API) listMailRules(c *gin.Context) {
 	uid := c.GetString(userIDKey)
 	pageSize := int64(parseInt(c.Query("pageSize"), 0))

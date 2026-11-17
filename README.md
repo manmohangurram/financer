@@ -282,8 +282,9 @@ Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `list
 
 Mail is covered too: `list_mailboxes`, `list_mail_messages` (filter by `status`, `search`, account),
 `get_mail_message`, `act_on_mail` (bulk approve/reject), `reject_all_mail` (filtered, requires
-`"confirm": true`, max 200), and `list_mail_rules` / `create_mail_rule` / `update_mail_rule` /
-`delete_mail_rule` — including the manual extraction template.
+`"confirm": true`, max 200), `delete_mail_messages` (ids, or everything with `all` + `confirm`),
+and `list_mail_rules` / `create_mail_rule` / `update_mail_rule` / `delete_mail_rule` — including
+the manual extraction template.
 
 Every tool, its arguments, scope and examples: **[docs/MCP.md](docs/MCP.md)**.
 

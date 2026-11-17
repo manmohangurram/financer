@@ -306,6 +306,44 @@ func (r *MailRepo) DeleteMessages(ids []string) (int64, error) {
 	return deleted, nil
 }
 
+// DeleteMessagesForUser removes messages the user owns; ids belonging to someone
+// else are ignored.
+func (r *MailRepo) DeleteMessagesForUser(userID string, ids []string) (int64, error) {
+	var deleted int64
+	for start := 0; start < len(ids); start += 500 {
+		end := start + 500
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunk := ids[start:end]
+		placeholders := strings.Repeat("?,", len(chunk))
+		placeholders = placeholders[:len(placeholders)-1]
+		args := make([]any, 0, len(chunk)+1)
+		args = append(args, userID)
+		for _, id := range chunk {
+			args = append(args, id)
+		}
+		res, err := r.db.Exec(
+			"DELETE FROM mail_messages WHERE user_id = ? AND id IN ("+placeholders+")", args...)
+		if err != nil {
+			return deleted, err
+		}
+		n, _ := res.RowsAffected()
+		deleted += n
+	}
+	return deleted, nil
+}
+
+// DeleteAllMessages removes every stored message for the user, whatever its status.
+func (r *MailRepo) DeleteAllMessages(userID string) (int64, error) {
+	res, err := r.db.Exec("DELETE FROM mail_messages WHERE user_id = ?", userID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 func (r *MailRepo) GetMessage(userID, id string) (*repo.MailMessageRow, error) {
 	rows, err := r.db.Query(
 		"SELECT "+mailMessageColumns+" FROM mail_messages WHERE id = ? AND user_id = ?", id, userID,
