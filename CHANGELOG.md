@@ -6,7 +6,7 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
-## [0.14.0] — 2026-11-17
+## [0.14.1] — 2026-11-17
 
 ### Added
 
@@ -36,6 +36,8 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
 - **App shell scroll model.** The window scrolls the page content, not the ledger; pages
   that want a fixed body (like the ledger) can now fill the viewport without the whole
   page moving.
+- **Import is disabled when every row is already booked**: the review step says how many
+  rows will be imported and blocks the button when that number is zero.
 
 ## [0.13.2] — 2026-11-17
 
