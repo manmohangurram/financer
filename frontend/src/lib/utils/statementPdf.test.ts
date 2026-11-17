@@ -108,3 +108,12 @@ describe('positioned columns (new HDFC layout)', () => {
     expect(out.valid).toBe(true);
   });
 });
+
+describe('name cleaning', () => {
+  it('drops long reference numbers between name parts', () => {
+    const text = `--- PAGE 1 ---
+01/04/26 UPI-GURRAM 0000316604154309 SWAPNA-PMADAN113@AXL-SBIN001-316604154309 01/04/26 50,000.00 232,229.71`;
+    const out = parseStatementText(text);
+    expect(out.rows[0].name).toBe('GURRAM SWAPNA');
+  });
+});

@@ -6,6 +6,17 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.14.5] — 2026-11-17
+
+### Fixed
+
+- **Reference numbers no longer leak into transaction names.** The narration line
+  includes the `Chq./Ref.No.` column, so names read like
+  `GURRAM 0000316604154309 SWAPNA`. Long digit runs, `OID…` tokens and stray dashes are
+  stripped: `GURRAM SWAPNA`, `MANDAPALLI CHIRANJEE`, `BELL TELESERVICES IN`.
+- **The Map step names the detected layout for header-column statements** instead of
+  showing “Amount · Dr/Cr (no balance)” when the balance was in fact read.
+
 ## [0.14.4] — 2026-11-17
 
 ### Fixed

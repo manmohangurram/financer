@@ -33,6 +33,8 @@ const canContinue = computed(() => {
 
 const detectedLabel = computed(() => {
   switch (parsed.value?.layout) {
+    case 'columns':
+      return 'Header columns � amount columns from the statement';
     case 'withdrawal-deposit':
       return 'Withdrawal · Deposit · Balance';
     case 'amount-marker':

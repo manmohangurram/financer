@@ -1,6 +1,6 @@
 {
   "name": "financer-frontend",
-  "version": "0.14.4",
+  "version": "0.14.5",
   "type": "module",
   "private": true,
   "allowScripts": {},

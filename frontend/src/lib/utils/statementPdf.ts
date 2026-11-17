@@ -63,7 +63,13 @@ function cleanName(narration: string): string {
   else if ((m = base.match(/^FT-\s*([^-]+)/))) name = m[1];
   else if ((m = base.match(/^IMPS-[^-]*-([^-]+)/))) name = m[1];
   else if ((m = base.match(/^ATM[^-]*-([^-]+)/))) name = m[1];
-  name = name.replace(/[.@]/g, ' ').replace(/\s+/g, ' ').trim();
+  name = name
+    .replace(/[.@]/g, ' ')
+    .replace(/\b\d{6,}\b/g, ' ')
+    .replace(/\bOID[A-Z0-9]*\b/gi, ' ')
+    .replace(/\s*-\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   return (name || base.slice(0, 60)).slice(0, 80);
 }
 
