@@ -74,7 +74,7 @@ There is no config directory — configuration is env-only. Migrations and the t
 | `Dockerfile` | Multi-stage build (frontend + Go + runtime) |
 | `.dockerignore` | Exclude `target/`, `data/`, `node_modules/`, `.git` from build context |
 | `go.mod` / `go.sum` | Pinned Go toolchain version and module checksums |
-| `db/migrations/` | Embedded SQL migrations — the binary applies pending ones at boot |
+| `db/migrations/` | Embedded single-baseline schema — applied at boot on a fresh database |
 
 ---
 
@@ -185,7 +185,28 @@ Configuration is env-only (no config file). See the table in `README.md`.
 
 ---
 
-## 7. Troubleshooting
+## 7. Resetting the database (pre-0.6 → 0.6+)
+
+The schema is a **single baseline**. Databases created by the Rust backend or
+by 0.5.x are not migrated: delete the database and start fresh.
+
+```bash
+# stop the app first
+docker compose down
+
+# bind-mounted data directory
+rm -f ./data/financer.db ./data/financer.db-wal ./data/financer.db-shm
+
+# or, for a named volume (this also removes avatars and log files)
+docker volume rm <project>_data
+
+docker compose up -d
+```
+
+Back up the old file first if you may need it. The new container applies
+`000001_initial_schema` on first start and creates `_financer_applied_migrations`.
+
+## 8. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|

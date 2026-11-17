@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS mail_messages;
+DROP TABLE IF EXISTS mail_rules;
+DROP TABLE IF EXISTS mail_accounts;
+DROP TABLE IF EXISTS user_keys;
+DROP TABLE IF EXISTS rule_actions;
+DROP TABLE IF EXISTS rule_conditions;
+DROP TABLE IF EXISTS rules;
+DROP TABLE IF EXISTS transaction_categories;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS transfer_links;
+DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS users;
