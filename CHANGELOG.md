@@ -6,6 +6,27 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) with an `-alpha` suff
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
+## [0.5.1-alpha] — 2026-11-17
+
+Patch release: startup on an existing (Rust-era) database no longer fails, plus
+an index audit.
+
+### Fixed
+
+- **A partially recorded migration tracker no longer blocks boot.** The sqlx
+  migration history is adopted on every start (not only when the Go tracker is
+  empty), and `ALTER TABLE … ADD COLUMN` steps are skipped when the column
+  already exists or its table was dropped by a later migration. This recovers
+  databases where an earlier boot recorded only the first few migrations and
+  then failed on `duplicate column name: avatar_url`. (#176)
+
+### Performance
+
+- **Query-shape indexes** (migration `000018`): transactions by
+  `user_id, occurred_at, id` and by `user_id, account_id, occurred_at`; inbox
+  messages by `user_id, created_at`; rules by `user_id, priority, name`; and
+  `transaction_categories(category_id)` for category filters. (#176)
+
 ## [0.5.0-alpha] — 2026-11-17
 
 The backend rewrite release. The API is now a clean-slate Go service; the Rust
