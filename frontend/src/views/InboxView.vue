@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { categories, mail } from '@/lib/api/client';
+import { accounts as accountsApi, categories, mail } from '@/lib/api/client';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { parseExtraction, type Extraction, type MailMessage, type MailMessageDetail } from '@/lib/types/mail';
 import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
@@ -26,7 +26,8 @@ interface Category {
 }
 
 const router = useRouter();
-const accounts = ref<MailAccount[]>([]);
+const mailboxes = ref<MailAccount[]>([]);
+const accounts = ref<{ id: string; nickname?: string; bankName?: string; endingNumbers?: string | null }[]>([]);
 const messages = ref<MailMessage[]>([]);
 const cats = ref<Category[]>([]);
 const loading = ref(true);
@@ -50,6 +51,7 @@ const form = ref({
   categoryIds: [] as string[]
 });
 const formErrors = ref<string[]>([]);
+const PAGE_SIZE = 20;
 let refreshTimer: number | null = null;
 
 const FILTERS = [
@@ -59,16 +61,45 @@ const FILTERS = [
   { key: 'all', label: 'All' }
 ] as const;
 
-const filtered = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  return messages.value.filter((m) => {
-    if (activeAccount.value !== 'all' && m.mailAccountId !== activeAccount.value) return false;
-    if (filter.value === 'review' && !['PENDING', 'UNPARSED'].includes(m.status)) return false;
-    if (filter.value === 'unparsed' && m.status !== 'UNPARSED') return false;
-    if (filter.value === 'auto' && !['AUTO', 'REJECTED'].includes(m.status)) return false;
-    if (q && !`${m.subject} ${m.fromAddr} ${m.fromName}`.toLowerCase().includes(q)) return false;
-    return true;
-  });
+const total = ref(0);
+const pageToken = ref('');
+const nextToken = ref('');
+const history = ref<string[]>([]);
+const pageLabel = computed(() => {
+  if (!total.value) return '0';
+  return `${messages.value.length} of ${total.value} · page ${history.value.length + 1}`;
+});
+
+function changePage(delta: number) {
+  if (delta < 0) {
+    if (!history.value.length) return;
+    pageToken.value = history.value[history.value.length - 1];
+    history.value = history.value.slice(0, -1);
+  } else {
+    if (!nextToken.value) return;
+    history.value = [...history.value, pageToken.value];
+    pageToken.value = nextToken.value;
+  }
+  selectedId.value = '';
+  detail.value = null;
+  load();
+}
+
+function statusParam(): string {
+  if (filter.value === 'review') return 'review';
+  if (filter.value === 'unparsed') return 'unparsed';
+  if (filter.value === 'auto') return 'auto';
+  return 'all';
+}
+
+function resetPaging() {
+  history.value = [];
+  pageToken.value = '';
+}
+
+watch([filter, activeAccount, search], () => {
+  resetPaging();
+  load();
 });
 
 const selected = computed(() => messages.value.find((m) => m.id === selectedId.value) || null);
@@ -78,10 +109,16 @@ const actionable = computed(() => {
   if (['PENDING', 'UNPARSED'].includes(selected.value.status)) return true;
   return selected.value.status === 'AUTO' && !selected.value.transactionId;
 });
-const accountOptions = computed(() => accounts.value.map((a) => ({ value: a.id, label: a.label || a.username })));
+const accountOptions = computed(() =>
+  accounts.value.map((a) => ({
+    value: a.id,
+    label: a.nickname || a.bankName || 'Account',
+    hint: a.endingNumbers ? '···' + a.endingNumbers : ''
+  }))
+);
 
 function mailboxName(id: string): string {
-  const a = accounts.value.find((x) => x.id === id);
+  const a = mailboxes.value.find((x) => x.id === id);
   return a ? a.label || a.username : 'Mailbox';
 }
 
@@ -132,20 +169,30 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [acc, msgs, catRes] = await Promise.all([
+    const [acc, msgs, catRes, finAccounts] = await Promise.all([
       mail().listAccounts({}),
-      mail().listMessages({ status: 'all', limit: 300 }),
-      categories().listCategories({ pageSize: 200 })
+      mail().listMessages({
+        status: statusParam(),
+        limit: PAGE_SIZE,
+        pageToken: pageToken.value || undefined,
+        accountId: activeAccount.value !== 'all' ? activeAccount.value : undefined,
+        search: search.value.trim() || undefined
+      }),
+      categories().listCategories({ pageSize: 200 }),
+      accountsApi().listAccounts({})
     ]);
-    accounts.value = acc.accounts || [];
+    mailboxes.value = acc.accounts || [];
     messages.value = msgs.messages || [];
+    total.value = msgs.total || 0;
+    nextToken.value = msgs.nextPageToken || '';
     cats.value = catRes.categories || [];
+    accounts.value = finAccounts.accounts || [];
     if (selectedId.value && !messages.value.some((m) => m.id === selectedId.value)) {
       selectedId.value = '';
       detail.value = null;
     }
     if (!selectedId.value) {
-      const first = filtered.value[0];
+      const first = messages.value[0];
       if (first) await select(first);
     }
   } catch (e: any) {
@@ -222,6 +269,7 @@ async function approve() {
       notice.value = 'Transaction created.';
       selectedId.value = '';
       detail.value = null;
+      resetPaging();
       await load();
     }
   } catch (e: any) {
@@ -241,6 +289,7 @@ async function reject() {
       notice.value = 'Mail rejected.';
       selectedId.value = '';
       detail.value = null;
+      resetPaging();
       await load();
     }
   } catch (e: any) {
@@ -304,7 +353,7 @@ onUnmounted(() => {
               All mailboxes
             </button>
             <button
-              v-for="a in accounts"
+              v-for="a in mailboxes"
               :key="a.id"
               role="tab"
               class="tab whitespace-nowrap text-[12.5px]"
@@ -341,9 +390,9 @@ onUnmounted(() => {
 
         <div class="inbox-scroll min-h-0 flex-1 overflow-y-auto">
           <div v-if="loading" class="py-16 text-center text-[13px] text-ink-mute">Loading…</div>
-          <div v-else-if="!filtered.length" class="flex flex-col items-center gap-2 px-6 py-16 text-center">
+          <div v-else-if="!messages.length" class="flex flex-col items-center gap-2 px-6 py-16 text-center">
             <InboxIcon class="h-8 w-8 text-ink-faint" aria-hidden="true" />
-            <template v-if="!accounts.length">
+            <template v-if="!mailboxes.length">
               <p class="text-[13px] text-ink-mute">No mailboxes yet.</p>
               <p class="text-[12px] text-ink-faint">Link one to start reading bank alerts.</p>
               <button class="btn btn-sm btn-primary mt-1" @click="showMailboxForm = true">Add mailbox</button>
@@ -354,7 +403,7 @@ onUnmounted(() => {
             </template>
           </div>
           <button
-            v-for="m in filtered"
+            v-for="m in messages"
             :key="m.id"
             class="flex w-full gap-2.5 border-b border-rule-soft px-3.5 py-3 text-left transition-colors"
             :class="selectedId === m.id ? 'bg-page-sunk shadow-[inset_2px_0_0_var(--accent)]' : 'bg-page hover:bg-page-sunk/60'"
@@ -385,8 +434,13 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div class="hidden border-t border-rule-soft bg-paper px-3 py-1.5 text-[11px] text-ink-mute lg:block">
-          {{ filtered.length }} in this view
+        <div class="flex items-center justify-between gap-2 border-t border-rule-soft bg-paper px-3 py-1.5 text-[11px] text-ink-mute">
+          <span>{{ pageLabel }}</span>
+          <span class="flex items-center gap-1">
+            <button class="btn btn-ghost btn-xs px-1.5" :disabled="!history.length" aria-label="Previous page" @click="changePage(-1)">‹</button>
+            <span class="tabular px-1">{{ history.length + 1 }}</span>
+            <button class="btn btn-ghost btn-xs px-1.5" :disabled="!nextToken" aria-label="Next page" @click="changePage(1)">›</button>
+          </span>
         </div>
       </section>
 
@@ -462,7 +516,7 @@ onUnmounted(() => {
                   :class="!form.accountId ? 'select-error' : ''"
                 >
                   <option value="" disabled>Choose an account</option>
-                  <option v-for="a in accountOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
+                  <option v-for="a in accountOptions" :key="a.value" :value="a.value">{{ a.label }}{{ a.hint ? ` ${a.hint}` : '' }}</option>
                 </select>
               </label>
 

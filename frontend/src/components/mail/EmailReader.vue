@@ -64,8 +64,8 @@ function stampClass(status: string): string {
       </div>
 
       <div v-else class="max-w-[76ch]">
-        <p class="mb-3 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Message</p>
-        <div class="email-body">
+        <p class="mb-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Message</p>
+        <div class="email-body email-scroll h-[260px] overflow-y-auto pr-2 md:h-[340px]">
           <p v-for="(block, i) in paragraphs" :key="i" class="whitespace-pre-wrap">{{ block }}</p>
           <p v-if="!paragraphs.length" class="text-ink-mute">No readable content in this message.</p>
         </div>
@@ -112,6 +112,29 @@ function stampClass(status: string): string {
 }
 .email-body p + p {
   margin-top: 12px;
+}
+/* The message has its own fixed viewport; the reader text never pushes the
+   booking form off screen. */
+.email-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+  scrollbar-gutter: stable;
+}
+.email-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.email-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.email-scroll::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+.email-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  background-clip: content-box;
 }
 .mono {
   font-family: var(--font-mono);

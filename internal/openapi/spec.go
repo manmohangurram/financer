@@ -261,8 +261,11 @@ func paths() map[string]any {
 			"get": map[string]any{
 				"tags": []any{"mail"}, "summary": "List stored mail",
 				"parameters": []any{
-					map[string]any{"name": "status", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"pending", "unparsed", "ignored", "auto", "rejected", "all"}}},
+					map[string]any{"name": "status", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"pending", "unparsed", "ignored", "auto", "rejected", "review", "all"}}},
 					map[string]any{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer"}},
+					map[string]any{"name": "accountId", "in": "query", "schema": map[string]any{"type": "string"}},
+					map[string]any{"name": "search", "in": "query", "schema": map[string]any{"type": "string"}},
+					map[string]any{"name": "pageToken", "in": "query", "schema": map[string]any{"type": "string"}},
 				},
 				"responses": map[string]any{"200": okResp("Messages", "ListMailMessages"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
 			},
@@ -492,7 +495,11 @@ func components() map[string]any {
 			"rawText":       nullable(str()),
 			"transactionId": nullable(str()),
 		}),
-		"ListMailMessages": obj(map[string]any{"messages": ref("[]MailMessage")}),
+		"ListMailMessages": obj(map[string]any{
+			"messages":      ref("[]MailMessage"),
+			"total":         map[string]any{"type": "integer"},
+			"nextPageToken": str(),
+		}),
 		"MailRule": obj(map[string]any{
 			"id": str(), "position": map[string]any{"type": "integer"},
 			"enabled": map[string]any{"type": "boolean"}, "fromPattern": str(),

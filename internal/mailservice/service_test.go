@@ -438,7 +438,7 @@ func TestMessagesListOmitsBodyAndGetReturnsIt(t *testing.T) {
 	defer e.cleanup()
 	msgID := seedMessage(t, e, "<detail>", "1234")
 
-	list, err := e.svc.Messages(e.uid, nil, 10)
+	list, _, _, err := e.svc.Messages(e.uid, nil, "", "", "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}

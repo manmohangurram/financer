@@ -7,6 +7,7 @@ import AppSelect from '@/components/AppSelect.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import AppTabs from '@/components/ui/AppTabs.vue';
 import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
+import MailRulesTab from '@/components/mail/MailRulesTab.vue';
 import { profile, apiKeys, llm, mail, API_BASE } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth';
 import { getAccessToken, setTokens } from '@/lib/api/transport';
@@ -35,6 +36,7 @@ const TABS = [
   { key: 'security', label: 'Security' },
   { key: 'inbox', label: 'Inbox AI' },
   { key: 'mailboxes', label: 'Mailboxes' },
+  { key: 'mail-rules', label: 'Mail rules' },
   { key: 'keys', label: 'API keys' }
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
@@ -549,6 +551,9 @@ onMounted(() => {
           No mailboxes linked. Add one to start receiving alerts.
         </p>
       </section>
+
+      <!-- Mail rules -->
+      <MailRulesTab v-else-if="activeTab === 'mail-rules'" />
 
       <!-- API keys -->
       <section v-else-if="activeTab === 'keys'" class="overflow-hidden rounded-card border border-rule bg-page">

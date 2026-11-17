@@ -97,6 +97,7 @@ type MailMessageRow struct {
 	BodyPreview   string
 	TransactionID *string
 	TemplateID    *string
+	RowID         int64
 }
 
 // MailRuleRow is a disposition rule.
@@ -124,6 +125,12 @@ type MailRuleInput struct {
 	CategoryIDs     []string
 }
 
+// MailCursor is the stable position of the last row on a queue page. RowID is
+// SQLite's insertion-ordered key, so the cursor never depends on timestamp text.
+type MailCursor struct {
+	RowID int64
+}
+
 // MailRepo is the backend-agnostic mail-ingest repository.
 type MailRepo interface {
 	CreateAccount(userID string, input *NewMailAccount) (*MailAccountRow, error)
@@ -135,6 +142,9 @@ type MailRepo interface {
 	KnownMessageIDs(userID string, ids []string) ([]string, error)
 	InsertMessage(userID string, msg *NewMailMessage) (bool, error)
 	ListMessages(userID string, status *MailStatus, limit int64) ([]*MailMessageRow, error)
+	// ListMessagesFiltered pages the queue with the filters the Inbox offers.
+	ListMessagesFiltered(userID string, statuses []MailStatus, accountID, search string, limit int64, cursor *MailCursor) ([]*MailMessageRow, error)
+	CountMessagesFiltered(userID string, statuses []MailStatus, accountID, search string) (int64, error)
 	GetMessage(userID, id string) (*MailMessageRow, error)
 	ResolveMessage(userID, id string, status MailStatus, approvedJSON, transactionID *string) (bool, error)
 	ListRules(userID string) ([]*MailRuleRow, error)

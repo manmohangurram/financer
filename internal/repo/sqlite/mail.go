@@ -169,7 +169,7 @@ const mailMessageColumns = `id, message_id, mail_account_id, from_addr, from_nam
 // mailMessageListColumns omits the raw source and the full parsed body: the
 // queue does not need them and would otherwise ship every message twice. A
 // short preview is kept for the list row.
-const mailMessageListColumns = `id, message_id, mail_account_id, from_addr, from_name, subject, received_at, status, parsed_json,
+const mailMessageListColumns = `rowid, id, message_id, mail_account_id, from_addr, from_name, subject, received_at, status, parsed_json,
 	approved_json, COALESCE(confidence, 0), transaction_id, template_id, substr(body_text, 1, 200)`
 
 func (r *MailRepo) ListMessages(userID string, status *repo.MailStatus, limit int64) ([]*repo.MailMessageRow, error) {
@@ -216,6 +216,67 @@ func (r *MailRepo) GetMessage(userID, id string) (*repo.MailMessageRow, error) {
 	return m, nil
 }
 
+func (r *MailRepo) ListMessagesFiltered(userID string, statuses []repo.MailStatus, accountID, search string, limit int64, cursor *repo.MailCursor) ([]*repo.MailMessageRow, error) {
+	where, args := mailFilter(userID, statuses, accountID, search)
+	if cursor != nil {
+		where += " AND rowid < ?"
+		args = append(args, cursor.RowID)
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	query := "SELECT " + mailMessageListColumns + " FROM mail_messages WHERE " + where +
+		" ORDER BY rowid DESC LIMIT ?"
+	args = append(args, limit)
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*repo.MailMessageRow
+	for rows.Next() {
+		m, err := scanMailMessageList(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (r *MailRepo) CountMessagesFiltered(userID string, statuses []repo.MailStatus, accountID, search string) (int64, error) {
+	where, args := mailFilter(userID, statuses, accountID, search)
+	var total int64
+	if err := r.db.QueryRow("SELECT COUNT(*) FROM mail_messages WHERE "+where, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// mailFilter builds the shared WHERE clause for the queue page and its count.
+func mailFilter(userID string, statuses []repo.MailStatus, accountID, search string) (string, []any) {
+	where := "user_id = ?"
+	args := []any{userID}
+	if len(statuses) > 0 {
+		placeholders := make([]string, 0, len(statuses))
+		for _, s := range statuses {
+			placeholders = append(placeholders, "?")
+			args = append(args, string(s))
+		}
+		where += " AND status IN (" + strings.Join(placeholders, ",") + ")"
+	}
+	if accountID != "" {
+		where += " AND mail_account_id = ?"
+		args = append(args, accountID)
+	}
+	if term := strings.TrimSpace(strings.ToLower(search)); term != "" {
+		where += " AND (lower(subject) LIKE ? OR lower(from_addr) LIKE ? OR lower(from_name) LIKE ?)"
+		like := "%" + term + "%"
+		args = append(args, like, like, like)
+	}
+	return where, args
+}
+
 func scanMailMessage(rows *sql.Rows) (*repo.MailMessageRow, error) {
 	var m repo.MailMessageRow
 	var status string
@@ -251,13 +312,12 @@ func scanMailMessage(rows *sql.Rows) (*repo.MailMessageRow, error) {
 	return &m, nil
 }
 
-// scanMailMessageList fills the queue projection: no raw source or body.
 func scanMailMessageList(rows *sql.Rows) (*repo.MailMessageRow, error) {
 	var m repo.MailMessageRow
 	var status string
 	var receivedAt, parsed, approved, txnID, templateID, preview sql.NullString
 	if err := rows.Scan(
-		&m.ID, &m.MessageID, &m.MailAccountID, &m.FromAddr, &m.FromName, &m.Subject, &receivedAt, &status,
+		&m.RowID, &m.ID, &m.MessageID, &m.MailAccountID, &m.FromAddr, &m.FromName, &m.Subject, &receivedAt, &status,
 		&parsed, &approved, &m.Confidence, &txnID, &templateID, &preview,
 	); err != nil {
 		return nil, err

@@ -6,6 +6,21 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Changed
+
+- Inbox queue is cursor-paginated: `GET /api/mail/messages` takes `pageToken`,
+  `limit` (default 20), `accountId` and `search`, and returns `total` +
+  `nextPageToken`. Filters (status, mailbox, search) now run in SQL, so each page is
+  a real 20-row fetch; approve/reject refreshes and returns to the first page.
+- Inbox account picker lists the user's financial accounts (with ending digits), not
+  their mailboxes.
+- The email body has a fixed-height scroll area, so long mail never pushes the
+  booking form off screen.
+- Settings has a **Mail rules** tab: sender/subject/body conditions with
+  review / auto / ignore, editable in a popup with Delete.
+
 ## [0.8.0] — 2026-11-17
 
 ### Added

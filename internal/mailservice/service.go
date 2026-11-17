@@ -5,10 +5,12 @@ package mailservice
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -146,24 +148,50 @@ func (s *Service) Delete(userID, id string) error {
 
 // --- messages ---
 
-func (s *Service) Messages(userID string, status *string, limit int64) ([]*model.MailMessage, error) {
-	var filter *repo.MailStatus
-	if status != nil && *status != "" && *status != "all" {
-		normalized := repo.MailStatus(strings.ToUpper(*status))
+// Messages returns one page of the queue plus the filtered total and the cursor
+// for the next page. Status may be a single status, "all", or "review"
+// (pending + unparsed).
+func (s *Service) Messages(userID string, status *string, accountID, search, pageToken string, limit int64) ([]*model.MailMessage, int64, string, error) {
+	var statuses []repo.MailStatus
+	raw := ""
+	if status != nil {
+		raw = strings.ToLower(strings.TrimSpace(*status))
+	}
+	switch raw {
+	case "", "all", "review":
+		if raw == "review" {
+			statuses = []repo.MailStatus{repo.MailStatusPending, repo.MailStatusUnparsed}
+		}
+	case "auto":
+		statuses = []repo.MailStatus{repo.MailStatusAuto, repo.MailStatusRejected}
+	default:
+		normalized := repo.MailStatus(strings.ToUpper(raw))
 		switch normalized {
 		case repo.MailStatusPending, repo.MailStatusUnparsed, repo.MailStatusIgnored,
 			repo.MailStatusAuto, repo.MailStatusRejected:
-			filter = &normalized
+			statuses = []repo.MailStatus{normalized}
 		default:
-			return nil, errors.BadRequest("unknown status " + fmt.Sprintf("%q", *status))
+			return nil, 0, "", errors.BadRequest("unknown status " + fmt.Sprintf("%q", *status))
 		}
 	}
-	if limit < 1 || limit > 500 {
-		limit = clampLimit(limit)
-	}
-	rows, err := s.repo.ListMessages(userID, filter, limit)
+	limit = clampLimit(limit)
+	cursor, err := decodeMailCursor(pageToken)
 	if err != nil {
-		return nil, err
+		return nil, 0, "", err
+	}
+	total, err := s.repo.CountMessagesFiltered(userID, statuses, accountID, search)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	rows, err := s.repo.ListMessagesFiltered(userID, statuses, accountID, search, limit+1, cursor)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	next := ""
+	if int64(len(rows)) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		next = encodeMailCursor(last.RowID)
 	}
 	out := make([]*model.MailMessage, 0, len(rows))
 	for _, row := range rows {
@@ -177,7 +205,26 @@ func (s *Service) Messages(userID string, status *string, limit int64) ([]*model
 		}
 		out = append(out, m)
 	}
-	return out, nil
+	return out, total, next, nil
+}
+
+func encodeMailCursor(rowID int64) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(rowID, 10)))
+}
+
+func decodeMailCursor(token string) (*repo.MailCursor, error) {
+	if token == "" {
+		return nil, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return nil, errors.BadRequest("invalid pageToken")
+	}
+	rowID, err := strconv.ParseInt(string(raw), 10, 64)
+	if err != nil || rowID <= 0 {
+		return nil, errors.BadRequest("invalid pageToken")
+	}
+	return &repo.MailCursor{RowID: rowID}, nil
 }
 
 // Get returns one message with its display body and raw source. Rows stored
@@ -231,10 +278,10 @@ func bodyPreview(text string) string {
 
 func clampLimit(limit int64) int64 {
 	if limit < 1 {
-		return 1
+		return 20
 	}
-	if limit > 500 {
-		return 500
+	if limit > 100 {
+		return 100
 	}
 	return limit
 }

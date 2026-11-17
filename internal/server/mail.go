@@ -122,13 +122,13 @@ func (a *API) listMailMessages(c *gin.Context) {
 	if s := c.Query("status"); s != "" {
 		status = &s
 	}
-	limit := int64(parseInt(c.Query("limit"), 100))
-	msgs, err := a.mailSvc.Messages(uid, status, limit)
+	limit := int64(parseInt(c.Query("limit"), 20))
+	msgs, total, next, err := a.mailSvc.Messages(uid, status, c.Query("accountId"), c.Query("search"), c.Query("pageToken"), limit)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, model.WireMailMessages{Messages: msgs})
+	c.JSON(http.StatusOK, model.WireMailMessages{Messages: msgs, Total: total, NextPageToken: next})
 }
 
 func (a *API) getMailMessage(c *gin.Context) {

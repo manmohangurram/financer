@@ -111,7 +111,9 @@ type WireMailAccounts struct {
 
 // WireMailMessages is the GET /api/mail/messages response.
 type WireMailMessages struct {
-	Messages []*MailMessage `json:"messages"`
+	Messages      []*MailMessage `json:"messages"`
+	Total         int64          `json:"total"`
+	NextPageToken string         `json:"nextPageToken"`
 }
 
 // WireMailRules is the GET /api/mail/rules response.
