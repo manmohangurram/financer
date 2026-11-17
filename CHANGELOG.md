@@ -6,6 +6,16 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.10.2] — 2026-11-17
+
+### Fixed
+
+- **A bad account pattern is dropped, not fatal.** Templates are retried without the
+  optional account pattern (and with guards cleared, alone or together), so one wrong
+  optional piece cannot reject an otherwise valid template. Direction ambiguity and
+  missing amount/date still reject. The prompt now requires mutually exclusive
+  debit/credit patterns and says to omit the account pattern when unsure.
+
 ## [0.10.1] — 2026-11-17
 
 ### Fixed
@@ -17,11 +27,6 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
   not a second rule engine; if a generated guard misses a sample but the patterns
   parse everything, the template is stored without guards. The prompt now asks for
   empty guards unless the sender has genuinely distinct formats.
-- **A bad account pattern is dropped, not fatal.** Templates are retried without the
-  optional account pattern (and with guards cleared, alone or together), so one wrong
-  optional piece cannot reject an otherwise valid template. Direction ambiguity and
-  missing amount/date still reject. The prompt now requires mutually exclusive
-  debit/credit patterns and says to omit the account pattern when unsure.
 
 ## [0.10.0] — 2026-11-17
 
