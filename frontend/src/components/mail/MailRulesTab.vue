@@ -58,6 +58,7 @@ onMounted(load);
         <h2 class="text-[15px] font-semibold text-ink">Mail rules</h2>
         <p class="text-[12px] text-ink-mute">
           Sender, subject and body conditions decide which mail is ignored, reviewed or auto-booked. First match wins.
+          A rule can carry a manual extraction template for its sender.
         </p>
       </div>
       <button class="btn btn-sm btn-primary" @click="openCreate"><Plus class="h-4 w-4" /> Add rule</button>
@@ -95,6 +96,7 @@ onMounted(load);
         </span>
         <span class="flex items-center gap-2">
           <span class="badge badge-sm badge-outline" :class="actionTone(rule.action)">{{ rule.action }}</span>
+          <span v-if="rule.template" class="stamp text-ink-mute" title="Manual extraction template">template</span>
           <span v-if="!rule.enabled" class="text-[10px] uppercase tracking-wide text-ink-faint">paused</span>
         </span>
       </button>
