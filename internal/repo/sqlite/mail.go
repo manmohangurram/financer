@@ -665,7 +665,8 @@ func (r *MailRepo) ListTemplates(userID, sender string) ([]*repo.MailTemplateRow
 		        sample_count, successes, failures, created_at, last_used_at, last_attempt_at
 		 FROM mail_templates
 		 WHERE user_id = ? AND sender = ? AND status != 'disabled'
-		 ORDER BY sample_count DESC, created_at DESC`,
+		 ORDER BY CASE status WHEN 'manual' THEN 0 ELSE 1 END,
+		          sample_count DESC, created_at DESC`,
 		userID, sender,
 	)
 	if err != nil {
@@ -681,6 +682,89 @@ func (r *MailRepo) ListTemplates(userID, sender string) ([]*repo.MailTemplateRow
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// ListManualTemplates returns the manual templates whose sender pattern appears
+// in fromAddr, so a rule's "hdfcbank" template matches alerts@hdfcbank.net.
+func (r *MailRepo) ListManualTemplates(userID, fromAddr string) ([]*repo.MailTemplateRow, error) {
+	rows, err := r.db.Query(
+		`SELECT id, user_id, sender, name, guards_json, patterns_json, status,
+		        sample_count, successes, failures, created_at, last_used_at, last_attempt_at
+		 FROM mail_templates
+		 WHERE user_id = ? AND status = 'manual' AND instr(lower(?), lower(sender)) > 0
+		 ORDER BY length(sender) DESC, created_at DESC`,
+		userID, fromAddr,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*repo.MailTemplateRow
+	for rows.Next() {
+		t, err := scanTemplate(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// GetManualTemplate returns the manual template keyed by the rule's sender
+// pattern, or nil when the rule has none.
+func (r *MailRepo) GetManualTemplate(userID, senderPattern string) (*repo.MailTemplateRow, error) {
+	rows, err := r.db.Query(
+		`SELECT id, user_id, sender, name, guards_json, patterns_json, status,
+		        sample_count, successes, failures, created_at, last_used_at, last_attempt_at
+		 FROM mail_templates
+		 WHERE user_id = ? AND sender = ? AND status = 'manual'
+		 ORDER BY created_at DESC LIMIT 1`,
+		userID, senderPattern,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return nil, rows.Err()
+	}
+	return scanTemplate(rows)
+}
+
+// UpsertManualTemplate stores one manual template per sender pattern.
+func (r *MailRepo) UpsertManualTemplate(userID string, row *repo.MailTemplateRow) (*repo.MailTemplateRow, error) {
+	var id string
+	err := r.db.QueryRow(
+		`SELECT id FROM mail_templates WHERE user_id = ? AND sender = ? AND status = 'manual' LIMIT 1`,
+		userID, row.Sender,
+	).Scan(&id)
+	switch {
+	case err == sql.ErrNoRows:
+		return r.CreateTemplate(userID, &repo.MailTemplateRow{
+			Sender: row.Sender, Name: row.Name, GuardsJSON: row.GuardsJSON,
+			PatternsJSON: row.PatternsJSON, Status: repo.MailTemplateManual,
+		})
+	case err != nil:
+		return nil, err
+	}
+	if _, err := r.db.Exec(
+		`UPDATE mail_templates SET name = ?, guards_json = ?, patterns_json = ?, status = 'manual'
+		 WHERE id = ?`,
+		row.Name, row.GuardsJSON, row.PatternsJSON, id,
+	); err != nil {
+		return nil, err
+	}
+	row.ID, row.UserID, row.Status = id, userID, repo.MailTemplateManual
+	return row, nil
+}
+
+// DeleteManualTemplate removes the manual template for a sender pattern.
+func (r *MailRepo) DeleteManualTemplate(userID, senderPattern string) error {
+	_, err := r.db.Exec(
+		`DELETE FROM mail_templates WHERE user_id = ? AND sender = ? AND status = 'manual'`,
+		userID, senderPattern,
+	)
+	return err
 }
 
 func (r *MailRepo) CreateTemplate(userID string, row *repo.MailTemplateRow) (*repo.MailTemplateRow, error) {

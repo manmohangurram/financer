@@ -45,7 +45,17 @@ type NewMailAccount struct {
 	SecretEnc string
 }
 
-// MailTemplateRow is a learned parsing template.
+// Mail template statuses. Manual templates are authored by the user inside a
+// rule and outrank learned ones; AI generation never overwrites them.
+const (
+	MailTemplateProvisional = "provisional"
+	MailTemplateActive      = "active"
+	MailTemplateDisabled    = "disabled"
+	MailTemplateManual      = "manual"
+)
+
+// MailTemplateRow is a parsing template; Sender is an exact address for
+// learned/AI rows and the rule's from pattern for manual rows.
 type MailTemplateRow struct {
 	ID            string
 	UserID        string
@@ -174,6 +184,12 @@ type MailRepo interface {
 	SweepBodies() (int64, error)
 
 	ListTemplates(userID, sender string) ([]*MailTemplateRow, error)
+	// Manual templates belong to the sender pattern of a rule and are never
+	// touched by AI generation.
+	ListManualTemplates(userID, fromAddr string) ([]*MailTemplateRow, error)
+	GetManualTemplate(userID, senderPattern string) (*MailTemplateRow, error)
+	UpsertManualTemplate(userID string, row *MailTemplateRow) (*MailTemplateRow, error)
+	DeleteManualTemplate(userID, senderPattern string) error
 	CreateTemplate(userID string, row *MailTemplateRow) (*MailTemplateRow, error)
 	RecordTemplateResult(id string, success bool) error
 	AddTemplateSample(id string) (int64, error)

@@ -189,7 +189,7 @@ func validateCandidates(content string, samples []LLMSample) ([]TemplateSpec, []
 			continue
 		}
 		spec = acceptedSpec
-		key := spec.Name + "|" + spec.Guards.SubjectContains + "|" + spec.Guards.BodyContains + "|" + spec.Patterns.Amount
+		key := spec.Name + "|" + spec.Guards.SubjectContains + "|" + spec.Guards.BodyContains + "|" + spec.Patterns.Amount.Key()
 		if seen[key] {
 			continue
 		}
@@ -206,14 +206,14 @@ func firstWorkable(spec TemplateSpec, samples []LLMSample) (TemplateSpec, string
 	noGuards := spec
 	noGuards.Guards = TemplateGuards{}
 	noAccount := spec
-	noAccount.Patterns.Account = ""
+	noAccount.Patterns.Account = nil
 	both := noGuards
-	both.Patterns.Account = ""
+	both.Patterns.Account = nil
 
 	var last string
 	seen := map[string]bool{}
 	for _, variant := range []TemplateSpec{spec, noGuards, noAccount, both} {
-		key := variant.Guards.SubjectContains + "|" + variant.Guards.BodyContains + "|" + variant.Patterns.Account
+		key := variant.Guards.SubjectContains + "|" + variant.Guards.BodyContains + "|" + variant.Patterns.Account.Key()
 		if seen[key] {
 			continue
 		}

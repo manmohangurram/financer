@@ -2,7 +2,9 @@
 import { ref } from 'vue';
 import AppModal from '@/components/AppModal.vue';
 import AppInput from '@/components/AppInput.vue';
+import MailTemplateEditor from '@/components/mail/MailTemplateEditor.vue';
 import { mail } from '@/lib/api/client';
+import { cleanedTemplate, templateProblem, type TemplatePatterns } from '@/lib/mailTemplate';
 
 const props = defineProps<{
   rule?: any | null;
@@ -19,7 +21,8 @@ const form = ref({
   action: props.rule?.action || 'REVIEW',
   enabled: props.rule?.enabled ?? true,
   accountId: props.rule?.accountId || '',
-  categoryIds: [...(props.rule?.categoryIds || [])] as string[]
+  categoryIds: [...(props.rule?.categoryIds || [])] as string[],
+  template: (props.rule?.template ? JSON.parse(JSON.stringify(props.rule.template)) : null) as TemplatePatterns | null
 });
 const saving = ref(false);
 const confirmingDelete = ref(false);
@@ -37,6 +40,17 @@ async function submit() {
     error.value = 'Add at least one condition: sender, subject or body.';
     return;
   }
+  if (form.value.template) {
+    if (!form.value.fromPattern.trim()) {
+      error.value = 'A template needs a From condition.';
+      return;
+    }
+    const problem = templateProblem(form.value.template);
+    if (problem) {
+      error.value = problem;
+      return;
+    }
+  }
   saving.value = true;
   try {
     const payload = {
@@ -47,7 +61,8 @@ async function submit() {
       bodyContains: form.value.bodyContains.trim(),
       action: form.value.action,
       accountId: form.value.accountId || null,
-      categoryIds: form.value.categoryIds
+      categoryIds: form.value.categoryIds,
+      template: form.value.template ? cleanedTemplate(form.value.template) : null
     };
     if (editing) await mail().updateRule({ id: props.rule.id, ...payload });
     else await mail().createRule(payload);
@@ -78,7 +93,7 @@ async function remove() {
 </script>
 
 <template>
-  <AppModal :title="editing ? 'Edit mail rule' : 'New mail rule'" @close="emit('close')">
+  <AppModal :title="editing ? 'Edit mail rule' : 'New mail rule'" wide @close="emit('close')">
     <form class="flex flex-col gap-4 px-5 py-4" @submit.prevent="submit">
       <p v-if="error" role="alert" class="rounded-control border border-debit/30 bg-debit/5 px-3 py-2 text-[12.5px] text-debit">{{ error }}</p>
       <p class="text-[12.5px] text-ink-mute">
@@ -88,6 +103,8 @@ async function remove() {
       <AppInput v-model="form.fromPattern" label="From contains" placeholder="alerts@hdfcbank.net" />
       <AppInput v-model="form.subjectContains" label="Subject contains" placeholder="Debit Alert" />
       <AppInput v-model="form.bodyContains" label="Body contains" placeholder="debited" />
+
+      <MailTemplateEditor v-model="form.template" :from-pattern="form.fromPattern" />
 
       <label class="flex flex-col gap-1.5">
         <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Book to account (optional)</span>

@@ -1073,7 +1073,7 @@ func (s *Service) Rules(userID string) ([]*model.MailRule, error) {
 	}
 	out := make([]*model.MailRule, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, ruleWire(row))
+		out = append(out, s.ruleWire(userID, row))
 	}
 	return out, nil
 }
@@ -1101,13 +1101,17 @@ func (s *Service) RulesPage(userID string, limit int64, pageToken string) ([]*mo
 	}
 	out := make([]*model.MailRule, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, ruleWire(row))
+		out = append(out, s.ruleWire(userID, row))
 	}
 	return out, next, nil
 }
 
 func (s *Service) CreateRule(userID string, req model.ReqMailRule) (*model.MailRule, error) {
 	input, err := ruleInput(req)
+	if err != nil {
+		return nil, err
+	}
+	spec, err := manualTemplateSpec(input.FromPattern, req.Template)
 	if err != nil {
 		return nil, err
 	}
@@ -1129,12 +1133,23 @@ func (s *Service) CreateRule(userID string, req model.ReqMailRule) (*model.MailR
 	if err != nil {
 		return nil, err
 	}
+	if err := s.saveManualTemplate(userID, input.FromPattern, spec); err != nil {
+		return nil, err
+	}
 	go s.ReapplyRules(userID)
-	return ruleWire(row), nil
+	return s.ruleWire(userID, row), nil
 }
 
 func (s *Service) UpdateRule(userID, id string, req model.ReqMailRule) error {
 	input, err := ruleInput(req)
+	if err != nil {
+		return err
+	}
+	spec, err := manualTemplateSpec(input.FromPattern, req.Template)
+	if err != nil {
+		return err
+	}
+	oldFrom, err := s.ruleFromPattern(userID, id)
 	if err != nil {
 		return err
 	}
@@ -1145,11 +1160,25 @@ func (s *Service) UpdateRule(userID, id string, req model.ReqMailRule) error {
 	if !ok {
 		return errors.NotFound("mail rule " + id + " not found")
 	}
+	// The template follows the sender pattern; a changed pattern leaves the old
+	// template behind only if we do not remove it.
+	if oldFrom != "" && oldFrom != input.FromPattern {
+		if err := s.repo.DeleteManualTemplate(userID, oldFrom); err != nil {
+			return err
+		}
+	}
+	if err := s.saveManualTemplate(userID, input.FromPattern, spec); err != nil {
+		return err
+	}
 	go s.ReapplyRules(userID)
 	return nil
 }
 
 func (s *Service) DeleteRule(userID, id string) error {
+	from, err := s.ruleFromPattern(userID, id)
+	if err != nil {
+		return err
+	}
 	ok, err := s.repo.DeleteRule(userID, id)
 	if err != nil {
 		return err
@@ -1157,7 +1186,71 @@ func (s *Service) DeleteRule(userID, id string) error {
 	if !ok {
 		return errors.NotFound("mail rule " + id + " not found")
 	}
+	if from != "" {
+		if err := s.repo.DeleteManualTemplate(userID, from); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// ruleFromPattern finds a rule's sender condition before it is changed/deleted.
+func (s *Service) ruleFromPattern(userID, id string) (string, error) {
+	rules, err := s.repo.ListRules(userID)
+	if err != nil {
+		return "", err
+	}
+	for _, r := range rules {
+		if r.ID == id {
+			return r.FromPattern, nil
+		}
+	}
+	return "", nil
+}
+
+// manualTemplateSpec validates the template carried by a rule request. A nil
+// template means "no manual template", which removes any existing one.
+func manualTemplateSpec(fromPattern string, p *model.MailTemplatePatterns) (*mail.TemplateSpec, error) {
+	if p == nil {
+		return nil, nil
+	}
+	if strings.TrimSpace(fromPattern) == "" {
+		return nil, errors.BadRequest("a template needs a From condition")
+	}
+	spec := &mail.TemplateSpec{
+		Name: "Manual · " + fromPattern,
+		Patterns: mail.TemplatePatterns{
+			Amount: p.Amount, Debit: p.Debit, Credit: p.Credit,
+			Account: p.Account, Merchant: p.Merchant, Date: p.Date,
+		},
+	}
+	if _, err := mail.CompileTemplate(*spec); err != nil {
+		return nil, errors.BadRequest(err.Error())
+	}
+	return spec, nil
+}
+
+// saveManualTemplate stores or removes the manual template for a rule.
+func (s *Service) saveManualTemplate(userID, fromPattern string, spec *mail.TemplateSpec) error {
+	if spec == nil {
+		if strings.TrimSpace(fromPattern) == "" {
+			return nil
+		}
+		return s.repo.DeleteManualTemplate(userID, fromPattern)
+	}
+	guards, err := json.Marshal(spec.Guards)
+	if err != nil {
+		return err
+	}
+	patterns, err := json.Marshal(spec.Patterns)
+	if err != nil {
+		return err
+	}
+	_, err = s.repo.UpsertManualTemplate(userID, &repo.MailTemplateRow{
+		Sender: fromPattern, Name: spec.Name,
+		GuardsJSON: string(guards), PatternsJSON: string(patterns),
+	})
+	return err
 }
 
 // --- wire/validation helpers ---
@@ -1168,6 +1261,62 @@ func accountWire(row *repo.MailAccountRow) *model.MailAccount {
 		Username: row.Username, Enabled: row.Enabled,
 		LastPolledAt: row.LastPolledAt, LastError: row.LastError,
 	}
+}
+
+// ruleWire attaches the rule's manual template, when it has one.
+func (s *Service) ruleWire(userID string, row *repo.MailRuleRow) *model.MailRule {
+	rule := ruleWire(row)
+	if strings.TrimSpace(row.FromPattern) == "" {
+		return rule
+	}
+	tpl, err := s.repo.GetManualTemplate(userID, row.FromPattern)
+	if err != nil || tpl == nil {
+		return rule
+	}
+	var spec mail.TemplateSpec
+	if err := json.Unmarshal([]byte(tpl.PatternsJSON), &spec.Patterns); err != nil {
+		return rule
+	}
+	rule.Template = &model.MailTemplatePatterns{
+		Amount: []string(spec.Patterns.Amount), Debit: []string(spec.Patterns.Debit),
+		Credit: []string(spec.Patterns.Credit), Account: []string(spec.Patterns.Account),
+		Merchant: []string(spec.Patterns.Merchant), Date: []string(spec.Patterns.Date),
+	}
+	return rule
+}
+
+// ValidateTemplate previews a manual template against a pasted sample mail.
+func (s *Service) ValidateTemplate(userID string, req model.ReqMailTemplateValidate) (*model.MailTemplateValidation, error) {
+	if strings.TrimSpace(req.Subject) == "" && strings.TrimSpace(req.Body) == "" {
+		return nil, errors.BadRequest("paste a sample mail to test the template")
+	}
+	spec := mail.TemplateSpec{Name: "manual", Patterns: mail.TemplatePatterns{
+		Amount: req.Patterns.Amount, Debit: req.Patterns.Debit, Credit: req.Patterns.Credit,
+		Account: req.Patterns.Account, Merchant: req.Patterns.Merchant, Date: req.Patterns.Date,
+	}}
+	v := mail.ValidateSpec(spec, req.Subject, req.Body)
+	out := &model.MailTemplateValidation{Complete: v.Complete, Reason: v.Reason}
+	for _, field := range v.Fields {
+		check := model.MailTemplateFieldCheck{Field: field.Field}
+		for _, p := range field.Patterns {
+			check.Patterns = append(check.Patterns, model.MailTemplatePatternCheck{
+				Pattern: p.Pattern, Matched: p.Matched, Value: p.Value, Error: p.Error,
+			})
+		}
+		out.Fields = append(out.Fields, check)
+	}
+	if e := v.Extraction; e != nil {
+		out.Amount = e.Amount
+		out.Direction = string(e.Direction)
+		out.Merchant = e.Merchant
+		if e.AccountHint != nil {
+			out.Account = *e.AccountHint
+		}
+		if e.OccurredAt != nil {
+			out.Date = *e.OccurredAt
+		}
+	}
+	return out, nil
 }
 
 func ruleWire(row *repo.MailRuleRow) *model.MailRule {

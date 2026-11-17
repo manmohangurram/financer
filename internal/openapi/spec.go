@@ -319,6 +319,9 @@ func paths() map[string]any {
 				"responses":  map[string]any{"204": noContent("Deleted"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
 			},
 		},
+		"/api/mail/templates/validate": map[string]any{
+			"post": op("mail", "Test manual template patterns against a sample mail", "ReqMailTemplateValidate", okResp("Validation", "MailTemplateValidation")),
+		},
 	}
 }
 
@@ -549,6 +552,7 @@ func components() map[string]any {
 			"action":      map[string]any{"type": "string", "enum": []any{"IGNORE", "REVIEW", "AUTO"}},
 			"accountId":   nullable(str()),
 			"categoryIds": map[string]any{"type": "array", "items": str()},
+			"template":    ref("MailTemplatePatterns"),
 		}),
 		"ReqMailRule": obj(map[string]any{
 			"position": map[string]any{"type": "integer"}, "enabled": map[string]any{"type": "boolean"},
@@ -556,6 +560,31 @@ func components() map[string]any {
 			"action":      map[string]any{"type": "string", "enum": []any{"IGNORE", "REVIEW", "AUTO"}},
 			"accountId":   nullable(str()),
 			"categoryIds": map[string]any{"type": "array", "items": str()},
+			"template":    ref("MailTemplatePatterns"),
+		}),
+		"MailTemplatePatterns": obj(map[string]any{
+			"amount":   map[string]any{"type": "array", "items": str()},
+			"debit":    map[string]any{"type": "array", "items": str()},
+			"credit":   map[string]any{"type": "array", "items": str()},
+			"account":  map[string]any{"type": "array", "items": str()},
+			"merchant": map[string]any{"type": "array", "items": str()},
+			"date":     map[string]any{"type": "array", "items": str()},
+		}),
+		"ReqMailTemplateValidate": obj(map[string]any{
+			"subject": str(), "body": str(), "patterns": ref("MailTemplatePatterns"),
+		}),
+		"MailTemplateValidation": obj(map[string]any{
+			"fields": map[string]any{"type": "array", "items": obj(map[string]any{
+				"field": str(),
+				"patterns": map[string]any{"type": "array", "items": obj(map[string]any{
+					"pattern": str(), "matched": map[string]any{"type": "boolean"},
+					"value": str(), "error": str(),
+				})},
+			})},
+			"amount":    map[string]any{"type": "number"},
+			"direction": str(), "account": str(), "merchant": str(), "date": str(),
+			"complete": map[string]any{"type": "boolean"},
+			"reason":   str(),
 		}),
 		"ListMailRules": obj(map[string]any{"rules": ref("[]MailRule"), "nextPageToken": str()}),
 		"ReqMailAction": obj(map[string]any{

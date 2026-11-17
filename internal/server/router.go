@@ -186,6 +186,7 @@ func (a *API) Handler() *gin.Engine {
 			mail.POST("/rules", a.createMailRule)
 			mail.PUT("/rules/:id", a.updateMailRule)
 			mail.DELETE("/rules/:id", a.deleteMailRule)
+			mail.POST("/templates/validate", a.validateMailTemplate)
 		}
 	}
 

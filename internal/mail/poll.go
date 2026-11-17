@@ -397,14 +397,30 @@ func firstRule(rules []*repo.MailRuleRow, action repo.MailRuleAction, header *Ma
 }
 
 func parseWithTemplates(store repo.MailRepo, userID string, header *MailHeader, body string, minSamples int64) (*Extraction, repo.MailStatus, *string, bool, string) {
-	templates, err := store.ListTemplates(userID, header.FromAddr)
+	// Manual templates outrank learned ones and are keyed by the rule's sender
+	// pattern, which may be a substring rather than the full address.
+	seen := map[string]bool{}
+	var templates []*repo.MailTemplateRow
+	if manual, err := store.ListManualTemplates(userID, header.FromAddr); err == nil {
+		for _, row := range manual {
+			seen[row.ID] = true
+			templates = append(templates, row)
+		}
+	}
+	exact, err := store.ListTemplates(userID, header.FromAddr)
 	if err != nil {
 		return nil, repo.MailStatusUnparsed, nil, false, "template"
+	}
+	for _, row := range exact {
+		if !seen[row.ID] {
+			templates = append(templates, row)
+		}
 	}
 	if minSamples < 1 {
 		minSamples = 1
 	}
 	for _, row := range templates {
+		manual := row.Status == repo.MailTemplateManual
 		tpl, err := compileRow(row)
 		if err != nil {
 			continue
@@ -413,10 +429,10 @@ func parseWithTemplates(store repo.MailRepo, userID string, header *MailHeader, 
 		if !matched {
 			continue
 		}
-		active := row.Status == "active"
+		active := manual || row.Status == "active"
 		if match.Complete && match.Extraction != nil && !match.NeedsReview {
 			_ = store.RecordTemplateResult(row.ID, true)
-			if !active {
+			if !active && !manual {
 				if count, err := store.AddTemplateSample(row.ID); err == nil && count >= minSamples {
 					if err := store.PromoteTemplate(row.ID, count); err == nil {
 						active = true
@@ -457,6 +473,10 @@ func gatherSamples(store repo.MailRepo, userID string, header *MailHeader, body 
 }
 
 func storeTemplate(store repo.MailRepo, userID, sender string, spec TemplateSpec, samples, minSamples int64) (*repo.MailTemplateRow, error) {
+	// A manual template belongs to the user: AI generation must never replace it.
+	if manual, err := store.ListManualTemplates(userID, sender); err == nil && len(manual) > 0 {
+		return manual[0], nil
+	}
 	guards, err := json.Marshal(spec.Guards)
 	if err != nil {
 		return nil, err

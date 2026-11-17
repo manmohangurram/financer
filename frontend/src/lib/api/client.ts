@@ -56,6 +56,7 @@ export interface MailServiceClient {
   createRule: (req: unknown) => Promise<any>;
   updateRule: (req: unknown) => Promise<any>;
   deleteRule: (req: unknown) => Promise<any>;
+  validateTemplate: (req: unknown) => Promise<any>;
 }
 
 export interface TransferServiceClient {
@@ -198,7 +199,8 @@ export function mail(): MailServiceClient {
       listRules: api('GET', '/api/mail/rules'),
       createRule: api('POST', '/api/mail/rules'),
       updateRule: api('PUT', '/api/mail/rules/{id}'),
-      deleteRule: api('DELETE', '/api/mail/rules/{id}')
+      deleteRule: api('DELETE', '/api/mail/rules/{id}'),
+      validateTemplate: api('POST', '/api/mail/templates/validate')
     };
   }
   return _mail;

@@ -35,8 +35,8 @@ func TestPromptExamplesExtract(t *testing.T) {
 		spec := TemplateSpec{
 			Name: "prompt example",
 			Patterns: TemplatePatterns{
-				Amount: e.amount, Debit: e.debit, Credit: e.credit,
-				Account: e.account, Merchant: e.merchant, Date: e.date,
+				Amount: PatternList{e.amount}, Debit: PatternList{e.debit}, Credit: PatternList{e.credit},
+				Account: PatternList{e.account}, Merchant: PatternList{e.merchant}, Date: PatternList{e.date},
 			},
 		}
 		tpl, err := CompileTemplate(spec)

@@ -49,29 +49,75 @@ type MailMessage struct {
 	TransactionID *string `json:"transactionId"`
 }
 
+// MailTemplatePatterns is a manual extraction template: each field holds one or
+// more RE2 patterns tried in order, and the first that matches wins.
+type MailTemplatePatterns struct {
+	Amount   []string `json:"amount"`
+	Debit    []string `json:"debit,omitempty"`
+	Credit   []string `json:"credit,omitempty"`
+	Account  []string `json:"account,omitempty"`
+	Merchant []string `json:"merchant,omitempty"`
+	Date     []string `json:"date"`
+}
+
+// ReqMailTemplateValidate tests template patterns against a pasted sample mail.
+type ReqMailTemplateValidate struct {
+	Subject  string               `json:"subject"`
+	Body     string               `json:"body"`
+	Patterns MailTemplatePatterns `json:"patterns"`
+}
+
+// MailTemplatePatternCheck is the result of one pattern against the sample.
+type MailTemplatePatternCheck struct {
+	Pattern string `json:"pattern"`
+	Matched bool   `json:"matched"`
+	Value   string `json:"value,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// MailTemplateFieldCheck groups the pattern results for one field.
+type MailTemplateFieldCheck struct {
+	Field    string                     `json:"field"`
+	Patterns []MailTemplatePatternCheck `json:"patterns"`
+}
+
+// MailTemplateValidation is the editor's preview of one extraction.
+type MailTemplateValidation struct {
+	Fields    []MailTemplateFieldCheck `json:"fields"`
+	Amount    float64                  `json:"amount"`
+	Direction string                   `json:"direction,omitempty"`
+	Account   string                   `json:"account,omitempty"`
+	Merchant  string                   `json:"merchant,omitempty"`
+	Date      string                   `json:"date,omitempty"`
+	Complete  bool                     `json:"complete"`
+	Reason    string                   `json:"reason,omitempty"`
+}
+
 // MailRule is a disposition rule.
 type MailRule struct {
-	ID              string   `json:"id"`
-	Position        int64    `json:"position"`
-	Enabled         bool     `json:"enabled"`
-	FromPattern     string   `json:"fromPattern"`
-	SubjectContains string   `json:"subjectContains"`
-	BodyContains    string   `json:"bodyContains"`
-	Action          string   `json:"action"`
-	AccountID       *string  `json:"accountId"`
-	CategoryIDs     []string `json:"categoryIds"`
+	ID              string                `json:"id"`
+	Position        int64                 `json:"position"`
+	Enabled         bool                  `json:"enabled"`
+	FromPattern     string                `json:"fromPattern"`
+	SubjectContains string                `json:"subjectContains"`
+	BodyContains    string                `json:"bodyContains"`
+	Action          string                `json:"action"`
+	AccountID       *string               `json:"accountId"`
+	CategoryIDs     []string              `json:"categoryIds"`
+	Template        *MailTemplatePatterns `json:"template,omitempty"`
 }
 
 // ReqMailRule is the create/update rule request.
 type ReqMailRule struct {
-	Position        int64    `json:"position"`
-	Enabled         *bool    `json:"enabled"`
-	FromPattern     string   `json:"fromPattern"`
-	SubjectContains string   `json:"subjectContains"`
-	BodyContains    string   `json:"bodyContains"`
-	Action          string   `json:"action"`
-	AccountID       *string  `json:"accountId"`
-	CategoryIDs     []string `json:"categoryIds"`
+	Position        int64                 `json:"position"`
+	Enabled         *bool                 `json:"enabled"`
+	FromPattern     string                `json:"fromPattern"`
+	SubjectContains string                `json:"subjectContains"`
+	BodyContains    string                `json:"bodyContains"`
+	Action          string                `json:"action"`
+	AccountID       *string               `json:"accountId"`
+	CategoryIDs     []string              `json:"categoryIds"`
+	Template        *MailTemplatePatterns `json:"template,omitempty"`
 }
 
 // ReqMailAction is the approve/reject batch request.

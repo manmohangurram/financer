@@ -550,3 +550,93 @@ func TestActBlockedWhileAIParseRuns(t *testing.T) {
 		t.Fatalf("decision after the job failed: %v", err)
 	}
 }
+
+func TestRuleManualTemplateRoundTrip(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+
+	template := &model.MailTemplatePatterns{
+		Amount: []string{`Rs\.?\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)`},
+		Debit:  []string{`(?i)\bdebited\b`},
+		Date:   []string{`(?i)\bon\s+(?P<date>\d{2}-\d{2}-\d{2})`},
+	}
+	rule, err := e.svc.CreateRule(e.uid, model.ReqMailRule{
+		FromPattern: "alerts@hdfcbank.net", Action: "REVIEW", Template: template,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rule.Template == nil || len(rule.Template.Amount) != 1 || rule.Template.Amount[0] != template.Amount[0] {
+		t.Fatalf("rule template = %+v", rule.Template)
+	}
+
+	rules, err := e.svc.Rules(e.uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 1 || rules[0].Template == nil || len(rules[0].Template.Date) != 1 {
+		t.Fatalf("rules = %+v", rules)
+	}
+
+	// The editor preview extracts the sample and reports complete.
+	check, err := e.svc.ValidateTemplate(e.uid, model.ReqMailTemplateValidate{
+		Body:     "Rs.2050.00 is debited from your account ending 7713 on 12-11-26.",
+		Patterns: *rule.Template,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !check.Complete || check.Amount != 2050 || check.Date != "2026-11-12" {
+		t.Fatalf("validation = %+v", check)
+	}
+	if len(check.Fields) == 0 || len(check.Fields[0].Patterns) != 1 || !check.Fields[0].Patterns[0].Matched {
+		t.Fatalf("field checks = %+v", check.Fields)
+	}
+
+	// Saving the rule without a template removes it.
+	if err := e.svc.UpdateRule(e.uid, rule.ID, model.ReqMailRule{
+		FromPattern: "alerts@hdfcbank.net", Action: "REVIEW",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rules, err = e.svc.Rules(e.uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 1 || rules[0].Template != nil {
+		t.Fatalf("template should be removed: %+v", rules[0].Template)
+	}
+
+	// A template without a sender is rejected before anything is saved.
+	if _, err := e.svc.CreateRule(e.uid, model.ReqMailRule{
+		SubjectContains: "alert", Action: "REVIEW", Template: template,
+	}); err == nil {
+		t.Fatal("a template without a From condition must fail")
+	}
+}
+
+func TestDeleteRuleRemovesManualTemplate(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	rule, err := e.svc.CreateRule(e.uid, model.ReqMailRule{
+		FromPattern: "alerts@bank.com", Action: "REVIEW",
+		Template: &model.MailTemplatePatterns{
+			Amount: []string{`INR\s*(?P<amount>[\d,]+)`},
+			Debit:  []string{`(?i)\bdebited\b`},
+			Date:   []string{`(?P<date>\d{2}/\d{2}/\d{4})`},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.svc.DeleteRule(e.uid, rule.ID); err != nil {
+		t.Fatal(err)
+	}
+	row, err := e.mailRepo.GetManualTemplate(e.uid, "alerts@bank.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row != nil {
+		t.Fatalf("manual template survived rule delete: %+v", row)
+	}
+}

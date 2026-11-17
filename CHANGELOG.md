@@ -6,6 +6,25 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Added
+
+- **Manual extraction templates, inside the mail rule.** A rule can carry a template
+  keyed by its `From contains` sender: one or more regexes per field (amount, debit,
+  credit, account, merchant, date), tried top to bottom — the first pattern that yields
+  a value wins. Manual templates outrank learned/AI ones and AI never overwrites them.
+- **Test against a mail** in the editor: paste a real body, see each pattern’s captured
+  value or error, plus the overall extraction (amount, direction, account, merchant,
+  date) before saving. Backed by `POST /api/mail/templates/validate`.
+- Templates are saved with the rule and re-applied to queued mail; deleting the rule
+  removes its template.
+
+### Changed
+
+- A template without an `account` pattern is no longer flagged “account differs from
+  regex hint”; the deterministic hint only cross-checks fields the template declares.
+
 ## [0.10.8] — 2026-11-17
 
 ### Changed

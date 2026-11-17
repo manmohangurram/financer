@@ -239,6 +239,21 @@ func (a *API) updateMailRule(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (a *API) validateMailTemplate(c *gin.Context) {
+	uid := c.GetString(userIDKey)
+	var in model.ReqMailTemplateValidate
+	if err := c.ShouldBindJSON(&in); err != nil {
+		writeError(c, errors.BadRequest(err.Error()))
+		return
+	}
+	out, err := a.mailSvc.ValidateTemplate(uid, in)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
 func (a *API) deleteMailRule(c *gin.Context) {
 	uid := c.GetString(userIDKey)
 	if err := a.mailSvc.DeleteRule(uid, c.Param("id")); err != nil {

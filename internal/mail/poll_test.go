@@ -73,10 +73,10 @@ func debitTemplate(sender string) TemplateSpec {
 			SubjectContains: "debited",
 		},
 		Patterns: TemplatePatterns{
-			Amount:  `INR\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)`,
-			Debit:   `(?i)\bdebited\b`,
-			Account: `(?i)(?:a/c|account|card)[^.\n]{0,24}?(?:[Xx*]{2,})?(?P<account>\d{4})\b`,
-			Date:    `(?P<date>\d{1,2}\s+[A-Z]{3}\s+\d{4})`,
+			Amount:  PatternList{`INR\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)`},
+			Debit:   PatternList{`(?i)\bdebited\b`},
+			Account: PatternList{`(?i)(?:a/c|account|card)[^.\n]{0,24}?(?:[Xx*]{2,})?(?P<account>\d{4})\b`},
+			Date:    PatternList{`(?P<date>\d{1,2}\s+[A-Z]{3}\s+\d{4})`},
 		},
 	}
 }
@@ -330,5 +330,70 @@ func TestFromPatterns(t *testing.T) {
 	rules = append(rules, &repo.MailRuleRow{Enabled: true, SubjectContains: "alert", Action: repo.MailRuleActionReview})
 	if _, ok := fromPatterns(rules); ok {
 		t.Fatal("a rule without a from pattern must disable the IMAP pre-filter")
+	}
+}
+
+func TestManualTemplateOutranksLearnedAndIsNeverOverwritten(t *testing.T) {
+	mailRepo, account, uid, cleanup := newMailEnv(t)
+	defer cleanup()
+	seedReviewRule(t, mailRepo, uid, "alerts@bank.com")
+
+	// A learned template for the exact sender that would extract the wrong amount.
+	wrong := sampleTemplate()
+	wrong.Name = "learned"
+	wrong.Patterns.Amount = PatternList{`(?i)\bINR\s*(?P<amount>9+)`}
+	seedTemplate(t, mailRepo, uid, "alerts@bank.com", wrong, repo.MailTemplateActive, 5)
+
+	// A manual template keyed by the rule's sender pattern, not the full address.
+	manual := sampleTemplate()
+	manual.Name = "manual"
+	manual.Patterns.Amount = PatternList{`(?i)\bINR\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)`}
+	guards, _ := json.Marshal(manual.Guards)
+	patterns, _ := json.Marshal(manual.Patterns)
+	if _, err := mailRepo.UpsertManualTemplate(uid, &repo.MailTemplateRow{
+		Sender: "bank.com", Name: manual.Name,
+		GuardsJSON: string(guards), PatternsJSON: string(patterns),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	src := &fakeSource{
+		headers: []MailHeader{header(1, "<m1>", "alerts@bank.com")},
+		bodies:  map[uint32]string{1: "INR 1,000 debited at SHOP on 12/09/2026 from a/c XX1234"},
+	}
+	if _, err := PollAccount(context.Background(), src, mailRepo, account, nil, 3); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := mailRepo.ListMessages(uid, nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ParsedJSON == nil {
+		t.Fatalf("rows = %+v", rows)
+	}
+	var parsed Extraction
+	if err := json.Unmarshal([]byte(*rows[0].ParsedJSON), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Amount != 1000 {
+		t.Fatalf("manual template did not win: amount = %v", parsed.Amount)
+	}
+
+	// AI storage must return the manual row instead of creating another template.
+	stored, err := storeTemplate(mailRepo, uid, "alerts@bank.com", sampleTemplate(), 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored == nil || stored.Status != repo.MailTemplateManual {
+		t.Fatalf("AI must not overwrite a manual template: %+v", stored)
+	}
+	all, err := mailRepo.ListTemplates(uid, "alerts@bank.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range all {
+		if row.Status != repo.MailTemplateManual && row.Name == sampleTemplate().Name {
+			t.Fatalf("AI stored a competing template: %+v", row)
+		}
 	}
 }
