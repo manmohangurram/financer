@@ -207,11 +207,39 @@ func paths() map[string]any {
 			"post": op("mail", "Link a mailbox", "ReqMailAccount", okResp("Mailbox", "MailAccount")),
 		},
 		"/api/mail/accounts/{id}": map[string]any{
+			"put": map[string]any{
+				"tags": []any{"mail"}, "summary": "Edit a mailbox (empty password keeps the stored one)",
+				"parameters": []any{idParam()},
+				"requestBody": map[string]any{"required": true, "content": map[string]any{
+					"application/json": map[string]any{"schema": ref("ReqUpdateMailAccount")}}},
+				"responses": map[string]any{"200": okResp("Mailbox", "MailAccount"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
 			"delete": map[string]any{
 				"tags": []any{"mail"}, "summary": "Remove a mailbox",
 				"parameters": []any{idParam()},
 				"responses":  map[string]any{"204": noContent("Removed"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
 			},
+		},
+		"/api/mail/poll": map[string]any{
+			"post": map[string]any{
+				"tags": []any{"mail"}, "summary": "Start an asynchronous poll for the user's mailboxes",
+				"parameters": []any{
+					map[string]any{"name": "force", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"1", "true"}}},
+				},
+				"responses": map[string]any{"202": okResp("Poll status", "PollStatus"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/me/llm": map[string]any{
+			"get": op("settings", "Read per-user Inbox AI settings (API key never returned)", "", okResp("Settings", "LLMSettings")),
+			"put": map[string]any{
+				"tags": []any{"settings"}, "summary": "Update per-user Inbox AI settings",
+				"requestBody": map[string]any{"required": true, "content": map[string]any{
+					"application/json": map[string]any{"schema": ref("ReqLLMSettings")}}},
+				"responses": map[string]any{"200": okResp("Settings", "LLMSettings"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
+			},
+		},
+		"/api/me/llm/test": map[string]any{
+			"post": op("settings", "Test the configured LiteLLM endpoint", "", okResp("Result", "LLMTestResult")),
 		},
 		"/api/mail/accounts/{id}/poll": map[string]any{
 			"post": map[string]any{
@@ -396,18 +424,48 @@ func components() map[string]any {
 		"MailAccount": obj(map[string]any{
 			"id": str(), "label": str(), "imapHost": str(),
 			"imapPort": map[string]any{"type": "integer"}, "username": str(),
-			"senderAllowlist": map[string]any{"type": "array", "items": str()},
-			"enabled":         map[string]any{"type": "boolean"},
-			"lastPolledAt":    nullable(str()), "lastError": str(),
+			"enabled":      map[string]any{"type": "boolean"},
+			"lastPolledAt": nullable(str()), "lastError": str(),
 		}),
 		"ReqMailAccount": obj(map[string]any{
 			"label": str(), "imapHost": str(), "imapPort": map[string]any{"type": "integer"},
 			"username": str(), "password": str(),
-			"senderAllowlist": map[string]any{"type": "array", "items": str()},
+		}),
+		"ReqUpdateMailAccount": obj(map[string]any{
+			"label": str(), "imapHost": str(), "imapPort": map[string]any{"type": "integer"},
+			"username": str(), "password": str(), "enabled": map[string]any{"type": "boolean"},
+		}),
+		"PollStatus": obj(map[string]any{
+			"status": map[string]any{"type": "string", "enum": []any{"started", "throttled"}},
+		}),
+		"LLMSettings": obj(map[string]any{
+			"baseUrl": str(), "model": str(),
+			"timeoutSecs":             map[string]any{"type": "integer"},
+			"enabled":                 map[string]any{"type": "boolean"},
+			"apiKeySet":               map[string]any{"type": "boolean"},
+			"minSamples":              map[string]any{"type": "integer"},
+			"failureThreshold":        map[string]any{"type": "integer"},
+			"cooldownMinutes":         map[string]any{"type": "integer"},
+			"autoPollThrottleMinutes": map[string]any{"type": "integer"},
+			"updatedAt":               str(),
+		}),
+		"ReqLLMSettings": obj(map[string]any{
+			"baseUrl": str(), "model": str(),
+			"apiKey":                  map[string]any{"type": "string", "nullable": true},
+			"timeoutSecs":             map[string]any{"type": "integer"},
+			"enabled":                 map[string]any{"type": "boolean"},
+			"minSamples":              map[string]any{"type": "integer"},
+			"failureThreshold":        map[string]any{"type": "integer"},
+			"cooldownMinutes":         map[string]any{"type": "integer"},
+			"autoPollThrottleMinutes": map[string]any{"type": "integer"},
+		}),
+		"LLMTestResult": obj(map[string]any{
+			"ok": map[string]any{"type": "boolean"}, "message": str(),
 		}),
 		"ListMailAccounts": obj(map[string]any{"accounts": ref("[]MailAccount")}),
 		"MailMessage": obj(map[string]any{
-			"id": str(), "messageId": str(), "fromAddr": str(), "subject": str(),
+			"id": str(), "messageId": str(), "mailAccountId": str(),
+			"fromAddr": str(), "subject": str(),
 			"receivedAt": nullable(str()), "status": str(), "parsedJson": nullable(str()),
 			"confidence": map[string]any{"type": "number"}, "rawText": nullable(str()),
 			"transactionId": nullable(str()),
@@ -434,6 +492,10 @@ func components() map[string]any {
 				"id": str(), "action": map[string]any{"type": "string", "enum": []any{"APPROVE", "REJECT"}},
 				"accountId":   nullable(str()),
 				"categoryIds": map[string]any{"type": "array", "items": str()},
+				"name":        nullable(str()),
+				"amount":      map[string]any{"type": "number", "nullable": true},
+				"type":        nullable(map[string]any{"type": "string", "enum": []any{"DEBIT", "CREDIT"}}),
+				"occurredAt":  nullable(str()),
 			})},
 		}),
 		"MailActionOutcome": obj(map[string]any{

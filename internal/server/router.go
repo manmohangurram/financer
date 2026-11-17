@@ -24,6 +24,7 @@ import (
 	"github.com/mohan9182/financer/internal/categoryservice"
 	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/keyservice"
+	"github.com/mohan9182/financer/internal/llmsettings"
 	"github.com/mohan9182/financer/internal/mailservice"
 	mcpserver "github.com/mohan9182/financer/internal/mcp"
 	"github.com/mohan9182/financer/internal/model"
@@ -47,6 +48,7 @@ type Deps struct {
 	TransferRule  *ruleservice.TransferRuleService
 	Mail          *mailservice.Service
 	Keys          *keyservice.Service
+	LLM           *llmsettings.Service
 	JWTSecret     string
 	StaticDir     string
 	AvatarDir     string
@@ -65,6 +67,7 @@ type API struct {
 	transferRule  *ruleservice.TransferRuleService
 	mailSvc       *mailservice.Service
 	keySvc        *keyservice.Service
+	llmSvc        *llmsettings.Service
 	mcpServices   mcpserver.Services
 	jwtSecret     string
 	staticDir     string
@@ -85,6 +88,7 @@ func New(d Deps) *API {
 		transferRule: d.TransferRule,
 		mailSvc:      d.Mail,
 		keySvc:       d.Keys,
+		llmSvc:       d.LLM,
 		mcpServices: mcpserver.Services{
 			Accounts:      d.Account,
 			Transactions:  d.Transaction,
@@ -129,6 +133,10 @@ func (a *API) Handler() *gin.Engine {
 		api.POST("/me/keys", a.createKey)
 		api.DELETE("/me/keys/:id", a.deleteKey)
 
+		api.GET("/me/llm", a.getLLMSettings)
+		api.PUT("/me/llm", a.updateLLMSettings)
+		api.POST("/me/llm/test", a.testLLMSettings)
+
 		api.GET("/accounts", a.listAccounts)
 		api.POST("/accounts", a.createAccount)
 		api.PUT("/accounts/:id", a.updateAccount)
@@ -163,7 +171,9 @@ func (a *API) Handler() *gin.Engine {
 			mail.GET("/accounts", a.listMailAccounts)
 			mail.POST("/accounts", a.createMailAccount)
 			mail.DELETE("/accounts/:id", a.deleteMailAccount)
+			mail.PUT("/accounts/:id", a.updateMailAccount)
 			mail.POST("/accounts/:id/poll", a.pollMailAccount)
+			mail.POST("/poll", a.pollMailUser)
 			mail.GET("/messages", a.listMailMessages)
 			mail.POST("/messages", a.mailAct)
 			mail.GET("/rules", a.listMailRules)
@@ -339,6 +349,8 @@ func (a *API) authLogin(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	// Freshness on login; never blocks the response.
+	a.mailSvc.PollUserAsync(out.UserID, false)
 	c.JSON(http.StatusOK, out)
 }
 

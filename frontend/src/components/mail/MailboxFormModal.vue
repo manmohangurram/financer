@@ -1,38 +1,38 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppModal from '@/components/AppModal.vue';
 import AppInput from '@/components/AppInput.vue';
 import { mail } from '@/lib/api/client';
 
+interface Mailbox {
+  id: string;
+  label: string;
+  imapHost: string;
+  imapPort: number;
+  username: string;
+  enabled: boolean;
+}
+
+const props = defineProps<{ account?: Mailbox | null }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 
+const editing = computed(() => !!props.account);
 const form = ref({
-  label: '',
-  imapHost: '',
-  imapPort: '993',
-  username: '',
+  label: props.account?.label || '',
+  imapHost: props.account?.imapHost || '',
+  imapPort: String(props.account?.imapPort || 993),
+  username: props.account?.username || '',
   password: '',
-  senders: ''
+  enabled: props.account?.enabled ?? true
 });
 const saving = ref(false);
 const error = ref('');
-
-function senders(): string[] {
-  return form.value.senders
-    .split(/[\s,;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 
 function validate(): string {
   if (!form.value.imapHost.trim()) return 'IMAP host is required';
   if (form.value.imapPort.trim() !== '993') return 'Only port 993 (implicit TLS) is supported';
   if (!form.value.username.trim()) return 'Username is required';
-  if (!form.value.password) return 'An app password is required';
-  const list = senders();
-  if (!list.length) return 'List at least one sender address';
-  const bad = list.find((s) => !s.includes('@'));
-  if (bad) return `"${bad}" is not an email address`;
+  if (!editing.value && !form.value.password) return 'An app password is required';
   return '';
 }
 
@@ -41,25 +41,36 @@ async function submit() {
   if (error.value) return;
   saving.value = true;
   try {
-    await mail().createAccount({
-      label: form.value.label.trim(),
-      imapHost: form.value.imapHost.trim(),
-      imapPort: 993,
-      username: form.value.username.trim(),
-      password: form.value.password,
-      senderAllowlist: senders()
-    });
+    if (editing.value && props.account) {
+      await mail().updateAccount({
+        id: props.account.id,
+        label: form.value.label.trim(),
+        imapHost: form.value.imapHost.trim(),
+        imapPort: 993,
+        username: form.value.username.trim(),
+        password: form.value.password,
+        enabled: form.value.enabled
+      });
+    } else {
+      await mail().createAccount({
+        label: form.value.label.trim(),
+        imapHost: form.value.imapHost.trim(),
+        imapPort: 993,
+        username: form.value.username.trim(),
+        password: form.value.password
+      });
+    }
     emit('saved');
     emit('close');
   } catch (e: any) {
-    error.value = e?.message || 'Could not link the mailbox';
+    error.value = e?.message || (editing.value ? 'Could not update the mailbox' : 'Could not link the mailbox');
   }
   saving.value = false;
 }
 </script>
 
 <template>
-  <AppModal title="Link a mailbox" @close="emit('close')">
+  <AppModal :title="editing ? 'Edit mailbox' : 'Link a mailbox'" @close="emit('close')">
     <form class="flex flex-col gap-3.5 px-5 py-4" @submit.prevent="submit">
       <p v-if="error" class="rounded-control border border-debit/30 bg-debit/5 px-3 py-2 text-[12.5px] text-debit">{{ error }}</p>
 
@@ -74,23 +85,22 @@ async function submit() {
       />
       <AppInput
         v-model="form.password"
-        label="App password"
+        :label="editing ? 'New app password (optional)' : 'App password'"
         type="password"
-        autocomplete="current-password"
-        hint="Gmail and others require an app password, not your account password"
-        required
+        autocomplete="new-password"
+        :hint="editing ? 'Leave empty to keep the saved password' : 'Gmail and others require an app password, not your account password'"
+        :required="!editing"
       />
-      <AppInput
-        v-model="form.senders"
-        label="Alert senders"
-        placeholder="alerts@hdfcbank.net, alerts@icicibank.com"
-        hint="Only these senders are fetched. Comma or space separated"
-        required
-      />
+      <label v-if="editing" class="flex items-center gap-2 text-[13px] text-ink">
+        <input v-model="form.enabled" type="checkbox" class="h-4 w-4 accent-[var(--accent)]" />
+        Poll this mailbox
+      </label>
 
       <div class="flex justify-end gap-2 pt-1">
         <button type="button" class="ns-quiet" @click="emit('close')">Cancel</button>
-        <button type="submit" class="ns-primary" :disabled="saving">{{ saving ? 'Linking…' : 'Link mailbox' }}</button>
+        <button type="submit" class="ns-primary" :disabled="saving">
+          {{ saving ? 'Saving…' : editing ? 'Save mailbox' : 'Link mailbox' }}
+        </button>
       </div>
     </form>
   </AppModal>

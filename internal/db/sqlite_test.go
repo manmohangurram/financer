@@ -35,8 +35,11 @@ func TestMigrationsApply(t *testing.T) {
 		}
 		versions = append(versions, v)
 	}
-	if len(versions) != 1 || !strings.HasPrefix(versions[0], "000001_initial_schema") {
-		t.Fatalf("applied migrations = %v, want the single baseline", versions)
+	if len(versions) == 0 || !strings.HasPrefix(versions[0], "000001_initial_schema") {
+		t.Fatalf("applied migrations = %v, want the baseline first", versions)
+	}
+	if versions[len(versions)-1] != "000002_mail_templates.up.sql" {
+		t.Fatalf("last migration = %q", versions[len(versions)-1])
 	}
 
 	// The baseline must carry the final columns; a compile/plan check is enough.

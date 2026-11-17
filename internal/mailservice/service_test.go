@@ -3,6 +3,7 @@ package mailservice
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mohan9182/financer/internal/accountservice"
@@ -50,7 +51,7 @@ func setup(t *testing.T) *env {
 	key := testKey
 	svc := New(mails, &key,
 		transactionservice.New(txns, accounts, categories),
-		accountservice.New(accounts))
+		accountservice.New(accounts), nil)
 	return &env{
 		svc: svc, mailRepo: mails, txnRepo: txns, acctRepo: accounts,
 		uid: uid, account: a.ID,
@@ -66,7 +67,6 @@ func seedMessage(t *testing.T, e *env, messageID, hint string) string {
 	acct, err := e.mailRepo.CreateAccount(e.uid, &repo.NewMailAccount{
 		Label: "P", IMAPHost: "imap.x.com", IMAPPort: 993,
 		Username: "a@x.com", SecretEnc: "x",
-		SenderAllowlist: []string{"alerts@bank.com"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -269,13 +269,133 @@ func TestExplicitAccountBypassesHint(t *testing.T) {
 	}
 }
 
+func TestUpdateMailboxPreservesPassword(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	enabled := true
+	created, err := e.svc.Create(e.uid, model.ReqMailAccount{
+		Label: "Old", IMAPHost: "imap.x.com", IMAPPort: 993,
+		Username: "a@x.com", Password: "secret",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := e.mailRepo.ListAccounts(e.uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encBefore := before[0].SecretEnc
+
+	updated, err := e.svc.Update(e.uid, created.ID, model.ReqUpdateMailAccount{
+		Label: "New", IMAPHost: "imap.y.com", IMAPPort: 993,
+		Username: "b@y.com", Password: "", Enabled: &enabled,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Label != "New" || updated.IMAPHost != "imap.y.com" || updated.Username != "b@y.com" {
+		t.Fatalf("updated = %+v", updated)
+	}
+	after, _ := e.mailRepo.ListAccounts(e.uid)
+	if after[0].SecretEnc != encBefore {
+		t.Fatal("empty password must keep the stored secret")
+	}
+
+	if _, err := e.svc.Update(e.uid, created.ID, model.ReqUpdateMailAccount{
+		Label: "New", IMAPHost: "imap.y.com", IMAPPort: 993,
+		Username: "b@y.com", Password: "new-secret", Enabled: &enabled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	changed, _ := e.mailRepo.ListAccounts(e.uid)
+	if changed[0].SecretEnc == encBefore {
+		t.Fatal("a supplied password must replace the stored secret")
+	}
+	if _, err := e.svc.Update(e.uid, "missing", model.ReqUpdateMailAccount{
+		IMAPHost: "imap.y.com", IMAPPort: 993, Username: "b@y.com",
+	}); err == nil {
+		t.Fatal("updating a missing mailbox must fail")
+	}
+}
+
+func TestApproveWithFieldOverrides(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	msgID := seedMessage(t, e, "<override>", "1234")
+
+	name := "CORRECTED SHOP"
+	amount := 123.45
+	typ := "CREDIT"
+	date := "2026-11-17"
+	outcome, err := e.svc.Act(e.uid, []model.MailActionItem{{
+		ID: msgID, Action: "APPROVE", AccountID: &e.account,
+		Name: &name, Amount: &amount, Type: &typ, OccurredAt: &date,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outcome.Succeeded) != 1 {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	rows, err := e.txnRepo.List(e.uid, &repo.TransactionListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows.TotalCount != 1 {
+		t.Fatalf("transactions = %d", rows.TotalCount)
+	}
+	txn := rows.Rows[0].Txn
+	if txn.Name != name || txn.Amount != amount || txn.Type != typ {
+		t.Fatalf("txn = %+v", txn)
+	}
+	if txn.OccurredAt != "2026-11-17T00:00:00Z" && txn.OccurredAt != "2026-11-17 00:00:00 +0000 UTC" {
+		t.Fatalf("occurredAt = %q", txn.OccurredAt)
+	}
+
+	msg, err := e.mailRepo.GetMessage(e.uid, msgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.ApprovedJSON == nil || !strings.Contains(*msg.ApprovedJSON, "CORRECTED SHOP") {
+		t.Fatalf("approved_json = %v", msg.ApprovedJSON)
+	}
+}
+
+func TestPollUserAsyncThrottles(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	disabled := false
+	created, err := e.svc.Create(e.uid, model.ReqMailAccount{
+		Label: "P", IMAPHost: "imap.x.com", IMAPPort: 993,
+		Username: "a@x.com", Password: "secret",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Update(e.uid, created.ID, model.ReqUpdateMailAccount{
+		Label: "P", IMAPHost: "imap.x.com", IMAPPort: 993,
+		Username: "a@x.com", Enabled: &disabled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.svc.PollUserAsync(e.uid, false); got != "started" {
+		t.Fatalf("first poll = %q", got)
+	}
+	if got := e.svc.PollUserAsync(e.uid, false); got != "throttled" {
+		t.Fatalf("second poll = %q", got)
+	}
+	if got := e.svc.PollUserAsync(e.uid, true); got != "started" {
+		t.Fatalf("forced poll = %q", got)
+	}
+}
+
 func TestMailboxValidation(t *testing.T) {
 	e := setup(t)
 	defer e.cleanup()
 
 	base := model.ReqMailAccount{
 		IMAPHost: "imap.gmail.com", IMAPPort: 993, Username: "a@x.com",
-		Password: "secret", SenderAllowlist: []string{"alerts@bank.com"},
+		Password: "secret",
 	}
 	if _, err := e.svc.Create(e.uid, base); err != nil {
 		t.Fatal(err)
@@ -288,8 +408,6 @@ func TestMailboxValidation(t *testing.T) {
 		func(r *model.ReqMailAccount) { r.IMAPPort = 8080 },
 		func(r *model.ReqMailAccount) { r.Username = " " },
 		func(r *model.ReqMailAccount) { r.Password = "" },
-		func(r *model.ReqMailAccount) { r.SenderAllowlist = nil },
-		func(r *model.ReqMailAccount) { r.SenderAllowlist = []string{"not-an-address"} },
 	}
 	for i, mutate := range bad {
 		req := base
@@ -309,7 +427,7 @@ func TestMailboxValidation(t *testing.T) {
 	}
 
 	// Missing secret key is a server error, not a 400.
-	noKey := New(e.mailRepo, nil, nil, nil)
+	noKey := New(e.mailRepo, nil, nil, nil, nil)
 	if _, err := noKey.Create(e.uid, base); err == nil {
 		t.Fatal("missing FINANCER_SECRET_KEY must be refused")
 	}

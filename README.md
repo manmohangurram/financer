@@ -144,22 +144,24 @@ The server reads bank-statement mail over IMAP and turns it into transactions.
    ```
 
    Without it the mailbox endpoints refuse to store credentials (`FINANCER_SECRET_KEY is not set`).
-2. In the app: **Inbox → Link mailbox** — IMAP host, port, username, password, and the senders to read.
+2. In the app: **Inbox → Add mailbox** — IMAP host, port, username and an app password.
    - **Port 993 only** (implicit TLS). STARTTLS on 143 is not supported yet and is rejected with a clear message.
    - Use an **app password** from the provider, not the account password.
-   - The **sender allowlist** is required; mail from anyone else is never fetched.
+   - No sender allowlist: every recent mail is scanned and your **mail rules** decide what is ignored, reviewed or auto-created.
    - Private/LAN hosts are allowed, cloud metadata addresses are not.
-3. The poll runs in the background every `FINANCER_MAIL_POLL_SECS` (default 300s, minimum 30), and on demand from the Inbox.
-4. Disposition rules decide what happens to each match, first rule wins:
+   - Mailboxes can be edited (host, username, password, polling on/off) or removed later.
+3. In **Settings → Inbox AI**, configure your self-hosted LiteLLM endpoint (base URL, model alias, API key) and the template thresholds. Emails are parsed by stored regex templates; when parsing fails, Financer asks the model to **generate a template** from up to 3 samples — the model is not called per email.
+4. Polling runs in the background every `FINANCER_MAIL_POLL_SECS` (default 300s, minimum 30), and asynchronously on login and when the Inbox opens (throttled, default 5 minutes). “Poll now” forces it.
+5. Disposition rules decide what happens to each parsed match, first rule wins:
 
    | Disposition | Effect |
    |---|---|
-   | `AUTO` | The poll creates the transaction itself and the row is marked `AUTO` |
+   | `AUTO` | Creates the transaction only when the template is active, extraction is complete, and one account matches the last 4 digits |
    | `REVIEW` | The row waits in the Inbox for approve / reject |
    | `IGNORE` | Seen, never surfaced |
 
-   A row that needs a decision it cannot make (ambiguous account, nothing extracted) lands in `PENDING` with the reason rather than guessing.
-5. Approving creates the transaction through the normal service path, so the rule engine, balance recalculation and category handling all apply. The account is picked from the last 4 digits in the mail, or chosen by you when they do not resolve.
+   Provisional templates, ambiguous accounts, missing fields and regex/LLM disagreements land in `PENDING`/`UNPARSED` rather than guessing.
+6. Approving creates the transaction through the normal service path; you can correct name, amount, type, date, account and categories first, and the corrected values are kept as evidence for future template repair.
 
 **These routes require HTTPS** (loopback exempt): the mailbox password travels in the request body. Behind a reverse proxy, forward `X-Forwarded-Proto: https` — see [Reverse proxy & HTTPS](#reverse-proxy--https).
 

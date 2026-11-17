@@ -14,9 +14,8 @@ import (
 
 // IMAPSource reads a mailbox over implicit TLS (port 993).
 type IMAPSource struct {
-	mu      sync.Mutex
-	client  *imapclient.Client
-	senders []string
+	mu     sync.Mutex
+	client *imapclient.Client
 }
 
 // ConnectIMAP opens an IMAP session for the account.
@@ -36,7 +35,7 @@ func ConnectIMAP(account *repo.MailAccountRow, password string) (*IMAPSource, er
 		_ = c.Close()
 		return nil, apierrors.BadGateway(fmt.Sprintf("imap SELECT INBOX failed: %v", err))
 	}
-	return &IMAPSource{client: c, senders: account.SenderAllowlist}, nil
+	return &IMAPSource{client: c}, nil
 }
 
 // Close logs out and closes the session.
@@ -52,11 +51,10 @@ func (s *IMAPSource) Close() error {
 	return err
 }
 
-// Headers returns the allowlisted window's envelopes, unioned across senders.
-func (s *IMAPSource) Headers(_ []string, sinceDays int) ([]MailHeader, error) {
-	if len(s.senders) == 0 {
-		return nil, nil
-	}
+// Headers returns the recent INBOX envelopes (all senders; rules decide what
+// matters). The window is bounded to avoid pulling an entire mailbox.
+func (s *IMAPSource) Headers(sinceDays int) ([]MailHeader, error) {
+	const maxMessages = 200
 	since := time.Now().UTC().AddDate(0, 0, -sinceDays)
 
 	s.mu.Lock()
@@ -65,25 +63,20 @@ func (s *IMAPSource) Headers(_ []string, sinceDays int) ([]MailHeader, error) {
 		return nil, apierrors.BadGateway("imap session closed")
 	}
 
-	seen := make(map[imap.UID]bool)
-	var uids []imap.UID
-	for _, sender := range s.senders {
-		data, err := s.client.UIDSearch(&imap.SearchCriteria{
-			Header: []imap.SearchCriteriaHeaderField{{Key: "From", Value: sender}},
-			Since:  since,
-		}, nil).Wait()
-		if err != nil {
-			return nil, apierrors.BadGateway(fmt.Sprintf("imap SEARCH failed: %v", err))
-		}
-		for _, uid := range data.AllUIDs() {
-			if !seen[uid] {
-				seen[uid] = true
-				uids = append(uids, imap.UID(uid))
-			}
-		}
+	data, err := s.client.UIDSearch(&imap.SearchCriteria{Since: since}, nil).Wait()
+	if err != nil {
+		return nil, apierrors.BadGateway(fmt.Sprintf("imap SEARCH failed: %v", err))
 	}
-	if len(uids) == 0 {
+	all := data.AllUIDs()
+	if len(all) == 0 {
 		return nil, nil
+	}
+	if len(all) > maxMessages {
+		all = all[len(all)-maxMessages:]
+	}
+	uids := make([]imap.UID, 0, len(all))
+	for _, uid := range all {
+		uids = append(uids, imap.UID(uid))
 	}
 
 	msgs, err := s.client.Fetch(imap.UIDSetNum(uids...), &imap.FetchOptions{

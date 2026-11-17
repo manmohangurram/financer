@@ -10,6 +10,7 @@ Financer: a personal finance tracker. Go backend (Gin, plain HTTP/JSON, pure-Go 
 - **Frontend structure** — [architecture/FRONTEND_STRUCTURE.md](architecture/FRONTEND_STRUCTURE.md)
 - **Naming conventions** — [architecture/NAMING_CONVENTIONS.md](architecture/NAMING_CONVENTIONS.md)
 - **Conventions & gotchas** (Tailwind/daisyUI, migrations, env vars, commits, PR format) — [architecture/CONVENTIONS_GOTCHAS.md](architecture/CONVENTIONS_GOTCHAS.md)
+- **Feature specs, plans & tasks** — one folder per feature under [docs/specs/](docs/specs/) (`SPEC.md`, `plan.md`, `todo.md`)
 - **Deployment** (frontend↔backend linking, the arm64 image build, GitHub Actions release flow) — [DEPLOY.md](DEPLOY.md)
 
 ## Quick Reference
@@ -25,3 +26,4 @@ Financer: a personal finance tracker. Go backend (Gin, plain HTTP/JSON, pure-Go 
 - **Never force-push.** No `gh stack rebase`, no `--force`/`--force-with-lease`. Update a branch by merging `main` into it. `gh stack submit` only for creating PRs on branches that have not been pushed yet.
 - **After creating a branch, refresh the code graph before reading code:** run `graphify . --update --code-only` if it is installed; otherwise refresh the `codebase-memory-mcp` project index (`index_repository`) and use its graph tools. Locate code with `search_graph`/`rg -n` rather than reading whole files; use `read` with `offset`/`limit` (or a ranged equivalent) for just the enclosing construct. Never `read` without a range unless the file is under ~120 lines.
 - **Gates before a PR:** `gofmt -l cmd internal migrate.go` (must print nothing), `go vet ./...`, `go build ./...`, `go test ./...`, `govulncheck ./...`, plus frontend `vue-tsc` / `npm test` / `npm run build` when the UI changed.
+- **Specs, plans and tasks live together.** Any feature that spans more than a trivial fix gets `docs/specs/<feature>/SPEC.md`, `plan.md` and `todo.md` (see [docs/specs/README.md](docs/specs/README.md)). Write the spec before code, get it approved, then plan and implement from it. Update the spec first when a decision changes, keep the todo checkboxes current, and commit all three with the feature branch.

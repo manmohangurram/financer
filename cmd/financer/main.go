@@ -14,6 +14,7 @@ import (
 	"github.com/mohan9182/financer/internal/config"
 	"github.com/mohan9182/financer/internal/db"
 	"github.com/mohan9182/financer/internal/keyservice"
+	"github.com/mohan9182/financer/internal/llmsettings"
 	"github.com/mohan9182/financer/internal/logging"
 	"github.com/mohan9182/financer/internal/mailservice"
 	"github.com/mohan9182/financer/internal/repo/sqlite"
@@ -89,6 +90,8 @@ func main() {
 	ruleRepo := sqlite.NewRuleRepo(dbs.Write)
 	mailRepo := sqlite.NewMailRepo(dbs.Write)
 	keyRepo := sqlite.NewUserKeyRepo(dbs.Write)
+	llmRepo := sqlite.NewLLMSettingsRepo(dbs.Write)
+	llmSvc := llmsettings.New(llmRepo, cfg.Server.SecretKey)
 
 	authSvc := authservice.New(userRepo, jwt)
 	userSvc := userservice.New(userRepo, jwt, avatarDir)
@@ -102,7 +105,7 @@ func main() {
 		WithRule(ruleSvc).
 		WithTransferRule(transferRuleSvc)
 
-	mailSvc := mailservice.New(mailRepo, cfg.Server.SecretKey, txnSvc, accountSvc)
+	mailSvc := mailservice.New(mailRepo, cfg.Server.SecretKey, txnSvc, accountSvc, llmSvc)
 	mailSvc.Spawn(stdtime.Duration(cfg.Server.MailPollSecs) * stdtime.Second)
 	keySvc := keyservice.New(keyRepo)
 
@@ -110,6 +113,7 @@ func main() {
 		Auth: authSvc, User: userSvc, Account: accountSvc, Category: categorySvc,
 		Transaction: txnSvc, Transfer: transferSvc, Rule: ruleSvc,
 		TransferRule: transferRuleSvc, Mail: mailSvc, Keys: keySvc,
+		LLM:       llmSvc,
 		JWTSecret: cfg.Server.JWTSecret, StaticDir: cfg.Server.StaticDir,
 		AvatarDir: avatarDir, DomainURL: cfg.Server.DomainURL,
 		AllowInsecure: cfg.Server.AllowInsecureHTTP,

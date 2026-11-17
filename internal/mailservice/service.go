@@ -1,20 +1,23 @@
-// Package mailservice links IMAP mailboxes, polls them, and turns fetched bank
-// alerts into transactions. The poll is stateless: it reads the allowlisted
-// window each tick and relies on Message-ID for idempotency.
+// Package mailservice links IMAP mailboxes, polls them, learns parsing
+// templates with the user's LLM, and turns reviewed extractions into
+// transactions.
 package mailservice
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/mohan9182/financer/internal/accountservice"
 	"github.com/mohan9182/financer/internal/errors"
+	"github.com/mohan9182/financer/internal/llmsettings"
 	"github.com/mohan9182/financer/internal/mail"
 	"github.com/mohan9182/financer/internal/model"
 	"github.com/mohan9182/financer/internal/repo"
@@ -26,13 +29,22 @@ type Service struct {
 	secret   *string
 	txns     *transactionservice.Service
 	accounts *accountservice.Service
+	llm      *llmsettings.Service
+
+	throttleMu sync.Mutex
+	lastPoll   map[string]time.Time
+	lastLearn  map[string]time.Time
 }
 
-func New(r repo.MailRepo, secret *string, txns *transactionservice.Service, accounts *accountservice.Service) *Service {
-	return &Service{repo: r, secret: secret, txns: txns, accounts: accounts}
+func New(r repo.MailRepo, secret *string, txns *transactionservice.Service, accounts *accountservice.Service, llm *llmsettings.Service) *Service {
+	return &Service{
+		repo: r, secret: secret, txns: txns, accounts: accounts, llm: llm,
+		lastPoll: map[string]time.Time{}, lastLearn: map[string]time.Time{},
+	}
 }
 
-// Create validates and stores a linked mailbox (credential encrypted).
+// --- mailboxes ---
+
 func (s *Service) Create(userID string, req model.ReqMailAccount) (*model.MailAccount, error) {
 	host, err := validateHost(req.IMAPHost)
 	if err != nil {
@@ -47,9 +59,6 @@ func (s *Service) Create(userID string, req model.ReqMailAccount) (*model.MailAc
 	if req.Password == "" {
 		return nil, errors.BadRequest("password is required")
 	}
-	if err := validateAllowlist(req.SenderAllowlist); err != nil {
-		return nil, err
-	}
 	if s.secret == nil {
 		return nil, errors.Internal("FINANCER_SECRET_KEY is not set; cannot store mailbox credentials")
 	}
@@ -58,17 +67,58 @@ func (s *Service) Create(userID string, req model.ReqMailAccount) (*model.MailAc
 		return nil, err
 	}
 	row, err := s.repo.CreateAccount(userID, &repo.NewMailAccount{
-		Label:           strings.TrimSpace(req.Label),
-		IMAPHost:        host,
-		IMAPPort:        req.IMAPPort,
-		Username:        strings.TrimSpace(req.Username),
-		SecretEnc:       secretEnc,
-		SenderAllowlist: req.SenderAllowlist,
+		Label: strings.TrimSpace(req.Label), IMAPHost: host, IMAPPort: req.IMAPPort,
+		Username: strings.TrimSpace(req.Username), SecretEnc: secretEnc,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return accountWire(row), nil
+}
+
+// Update edits a mailbox. An empty password keeps the stored secret.
+func (s *Service) Update(userID, id string, req model.ReqUpdateMailAccount) (*model.MailAccount, error) {
+	host, err := validateHost(req.IMAPHost)
+	if err != nil {
+		return nil, err
+	}
+	if err := validatePort(req.IMAPPort); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.Username) == "" {
+		return nil, errors.BadRequest("username is required")
+	}
+	if req.Password != "" && s.secret == nil {
+		return nil, errors.Internal("FINANCER_SECRET_KEY is not set; cannot store mailbox credentials")
+	}
+	enc := ""
+	if req.Password != "" {
+		if enc, err = mail.Encrypt(*s.secret, req.Password); err != nil {
+			return nil, err
+		}
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	ok, err := s.repo.UpdateAccount(userID, id, strings.TrimSpace(req.Label), host, req.IMAPPort,
+		strings.TrimSpace(req.Username), enc, enabled)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.NotFound("mail account " + id + " not found")
+	}
+	rows, err := s.repo.ListAccounts(userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.ID == id {
+			return accountWire(row), nil
+		}
+	}
+	return nil, errors.NotFound("mail account " + id + " not found")
 }
 
 func (s *Service) List(userID string) ([]*model.MailAccount, error) {
@@ -94,7 +144,8 @@ func (s *Service) Delete(userID, id string) error {
 	return nil
 }
 
-// Messages lists stored mail, optionally filtered by status.
+// --- messages ---
+
 func (s *Service) Messages(userID string, status *string, limit int64) ([]*model.MailMessage, error) {
 	var filter *repo.MailStatus
 	if status != nil && *status != "" && *status != "all" {
@@ -117,8 +168,9 @@ func (s *Service) Messages(userID string, status *string, limit int64) ([]*model
 	out := make([]*model.MailMessage, 0, len(rows))
 	for _, row := range rows {
 		m := &model.MailMessage{
-			ID: row.ID, MessageID: row.MessageID, FromAddr: row.FromAddr,
-			Subject: row.Subject, ReceivedAt: row.ReceivedAt,
+			ID: row.ID, MessageID: row.MessageID, MailAccountID: row.MailAccountID,
+			FromAddr: row.FromAddr,
+			Subject:  row.Subject, ReceivedAt: row.ReceivedAt,
 			Status: string(row.Status), ParsedJSON: row.ParsedJSON,
 			Confidence: row.Confidence, RawText: row.RawText,
 			TransactionID: row.TransactionID,
@@ -138,8 +190,8 @@ func clampLimit(limit int64) int64 {
 	return limit
 }
 
-// Act approves or rejects a batch, per row, so a failure reports exactly which
-// one and why.
+// Act approves or rejects a batch. Approve items may override any extracted
+// field; the effective values are stored in approved_json as training evidence.
 func (s *Service) Act(userID string, items []model.MailActionItem) (*model.MailActionOutcome, error) {
 	out := &model.MailActionOutcome{Succeeded: []string{}, Failed: []model.MailActionFailure{}}
 	for _, item := range items {
@@ -160,7 +212,6 @@ func (s *Service) actOne(userID string, item model.MailActionItem) error {
 	if msg == nil {
 		return errors.NotFound("message " + item.ID + " not found")
 	}
-	// An AUTO row with no transaction yet is the poll's handoff to us.
 	actionable := msg.Status == repo.MailStatusPending || msg.Status == repo.MailStatusUnparsed ||
 		(msg.Status == repo.MailStatusAuto && msg.TransactionID == nil)
 	if !actionable {
@@ -174,12 +225,10 @@ func (s *Service) actOne(userID string, item model.MailActionItem) error {
 	if item.Action != "APPROVE" {
 		return errors.BadRequest("unknown action " + fmt.Sprintf("%q", item.Action))
 	}
-	if msg.ParsedJSON == nil {
-		return errors.BadRequest("nothing was extracted from this mail")
-	}
-	extraction, err := parseExtraction(*msg.ParsedJSON)
+
+	extraction, err := effectiveExtraction(msg, item)
 	if err != nil {
-		return errors.Internal("stored extraction is not readable")
+		return err
 	}
 
 	accountID := ""
@@ -221,11 +270,60 @@ func (s *Service) actOne(userID string, item model.MailActionItem) error {
 		return errors.BadRequest(result.Message)
 	}
 
-	_, err = s.repo.ResolveMessage(userID, item.ID, repo.MailStatusAuto, msg.ParsedJSON, &txnID)
+	approved, err := json.Marshal(extraction)
+	if err != nil {
+		return errors.Internal("could not store the approved extraction")
+	}
+	approvedStr := string(approved)
+	_, err = s.repo.ResolveMessage(userID, item.ID, repo.MailStatusAuto, &approvedStr, &txnID)
 	return err
 }
 
-// PollNow polls one mailbox immediately instead of waiting for the ticker.
+// effectiveExtraction merges the stored extraction with manual overrides.
+func effectiveExtraction(msg *repo.MailMessageRow, item model.MailActionItem) (*mail.Extraction, error) {
+	var extraction mail.Extraction
+	if msg.ParsedJSON != nil {
+		if err := json.Unmarshal([]byte(*msg.ParsedJSON), &extraction); err != nil {
+			return nil, errors.Internal("stored extraction is not readable")
+		}
+	}
+	if item.Name != nil && strings.TrimSpace(*item.Name) != "" {
+		extraction.Merchant = strings.TrimSpace(*item.Name)
+	}
+	if item.Amount != nil {
+		if *item.Amount <= 0 {
+			return nil, errors.BadRequest("amount must be greater than zero")
+		}
+		extraction.Amount = *item.Amount
+	}
+	if item.Type != nil {
+		typ := strings.ToUpper(*item.Type)
+		if typ != string(model.TransactionTypeDebit) && typ != string(model.TransactionTypeCredit) {
+			return nil, errors.BadRequest("unknown transaction type " + *item.Type)
+		}
+		extraction.Direction = typ
+	}
+	if item.OccurredAt != nil {
+		if stored := occurredAtStored(item.OccurredAt); stored != "" {
+			date := strings.Fields(stored)[0]
+			extraction.OccurredAt = &date
+		}
+	}
+	if extraction.Merchant == "" {
+		extraction.Merchant = "Unknown"
+	}
+	if extraction.Amount <= 0 {
+		return nil, errors.BadRequest("amount is required")
+	}
+	if extraction.Direction != string(model.TransactionTypeDebit) && extraction.Direction != string(model.TransactionTypeCredit) {
+		return nil, errors.BadRequest("type is required")
+	}
+	return &extraction, nil
+}
+
+// --- polling ---
+
+// PollNow polls one mailbox synchronously (explicit per-mailbox action).
 func (s *Service) PollNow(userID, id string) (*mail.PollSummary, error) {
 	accounts, err := s.repo.ListAccounts(userID)
 	if err != nil {
@@ -241,8 +339,73 @@ func (s *Service) PollNow(userID, id string) (*mail.PollSummary, error) {
 	if account == nil {
 		return nil, errors.NotFound("mail account " + id + " not found")
 	}
+	summary, err := s.pollAccount(context.Background(), account)
+	if err != nil {
+		return nil, err
+	}
+	s.autoCreate(userID)
+	return summary, nil
+}
+
+// PollUserAsync starts an asynchronous poll for every enabled mailbox of the
+// user and returns whether it started or was throttled.
+func (s *Service) PollUserAsync(userID string, force bool) string {
+	settings := s.settings(userID)
+	throttle := time.Duration(settings.AutoPollThrottleMinutes) * time.Minute
+	if throttle <= 0 {
+		throttle = 5 * time.Minute
+	}
+	s.throttleMu.Lock()
+	last := s.lastPoll[userID]
+	if !force && !last.IsZero() && time.Since(last) < throttle {
+		s.throttleMu.Unlock()
+		return "throttled"
+	}
+	s.lastPoll[userID] = time.Now()
+	s.throttleMu.Unlock()
+
+	go func() {
+		n, err := s.pollUser(userID)
+		if err != nil {
+			slog.Warn("auto poll failed", "user", userID, "err", err)
+			return
+		}
+		if n > 0 {
+			slog.Info("auto poll complete", "user", userID, "mailboxes", n)
+		}
+		s.autoCreate(userID)
+	}()
+	return "started"
+}
+
+func (s *Service) pollUser(userID string) (int, error) {
+	accounts, err := s.repo.ListAccounts(userID)
+	if err != nil {
+		return 0, err
+	}
+	polled := 0
+	for _, account := range accounts {
+		if !account.Enabled {
+			continue
+		}
+		if _, err := s.pollAccount(context.Background(), account); err != nil {
+			slog.Warn("mail poll failed", "account", account.ID, "user", userID, "err", err)
+			if markErr := s.repo.MarkPolled(account.ID, err.Error()); markErr != nil {
+				slog.Warn("could not record poll failure", "account", account.ID, "err", markErr)
+			}
+			continue
+		}
+		if err := s.repo.MarkPolled(account.ID, ""); err != nil {
+			slog.Warn("could not record poll success", "account", account.ID, "err", err)
+		}
+		polled++
+	}
+	return polled, nil
+}
+
+func (s *Service) pollAccount(ctx context.Context, account *repo.MailAccountRow) (*mail.PollSummary, error) {
 	if s.secret == nil {
-		return nil, errors.Internal("FINANCER_SECRET_KEY is not set")
+		return nil, errors.BadRequest("FINANCER_SECRET_KEY is not set")
 	}
 	password, err := mail.Decrypt(*s.secret, account.SecretEnc)
 	if err != nil {
@@ -253,15 +416,143 @@ func (s *Service) PollNow(userID, id string) (*mail.PollSummary, error) {
 		return nil, err
 	}
 	defer source.Close()
-	summary, err := mail.PollAccount(source, s.repo, account, mail.TemplateExtractor{})
+	settings := s.settings(account.UserID)
+	summary, err := mail.PollAccount(ctx, source, s.repo, account, s.generateTemplates, settings.MinSamples)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.MarkPolled(account.ID, ""); err != nil {
-		return nil, err
-	}
+	slog.Info("mail poll complete", "account", account.ID, "user", account.UserID,
+		"matched", summary.Matched, "stored", summary.Stored, "skipped", summary.Skipped)
 	return summary, nil
 }
+
+// generateTemplates is the LLM hook used by the poll. It enforces the user's
+// per-sender cooldown before calling LiteLLM.
+func (s *Service) generateTemplates(ctx context.Context, userID, sender string, samples []mail.LLMSample) ([]mail.TemplateSpec, error) {
+	if s.llm == nil {
+		return nil, nil
+	}
+	cfg, err := s.llm.Config(userID)
+	if err != nil {
+		slog.Warn("LLM config unavailable", "user", userID, "err", err)
+		return nil, nil
+	}
+	if cfg == nil {
+		return nil, nil
+	}
+	settings := s.settings(userID)
+	cooldown := time.Duration(settings.CooldownMinutes) * time.Minute
+	if cooldown <= 0 {
+		cooldown = time.Hour
+	}
+	key := userID + "|" + sender
+	s.throttleMu.Lock()
+	if last := s.lastLearn[key]; !last.IsZero() && time.Since(last) < cooldown {
+		s.throttleMu.Unlock()
+		return nil, nil
+	}
+	s.lastLearn[key] = time.Now()
+	s.throttleMu.Unlock()
+
+	start := time.Now()
+	specs, err := mail.GenerateTemplates(ctx, *cfg, samples)
+	if err != nil {
+		slog.Warn("template generation failed", "user", userID, "sender", sender,
+			"duration_ms", time.Since(start).Milliseconds(), "err", err)
+		return nil, err
+	}
+	slog.Info("template generated", "user", userID, "sender", sender,
+		"templates", len(specs), "duration_ms", time.Since(start).Milliseconds())
+	return specs, nil
+}
+
+func (s *Service) settings(userID string) *repo.LLMSettingsRow {
+	defaults := &repo.LLMSettingsRow{
+		TimeoutSecs: 20, Enabled: true, MinSamples: 3, FailureThreshold: 3,
+		CooldownMinutes: 60, AutoPollThrottleMinutes: 5,
+	}
+	if s.llm != nil {
+		if row, err := s.llm.Stored(userID); err == nil && row != nil {
+			return row
+		}
+	}
+	return defaults
+}
+
+// PollOnce polls every enabled mailbox (background ticker) and sweeps bodies.
+func (s *Service) PollOnce() (int, error) {
+	accounts, err := s.repo.ListPollableAccounts()
+	if err != nil {
+		return 0, err
+	}
+	polled := 0
+	for _, account := range accounts {
+		if _, err := s.pollAccount(context.Background(), account); err != nil {
+			slog.Warn("mail poll failed", "account", account.ID, "user", account.UserID, "err", err)
+			if markErr := s.repo.MarkPolled(account.ID, err.Error()); markErr != nil {
+				slog.Warn("could not record poll failure", "account", account.ID, "err", markErr)
+			}
+			continue
+		}
+		if err := s.repo.MarkPolled(account.ID, ""); err != nil {
+			slog.Warn("could not record poll success", "account", account.ID, "err", err)
+		}
+		s.autoCreate(account.UserID)
+		polled++
+	}
+	if _, err := s.repo.SweepBodies(); err != nil {
+		slog.Warn("mail body sweep failed", "err", err)
+	}
+	return polled, nil
+}
+
+// autoCreate approves AUTO rows; failures return to the review queue.
+func (s *Service) autoCreate(userID string) {
+	status := repo.MailStatusAuto
+	rows, err := s.repo.ListMessages(userID, &status, 200)
+	if err != nil {
+		slog.Warn("auto-create: could not list candidates", "err", err)
+		return
+	}
+	var items []model.MailActionItem
+	for _, row := range rows {
+		if row.TransactionID == nil {
+			items = append(items, model.MailActionItem{ID: row.ID, Action: "APPROVE"})
+		}
+	}
+	if len(items) == 0 {
+		return
+	}
+	outcome, err := s.Act(userID, items)
+	if err != nil {
+		slog.Warn("auto-create failed", "err", err)
+		return
+	}
+	for _, failure := range outcome.Failed {
+		if _, err := s.repo.ResolveMessage(userID, failure.ID, repo.MailStatusPending, nil, nil); err != nil {
+			slog.Warn("could not return auto-create row to review", "message", failure.ID, "err", err)
+		}
+		slog.Warn("auto-create skipped", "id", failure.ID, "err", failure.Error)
+	}
+}
+
+// Spawn runs the poll loop until the process exits.
+func (s *Service) Spawn(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			if n, err := s.PollOnce(); err != nil {
+				slog.Warn("mail poll failed", "err", err)
+			} else if n > 0 {
+				slog.Info("mail poll", "mailboxes", n)
+			}
+			<-ticker.C
+		}
+	}()
+}
+
+// --- rules (unchanged behavior) ---
 
 func (s *Service) Rules(userID string) ([]*model.MailRule, error) {
 	rows, err := s.repo.ListRules(userID)
@@ -313,111 +604,13 @@ func (s *Service) DeleteRule(userID, id string) error {
 	return nil
 }
 
-// PollOnce polls every enabled mailbox, auto-approving AUTO rows that resolve,
-// and sweeps bodies of resolved messages.
-func (s *Service) PollOnce() (int, error) {
-	accounts, err := s.repo.ListPollableAccounts()
-	if err != nil {
-		return 0, err
-	}
-	polled := 0
-	for _, account := range accounts {
-		if err := s.pollAccount(account); err != nil {
-			slog.Warn("mail poll failed", "account", account.ID, "user", account.UserID, "err", err)
-			if markErr := s.repo.MarkPolled(account.ID, err.Error()); markErr != nil {
-				slog.Warn("could not record poll failure", "account", account.ID, "err", markErr)
-			}
-			continue
-		}
-		if err := s.repo.MarkPolled(account.ID, ""); err != nil {
-			slog.Warn("could not record poll success", "account", account.ID, "err", err)
-		}
-		s.autoCreate(account.UserID)
-		polled++
-	}
-	if _, err := s.repo.SweepBodies(); err != nil {
-		slog.Warn("mail body sweep failed", "err", err)
-	}
-	return polled, nil
-}
-
-func (s *Service) pollAccount(account *repo.MailAccountRow) error {
-	if s.secret == nil {
-		return errors.BadRequest("FINANCER_SECRET_KEY is not set")
-	}
-	password, err := mail.Decrypt(*s.secret, account.SecretEnc)
-	if err != nil {
-		return err
-	}
-	source, err := mail.ConnectIMAP(account, password)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-	summary, err := mail.PollAccount(source, s.repo, account, mail.TemplateExtractor{})
-	if err != nil {
-		return err
-	}
-	slog.Info("mail poll complete",
-		"account", account.ID, "user", account.UserID,
-		"matched", summary.Matched, "stored", summary.Stored, "skipped", summary.Skipped)
-	return nil
-}
-
-// autoCreate approves rows an AUTO rule marked; anything that cannot be
-// resolved goes back to the review queue.
-func (s *Service) autoCreate(userID string) {
-	status := repo.MailStatusAuto
-	rows, err := s.repo.ListMessages(userID, &status, 200)
-	if err != nil {
-		slog.Warn("auto-create: could not list candidates", "err", err)
-		return
-	}
-	var items []model.MailActionItem
-	for _, row := range rows {
-		if row.TransactionID == nil {
-			items = append(items, model.MailActionItem{ID: row.ID, Action: "APPROVE"})
-		}
-	}
-	if len(items) == 0 {
-		return
-	}
-	outcome, err := s.Act(userID, items)
-	if err != nil {
-		slog.Warn("auto-create failed", "err", err)
-		return
-	}
-	for _, failure := range outcome.Failed {
-		// Back to the queue: an ambiguous account must be reviewed, not retried
-		// every tick.
-		if _, err := s.repo.ResolveMessage(userID, failure.ID, repo.MailStatusPending, nil, nil); err != nil {
-			slog.Warn("could not return auto-create row to review", "message", failure.ID, "err", err)
-		}
-		slog.Warn("auto-create skipped", "id", failure.ID, "err", failure.Error)
-	}
-}
-
-// Spawn runs the poll loop until the process exits.
-func (s *Service) Spawn(interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			if n, err := s.PollOnce(); err != nil {
-				slog.Warn("mail poll failed", "err", err)
-			} else if n > 0 {
-				slog.Info("mail poll", "mailboxes", n)
-			}
-			<-ticker.C
-		}
-	}()
-}
+// --- wire/validation helpers ---
 
 func accountWire(row *repo.MailAccountRow) *model.MailAccount {
 	return &model.MailAccount{
 		ID: row.ID, Label: row.Label, IMAPHost: row.IMAPHost, IMAPPort: row.IMAPPort,
-		Username: row.Username, SenderAllowlist: row.SenderAllowlist,
-		Enabled: row.Enabled, LastPolledAt: row.LastPolledAt, LastError: row.LastError,
+		Username: row.Username, Enabled: row.Enabled,
+		LastPolledAt: row.LastPolledAt, LastError: row.LastError,
 	}
 }
 
@@ -442,8 +635,6 @@ func ruleInput(req model.ReqMailRule) (*repo.MailRuleInput, error) {
 	from := strings.TrimSpace(req.FromPattern)
 	subject := strings.TrimSpace(req.SubjectContains)
 	body := strings.TrimSpace(req.BodyContains)
-	// A rule with no conditions matches every mail, which would make an AUTO
-	// rule ingest the whole mailbox.
 	if from == "" && subject == "" && body == "" {
 		return nil, errors.BadRequest("a rule needs at least one condition")
 	}
@@ -468,21 +659,20 @@ func ruleInput(req model.ReqMailRule) (*repo.MailRuleInput, error) {
 	}, nil
 }
 
-func parseExtraction(raw string) (*mail.Extraction, error) {
-	var e mail.Extraction
-	if err := json.Unmarshal([]byte(raw), &e); err != nil {
-		return nil, err
-	}
-	return &e, nil
-}
-
-// occurredAtStored normalises an extracted YYYY-MM-DD date into the UTC
-// storage layout used by transactions.
+// occurredAtStored normalises an extracted/stored/ISO date to the transaction
+// storage layout; empty passes through (the service uses "now").
 func occurredAtStored(date *string) string {
 	if date == nil || *date == "" {
 		return ""
 	}
-	return *date + " 00:00:00 +0000 UTC"
+	value := strings.TrimSpace(*date)
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t.UTC().Format("2006-01-02 15:04:05 -0700 MST")
+	}
+	if d, err := time.Parse("2006-01-02", value); err == nil {
+		return d.UTC().Format("2006-01-02 15:04:05 -0700 MST")
+	}
+	return value
 }
 
 // validateHost refuses link-local and metadata addresses; private ranges are
@@ -522,17 +712,4 @@ func validatePort(port int64) error {
 	default:
 		return errors.BadRequest("imapPort must be 993 (implicit TLS)")
 	}
-}
-
-func validateAllowlist(senders []string) error {
-	if len(senders) == 0 {
-		return errors.BadRequest("senderAllowlist must name at least one sender")
-	}
-	for _, sender := range senders {
-		s := strings.TrimSpace(sender)
-		if s == "" || !strings.Contains(s, "@") || strings.ContainsAny(s, " \t\r\n\"") {
-			return errors.BadRequest(fmt.Sprintf("senderAllowlist entry %q is not an email address", sender))
-		}
-	}
-	return nil
 }
