@@ -10,6 +10,17 @@ git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
 ### Added
 
+- **Per-category monthly budgets** — one recurring limit per category, set on a new
+  **Budgets** page (MANAGE). The page shows planned/spent/left for the current month,
+  editable amounts (commit on blur/Enter), over-limit rows in debit red and unbudgeted
+  rows neutral. Budgets apply to debit spend only and never roll over.
+- **Budget progress on Spending** — the `Largest` stat is replaced by a Budget card
+  (left/over, bar, “spent of planned · used”) and `Where it went` becomes
+  `Budget by category` when limits exist, falling back to the range share list when
+  they do not. Budget progress always uses the current calendar month.
+- `GET /api/categories` returns `monthlyBudget`; `PUT /api/categories/{id}/budget`
+  sets or clears it (validated, rounded to paise).
+- Migration `000004_category_budgets`.
 - **Inbox email reader** — the stored message is parsed at ingest (MIME decoded,
   quoted-printable/base64, charsets) and shown as readable text above the booking
   form; `text/html` is converted to text so remote markup is never rendered. An
@@ -28,6 +39,21 @@ git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
   `fromName` and a one-line `bodyPreview` instead.
 - Keyboard shortcut hints (`A` / `R` / `J` / `K`) and their global handlers were
   removed from the Inbox; the actions are the named buttons.
+
+### Fixed
+
+- Dashboard → Recent entries no longer reserves an empty margin column, and its
+  empty state has an `Add account` action.
+- Rules showed `OR` for `ALL` logic and a meaningless `AND`/`OR` stamp on
+  single-condition rules; the label is now correct and hidden when there is one
+  condition. Edit and delete actions on a rule were unreachable and are now visible.
+- Row actions on Manage Accounts and Categories were invisible until hover; they are
+  always visible.
+- The Transactions search field no longer stretches across the toolbar.
+- ApexCharts received an ignored top-level `type`; the chart type is now set via
+  `chart.type`.
+- The Spending carried-forward line now sits at the bottom of the ledger instead of
+  floating above empty space.
 
 ## [0.7.0-alpha] — 2026-11-17
 
