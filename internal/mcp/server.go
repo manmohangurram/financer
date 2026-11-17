@@ -85,6 +85,7 @@ func Build(svc Services, uid, scope string) *mcp.Server {
 				"accountId":      row.Txn.AccountID,
 				"createdAt":      tim.TSRFC3339(row.Txn.CreatedAt),
 				"externalId":     row.Txn.ExternalID,
+				"refNo":          row.Txn.RefNo,
 				"transferLinked": row.LinkID != "",
 				"linkId":         row.LinkID,
 				"categoryIds":    row.CategoryIDs,

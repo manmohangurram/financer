@@ -97,7 +97,7 @@ func (r *TransactionRepo) GetForTransfer(userID, id string) (string, float64, st
 
 func (r *TransactionRepo) GetFull(userID, id string) (*repo.TransactionRow, error) {
 	row := r.db.QueryRow(
-		`SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id
+		`SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id, t.ref_no
 		 FROM transactions t WHERE t.id = ? AND t.user_id = ?`, id, userID,
 	)
 	txn, err := scanTransaction(row)
@@ -142,7 +142,7 @@ func (r *TransactionRepo) FindTransferCounterpart(userID, accountID, typ string,
 		aroundStr = aroundStr[:19]
 	}
 	row := r.db.QueryRow(
-		`SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, NULL AS external_id
+		`SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, NULL AS external_id, t.ref_no
 		 FROM transactions t
 		 WHERE t.user_id = ? AND t.account_id = ? AND t.type = ? AND t.amount = ?
 		   AND t.occurred_at >= datetime(?, '-3 days') AND t.occurred_at <= datetime(?, '+3 days')
@@ -184,9 +184,9 @@ func (r *TransactionRepo) Create(userID string, inputs []repo.CreateTransactionI
 	for _, input := range inputs {
 		t := input.Txn
 		res, err := tx.Exec(
-			`INSERT OR IGNORE INTO transactions (id, user_id, name, clean_name, amount, type, occurred_at, account_id, created_at, external_id)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			t.ID, userID, t.Name, t.CleanName, t.Amount, t.Type, t.OccurredAt, t.AccountID, t.CreatedAt, t.ExternalID,
+			`INSERT OR IGNORE INTO transactions (id, user_id, name, clean_name, amount, type, occurred_at, account_id, created_at, external_id, ref_no)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			t.ID, userID, t.Name, t.CleanName, t.Amount, t.Type, t.OccurredAt, t.AccountID, t.CreatedAt, t.ExternalID, t.RefNo,
 		)
 		if err != nil {
 			outcome.Errors = append(outcome.Errors, fmt.Sprintf("failed to create %s", t.ID))
@@ -245,9 +245,10 @@ func (r *TransactionRepo) Update(userID string, inputs []repo.UpdateTransactionI
 				amount = CASE WHEN ? != 0 THEN ? ELSE amount END,
 				type = CASE WHEN ? != '' THEN ? ELSE type END,
 				occurred_at = COALESCE(NULLIF(?, ''), occurred_at),
-				account_id = COALESCE(NULLIF(?, ''), account_id)
+				account_id = COALESCE(NULLIF(?, ''), account_id),
+				ref_no = COALESCE(NULLIF(?, ''), ref_no)
 			 WHERE id = ? AND user_id = ?`,
-			t.Name, t.Name, t.Amount, t.Amount, t.Type, t.Type, t.OccurredAt, t.AccountID, t.ID, userID,
+			t.Name, t.Name, t.Amount, t.Amount, t.Type, t.Type, t.OccurredAt, t.AccountID, t.RefNo, t.ID, userID,
 		)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("failed to update %s", t.ID))
@@ -349,7 +350,7 @@ func (r *TransactionRepo) Delete(userID string, ids []string) ([]string, error) 
 func (r *TransactionRepo) List(userID string, f *repo.TransactionListFilter) (*repo.ListTransactionResult, error) {
 	whereSQL, filterArgs := buildTxnWhere(f)
 
-	query := `SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id,
+	query := `SELECT t.id, t.name, t.clean_name, t.amount, t.type, t.occurred_at, t.account_id, t.created_at, t.external_id, t.ref_no,
 	                 COALESCE(l.id, ''),
 	                 (SELECT GROUP_CONCAT(tc.category_id) FROM transaction_categories tc WHERE tc.transaction_id = t.id)
 	          FROM transactions t
@@ -421,7 +422,7 @@ func (r *TransactionRepo) List(userID string, f *repo.TransactionListFilter) (*r
 		var cleanName, externalID, linkID, catGroup sql.NullString
 		if err := rows.Scan(
 			&txn.ID, &txn.Name, &cleanName, &txn.Amount, &txn.Type, &txn.OccurredAt,
-			&txn.AccountID, &txn.CreatedAt, &externalID, &linkID, &catGroup,
+			&txn.AccountID, &txn.CreatedAt, &externalID, &txn.RefNo, &linkID, &catGroup,
 		); err != nil {
 			return nil, err
 		}
@@ -628,7 +629,7 @@ func likeEscape(s string) string {
 func scanTransaction(row *sql.Row) (*repo.TransactionRow, error) {
 	var t repo.TransactionRow
 	var cleanName, externalID sql.NullString
-	err := row.Scan(&t.ID, &t.Name, &cleanName, &t.Amount, &t.Type, &t.OccurredAt, &t.AccountID, &t.CreatedAt, &externalID)
+	err := row.Scan(&t.ID, &t.Name, &cleanName, &t.Amount, &t.Type, &t.OccurredAt, &t.AccountID, &t.CreatedAt, &externalID, &t.RefNo)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

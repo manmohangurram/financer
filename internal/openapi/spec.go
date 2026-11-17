@@ -354,6 +354,7 @@ func components() map[string]any {
 			"type": ref("TransactionType"), "occurredAt": str(), "accountId": str(),
 			"createdAt": str(), "linkedTransferId": str(),
 			"categoryIds": nullable(map[string]any{"type": "array", "items": str()}),
+			"refNo":       str(),
 		}),
 		"ListTransactions": obj(map[string]any{
 			"transactions":  ref("[]Transaction"),
@@ -458,7 +459,7 @@ func components() map[string]any {
 		"TransactionInput": obj(map[string]any{
 			"id": str(), "name": str(), "amount": map[string]any{"type": "number"},
 			"type": ref("TransactionType"), "occurredAt": map[string]any{},
-			"accountId": str(), "categoryIds": ref("[]Category"), "externalId": str(),
+			"accountId": str(), "categoryIds": ref("[]Category"), "externalId": str(), "refNo": str(),
 		}),
 		"ReqCategoriesCreate": obj(map[string]any{
 			"categories": map[string]any{"type": "array", "items": obj(map[string]any{

@@ -11,12 +11,13 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'imported'): void }>();
 
 const txnForm = ref<{
   name: string; amount: number; type: 'DEBIT' | 'CREDIT';
-  accountId: string; occurredAt: string; categoryIds: string[];
+  accountId: string; occurredAt: string; categoryIds: string[]; refNo: string;
 }>({
   name: '', amount: 0, type: 'DEBIT',
   accountId: props.defaultAccountId,
   occurredAt: toLocalDateString(new Date()),
-  categoryIds: []
+  categoryIds: [],
+  refNo: ''
 });
 
 const error = ref('');

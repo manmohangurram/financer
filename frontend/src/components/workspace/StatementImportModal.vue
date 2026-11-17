@@ -34,7 +34,7 @@ const canContinue = computed(() => {
 const detectedLabel = computed(() => {
   switch (parsed.value?.layout) {
     case 'columns':
-      return 'Header columns � amount columns from the statement';
+      return 'Header columns � amount columns from the statement';
     case 'withdrawal-deposit':
       return 'Withdrawal · Deposit · Balance';
     case 'amount-marker':
@@ -102,6 +102,7 @@ async function checkDuplicates() {
         amount: r.amount,
         type: r.type,
         occurredAt: r.occurredAt,
+        refNo: r.refNo || undefined,
         accountId: accountId.value
       }));
       const out = await transactions().findDuplicates({ transactions: slice });
@@ -157,6 +158,7 @@ async function importRows() {
         amount: r.amount,
         type: r.type,
         occurredAt: r.occurredAt,
+        refNo: r.refNo || undefined,
         accountId: accountId.value
       }));
       await transactions().createTransactions({ transactions: slice });
@@ -264,12 +266,13 @@ async function importRows() {
           <div class="overflow-hidden rounded-control border border-rule">
             <table class="w-full text-[12px]">
               <thead class="bg-page-sunk text-left text-[10.5px] uppercase tracking-[0.06em] text-ink-mute">
-                <tr><th class="px-2.5 py-2">Date</th><th class="px-2.5 py-2">Name</th><th class="px-2.5 py-2 text-right">Amount</th><th class="px-2.5 py-2 text-right">Balance</th></tr>
+                <tr><th class="px-2.5 py-2">Date</th><th class="px-2.5 py-2">Name</th><th class="px-2.5 py-2">Reference</th><th class="px-2.5 py-2 text-right">Amount</th><th class="px-2.5 py-2 text-right">Balance</th></tr>
               </thead>
               <tbody>
                 <tr v-for="(r, i) in parsed.rows.slice(0, 6)" :key="i" class="border-t border-rule-soft">
                   <td class="whitespace-nowrap px-2.5 py-1.5 text-ink-mute">{{ r.occurredAt }}</td>
                   <td class="max-w-[300px] truncate px-2.5 py-1.5 text-ink-soft">{{ r.name }}</td>
+                  <td class="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] text-ink-mute">{{ r.refNo || '—' }}</td>
                   <td class="tabular whitespace-nowrap px-2.5 py-1.5 text-right" :class="r.type === 'DEBIT' ? 'text-debit' : 'text-credit'">
                     {{ r.type === 'DEBIT' ? '−' : '+' }}{{ r.amount.toLocaleString() }}
                   </td>
@@ -324,12 +327,13 @@ async function importRows() {
           <div class="overflow-hidden rounded-control border border-rule">
             <table class="w-full text-[12px]">
               <thead class="bg-page-sunk text-left text-[10.5px] uppercase tracking-[0.06em] text-ink-mute">
-                <tr><th class="px-2.5 py-2">Date</th><th class="px-2.5 py-2">Name</th><th class="px-2.5 py-2 text-right">Amount</th></tr>
+                <tr><th class="px-2.5 py-2">Date</th><th class="px-2.5 py-2">Name</th><th class="px-2.5 py-2">Reference</th><th class="px-2.5 py-2 text-right">Amount</th></tr>
               </thead>
               <tbody>
                 <tr v-for="(r, i) in parsed.rows.slice(0, 6)" :key="i" class="border-t border-rule-soft">
                   <td class="whitespace-nowrap px-2.5 py-1.5 text-ink-mute">{{ r.occurredAt }}</td>
                   <td class="max-w-[340px] truncate px-2.5 py-1.5 text-ink-soft">{{ r.name }}</td>
+                  <td class="whitespace-nowrap px-2.5 py-1.5 font-mono text-[11px] text-ink-mute">{{ r.refNo || '—' }}</td>
                   <td class="tabular whitespace-nowrap px-2.5 py-1.5 text-right" :class="r.type === 'DEBIT' ? 'text-debit' : 'text-credit'">
                     {{ r.type === 'DEBIT' ? '−' : '+' }}{{ r.amount.toLocaleString() }}
                   </td>

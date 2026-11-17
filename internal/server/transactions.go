@@ -77,6 +77,7 @@ func toRequests(in []model.ReqListTxn, forUpdate bool) ([]transactionservice.Req
 			AccountID:   t.AccountID,
 			CategoryIDs: t.CategoryIDs,
 			ExternalID:  externalID,
+			RefNo:       t.RefNo,
 		})
 	}
 	return reqs, nil
@@ -141,6 +142,7 @@ func (a *API) listTransactions(c *gin.Context) {
 			CreatedAt:        tim.TSRFC3339(row.Txn.CreatedAt),
 			LinkedTransferID: row.LinkID,
 			CategoryIDs:      catIDs,
+			RefNo:            row.Txn.RefNo,
 		})
 	}
 	c.JSON(http.StatusOK, model.WireTxnList{

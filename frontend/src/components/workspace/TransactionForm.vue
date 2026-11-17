@@ -4,7 +4,7 @@ import AppSelect from '@/components/AppSelect.vue';
 import DatePicker from '@/components/DatePicker.vue';
 
 defineProps<{ accounts: any[]; categories: any[] }>();
-const form = defineModel<{ name: string; amount: number; type: 'DEBIT' | 'CREDIT'; accountId: string; occurredAt: string; categoryIds: string[] }>({ required: true });
+const form = defineModel<{ name: string; amount: number; type: 'DEBIT' | 'CREDIT'; accountId: string; occurredAt: string; categoryIds: string[]; refNo?: string }>({ required: true });
 
 function toggleCategory(id: string) {
   const i = form.value.categoryIds.indexOf(id);
@@ -54,6 +54,7 @@ function toggleCategory(id: string) {
         <span class="mb-1.5 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Date</span>
         <DatePicker v-model="form.occurredAt" />
       </div>
+      <AppInput v-model="form.refNo" label="Reference no (optional)" placeholder="e.g. 24825922781DC" />
     </div>
   </div>
 </template>

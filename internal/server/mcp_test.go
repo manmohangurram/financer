@@ -201,7 +201,7 @@ func TestMCPWriteKeyCreatesTransaction(t *testing.T) {
 	res, err = session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "create_transaction",
 		Arguments: map[string]any{"transactions": []any{map[string]any{
-			"name": "Coffee", "amount": 4.5, "type": "DEBIT", "accountId": accountID,
+			"name": "Coffee", "amount": 4.5, "type": "DEBIT", "accountId": accountID, "refNo": "REF-MCP-1",
 		}}},
 	})
 	if err != nil {

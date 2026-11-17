@@ -14,6 +14,7 @@ export interface ParsedTxn {
   amount: number;
   type: 'DEBIT' | 'CREDIT';
   occurredAt: string;
+  refNo?: string;
   balanceAfter?: number;
 }
 
@@ -27,6 +28,7 @@ export interface StatementParse {
   problem?: string;
   pages: number;
   layout: StatementLayout;
+  missingRefs: number;
 }
 
 export interface StatementLine {
@@ -124,6 +126,7 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
     balance?: number;
     marker: string | null;
     amountHint?: number;
+    refNo: string;
   }> = [];
   let sawMarker = false;
   let sawThree = false;
@@ -149,6 +152,12 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
     const [, date, inline, , tail] = m;
     const pre = pending.join(' ').replace(/\s+/g, ' ').trim();
     pending = [];
+
+    // The reference number sits between the date and the value date, usually as
+    // a long digit run; names and dates are not candidates.
+    const tokens = (inline.match(/\b[A-Za-z0-9]{6,}\b/g) || []).filter((t) => /\d/.test(t));
+    tokens.sort((a, b) => b.length - a.length);
+    const refNo = tokens[0] ?? '';
 
     const post: string[] = [];
     while (i + 1 < rowsIn.length) {
@@ -222,7 +231,8 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
       credit,
       balance,
       marker: tail.match(MARKER)?.[1] ?? null,
-      amountHint
+      amountHint,
+      refNo
     });
   }
 
@@ -259,6 +269,7 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
       amount: round(amount),
       type,
       occurredAt: p.date,
+      refNo: p.refNo || undefined,
       ...(p.balance === undefined ? {} : { balanceAfter: round(p.balance) })
     });
     if (p.balance !== undefined) prev = p.balance;
@@ -300,7 +311,11 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
     }
   }
 
-  return { rows, opening, closing, credits, debits, valid: !problem, problem, pages: 1, layout };
+  const missingRefs = rows.filter((r) => !r.refNo).length;
+  if (!problem && missingRefs > 0 && rows.length > missingRefs) {
+    problem = `${missingRefs} of ${rows.length} rows have no reference number.`;
+  }
+  return { rows, opening, closing, credits, debits, valid: !problem, problem, pages: 1, layout, missingRefs };
 }
 
 /** Backwards-compatible text entry point. */

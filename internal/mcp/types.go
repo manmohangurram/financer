@@ -57,6 +57,7 @@ type txnPayload struct {
 	AccountID   string   `json:"accountId,omitempty"`
 	CategoryIDs []string `json:"categoryIds,omitempty"`
 	ExternalID  *string  `json:"externalId,omitempty"`
+	RefNo       string   `json:"refNo,omitempty"`
 }
 
 type createTransactionsReq struct {
@@ -125,6 +126,7 @@ func (p txnPayload) toRequest() (transactionservice.Request, error) {
 		AccountID:   p.AccountID,
 		CategoryIDs: p.CategoryIDs,
 		ExternalID:  p.ExternalID,
+		RefNo:       p.RefNo,
 	}, nil
 }
 

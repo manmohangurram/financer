@@ -25,6 +25,7 @@ type ReqListTxn struct {
 	AccountID   string          `json:"accountId"`
 	CategoryIDs []string        `json:"categoryIds"`
 	ExternalID  string          `json:"externalId"`
+	RefNo       string          `json:"refNo"`
 }
 
 // WireTxn is one transaction in a list response.
@@ -38,6 +39,7 @@ type WireTxn struct {
 	CreatedAt        string    `json:"createdAt"`
 	LinkedTransferID string    `json:"linkedTransferId"`
 	CategoryIDs      *[]string `json:"categoryIds"`
+	RefNo            string    `json:"refNo"`
 }
 
 // WireBulk is the bulk-operation result; empty failedIds and zero skipped are

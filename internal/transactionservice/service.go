@@ -32,6 +32,7 @@ type Request struct {
 	AccountID   string
 	CategoryIDs []string
 	ExternalID  *string
+	RefNo       string
 }
 
 // RuleApplier applies write-time rule actions to transaction views.
@@ -237,6 +238,7 @@ func (s *Service) Create(userID string, reqs []Request) (*model.WireBulk, error)
 			AccountID:  t.AccountID,
 			CreatedAt:  now,
 			ExternalID: t.ExternalID,
+			RefNo:      strings.TrimSpace(t.RefNo),
 		}
 		inputs = append(inputs, repo.CreateTransactionInput{Txn: txn, CategoryIDs: t.CategoryIDs})
 		txns = append(txns, txn)
@@ -309,6 +311,7 @@ func (s *Service) Update(userID string, reqs []Request) (*model.WireBulk, error)
 				Type:       t.Type,
 				OccurredAt: t.OccurredAt,
 				AccountID:  t.AccountID,
+				RefNo:      t.RefNo,
 			},
 			CategoryIDs: t.CategoryIDs,
 		})

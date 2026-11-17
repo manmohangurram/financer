@@ -11,6 +11,7 @@ type TransactionRow struct {
 	AccountID      string
 	CreatedAt      string
 	ExternalID     *string
+	RefNo          string
 	TransferLinked bool
 }
 
