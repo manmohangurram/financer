@@ -1,6 +1,6 @@
 # Implementation Plan: Template-Driven Mail Ingestion V1
 
-Source spec: `SPEC-mail-templates.md`
+Source spec: `docs/specs/mail-templates/SPEC.md`
 
 ## Overview
 

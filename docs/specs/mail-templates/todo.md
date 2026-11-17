@@ -1,6 +1,6 @@
 # Todo — Template-Driven Mail Ingestion V1
 
-Spec: `SPEC-mail-templates.md` · Plan: `tasks/plan.md`
+Spec: `docs/specs/mail-templates/SPEC.md` · Plan: `docs/specs/mail-templates/plan.md`
 
 ## Phase 1 — Schema + template engine
 - [x] Schema: mail_templates, user_llm_settings, drop allowlist, template_id

@@ -10,6 +10,7 @@ Financer: a personal finance tracker. Go backend (Gin, plain HTTP/JSON, pure-Go 
 - **Frontend structure** — [architecture/FRONTEND_STRUCTURE.md](architecture/FRONTEND_STRUCTURE.md)
 - **Naming conventions** — [architecture/NAMING_CONVENTIONS.md](architecture/NAMING_CONVENTIONS.md)
 - **Conventions & gotchas** (Tailwind/daisyUI, migrations, env vars, commits, PR format) — [architecture/CONVENTIONS_GOTCHAS.md](architecture/CONVENTIONS_GOTCHAS.md)
+- **Feature specs, plans & tasks** — one folder per feature under [docs/specs/](docs/specs/) (`SPEC.md`, `plan.md`, `todo.md`)
 - **Deployment** (frontend↔backend linking, the arm64 image build, GitHub Actions release flow) — [DEPLOY.md](DEPLOY.md)
 
 ## Quick Reference
