@@ -27,7 +27,7 @@ const checking = ref(false);
 const canContinue = computed(() => {
   if (step.value === 0) return !!pickedFile.value && !parsing.value;
   if (step.value === 1) return !!parsed.value?.valid;
-  if (step.value === 2) return !!parsed.value?.valid && !!accountId.value && !importing.value && !checking.value;
+  if (step.value === 2) return !!parsed.value?.valid && !!accountId.value && !importing.value && !checking.value && rowsToImport.value > 0;
   return !!parsed.value?.valid && !!accountId.value && !importing.value;
 });
 
@@ -336,7 +336,7 @@ async function importRows() {
             </table>
           </div>
           <p class="m-0 text-[11.5px] text-ink-mute">
-            {{ importing ? `Importing ${progress} / ${parsed.rows.length}…` : `Book all ${parsed.rows.length.toLocaleString()} rows with the statement's own names and dates.` }}
+            {{ importing ? `Importing ${progress} / ${parsed.rows.length}…` : `Book ${rowsToImport.toLocaleString()} of ${parsed.rows.length.toLocaleString()} rows with the statement's own names and dates.` }}
           </p>
         </template>
       </div>
