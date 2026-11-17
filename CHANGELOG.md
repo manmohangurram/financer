@@ -6,6 +6,26 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) with an `-alpha` suff
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
+## [0.6.0-alpha] — 2026-11-17
+
+The schema is now a single baseline. **This release requires a fresh database**;
+databases created by 0.5.x or the Rust backend are not migrated.
+
+### Changed (breaking)
+
+- **One migration describes the final schema.** The 18 incremental migrations
+  (and their `ALTER`/drop-history replay) are replaced by
+  `000001_initial_schema.up.sql`, including every final column and all query
+  indexes. The runner is a plain apply-pending loop.
+- **Reset procedure:** stop the container, delete `/data/financer.db` plus
+  `-wal`/`-shm`, start again. Named-volume users can remove the volume for a
+  full reset (this also removes avatars/logs). Back up first if needed.
+
+### Added
+
+- Indexes for `rule_conditions.rule_id` and `rule_actions.rule_id`.
+- `user_keys.user_id` now cascades on user deletion.
+
 ## [0.5.1-alpha] — 2026-11-17
 
 Patch release: startup on an existing (Rust-era) database no longer fails, plus
