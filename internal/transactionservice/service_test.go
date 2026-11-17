@@ -205,3 +205,28 @@ func TestListDateRangeAndCursor(t *testing.T) {
 		t.Fatal("expected error for invalid dateFrom")
 	}
 }
+
+func TestCreateWithoutIDsInsertsEveryRow(t *testing.T) {
+	svc, uid, acctID, _, cleanup := setup(t)
+	defer cleanup()
+
+	reqs := []Request{
+		{Name: "One", Amount: 10, Type: "DEBIT", AccountID: acctID, OccurredAt: "2026-01-01"},
+		{Name: "Two", Amount: 20, Type: "DEBIT", AccountID: acctID, OccurredAt: "2026-01-02"},
+		{Name: "Three", Amount: 30, Type: "CREDIT", AccountID: acctID, OccurredAt: "2026-01-03"},
+	}
+	out, err := svc.Create(uid, reqs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.Success || out.Skipped != 0 {
+		t.Fatalf("create = %+v", out)
+	}
+	res, err := svc.List(uid, &repo.TransactionListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.TotalCount != 3 {
+		t.Fatalf("rows = %d, want 3 (empty ids must not collapse a bulk insert)", res.TotalCount)
+	}
+}

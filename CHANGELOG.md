@@ -6,6 +6,17 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.13.2] — 2026-11-17
+
+### Fixed
+
+- **Bulk create no longer collapses to one row when ids are omitted.**
+  `transactionservice.Create` used the request id as the primary key; an empty id made
+  every row collide on the same key, so `INSERT OR IGNORE` kept the first and reported
+  the rest as skipped. Missing ids are now generated, which fixes
+  `create_transaction` over MCP and any API caller that batches without ids.
+  Covered by `TestCreateWithoutIDsInsertsEveryRow`.
+
 ## [0.13.1] — 2026-11-17
 
 ### Fixed

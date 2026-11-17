@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/model"
 	"github.com/mohan9182/financer/internal/repo"
@@ -158,8 +160,14 @@ func (s *Service) Create(userID string, reqs []Request) (*model.WireBulk, error)
 		if occurredAt == "" {
 			occurredAt = now
 		}
+		// A request without an id must still get a unique one: the table's primary
+		// key is the id, so empty ids would silently collapse a bulk insert to one row.
+		id := t.ID
+		if id == "" {
+			id = uuid.New().String()
+		}
 		txn := &repo.TransactionRow{
-			ID:         t.ID,
+			ID:         id,
 			Name:       t.Name,
 			Amount:     round2(t.Amount),
 			Type:       t.Type,
