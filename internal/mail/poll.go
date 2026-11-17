@@ -272,9 +272,11 @@ func compileRow(row *repo.MailTemplateRow) (*Template, error) {
 
 func insertMessage(store repo.MailRepo, account *repo.MailAccountRow, header *MailHeader, raw string,
 	status repo.MailStatus, parsed *string, confidence float64, source string, templateID *string) error {
+	display := ParseEmail(raw)
 	_, err := store.InsertMessage(account.UserID, &repo.NewMailMessage{
 		MailAccountID: account.ID, MessageID: header.MessageID, FromAddr: header.FromAddr,
-		ReceivedAt: header.ReceivedAt, Subject: header.Subject, RawText: raw,
+		FromName: display.FromName, ReceivedAt: header.ReceivedAt, Subject: header.Subject,
+		RawText: raw, BodyText: display.Body,
 		Status: status, ParsedJSON: parsed, Confidence: confidence,
 		ExtractorSource: source, TemplateID: templateID,
 	})

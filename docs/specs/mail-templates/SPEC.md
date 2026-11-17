@@ -252,10 +252,10 @@ shows “configured”), timeout, enabled toggle, Test and Save.
 - Header: Inbox, mailbox tabs (All + each mailbox), “Poll now”, “Edit mailboxes”.
 - Left queue: status filter chips, newest-first rows with sender, subject,
   extracted merchant/amount, status stamp, confidence dot.
-- Right review pane: email header, full text (scrollable), form for name, amount,
-  type, date, account, categories; missing/uncertain fields highlighted with
-  inline errors; error summary on failed approve; Approve / Reject; keyboard
-  `A` approve, `R` reject, `J`/`K` next/prev; responsive single-column < 900px.
+- Right review pane: parsed email header and body on top, then the booking form for
+  name, amount, type, date, account, categories; missing/uncertain fields highlighted
+  with inline errors; error summary on failed approve; Approve / Reject; responsive
+  single-column < 1024px. No keyboard-shortcut hints.
 - Mailbox modal: add/edit (label, host, port, username, password, enabled),
   poll, delete. No allowlist field.
 - Settings → **Inbox AI**: LiteLLM base URL, model, write-only API key

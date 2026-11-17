@@ -210,8 +210,9 @@ Base unit **4px**, and every value is on the scale: `4 8 12 16 20 24 32 40 48 64
 | Page padding | 32 desktop / 16 mobile |
 
 **Shell.** Sidebar 244px (fixed, `--paper`, hairline right border, no card, no contrast jump) + content that
-is a page: max width 1180px, left-aligned inside the content area with 32px padding (the page does not float
-centred — it sits on the desk like a sheet of paper).
+is a page: **fluid width** (no max-width cap), 24px padding on tablet and 32px on desktop (the page does not
+float centred — it sits on the desk like a sheet of paper). Prose blocks cap their own measure at 72–76ch;
+queue and ledger pages use the full width.
 
 **The margin column.** Every ruled surface reserves a margin: 56px on desktop, 40px on mobile, closed by
 `--margin-rule`. Contents, left to right: state glyph · entry · right-aligned numbers. On mobile the margin
@@ -416,17 +417,23 @@ Rule form is a modal, 760px, in two columns: conditions (AND/OR tab) and actions
 last 200 entries" line at the bottom updates as you edit.
 
 ### 6.8 Inbox — `/inbox`
-Focal: **the queue**. Three stacked sections, each a folio:
+Focal: **the mail and the fields that book it**. Full-bleed two columns on desktop:
 
-1. `Mailboxes` — one row per mailbox: label · address, `checked 12 Nov` or the error line in `--debit`
-   on its own line, `Check now` as a quiet text button, delete as a square icon button carrying
-   `aria-label`. `Link mailbox` opens a 520px modal: label, IMAP host, username, app password, alert
-   senders, one line each for the hint.
-2. `Rules` — disposition rules as compact rows (`auto` / `review` / `ignore` in its tone, then
-   `from → action`), with a composer row of ruled inputs and an `AppSelect` beneath.
-3. The queue — a ledger: margin checkbox, sender + subject, amount right-aligned tabular with the date
-   under it, a state stamp, and `Approve` / `Reject` on the right. Approve books the row; the list
-   refetches. Bulk approve appears only once a row is selected.
+1. **Queue** (360–420px, its own scroll, visible thin scrollbar, hairline right rule) —
+   mailbox tabs, status filter tabs, search, one row per message: state dot, sender,
+   amount, subject, one-line body preview, date, state stamp.
+2. **Reader and booking** (own scroll, stacked top to bottom) —
+   - **Email card**: sender name + address, subject, date · mailbox · parse confidence,
+     state stamp; the parsed body in a ≤76ch reading column with normal paragraph
+     rhythm; `Original message` expands the raw source in a mono well.
+   - **Booking card**: name, amount, type, date, account, category chips, error summary,
+     then Approve / Reject. No keyboard-shortcut hints.
+
+Parsing is server-side (MIME decoded, HTML→text, quoted history removed); the page never
+renders remote HTML. Below 1024px the columns stack, the queue capped at ~52vh.
+
+Mailboxes are managed in Settings → Mailboxes; the Inbox header only offers Poll now,
+Mailboxes and Add mailbox.
 
 *Deviation from the tick-in-the-margin spec:* bulk approval is a real flow (a statement's worth of mail
 arrives at once), so the margin carries a checkbox and the actions are named buttons. The tick still

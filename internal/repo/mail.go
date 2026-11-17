@@ -67,9 +67,11 @@ type NewMailMessage struct {
 	MailAccountID   string
 	MessageID       string
 	FromAddr        string
+	FromName        string
 	ReceivedAt      *string
 	Subject         string
 	RawText         string
+	BodyText        string
 	Status          MailStatus
 	ParsedJSON      *string
 	Confidence      float64
@@ -83,6 +85,7 @@ type MailMessageRow struct {
 	MessageID     string
 	MailAccountID string
 	FromAddr      string
+	FromName      string
 	Subject       string
 	ReceivedAt    *string
 	Status        MailStatus
@@ -90,6 +93,8 @@ type MailMessageRow struct {
 	ApprovedJSON  *string
 	Confidence    float64
 	RawText       *string
+	BodyText      *string
+	BodyPreview   string
 	TransactionID *string
 	TemplateID    *string
 }

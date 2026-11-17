@@ -169,15 +169,64 @@ func (s *Service) Messages(userID string, status *string, limit int64) ([]*model
 	for _, row := range rows {
 		m := &model.MailMessage{
 			ID: row.ID, MessageID: row.MessageID, MailAccountID: row.MailAccountID,
-			FromAddr: row.FromAddr,
-			Subject:  row.Subject, ReceivedAt: row.ReceivedAt,
+			FromAddr: row.FromAddr, FromName: row.FromName,
+			Subject: row.Subject, ReceivedAt: row.ReceivedAt,
 			Status: string(row.Status), ParsedJSON: row.ParsedJSON,
-			Confidence: row.Confidence, RawText: row.RawText,
+			Confidence: row.Confidence, BodyPreview: bodyPreview(row.BodyPreview),
 			TransactionID: row.TransactionID,
 		}
 		out = append(out, m)
 	}
 	return out, nil
+}
+
+// Get returns one message with its display body and raw source. Rows stored
+// before the parser existed are parsed on demand.
+func (s *Service) Get(userID, id string) (*model.MailMessage, error) {
+	row, err := s.repo.GetMessage(userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, errors.NotFound("message " + id + " not found")
+	}
+	body := ""
+	if row.BodyText != nil {
+		body = *row.BodyText
+	}
+	fromName := row.FromName
+	if strings.TrimSpace(body) == "" && row.RawText != nil {
+		parsed := mail.ParseEmail(*row.RawText)
+		body = parsed.Body
+		if fromName == "" {
+			fromName = parsed.FromName
+		}
+	}
+	msg := &model.MailMessage{
+		ID: row.ID, MessageID: row.MessageID, MailAccountID: row.MailAccountID,
+		FromAddr: row.FromAddr, FromName: fromName,
+		Subject: row.Subject, ReceivedAt: row.ReceivedAt,
+		Status: string(row.Status), ParsedJSON: row.ParsedJSON,
+		Confidence: row.Confidence, BodyPreview: bodyPreview(body),
+		BodyText: &body, RawText: row.RawText, TransactionID: row.TransactionID,
+	}
+	return msg, nil
+}
+
+// bodyPreview is the first non-empty line of the parsed body, bounded so queue
+// rows stay one line.
+func bodyPreview(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if len([]rune(line)) > 140 {
+			return string([]rune(line)[:140]) + "…"
+		}
+		return line
+	}
+	return ""
 }
 
 func clampLimit(limit int64) int64 {

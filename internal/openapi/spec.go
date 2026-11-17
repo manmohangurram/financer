@@ -259,6 +259,13 @@ func paths() map[string]any {
 			},
 			"post": op("mail", "Approve or reject messages", "ReqMailAction", okResp("Outcome", "MailActionOutcome")),
 		},
+		"/api/mail/messages/{id}": map[string]any{
+			"get": map[string]any{
+				"tags": []any{"mail"}, "summary": "Read one message with its parsed body and raw source",
+				"parameters": []any{idParam()},
+				"responses":  map[string]any{"200": okResp("Message", "MailMessage"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
+			},
+		},
 		"/api/mail/rules": map[string]any{
 			"get":  op("mail", "List mail rules", "", okResp("Rules", "ListMailRules")),
 			"post": op("mail", "Create a mail rule", "ReqMailRule", okResp("Rule", "MailRule")),
@@ -465,9 +472,12 @@ func components() map[string]any {
 		"ListMailAccounts": obj(map[string]any{"accounts": ref("[]MailAccount")}),
 		"MailMessage": obj(map[string]any{
 			"id": str(), "messageId": str(), "mailAccountId": str(),
-			"fromAddr": str(), "subject": str(),
+			"fromAddr": str(), "fromName": str(), "subject": str(),
 			"receivedAt": nullable(str()), "status": str(), "parsedJson": nullable(str()),
-			"confidence": map[string]any{"type": "number"}, "rawText": nullable(str()),
+			"confidence":    map[string]any{"type": "number"},
+			"bodyPreview":   str(),
+			"bodyText":      nullable(str()),
+			"rawText":       nullable(str()),
 			"transactionId": nullable(str()),
 		}),
 		"ListMailMessages": obj(map[string]any{"messages": ref("[]MailMessage")}),

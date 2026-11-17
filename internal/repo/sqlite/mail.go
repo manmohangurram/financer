@@ -149,11 +149,11 @@ func (r *MailRepo) KnownMessageIDs(userID string, ids []string) ([]string, error
 func (r *MailRepo) InsertMessage(userID string, msg *repo.NewMailMessage) (bool, error) {
 	res, err := r.db.Exec(
 		`INSERT OR IGNORE INTO mail_messages
-			(id, user_id, mail_account_id, message_id, from_addr, received_at, subject,
-			 raw_text, status, parsed_json, confidence, extractor_source, template_id, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		uuid.New().String(), userID, msg.MailAccountID, msg.MessageID, msg.FromAddr,
-		msg.ReceivedAt, msg.Subject, msg.RawText, string(msg.Status), msg.ParsedJSON,
+			(id, user_id, mail_account_id, message_id, from_addr, from_name, received_at, subject,
+			 raw_text, body_text, status, parsed_json, confidence, extractor_source, template_id, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		uuid.New().String(), userID, msg.MailAccountID, msg.MessageID, msg.FromAddr, msg.FromName,
+		msg.ReceivedAt, msg.Subject, msg.RawText, msg.BodyText, string(msg.Status), msg.ParsedJSON,
 		msg.Confidence, msg.ExtractorSource, msg.TemplateID, tim.NowGoTS(),
 	)
 	if err != nil {
@@ -163,8 +163,14 @@ func (r *MailRepo) InsertMessage(userID string, msg *repo.NewMailMessage) (bool,
 	return n > 0, nil
 }
 
-const mailMessageColumns = `id, message_id, mail_account_id, from_addr, subject, received_at, status, parsed_json,
-	approved_json, COALESCE(confidence, 0), raw_text, transaction_id, template_id`
+const mailMessageColumns = `id, message_id, mail_account_id, from_addr, from_name, subject, received_at, status, parsed_json,
+	approved_json, COALESCE(confidence, 0), raw_text, body_text, transaction_id, template_id`
+
+// mailMessageListColumns omits the raw source and the full parsed body: the
+// queue does not need them and would otherwise ship every message twice. A
+// short preview is kept for the list row.
+const mailMessageListColumns = `id, message_id, mail_account_id, from_addr, from_name, subject, received_at, status, parsed_json,
+	approved_json, COALESCE(confidence, 0), transaction_id, template_id, substr(body_text, 1, 200)`
 
 func (r *MailRepo) ListMessages(userID string, status *repo.MailStatus, limit int64) ([]*repo.MailMessageRow, error) {
 	var statusVal any
@@ -172,7 +178,7 @@ func (r *MailRepo) ListMessages(userID string, status *repo.MailStatus, limit in
 		statusVal = string(*status)
 	}
 	rows, err := r.db.Query(
-		"SELECT "+mailMessageColumns+` FROM mail_messages
+		"SELECT "+mailMessageListColumns+` FROM mail_messages
 		 WHERE user_id = ? AND (? IS NULL OR status = ?)
 		 ORDER BY created_at DESC LIMIT ?`,
 		userID, statusVal, statusVal, limit,
@@ -183,7 +189,7 @@ func (r *MailRepo) ListMessages(userID string, status *repo.MailStatus, limit in
 	defer rows.Close()
 	var out []*repo.MailMessageRow
 	for rows.Next() {
-		m, err := scanMailMessage(rows)
+		m, err := scanMailMessageList(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -213,10 +219,10 @@ func (r *MailRepo) GetMessage(userID, id string) (*repo.MailMessageRow, error) {
 func scanMailMessage(rows *sql.Rows) (*repo.MailMessageRow, error) {
 	var m repo.MailMessageRow
 	var status string
-	var receivedAt, parsed, approved, rawText, txnID, templateID sql.NullString
+	var receivedAt, parsed, approved, rawText, bodyText, txnID, templateID sql.NullString
 	if err := rows.Scan(
-		&m.ID, &m.MessageID, &m.MailAccountID, &m.FromAddr, &m.Subject, &receivedAt, &status,
-		&parsed, &approved, &m.Confidence, &rawText, &txnID, &templateID,
+		&m.ID, &m.MessageID, &m.MailAccountID, &m.FromAddr, &m.FromName, &m.Subject, &receivedAt, &status,
+		&parsed, &approved, &m.Confidence, &rawText, &bodyText, &txnID, &templateID,
 	); err != nil {
 		return nil, err
 	}
@@ -233,11 +239,47 @@ func scanMailMessage(rows *sql.Rows) (*repo.MailMessageRow, error) {
 	if rawText.Valid {
 		m.RawText = &rawText.String
 	}
+	if bodyText.Valid {
+		m.BodyText = &bodyText.String
+	}
 	if txnID.Valid {
 		m.TransactionID = &txnID.String
 	}
 	if templateID.Valid {
 		m.TemplateID = &templateID.String
+	}
+	return &m, nil
+}
+
+// scanMailMessageList fills the queue projection: no raw source or body.
+func scanMailMessageList(rows *sql.Rows) (*repo.MailMessageRow, error) {
+	var m repo.MailMessageRow
+	var status string
+	var receivedAt, parsed, approved, txnID, templateID, preview sql.NullString
+	if err := rows.Scan(
+		&m.ID, &m.MessageID, &m.MailAccountID, &m.FromAddr, &m.FromName, &m.Subject, &receivedAt, &status,
+		&parsed, &approved, &m.Confidence, &txnID, &templateID, &preview,
+	); err != nil {
+		return nil, err
+	}
+	m.Status = repo.MailStatus(status)
+	if receivedAt.Valid {
+		m.ReceivedAt = &receivedAt.String
+	}
+	if parsed.Valid {
+		m.ParsedJSON = &parsed.String
+	}
+	if approved.Valid {
+		m.ApprovedJSON = &approved.String
+	}
+	if txnID.Valid {
+		m.TransactionID = &txnID.String
+	}
+	if templateID.Valid {
+		m.TemplateID = &templateID.String
+	}
+	if preview.Valid {
+		m.BodyPreview = preview.String
 	}
 	return &m, nil
 }

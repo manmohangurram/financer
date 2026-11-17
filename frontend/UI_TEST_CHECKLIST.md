@@ -136,7 +136,8 @@ Every run against the running backend before a release or after any backend/fron
 - **Reject** marks the row `rejected` and creates nothing
 - Auto create happens only for an active learned template with complete extraction and a unique account match; ambiguous rows stay in review
 - Mail rules: create/update/delete with at least one condition; first match by position wins (`IGNORE` / `REVIEW` / `AUTO`)
-- Keyboard: `A` approve, `R` reject, `J`/`K` next/previous
+- The email body is parsed (headers and quoted history removed) and shown above the booking form; "Original message" reveals the raw source
+- No keyboard shortcut hints or global A/R/J/K handlers; the actions are the named buttons
 
 ## Settings (`/settings`, user popup)
 
