@@ -127,22 +127,25 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Inbox (`/inbox`)
 
-- With `FINANCER_SECRET_KEY` set, link a mailbox (host must be port 993); it appears in the list with its allowlist and no password shown
-- **Poll now** runs a one-off poll and reports matched/stored/skipped
+- With `FINANCER_SECRET_KEY` set, add a mailbox (host must be port 993); it appears in the list with no password shown
+- Mailboxes can be edited (label/host/username/password/on-off) and removed; no sender allowlist field
+- **Poll now** starts an asynchronous check; the Inbox shows “Checking mail…” and refreshes itself
 - Messages list can be filtered by status (`pending`, `unparsed`, `ignored`, `auto`, `rejected`, `all`); an unknown status shows an error
-- **Approve** a pending message → a transaction appears in the account matched by the mail's ending digits (or the chosen account); the row becomes `auto` and points at the transaction
+- **Approve** a pending message → the split-pane form is pre-filled; correcting name/amount/type/date/account/categories persists with the approval and creates the transaction
+- Missing fields are highlighted with an error summary; approve is blocked until name, amount, date and account are present
 - **Reject** marks the row `rejected` and creates nothing
-- An ambiguous ending-digits match fails the row with "no account matches…" instead of guessing; retrying an already-decided row fails per row
+- Auto create happens only for an active learned template with complete extraction and a unique account match; ambiguous rows stay in review
 - Mail rules: create/update/delete with at least one condition; first match by position wins (`IGNORE` / `REVIEW` / `AUTO`)
+- Keyboard: `A` approve, `R` reject, `J`/`K` next/previous
 
 ## Settings (`/settings`, user popup)
 
-- User popup → Settings opens the profile page
-- Profile shows current name/email and avatar initials
-- Edit name/email → Save → sidebar + popup reflect the new name
-- Upload avatar (PNG/JPG/WebP) → avatar image shows; invalid file type rejected
-- Change password: wrong current password → inline error; valid → success, "signed out other sessions" notice, session stays valid
-- Sign out all sessions → confirm dialog → success; other sessions' refresh tokens revoked
+- User popup → Settings opens the tabbed settings page; tabs are Account, Appearance, Security, Inbox AI, Mailboxes, API keys
+- Tabs are URL-addressable (`/settings?tab=inbox`), arrow-key navigable, and keep their panel state while switching
+- Account: profile shows current name/email and avatar initials; edit + save updates sidebar/popup; upload avatar works for PNG/JPG/WebP and rejects other files
+- Security: wrong current password shows an inline error; a valid change succeeds, signs out other sessions, and the session stays valid; sign out all asks for confirmation
+- Inbox AI: base URL/model/API key save and round-trip (key never shown, only “configured”); Test connection reports success/failure; advanced thresholds persist
+- Mailboxes: add/edit/poll/remove a mailbox; password is optional on edit; polling-off hides it from automatic checks
 
 ## Errors / console
 

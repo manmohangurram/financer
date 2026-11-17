@@ -2,31 +2,40 @@ package model
 
 // MailAccount is a linked mailbox as returned to the UI (never the secret).
 type MailAccount struct {
-	ID              string   `json:"id"`
-	Label           string   `json:"label"`
-	IMAPHost        string   `json:"imapHost"`
-	IMAPPort        int64    `json:"imapPort"`
-	Username        string   `json:"username"`
-	SenderAllowlist []string `json:"senderAllowlist"`
-	Enabled         bool     `json:"enabled"`
-	LastPolledAt    *string  `json:"lastPolledAt"`
-	LastError       string   `json:"lastError"`
+	ID           string  `json:"id"`
+	Label        string  `json:"label"`
+	IMAPHost     string  `json:"imapHost"`
+	IMAPPort     int64   `json:"imapPort"`
+	Username     string  `json:"username"`
+	Enabled      bool    `json:"enabled"`
+	LastPolledAt *string `json:"lastPolledAt"`
+	LastError    string  `json:"lastError"`
 }
 
 // ReqMailAccount is the link-mailbox request.
 type ReqMailAccount struct {
-	Label           string   `json:"label"`
-	IMAPHost        string   `json:"imapHost"`
-	IMAPPort        int64    `json:"imapPort"`
-	Username        string   `json:"username"`
-	Password        string   `json:"password"`
-	SenderAllowlist []string `json:"senderAllowlist"`
+	Label    string `json:"label"`
+	IMAPHost string `json:"imapHost"`
+	IMAPPort int64  `json:"imapPort"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// ReqUpdateMailAccount edits a mailbox; an empty password keeps the stored one.
+type ReqUpdateMailAccount struct {
+	Label    string `json:"label"`
+	IMAPHost string `json:"imapHost"`
+	IMAPPort int64  `json:"imapPort"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Enabled  *bool  `json:"enabled"`
 }
 
 // MailMessage is a stored message as the review UI sees it.
 type MailMessage struct {
 	ID            string  `json:"id"`
 	MessageID     string  `json:"messageId"`
+	MailAccountID string  `json:"mailAccountId"`
 	FromAddr      string  `json:"fromAddr"`
 	Subject       string  `json:"subject"`
 	ReceivedAt    *string `json:"receivedAt"`
@@ -67,12 +76,17 @@ type ReqMailAction struct {
 	Messages []MailActionItem `json:"messages"`
 }
 
-// MailActionItem is one row decision.
+// MailActionItem is one row decision, with optional field overrides that replace
+// the extracted values before the transaction is created.
 type MailActionItem struct {
 	ID          string   `json:"id"`
 	Action      string   `json:"action"` // APPROVE / REJECT
 	AccountID   *string  `json:"accountId"`
 	CategoryIDs []string `json:"categoryIds"`
+	Name        *string  `json:"name"`
+	Amount      *float64 `json:"amount"`
+	Type        *string  `json:"type"`
+	OccurredAt  *string  `json:"occurredAt"`
 }
 
 // MailActionFailure reports one failed row.
@@ -100,6 +114,11 @@ type WireMailMessages struct {
 // WireMailRules is the GET /api/mail/rules response.
 type WireMailRules struct {
 	Rules []*MailRule `json:"rules"`
+}
+
+// WirePollStatus is the async poll trigger response.
+type WirePollStatus struct {
+	Status string `json:"status"` // started | throttled
 }
 
 // WirePollSummary is the POST /api/mail/accounts/{id}/poll response.

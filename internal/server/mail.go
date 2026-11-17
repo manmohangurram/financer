@@ -78,6 +78,28 @@ func (a *API) deleteMailAccount(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (a *API) updateMailAccount(c *gin.Context) {
+	uid := c.GetString(userIDKey)
+	var in model.ReqUpdateMailAccount
+	if err := c.ShouldBindJSON(&in); err != nil {
+		writeError(c, errors.BadRequest(err.Error()))
+		return
+	}
+	out, err := a.mailSvc.Update(uid, c.Param("id"), in)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// pollMailUser starts an asynchronous poll for all of the user's mailboxes.
+func (a *API) pollMailUser(c *gin.Context) {
+	force := c.Query("force") == "1" || c.Query("force") == "true"
+	status := a.mailSvc.PollUserAsync(c.GetString(userIDKey), force)
+	c.JSON(http.StatusAccepted, model.WirePollStatus{Status: status})
+}
+
 func (a *API) pollMailAccount(c *gin.Context) {
 	uid := c.GetString(userIDKey)
 	summary, err := a.mailSvc.PollNow(uid, c.Param("id"))

@@ -1,25 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import AppButton from '@/components/ui/AppButton.vue';
-import AppStamp from '@/components/ui/AppStamp.vue';
-import AppSelect from '@/components/ui/AppSelect.vue';
-import { RefreshCw, Trash2, Inbox as InboxIcon, ChevronDown, Plus, ListTree } from '@lucide/vue';
-import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
-import { mail } from '@/lib/api/client';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { categories, mail } from '@/lib/api/client';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
+import SectionHeader from '@/components/accounts/SectionHeader.vue';
+import { Loader2, Inbox as InboxIcon, RefreshCw, Settings2, Plus, Mail } from '@lucide/vue';
 
-interface Parsed {
-  amount?: number;
-  direction?: 'DEBIT' | 'CREDIT';
-  occurredAt?: string | null;
-  merchant?: string;
-  accountHint?: string | null;
-  confidence?: number;
+interface MailAccount {
+  id: string;
+  label: string;
+  imapHost: string;
+  imapPort: number;
+  username: string;
+  enabled: boolean;
+  lastPolledAt?: string | null;
+  lastError: string;
 }
 
 interface MailMessage {
   id: string;
   messageId: string;
+  mailAccountId: string;
   fromAddr: string;
   subject: string;
   receivedAt?: string | null;
@@ -30,399 +32,498 @@ interface MailMessage {
   transactionId?: string | null;
 }
 
-interface MailAccount {
-  id: string;
-  label: string;
-  username: string;
-  lastPolledAt?: string | null;
-  lastError: string;
+interface Extraction {
+  amount?: number;
+  direction?: string;
+  occurredAt?: string | null;
+  merchant?: string;
+  accountHint?: string | null;
+  confidence?: number;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
+const router = useRouter();
 const accounts = ref<MailAccount[]>([]);
 const messages = ref<MailMessage[]>([]);
-const accountsOpen = ref(false);
+const cats = ref<Category[]>([]);
 const loading = ref(true);
-const busy = ref(false);
 const error = ref('');
-const selected = ref<Set<string>>(new Set());
-const expanded = ref<string | null>(null);
+const notice = ref('');
+const checking = ref(false);
+const busy = ref(false);
+const filter = ref<'review' | 'unparsed' | 'auto' | 'all'>('review');
+const activeAccount = ref('all');
+const search = ref('');
+const selectedId = ref('');
 const showMailboxForm = ref(false);
-const pickAccount = ref<Record<string, string>>({});
-const rules = ref<any[]>([]);
-const rulesOpen = ref(false);
-const newRule = ref({ fromPattern: '', subjectContains: '', action: 'REVIEW' });
-const ruleActions = [
-  { value: 'REVIEW', label: 'review' },
-  { value: 'IGNORE', label: 'ignore' },
-  { value: 'AUTO', label: 'auto' }
-];
-const accountOptions = computed(() => accounts.value.map((a) => ({ value: a.id, label: a.label || a.username })));
-const allMessages = ref<MailMessage[]>([]);
+const editAccount = ref<MailAccount | null>(null);
+const form = ref({
+  name: '',
+  amount: '',
+  type: 'DEBIT',
+  date: '',
+  accountId: '',
+  categoryIds: [] as string[]
+});
+const formErrors = ref<string[]>([]);
+let refreshTimer: number | null = null;
 
-/// Senders that have earned an AUTO rule: several created, none rejected, and
-/// no AUTO rule for them yet.
-const suggestions = computed(() => {
-  const stats: Record<string, { created: number; rejected: number }> = {};
-  for (const m of allMessages.value) {
-    const s = (stats[m.fromAddr] ||= { created: 0, rejected: 0 });
-    if (m.status === 'AUTO') s.created += 1;
-    if (m.status === 'REJECTED') s.rejected += 1;
-  }
-  const already = new Set(rules.value.filter((r) => r.action === 'AUTO').map((r) => String(r.fromPattern).toLowerCase()));
-  return Object.entries(stats)
-    .filter(([from, s]) => s.created >= 3 && s.rejected === 0 && !already.has(from.toLowerCase()))
-    .map(([from, s]) => ({ from, created: s.created }));
+const FILTERS = [
+  { key: 'review', label: 'Needs review' },
+  { key: 'unparsed', label: 'Unparsed' },
+  { key: 'auto', label: 'Auto' },
+  { key: 'all', label: 'All' }
+] as const;
+
+const filtered = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  return messages.value.filter((m) => {
+    if (activeAccount.value !== 'all' && m.mailAccountId !== activeAccount.value) return false;
+    if (filter.value === 'review' && !['PENDING', 'UNPARSED'].includes(m.status)) return false;
+    if (filter.value === 'unparsed' && m.status !== 'UNPARSED') return false;
+    if (filter.value === 'auto' && !['AUTO', 'REJECTED'].includes(m.status)) return false;
+    if (q && !(`${m.subject} ${m.fromAddr}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
 });
 
-const FILTERS = ['pending', 'unparsed', 'all'] as const;
-const filter = ref<(typeof FILTERS)[number]>('pending');
-
-function parsed(m: MailMessage): Parsed | null {
-  if (!m.parsedJson) return null;
+const selected = computed(() => messages.value.find((m) => m.id === selectedId.value) || null);
+const parsed = computed<Extraction | null>(() => {
+  if (!selected.value?.parsedJson) return null;
   try {
-    return JSON.parse(m.parsedJson) as Parsed;
+    return JSON.parse(selected.value.parsedJson) as Extraction;
   } catch {
     return null;
   }
+});
+const actionable = computed(() => {
+  if (!selected.value) return false;
+  if (['PENDING', 'UNPARSED'].includes(selected.value.status)) return true;
+  return selected.value.status === 'AUTO' && !selected.value.transactionId;
+});
+const accountOptions = computed(() => accounts.value.map((a) => ({ value: a.id, label: a.label || a.username })));
+
+function mailboxName(id: string): string {
+  const a = accounts.value.find((x) => x.id === id);
+  return a ? a.label || a.username : 'Mailbox';
 }
 
-function summary(m: MailMessage): string {
-  const p = parsed(m);
-  if (!p?.amount) return m.subject || '(no subject)';
-  const sign = p.direction === 'CREDIT' ? '+' : '-';
-  return `${sign}${formatCurrency(p.amount)}`;
+function parse(m: MailMessage): Extraction | null {
+  if (!m.parsedJson) return null;
+  try { return JSON.parse(m.parsedJson) as Extraction; } catch { return null; }
 }
 
-function hint(m: MailMessage): string {
-  const p = parsed(m);
-  if (!p) return '';
-  const parts: string[] = [];
-  if (p.occurredAt) parts.push(formatDate(p.occurredAt));
-  return parts.join(' · ');
+function amountOf(m: MailMessage): string {
+  const p = parse(m);
+  if (!p?.amount) return '';
+  const sign = p.direction === 'CREDIT' ? '+' : '−';
+  return `${sign} ${formatCurrency(p.amount)}`;
 }
 
-const actionable = computed(() => messages.value.filter((m) => m.status === 'PENDING' || m.status === 'UNPARSED'));
+function stampClass(status: string): string {
+  if (status === 'AUTO') return 'stamp auto';
+  if (status === 'UNPARSED') return 'stamp unparsed';
+  if (status === 'REJECTED') return 'stamp';
+  if (status === 'IGNORED') return 'stamp';
+  return 'stamp pending';
+}
+
+function prepForm(m: MailMessage) {
+  const p = parse(m);
+  form.value = {
+    name: p?.merchant || '',
+    amount: p?.amount ? String(p.amount) : '',
+    type: p?.direction || 'DEBIT',
+    date: p?.occurredAt ? String(p.occurredAt).slice(0, 10) : '',
+    accountId: '',
+    categoryIds: []
+  };
+  formErrors.value = [];
+}
+
+function select(m: MailMessage) {
+  selectedId.value = m.id;
+  prepForm(m);
+  error.value = '';
+  notice.value = '';
+}
 
 async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [acc, msgs, rl, all] = await Promise.all([
+    const [acc, msgs, catRes] = await Promise.all([
       mail().listAccounts({}),
-      mail().listMessages({ status: filter.value }),
-      mail().listRules({}),
-      mail().listMessages({ status: 'all', limit: 500 })
+      mail().listMessages({ status: 'all', limit: 300 }),
+      categories().listCategories({ pageSize: 200 })
     ]);
     accounts.value = acc.accounts || [];
     messages.value = msgs.messages || [];
-    rules.value = rl.rules || [];
-    allMessages.value = all.messages || [];
-    selected.value = new Set();
+    cats.value = catRes.categories || [];
+    if (selectedId.value && !messages.value.some((m) => m.id === selectedId.value)) {
+      selectedId.value = '';
+    }
+    if (!selectedId.value) {
+      const first = filtered.value[0];
+      if (first) select(first);
+    }
   } catch (e: any) {
     error.value = e?.message || 'Failed to load the inbox';
   }
   loading.value = false;
 }
 
-function toggle(id: string) {
-  const next = new Set(selected.value);
-  next.has(id) ? next.delete(id) : next.add(id);
-  selected.value = next;
+function startRefresh() {
+  if (refreshTimer) window.clearInterval(refreshTimer);
+  let ticks = 0;
+  refreshTimer = window.setInterval(async () => {
+    ticks += 1;
+    await load();
+    if (ticks >= 5 || !checking.value) {
+      if (refreshTimer) window.clearInterval(refreshTimer);
+      refreshTimer = null;
+      checking.value = false;
+    }
+  }, 3000);
 }
 
-function toggleAll() {
-  selected.value = selected.value.size === actionable.value.length ? new Set() : new Set(actionable.value.map((m) => m.id));
+async function poll(force = false) {
+  checking.value = true;
+  error.value = '';
+  try {
+    const res = await mail().pollAll(force ? { force: 1 } : {});
+    if (res?.status === 'throttled') {
+      notice.value = 'Mail was checked recently.';
+      checking.value = false;
+      await load();
+      return;
+    }
+    startRefresh();
+  } catch (e: any) {
+    checking.value = false;
+    error.value = e?.message || 'Could not start the mail check';
+  }
 }
 
-async function act(action: 'APPROVE' | 'REJECT', ids: string[], accountId?: string) {
-  if (!ids.length) return;
+function validate(): string[] {
+  const errs: string[] = [];
+  if (!form.value.name.trim()) errs.push('Name is required');
+  if (!form.value.amount || Number(form.value.amount) <= 0) errs.push('Amount must be greater than zero');
+  if (!form.value.date) errs.push('Date is required');
+  if (!form.value.accountId) errs.push('Choose the account');
+  return errs;
+}
+
+async function approve() {
+  if (!selected.value) return;
+  formErrors.value = validate();
+  if (formErrors.value.length) return;
   busy.value = true;
   error.value = '';
   try {
     const res = await mail().act({
-      messages: ids.map((id) => ({ id, action, accountId: accountId || pickAccount.value[id] || undefined }))
+      messages: [{
+        id: selected.value.id,
+        action: 'APPROVE',
+        name: form.value.name.trim(),
+        amount: Number(form.value.amount),
+        type: form.value.type,
+        occurredAt: form.value.date,
+        accountId: form.value.accountId,
+        categoryIds: form.value.categoryIds
+      }]
     });
     if (res.failed?.length) {
-      error.value = `${res.failed.length} could not be ${action === 'APPROVE' ? 'approved' : 'rejected'}: ${res.failed[0].error}`;
+      error.value = res.failed[0].error;
+    } else {
+      notice.value = 'Transaction created.';
+      selectedId.value = '';
+      await load();
     }
-    await load();
   } catch (e: any) {
-    error.value = e?.message || 'Action failed';
+    error.value = e?.message || 'Could not approve this mail';
   }
   busy.value = false;
 }
 
-async function pollAccount(id: string) {
+async function reject() {
+  if (!selected.value) return;
   busy.value = true;
   error.value = '';
   try {
-    const r = await mail().pollAccount({ id });
-    if (r.stored === 0) error.value = `Checked ${r.matched} message(s); nothing new.`;
-    await load();
+    const res = await mail().act({ messages: [{ id: selected.value.id, action: 'REJECT' }] });
+    if (res.failed?.length) error.value = res.failed[0].error;
+    else {
+      notice.value = 'Mail rejected.';
+      selectedId.value = '';
+      await load();
+    }
   } catch (e: any) {
-    error.value = e?.message || 'Poll failed';
+    error.value = e?.message || 'Could not reject this mail';
   }
   busy.value = false;
 }
 
-async function removeAccount(id: string) {
-  busy.value = true;
-  try {
-    await mail().deleteAccount({ id });
-    await load();
-  } catch (e: any) {
-    error.value = e?.message || 'Could not remove the mailbox';
-  }
-  busy.value = false;
+function move(delta: number) {
+  const list = filtered.value;
+  if (!list.length) return;
+  const idx = list.findIndex((m) => m.id === selectedId.value);
+  const next = list[Math.max(0, Math.min(list.length - 1, idx + delta))];
+  if (next) select(next);
 }
 
-function ruleLabel(r: any): string {
-  const parts: string[] = [];
-  if (r.fromPattern) parts.push(`from ${r.fromPattern}`);
-  if (r.subjectContains) parts.push(`subject has "${r.subjectContains}"`);
-  if (r.bodyContains) parts.push(`body has "${r.bodyContains}"`);
-  return parts.join(' · ') || '(no conditions)';
+function onKey(e: KeyboardEvent) {
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+  if (e.key === 'a' && actionable.value) { e.preventDefault(); approve(); }
+  if (e.key === 'r' && actionable.value) { e.preventDefault(); reject(); }
+  if (e.key === 'j') { e.preventDefault(); move(1); }
+  if (e.key === 'k') { e.preventDefault(); move(-1); }
 }
 
-async function addRule() {
-  const body: Record<string, unknown> = { action: newRule.value.action, position: rules.value.length };
-  if (newRule.value.fromPattern.trim()) body.fromPattern = newRule.value.fromPattern.trim();
-  if (newRule.value.subjectContains.trim()) body.subjectContains = newRule.value.subjectContains.trim();
-  if (!body.fromPattern && !body.subjectContains) {
-    error.value = 'A rule needs a sender or a subject match';
-    return;
-  }
-  busy.value = true;
-  try {
-    await mail().createRule(body);
-    newRule.value = { fromPattern: '', subjectContains: '', action: 'REVIEW' };
-    await load();
-  } catch (e: any) {
-    error.value = e?.message || 'Could not create the rule';
-  }
-  busy.value = false;
+function openAdd() {
+  editAccount.value = null;
+  showMailboxForm.value = true;
 }
 
-async function createAutoRule(from: string) {
-  busy.value = true;
-  try {
-    await mail().createRule({ fromPattern: from, action: 'AUTO', position: rules.value.length });
-    await load();
-  } catch (e: any) {
-    error.value = e?.message || 'Could not create the rule';
-  }
-  busy.value = false;
-}
-
-async function deleteRule(id: string) {
-  busy.value = true;
-  try {
-    await mail().deleteRule({ id });
-    await load();
-  } catch (e: any) {
-    error.value = e?.message || 'Could not delete the rule';
-  }
-  busy.value = false;
-}
-
-onMounted(load);
+onMounted(async () => {
+  await load();
+  poll(false);
+  window.addEventListener('keydown', onKey);
+});
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKey);
+  if (refreshTimer) window.clearInterval(refreshTimer);
+});
 </script>
 
 <template>
-  <div class="w-full space-y-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-[24px] font-bold text-base-content tracking-tight">Inbox</h1>
-        <p class="text-[13.5px] text-ink-mute mt-0.5">Bank alerts waiting to become transactions</p>
-      </div>
-      <div class="flex items-end gap-4 border-b border-rule">
-        <button
-          v-for="f in FILTERS"
-          :key="f"
-          type="button"
-          class="relative -mb-px pb-2 text-[13px] font-medium capitalize transition-colors"
-          :class="filter === f ? 'text-ink' : 'text-ink-mute hover:text-ink-soft'"
-          @click="filter = f; load()"
-        >
-          {{ f }}
-          <span v-if="filter === f" class="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-accent"></span>
-        </button>
-      </div>
-    </div>
-
-    <div v-if="error" class="rounded-card border border-stamp/40 px-3.5 py-2.5 text-[12.5px] text-ink">{{ error }}</div>
-
-    <div class="overflow-hidden rounded-card border border-rule bg-page">
-      <button class="flex w-full items-center justify-between px-4 py-2.5" @click="accountsOpen = !accountsOpen">
-        <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
-          <InboxIcon class="w-4 h-4" stroke-width="1.5" />
-          Mailboxes
-          <span class="font-normal text-ink-faint">({{ accounts.length }})</span>
-        </span>
-        <ChevronDown class="w-4 h-4 text-ink-mute transition-transform" :class="accountsOpen ? 'rotate-180' : ''" />
-      </button>
-      <div v-if="accountsOpen" class="flex flex-col gap-2 border-t border-rule px-4 py-3">
-        <p v-if="!accounts.length" class="text-[12.5px] text-ink-mute">
-          No mailbox linked yet. Add one with an app password and the senders that send your bank alerts.
-        </p>
-        <div v-for="a in accounts" :key="a.id" class="flex items-center justify-between gap-3 text-[13px]">
-          <span class="min-w-0">
-            <span class="block truncate text-[13px] text-ink">
-              <span class="font-medium">{{ a.label || a.username }}</span>
-              <span class="text-ink-mute"> · {{ a.username }}</span>
-              <span v-if="!a.lastError && a.lastPolledAt" class="text-ink-mute"> · checked {{ formatDate(a.lastPolledAt) }}</span>
-            </span>
-            <span v-if="a.lastError" class="mt-0.5 block truncate text-[11.5px] text-debit">{{ a.lastError }}</span>
+  <div class="flex min-h-0 w-full flex-1 flex-col gap-3">
+    <SectionHeader title="Inbox" subtitle="Review bank alerts and turn them into entries">
+      <template #actions>
+        <div class="flex items-center gap-2">
+          <span v-if="checking" class="flex items-center gap-1.5 text-[12px] text-ink-mute">
+            <Loader2 class="h-3.5 w-3.5 animate-spin" /> Checking mail…
           </span>
-          <span class="flex shrink-0 items-center gap-1">
-            <button class="ns-quiet" :disabled="busy" @click="pollAccount(a.id)">
-              <RefreshCw class="h-3.5 w-3.5" /> Check now
-            </button>
-            <button class="ns-icon text-debit" :disabled="busy" aria-label="Unlink mailbox" @click="removeAccount(a.id)">
-              <Trash2 class="h-3.5 w-3.5" />
-            </button>
-          </span>
-        </div>
-        <div>
-          <button class="ns-quiet" @click="showMailboxForm = true">
-            <Plus class="h-3.5 w-3.5" /> Add mailbox
+          <button class="ns-quiet" :disabled="checking" @click="poll(true)">
+            <RefreshCw class="h-4 w-4" :class="checking ? 'animate-spin' : ''" /> Poll now
           </button>
-        </div>
-      </div>
-    </div>
-
-    <MailboxFormModal v-if="showMailboxForm" @close="showMailboxForm = false" @saved="load" />
-
-    <div class="overflow-hidden rounded-card border border-rule bg-page">
-      <button class="flex w-full items-center justify-between px-4 py-2.5" @click="rulesOpen = !rulesOpen">
-        <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
-          <ListTree class="h-4 w-4" stroke-width="1.5" />
-          Rules
-          <span class="font-normal text-ink-faint">({{ rules.length }})</span>
-        </span>
-        <ChevronDown class="w-4 h-4 text-ink-mute transition-transform" :class="rulesOpen ? 'rotate-180' : ''" />
-      </button>
-      <div v-if="rulesOpen" class="flex flex-col gap-2 border-t border-rule px-4 py-3">
-        <p v-if="!rules.length" class="text-[12.5px] text-ink-mute">
-          No rules. Everything is reviewed by hand until you add one.
-        </p>
-        <div v-for="r in rules" :key="r.id" class="flex items-center justify-between gap-3 text-[13px]">
-          <span class="min-w-0">
-            <span class="mr-2 align-middle" :class="r.action === 'AUTO' ? 'text-credit' : r.action === 'IGNORE' ? 'text-ink-mute' : 'text-stamp'">
-              {{ r.action.toLowerCase() }}
-            </span>
-            <span class="text-ink-soft">{{ ruleLabel(r) }}</span>
-          </span>
-          <button class="ns-icon text-debit shrink-0" :disabled="busy" @click="deleteRule(r.id)">
-            <Trash2 class="w-3.5 h-3.5" />
+          <button class="ns-quiet" @click="router.push('/settings?tab=mailboxes')">
+            <Settings2 class="h-4 w-4" /> Mailboxes
           </button>
-        </div>
-
-        <div v-for="sugg in suggestions" :key="sugg.from" class="flex items-center justify-between gap-3 rounded-control border border-credit/30 bg-credit/5 px-3 py-2">
-          <span class="text-[12.5px] text-ink">
-            Auto-create for <span class="font-medium">{{ sugg.from }}</span>?
-            <span class="text-ink-mute">{{ sugg.created }} created, 0 rejected</span>
-          </span>
-          <button class="ns-primary-xs shrink-0" :disabled="busy" @click="createAutoRule(sugg.from)">Create rule</button>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2 pt-2">
-          <input v-model="newRule.fromPattern" placeholder="from (sender or domain)" class="h-[38px] flex-1 min-w-[180px] rounded-control border border-rule bg-page-sunk px-3 text-[13px] text-ink placeholder:text-ink-faint" />
-          <input v-model="newRule.subjectContains" placeholder="subject contains" class="h-[38px] flex-1 min-w-[150px] rounded-control border border-rule bg-page-sunk px-3 text-[13px] text-ink placeholder:text-ink-faint" />
-          <div class="w-[130px]">
-            <AppSelect v-model="newRule.action" :options="ruleActions" />
-          </div>
-          <button class="ns-quiet h-[38px] border border-rule gap-1" :disabled="busy" @click="addRule">
-            <Plus class="w-3.5 h-3.5" /> Add
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="selected.size" class="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-card border border-primary-500/30 bg-accent/10 px-4 py-2.5">
-      <span class="text-[13px] font-medium text-ink">{{ selected.size }} selected</span>
-      <span class="flex gap-2">
-        <button class="ns-primary" :disabled="busy" @click="act('APPROVE', [...selected])">Approve</button>
-        <button class="ns-quiet border border-rule" :disabled="busy" @click="act('REJECT', [...selected])">Reject</button>
-      </span>
-    </div>
-
-    <div v-if="loading" class="flex justify-center py-12">
-      <span class="loading loading-dots loading-lg text-primary"></span>
-    </div>
-
-    <div v-else-if="!messages.length" class="rounded-card border border-rule bg-page px-6 py-10 text-center">
-      <p class="text-[14px] text-ink-mute">Nothing here. Alerts are picked up on the next poll.</p>
-    </div>
-
-    <div v-else class="rounded-card border border-rule bg-page overflow-hidden">
-      <div class="hidden items-center gap-3 border-b border-rule bg-page-sunk px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute md:flex">
-        <input
-          type="checkbox"
-          class="h-3.5 w-3.5 accent-[var(--accent)]"
-          :checked="selected.size === actionable.length && actionable.length > 0"
-          aria-label="Select every pending message"
-          @change="toggleAll"
-        />
-        <span class="flex-1">From</span>
-        <span class="w-[104px] text-right">Amount</span>
-        <span class="w-[74px] text-right">State</span>
-        <span class="w-[132px]"></span>
-      </div>
-
-      <template v-for="m in messages" :key="m.id">
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60 md:flex-nowrap">
-          <input
-            v-if="m.status === 'PENDING' || m.status === 'UNPARSED'"
-            type="checkbox"
-            class="h-3.5 w-3.5 accent-[var(--accent)]"
-            :checked="selected.has(m.id)"
-            aria-label="Select message"
-            @change="toggle(m.id)"
-          />
-          <span v-else class="w-3.5"></span>
-
-          <button class="w-[calc(100%-26px)] min-w-0 text-left md:w-auto md:flex-1" @click="expanded = expanded === m.id ? null : m.id">
-            <span class="block truncate text-[13px] text-ink">{{ m.fromAddr }}</span>
-            <span class="block truncate text-[11.5px] text-ink-mute">{{ m.subject || '(no subject)' }}</span>
-          </button>
-
-          <span class="ml-auto shrink-0 text-right md:ml-0 md:w-[104px]">
-            <span class="tabular block text-[13px] font-medium" :class="parsed(m)?.direction === 'CREDIT' ? 'text-credit' : 'text-ink'">
-              {{ summary(m) }}
-            </span>
-            <span class="block truncate text-[11px] text-ink-mute">{{ hint(m) }}</span>
-          </span>
-
-          <span class="w-[74px] shrink-0 text-right">
-            <AppStamp :tone="m.status === 'PENDING' ? 'pending' : m.status === 'UNPARSED' ? 'neutral' : m.status === 'AUTO' ? 'credit' : 'debit'">
-              {{ m.status.toLowerCase() }}
-            </AppStamp>
-          </span>
-
-          <span v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex shrink-0 justify-end gap-1.5 md:w-[150px]">
-            <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
-            <AppButton variant="outline" size="sm" :disabled="busy" @click="act('REJECT', [m.id])">Reject</AppButton>
-          </span>
-          <span v-else class="hidden md:block md:w-[150px] md:shrink-0"></span>
-        </div>
-
-        <div v-if="expanded === m.id" class="flex flex-col gap-3 border-b border-rule-soft bg-page-sunk/40 px-4 py-3">
-          <pre v-if="m.rawText" class="max-h-56 overflow-auto whitespace-pre-wrap rounded-control border border-rule bg-page p-3 text-[11.5px] text-ink-mute">{{ m.rawText }}</pre>
-          <p v-else class="text-[12px] text-ink-faint">The message body was pruned once this row was resolved.</p>
-
-          <div v-if="m.status === 'PENDING' || m.status === 'UNPARSED'" class="flex flex-wrap items-center gap-2">
-            <span class="text-[12.5px] text-ink-mute">
-              Account
-              <span v-if="parsed(m)?.accountHint" class="text-ink-faint">(mail says …{{ parsed(m)?.accountHint }})</span>
-            </span>
-            <div class="w-[220px]">
-              <AppSelect v-model="pickAccount[m.id]" :options="accountOptions" placeholder="From the last 4 digits" />
-            </div>
-            <AppButton size="sm" :disabled="busy" @click="act('APPROVE', [m.id])">Approve</AppButton>
-          </div>
+          <button class="ns-primary" @click="openAdd"><Plus class="h-4 w-4" /> Add mailbox</button>
         </div>
       </template>
+    </SectionHeader>
+
+    <p v-if="error" class="rounded-card border border-debit/40 px-3.5 py-2 text-[12.5px] text-debit">{{ error }}</p>
+    <p v-if="notice" class="rounded-card border border-credit/40 px-3.5 py-2 text-[12.5px] text-credit">{{ notice }}</p>
+
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-rule bg-page">
+      <div class="flex flex-wrap items-center gap-1 border-b border-rule bg-paper px-2">
+        <button
+          class="px-3 py-2 text-[12.5px]"
+          :class="activeAccount === 'all' ? 'border-b-2 border-accent text-ink' : 'text-ink-mute hover:text-ink'"
+          @click="activeAccount = 'all'"
+        >All mailboxes</button>
+        <button
+          v-for="a in accounts"
+          :key="a.id"
+          class="flex items-center gap-1.5 px-3 py-2 text-[12.5px]"
+          :class="activeAccount === a.id ? 'border-b-2 border-accent text-ink' : 'text-ink-mute hover:text-ink'"
+          @click="activeAccount = a.id"
+        >
+          {{ a.label || a.username }}
+          <span v-if="a.lastError" class="h-1.5 w-1.5 rounded-full bg-debit" :title="a.lastError"></span>
+        </button>
+        <span v-if="!accounts.length" class="px-3 py-2 text-[12.5px] text-ink-mute">No mailboxes linked yet.</span>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 border-b border-rule-soft px-3 py-2">
+        <button
+          v-for="f in FILTERS"
+          :key="f.key"
+          class="rounded-full border px-2.5 py-1 text-[12px]"
+          :class="filter === f.key ? 'border-accent text-accent' : 'border-rule text-ink-soft hover:text-ink'"
+          @click="filter = f.key"
+        >{{ f.label }}</button>
+        <input
+          v-model="search"
+          type="search"
+          placeholder="Search sender or subject"
+          class="ml-auto w-[220px] rounded-control border border-rule bg-page px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-accent"
+        />
+      </div>
+
+      <div class="grid min-h-0 flex-1 lg:grid-cols-[minmax(300px,400px)_1fr]">
+        <div class="min-h-0 overflow-y-auto border-b border-rule lg:border-b-0 lg:border-r">
+          <div v-if="loading" class="py-16 text-center text-[13px] text-ink-mute">Loading…</div>
+          <div v-else-if="!filtered.length" class="flex flex-col items-center gap-2 py-16 text-center">
+            <InboxIcon class="h-8 w-8 text-ink-faint" />
+            <p class="text-[13px] text-ink-mute">Nothing to review here.</p>
+            <p class="text-[12px] text-ink-faint">New mail appears automatically after a poll.</p>
+          </div>
+          <button
+            v-for="m in filtered"
+            :key="m.id"
+            class="flex w-full gap-2.5 border-b border-rule-soft px-3.5 py-3 text-left"
+            :class="selectedId === m.id ? 'bg-page shadow-[inset_2px_0_0_var(--accent)]' : 'bg-paper hover:bg-page'"
+            @click="select(m)"
+          >
+            <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+              :class="m.status === 'UNPARSED' ? 'bg-debit' : m.status === 'AUTO' ? 'bg-credit' : 'bg-stamp'"></span>
+            <span class="min-w-0 flex-1">
+              <span class="flex items-baseline justify-between gap-2">
+                <span class="truncate text-[13px] text-ink">{{ m.subject || '(no subject)' }}</span>
+                <span class="mono shrink-0 text-[11.5px]" :class="(parse(m)?.direction === 'CREDIT') ? 'text-credit' : 'text-debit'">{{ amountOf(m) }}</span>
+              </span>
+              <span class="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] text-ink-mute">
+                <span class="truncate">{{ m.fromAddr }}</span>
+                <span class="flex shrink-0 items-center gap-2">
+                  <span>{{ m.receivedAt ? formatDate(m.receivedAt) : formatDate(m.messageId) }}</span>
+                  <span :class="stampClass(m.status)">{{ m.status }}</span>
+                </span>
+              </span>
+            </span>
+          </button>
+        </div>
+
+        <div v-if="selected" class="min-h-0 overflow-y-auto px-4 py-4 lg:px-5">
+          <div class="flex flex-wrap items-start justify-between gap-3 border-b border-rule pb-3">
+            <div class="min-w-0">
+              <h2 class="truncate font-display text-[20px] text-ink">{{ selected.subject || '(no subject)' }}</h2>
+              <p class="mt-0.5 text-[12px] text-ink-mute">
+                {{ selected.fromAddr }} · {{ selected.receivedAt ? formatDate(selected.receivedAt) : '—' }} · {{ mailboxName(selected.mailAccountId) }}
+              </p>
+            </div>
+            <span :class="stampClass(selected.status)">{{ selected.status }}</span>
+          </div>
+
+          <div class="mt-3 grid gap-5 xl:grid-cols-[1fr_320px]">
+            <div class="min-w-0">
+              <p class="mb-1 text-[10px] uppercase tracking-[0.08em] text-ink-mute">Email</p>
+              <pre class="max-h-[300px] overflow-auto whitespace-pre-wrap rounded-control border border-rule-soft bg-page-sunk p-3 font-ui text-[12.5px] leading-relaxed text-ink-soft">{{ selected.rawText || 'No body stored.' }}</pre>
+              <div v-if="parsed?.accountHint" class="mt-2 text-[11.5px] text-ink-mute">
+                Account hint in mail: <span class="mono">{{ parsed.accountHint }}</span>
+              </div>
+              <div v-if="parsed?.confidence != null" class="text-[11.5px] text-ink-mute">
+                Extraction confidence: <span class="mono">{{ Math.round((parsed.confidence || 0) * 100) }}%</span>
+              </div>
+            </div>
+
+            <div class="min-w-0">
+              <div v-if="formErrors.length" role="alert" class="mb-3 rounded-control border border-debit/40 bg-debit/5 px-3 py-2 text-[12px] text-debit">
+                <b class="mb-0.5 block">There is a problem</b>
+                <ul class="list-inside list-disc">
+                  <li v-for="e in formErrors" :key="e">{{ e }}</li>
+                </ul>
+              </div>
+
+              <label class="mb-1 block text-[10px] uppercase tracking-[0.08em] text-ink-mute" for="mail-name">Name</label>
+              <input id="mail-name" v-model="form.name" class="mb-2.5 w-full rounded-control border px-2.5 py-1.5 text-[13px]"
+                :class="!form.name.trim() ? 'border-stamp/60 bg-stamp/5' : 'border-rule'" />
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="mb-1 block text-[10px] uppercase tracking-[0.08em] text-ink-mute" for="mail-amount">Amount</label>
+                  <input id="mail-amount" v-model="form.amount" type="number" step="0.01" min="0"
+                    class="w-full rounded-control border px-2.5 py-1.5 text-[13px] mono"
+                    :class="!form.amount ? 'border-stamp/60 bg-stamp/5' : 'border-rule'" />
+                </div>
+                <div>
+                  <label class="mb-1 block text-[10px] uppercase tracking-[0.08em] text-ink-mute" for="mail-type">Type</label>
+                  <select id="mail-type" v-model="form.type" class="w-full rounded-control border border-rule bg-page px-2 py-1.5 text-[13px]">
+                    <option value="DEBIT">Debit</option>
+                    <option value="CREDIT">Credit</option>
+                  </select>
+                </div>
+              </div>
+
+              <label class="mb-1 mt-2.5 block text-[10px] uppercase tracking-[0.08em] text-ink-mute" for="mail-date">Date</label>
+              <input id="mail-date" v-model="form.date" type="date"
+                class="mb-2.5 w-full rounded-control border px-2.5 py-1.5 text-[13px]"
+                :class="!form.date ? 'border-stamp/60 bg-stamp/5' : 'border-rule'" />
+
+              <label class="mb-1 block text-[10px] uppercase tracking-[0.08em] text-ink-mute" for="mail-account">Account</label>
+              <select id="mail-account" v-model="form.accountId"
+                class="w-full rounded-control border bg-page px-2 py-1.5 text-[13px]"
+                :class="!form.accountId ? 'border-stamp/60 bg-stamp/5' : 'border-rule'">
+                <option value="" disabled>Choose an account</option>
+                <option v-for="a in accountOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
+              </select>
+
+              <p class="mb-1 mt-2.5 text-[10px] uppercase tracking-[0.08em] text-ink-mute">Categories</p>
+              <div class="flex max-h-[120px] flex-wrap gap-1.5 overflow-y-auto">
+                <button
+                  v-for="c in cats"
+                  :key="c.id"
+                  class="rounded-full border px-2 py-0.5 text-[11.5px]"
+                  :class="form.categoryIds.includes(c.id) ? 'border-accent text-accent' : 'border-rule text-ink-soft'"
+                  @click="form.categoryIds.includes(c.id) ? form.categoryIds = form.categoryIds.filter((id) => id !== c.id) : form.categoryIds.push(c.id)"
+                >{{ c.name }}</button>
+                <span v-if="!cats.length" class="text-[11.5px] text-ink-faint">No categories yet.</span>
+              </div>
+
+              <div class="mt-4 flex items-center gap-2">
+                <button class="ns-primary flex-1" :disabled="busy || !actionable" @click="approve">
+                  Approve<span class="kbd">A</span>
+                </button>
+                <button class="ns-quiet" :disabled="busy || !actionable" @click="reject">Reject<span class="kbd">R</span></button>
+              </div>
+              <div class="mt-2 flex gap-3 text-[11px] text-ink-faint">
+                <span><span class="kbd">J</span>/<span class="kbd">K</span> next/prev</span>
+                <span v-if="!actionable">Already decided</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="flex flex-col items-center justify-center gap-2 p-10 text-center">
+          <Mail class="h-8 w-8 text-ink-faint" />
+          <p class="text-[13px] text-ink-mute">Select a mail to review.</p>
+          <p class="text-[12px] text-ink-faint">The email and its extracted fields appear here.</p>
+        </div>
+      </div>
     </div>
+
+    <MailboxFormModal
+      v-if="showMailboxForm"
+      :account="editAccount"
+      @close="showMailboxForm = false"
+      @saved="load(); poll(false)"
+    />
   </div>
 </template>
+
+<style scoped>
+.kbd {
+  display: inline-block;
+  margin-left: 6px;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.stamp {
+  display: inline-block;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-mute);
+  white-space: nowrap;
+}
+.stamp.pending { color: var(--stamp); border-color: color-mix(in oklab, var(--stamp) 45%, transparent); }
+.stamp.auto { color: var(--credit); border-color: color-mix(in oklab, var(--credit) 40%, transparent); }
+.stamp.unparsed { color: var(--debit); border-color: color-mix(in oklab, var(--debit) 40%, transparent); }
+</style>

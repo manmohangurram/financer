@@ -41,8 +41,10 @@ export interface RuleServiceClient {
 export interface MailServiceClient {
   listAccounts: (req: unknown) => Promise<any>;
   createAccount: (req: unknown) => Promise<any>;
+  updateAccount: (req: unknown) => Promise<any>;
   deleteAccount: (req: unknown) => Promise<any>;
   pollAccount: (req: unknown) => Promise<any>;
+  pollAll: (req: unknown) => Promise<any>;
   listMessages: (req: unknown) => Promise<any>;
   act: (req: unknown) => Promise<any>;
   listRules: (req: unknown) => Promise<any>;
@@ -76,6 +78,12 @@ export interface UserKeyServiceClient {
   deleteKey: (req: unknown) => Promise<any>;
 }
 
+export interface LLMSettingsClient {
+  get: (req: unknown) => Promise<any>;
+  update: (req: unknown) => Promise<any>;
+  test: (req: unknown) => Promise<any>;
+}
+
 let _accounts: AccountServiceClient | null = null;
 let _categories: CategoryServiceClient | null = null;
 let _transactions: TransactionServiceClient | null = null;
@@ -85,6 +93,7 @@ let _transfers: TransferServiceClient | null = null;
 let _analytics: AnalyticsServiceClient | null = null;
 let _profile: ProfileServiceClient | null = null;
 let _userKeys: UserKeyServiceClient | null = null;
+let _llm: LLMSettingsClient | null = null;
 
 function api(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string) {
   return (req: unknown) => {
@@ -166,8 +175,10 @@ export function mail(): MailServiceClient {
     _mail = {
       listAccounts: api('GET', '/api/mail/accounts'),
       createAccount: api('POST', '/api/mail/accounts'),
+      updateAccount: api('PUT', '/api/mail/accounts/{id}'),
       deleteAccount: api('DELETE', '/api/mail/accounts/{id}'),
       pollAccount: api('POST', '/api/mail/accounts/{id}/poll'),
+      pollAll: api('POST', '/api/mail/poll'),
       listMessages: api('GET', '/api/mail/messages'),
       act: api('POST', '/api/mail/messages'),
       listRules: api('GET', '/api/mail/rules'),
@@ -236,6 +247,17 @@ export function apiKeys(): UserKeyServiceClient {
     };
   }
   return _userKeys;
+}
+
+export function llm(): LLMSettingsClient {
+  if (!_llm) {
+    _llm = {
+      get: api('GET', '/api/me/llm'),
+      update: api('PUT', '/api/me/llm'),
+      test: api('POST', '/api/me/llm/test')
+    };
+  }
+  return _llm;
 }
 
 function getAuthHeaders(): Record<string, string> {

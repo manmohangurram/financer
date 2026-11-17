@@ -66,7 +66,7 @@ func newTestServer(t *testing.T) *testServer {
 	transferRuleSvc := ruleservice.NewTransferRuleService(rules, txns, accounts, transferSvc)
 	txnSvc := transactionservice.New(txns, accounts, categories).WithRule(ruleSvc).WithTransferRule(transferRuleSvc)
 	keySvc := keyservice.New(keys)
-	mailSvc := mailservice.New(mails, nil, txnSvc, accountSvc)
+	mailSvc := mailservice.New(mails, nil, txnSvc, accountSvc, nil)
 
 	api := New(Deps{
 		Auth: authSvc, User: userSvc, Account: accountSvc, Category: categorySvc,

@@ -1,6 +1,8 @@
 DROP TABLE IF EXISTS mail_messages;
+DROP TABLE IF EXISTS mail_templates;
 DROP TABLE IF EXISTS mail_rules;
 DROP TABLE IF EXISTS mail_accounts;
+DROP TABLE IF EXISTS user_llm_settings;
 DROP TABLE IF EXISTS user_keys;
 DROP TABLE IF EXISTS rule_actions;
 DROP TABLE IF EXISTS rule_conditions;

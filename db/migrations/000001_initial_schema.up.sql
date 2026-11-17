@@ -138,7 +138,6 @@ CREATE TABLE mail_accounts (
   imap_port        INTEGER NOT NULL,
   username         TEXT NOT NULL,
   secret_enc       TEXT NOT NULL,
-  sender_allowlist TEXT NOT NULL DEFAULT '[]',
   enabled          INTEGER NOT NULL DEFAULT 1,
   last_polled_at   TIMESTAMP,
   last_error       TEXT NOT NULL DEFAULT '',
@@ -146,6 +145,42 @@ CREATE TABLE mail_accounts (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_mail_accounts_user_id ON mail_accounts(user_id);
+
+-- Learned parsing templates: one sender can have several guarded variants.
+CREATE TABLE mail_templates (
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL,
+  sender         TEXT NOT NULL,
+  name           TEXT NOT NULL,
+  guards_json    TEXT NOT NULL DEFAULT '{}',
+  patterns_json  TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'provisional',
+  sample_count   INTEGER NOT NULL DEFAULT 1,
+  successes      INTEGER NOT NULL DEFAULT 0,
+  failures       INTEGER NOT NULL DEFAULT 0,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at   TIMESTAMP,
+  last_attempt_at TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_mail_templates_lookup ON mail_templates(user_id, sender, status);
+
+-- Per-user LiteLLM settings. The API key uses the same encryption as mailbox
+-- passwords (FINANCER_SECRET_KEY).
+CREATE TABLE user_llm_settings (
+  user_id                     TEXT PRIMARY KEY,
+  base_url                    TEXT NOT NULL DEFAULT '',
+  model                       TEXT NOT NULL DEFAULT '',
+  api_key_enc                 TEXT NOT NULL DEFAULT '',
+  timeout_secs                INTEGER NOT NULL DEFAULT 20,
+  enabled                     INTEGER NOT NULL DEFAULT 1,
+  min_samples                 INTEGER NOT NULL DEFAULT 3,
+  failure_threshold           INTEGER NOT NULL DEFAULT 3,
+  cooldown_minutes            INTEGER NOT NULL DEFAULT 60,
+  auto_poll_throttle_minutes  INTEGER NOT NULL DEFAULT 5,
+  updated_at                  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 
 CREATE TABLE mail_rules (
   id               TEXT PRIMARY KEY,
@@ -179,10 +214,12 @@ CREATE TABLE mail_messages (
   extractor_source TEXT NOT NULL DEFAULT '',
   confidence       REAL,
   transaction_id   TEXT,
+  template_id      TEXT,
   created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (mail_account_id) REFERENCES mail_accounts(id) ON DELETE CASCADE,
   FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL,
+  FOREIGN KEY (template_id) REFERENCES mail_templates(id) ON DELETE SET NULL,
   UNIQUE(user_id, message_id)
 );
 CREATE INDEX idx_mail_messages_user_status ON mail_messages(user_id, status);
