@@ -143,3 +143,24 @@ func TestGenerateTemplatesReportsValidationReason(t *testing.T) {
 		t.Fatalf("error should name the failing sample: %v", err)
 	}
 }
+
+func TestGenerateTemplatesRelaxesBadGuards(t *testing.T) {
+	spec := debitTemplate("alerts@bank.com")
+	spec.Guards = TemplateGuards{SubjectContains: "Debited"} // samples say "Alert"
+	srv, _ := fakeLiteLLM(t, testSpecJSON(spec), http.StatusOK)
+	got, err := GenerateTemplates(context.Background(), LLMSettings{
+		BaseURL: srv.URL, Model: "deepseek", APIKey: "test-key", Timeout: 5 * time.Second,
+	}, []LLMSample{{
+		From: "alerts@bank.com", Subject: "Alert",
+		Body: "Your A/c XX2467 has been debited INR 378.64 on 17 NOV 2026.",
+	}})
+	if err != nil {
+		t.Fatalf("guardless retry should be accepted: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("templates = %d", len(got))
+	}
+	if got[0].Guards.SubjectContains != "" || got[0].Guards.BodyContains != "" {
+		t.Fatalf("guards should be cleared: %+v", got[0].Guards)
+	}
+}

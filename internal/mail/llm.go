@@ -49,7 +49,9 @@ fields, and later runs the regexes to extract transactions. Do not add fields, d
 wrap it in prose or markdown, and do not return a different shape.
 
 Field rules:
-- guards: literal substrings (not regex). Use "" or [] when not needed.
+- guards are OPTIONAL: leave subject_contains/body_contains as "" and body_not_contains
+  as [] unless the sender genuinely has multiple distinct formats. Guards only choose
+  between variants; they must not be used as a second copy of the rule engine.
 - patterns are Go RE2 regexes: no lookaround, no backreferences.
 - amount and date are required; debit or credit is required; account and merchant are optional.
 - Use named capture groups amount, account, merchant, date where applicable.
@@ -145,26 +147,18 @@ func validateCandidates(content string, samples []LLMSample) ([]TemplateSpec, []
 			reasons = append(reasons, err.Error())
 			continue
 		}
-		failed := ""
-		for i, sample := range samples {
-			match, matched := tpl.Extract(sample.Subject, sample.Body)
-			switch {
-			case !matched:
-				failed = fmt.Sprintf("template %q guards did not match sample %d", spec.Name, i+1)
-			case match == nil || match.Extraction == nil || !match.Complete:
-				reason := "incomplete"
-				if match != nil && match.Reason != "" {
-					reason = match.Reason
-				}
-				failed = fmt.Sprintf("template %q sample %d: %s", spec.Name, i+1, reason)
-			}
-			if failed != "" {
-				break
-			}
-		}
+		failed := extractFailure(tpl, samples)
 		if failed != "" {
-			reasons = append(reasons, failed)
-			continue
+			// Guards only choose between variants; a guard that misses a sample
+			// should not sink an otherwise valid template. Retry without them.
+			relaxed := spec
+			relaxed.Guards = TemplateGuards{}
+			if tplRelaxed, relaxErr := CompileTemplate(relaxed); relaxErr == nil && extractFailure(tplRelaxed, samples) == "" {
+				spec = relaxed
+			} else {
+				reasons = append(reasons, failed)
+				continue
+			}
 		}
 		key := spec.Name + "|" + spec.Guards.SubjectContains + "|" + spec.Guards.BodyContains + "|" + spec.Patterns.Amount
 		if seen[key] {
@@ -174,6 +168,24 @@ func validateCandidates(content string, samples []LLMSample) ([]TemplateSpec, []
 		accepted = append(accepted, spec)
 	}
 	return accepted, reasons
+}
+
+// extractFailure returns why a compiled template cannot parse every sample.
+func extractFailure(tpl *Template, samples []LLMSample) string {
+	for i, sample := range samples {
+		match, matched := tpl.Extract(sample.Subject, sample.Body)
+		switch {
+		case !matched:
+			return fmt.Sprintf("template %q guards did not match sample %d", tpl.Spec.Name, i+1)
+		case match == nil || match.Extraction == nil || !match.Complete:
+			reason := "incomplete"
+			if match != nil && match.Reason != "" {
+				reason = match.Reason
+			}
+			return fmt.Sprintf("template %q sample %d: %s", tpl.Spec.Name, i+1, reason)
+		}
+	}
+	return ""
 }
 
 // TestLLM performs a tiny request to verify the endpoint/model/key.

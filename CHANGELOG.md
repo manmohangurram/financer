@@ -13,6 +13,10 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
 - Template generation no longer fails silently: rejected candidates now report which
   sample and field failed, the prompt states that samples are raw RFC822 text, and a
   failed round is retried once with those reasons fed back to the model.
+- **Guards no longer sink a valid template.** Guards are optional variant selectors,
+  not a second rule engine; if a generated guard misses a sample but the patterns
+  parse everything, the template is stored without guards. The prompt now asks for
+  empty guards unless the sender has genuinely distinct formats.
 
 ## [0.10.0] — 2026-11-17
 
