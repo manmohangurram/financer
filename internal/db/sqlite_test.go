@@ -35,6 +35,25 @@ func TestMigrationsApply(t *testing.T) {
 	if !strings.HasPrefix(ver, "000001_") {
 		t.Errorf("first migration = %q", ver)
 	}
+
+	// The query-shape indexes added in 000018 must exist after a fresh boot.
+	for _, idx := range []string{
+		"idx_transactions_user_occurred",
+		"idx_transactions_user_account_occurred",
+		"idx_transaction_categories_category",
+		"idx_mail_messages_user_created",
+		"idx_rules_user_priority",
+	} {
+		var exists bool
+		if err := dbs.Write.QueryRow(
+			`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?)`, idx,
+		).Scan(&exists); err != nil {
+			t.Fatal(err)
+		}
+		if !exists {
+			t.Errorf("missing index %s", idx)
+		}
+	}
 }
 
 func TestAdoptsSqlxMigrationHistory(t *testing.T) {
