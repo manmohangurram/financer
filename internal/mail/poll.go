@@ -116,6 +116,9 @@ func pollAccount(
 	}
 
 	summary := &PollSummary{Matched: len(headers)}
+	// Small write batches keep a long poll from holding one large transaction
+	// while the rest of the app keeps reading and writing.
+	const batchSize = 5
 	var pending []*repo.NewMailMessage
 	flush := func() error {
 		if len(pending) == 0 {
@@ -142,7 +145,7 @@ func pollAccount(
 		if rule := firstRule(rules, repo.MailRuleActionIgnore, header, rawText); rule != nil {
 			pending = append(pending, buildMessage(account, header, rawText, repo.MailStatusIgnored, nil, 0, "rule", nil))
 			summary.Stored++
-			if len(pending) >= 100 {
+			if len(pending) >= batchSize {
 				if err := flush(); err != nil {
 					return nil, err
 				}
@@ -221,7 +224,7 @@ func pollAccount(
 		}
 		pending = append(pending, buildMessage(account, header, rawText, status, parsed, confidence, sourceName, templateID))
 		summary.Stored++
-		if len(pending) >= 100 {
+		if len(pending) >= batchSize {
 			if err := flush(); err != nil {
 				return nil, err
 			}

@@ -27,7 +27,7 @@ per sender.
 - New action `POST /api/mail/poll/full` (background, 202) scans the **whole INBOX**
   with no date window.
 - Envelopes are fetched in chunks; bodies only for Message-IDs not already stored.
-- Only rule matches are stored; matched rows are inserted in **batches of 100**.
+- Only rule matches are stored; matched rows are inserted in **batches of 5**.
 - Same dispositions and template pipeline as a normal poll.
 
 ### Startup cleanup
@@ -76,6 +76,6 @@ per sender.
 
 - Polling a mailbox with no matching rules stores nothing.
 - A REVIEW rule match is stored and appears in review; an IGNORE match is stored as ignored.
-- Full poll ingests old matched mail in 100-row batches.
+- Every poll inserts matched mail in **5-row batches**.
 - Restart removes existing unmatched, transaction-free messages and keeps booked/rejected ones.
 - AI parse shows progress, blocks approve/reject, then leaves a clear queue (booked or review).

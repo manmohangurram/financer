@@ -6,6 +6,13 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Changed
+
+- Mail inserts are batched **5 rows per transaction** for every poll (normal and
+  full), so a long poll never holds one large write lock.
+
 ## [0.10.3] — 2026-11-17
 
 ### Fixed

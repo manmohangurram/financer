@@ -5,7 +5,7 @@ Spec: `docs/specs/inbox-rule-gating/SPEC.md` · Plan: `docs/specs/inbox-rule-gat
 ## Backend
 - [x] Poll stores only rule matches; unmatched counted as skipped
 - [x] IMAP `HeadersAll` (no date window, chunked)
-- [x] Batch insert of 100 matched rows
+- [x] Batch insert of 5 matched rows
 - [x] Full poll service + `POST /api/mail/poll/full`
 - [x] Startup cleanup of unmatched, transaction-free mail
 - [x] AI parse job (per sender, force generation, re-parse)
