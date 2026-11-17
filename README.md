@@ -14,7 +14,7 @@ Go backend · Vue 3 frontend · single container · SQLite
 </div>
 
 > [!WARNING]
-> **Alpha — still under active development, not ready for production.** Expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
+> **Early release — still under active development, not ready for production.** Expect breaking changes and rough edges. Keep regular backups of your data and use it at your own risk.
 
 Financer tracks accounts, transactions, transfers, spending, and rules (auto-categorization) — in one place, with a dark, dense dashboard UI. It ships as **one container**: the Go binary serves both the API and the built frontend (no nginx).
 
