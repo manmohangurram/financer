@@ -23,7 +23,7 @@ Source spec: `docs/specs/budgets/SPEC.md`
 2. Repo/model/service: `monthly_budget`, `CategoryResponse.monthlyBudget`,
    `SetBudget` with validation + rounding.
 3. HTTP `PUT /api/categories/{id}/budget`; OpenAPI schema and route.
-4. Budgets view, route, sidebar item.
+4. Budget editing merged into the Categories page (no separate route or nav item).
 5. Spending: month fetch, budget computeds, stat card, category rows.
 6. Tests: service lifecycle + validation, migration expectation.
 7. Docs, UI checklist, standards; gates and smoke.

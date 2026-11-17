@@ -11,8 +11,8 @@ Spec: `docs/specs/budgets/SPEC.md` · Plan: `docs/specs/budgets/plan.md`
 
 ## Frontend
 - [x] Client `setCategoryBudget`
-- [x] Budgets route + sidebar (MANAGE)
-- [x] Budgets page: summary band, editable table, over/unbudgeted states
+- [x] Budget editing merged into Categories (route/sidebar removed)
+- [x] Categories page: summary band, editable table, over/unbudgeted states
 - [x] Spending: Budget stat card (replaces Largest), month fetch
 - [x] Spending: budget-by-category rows with fallback to the old share list
 - [x] Empty states (no categories, no budgets)

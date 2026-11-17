@@ -12,22 +12,23 @@ per-month history, no rollover, no overall cap.
 
 ## Behaviour
 
-### Budgets page (`/accounts/budgets`, MANAGE)
+### Categories page (`/accounts/categories`, MANAGE)
 
-- Top-level nav item between **Budgets** and Categories.
-- Header shows the current month (`November 2026`).
-- Summary band: **Planned** (sum of category limits), **Spent** (this month, debit
-  only, limited to budgeted categories), **Left** (planned − spent; debit-red and
-  labelled *over* when negative), **Used** bar (capped at 100%).
+Budgets live on the Categories page — one page owns the list and the plan.
+
+- Header: `Categories`, one-line purpose, `Add category`.
+- Summary band (visible once any limit exists): **Planned** (sum of limits),
+  **Spent** (this month, debit only, budgeted categories), **Left** (planned − spent;
+  debit-red and labelled *over* when negative), **Used** bar (capped at 100%).
 - Table, one row per category:
-  `Category · Monthly budget (input) · This month · Left · Used bar`.
+  `Category · Share this month · Spent · Entries · Monthly budget (input) · Used bar · Left`.
 - Amounts commit on blur or Enter; an empty field means no budget (0). Invalid or
   negative values show an inline error and are not saved.
-- Budgeted rows over their limit get a debit wash, an `over` badge and a red
-  "₹x over"; unbudgeted rows show `—` / *unbudgeted*.
+- Over-limit rows get a debit wash, an `over` badge and a red "₹x over"; unbudgeted
+  rows show `—` and *unbudgeted*.
 - Income-only categories are listed but can stay unbudgeted; budgets only measure
-  **debit** spend.
-- No categories: empty state linking to Categories.
+  **debit** spend, for the current calendar month.
+- No categories: the existing empty state, wording mentions limits.
 
 ### Spending page
 
@@ -35,7 +36,7 @@ per-month history, no rollover, no overall cap.
   - remaining amount (or amount *over*) in the display face,
   - a progress bar (accent, debit when over),
   - `<spent> of <planned> · <n>% used`.
-  - No budgets yet: "No budgets yet" with a link to the Budgets page.
+  - No budgets yet: "No budgets yet" with a link to Categories.
 - The right-hand card becomes **Budget by category** when at least one budget
   exists: budgeted categories first (spent / limit, left/over, progress bar), then
   unbudgeted categories with spend only (grey dot, *unbudgeted*).

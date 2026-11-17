@@ -66,7 +66,7 @@ onMounted(loadAll);
 
 <template>
   <div class="w-full flex flex-col gap-4">
-    <SectionHeader title="Categories" subtitle="Organize spending into categories">
+    <SectionHeader title="Categories" subtitle="Organise spending and set a monthly limit per category">
       <template #actions>
         <AppButton @click="openCreateItem">
           <Plus class="h-[15px] w-[15px]" stroke-width="1.8" />
@@ -78,7 +78,7 @@ onMounted(loadAll);
     <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">{{ error }}</div>
 
     <AppFolio v-if="!loading" class="min-h-0" :title="undefined" flush>
-      <CategoriesTab :categories="categoryList" :txns="txnList" @edit="openEditItem" @delete="requestDeleteItem" />
+      <CategoriesTab :categories="categoryList" :txns="txnList" @edit="openEditItem" @delete="requestDeleteItem" @refresh="loadAll" />
     </AppFolio>
     <AppFolio v-else flush>
       <div class="flex flex-col gap-2 p-4">

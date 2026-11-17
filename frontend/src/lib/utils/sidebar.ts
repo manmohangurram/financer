@@ -1,4 +1,4 @@
-import { LayoutDashboard, CreditCard, PieChart, Tag, SlidersHorizontal, Inbox, Wallet, type LucideIcon } from '@lucide/vue';
+import { LayoutDashboard, CreditCard, PieChart, Tag, SlidersHorizontal, Inbox, type LucideIcon } from '@lucide/vue';
 
 export interface NavItem {
   to: string;
@@ -23,7 +23,6 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Manage',
     items: [
-      { to: '/accounts/budgets', label: 'Budgets', icon: Wallet },
       { to: '/accounts/categories', label: 'Categories', icon: Tag },
       { to: '/accounts/rules', label: 'Rules', icon: SlidersHorizontal },
       { to: '/inbox', label: 'Inbox', icon: Inbox }

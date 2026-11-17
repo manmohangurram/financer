@@ -10,8 +10,8 @@ git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
 ### Added
 
-- **Per-category monthly budgets** — one recurring limit per category, set on a new
-  **Budgets** page (MANAGE). The page shows planned/spent/left for the current month,
+- **Per-category monthly budgets** — one recurring limit per category, edited on the
+  **Categories** page (MANAGE). The page shows planned/spent/left for the current month,
   editable amounts (commit on blur/Enter), over-limit rows in debit red and unbudgeted
   rows neutral. Budgets apply to debit spend only and never roll over.
 - **Budget progress on Spending** — the `Largest` stat is replaced by a Budget card

@@ -411,16 +411,6 @@ Focal: **the ledger**, framed by four facts. A bento on a 12-column grid:
 
 The page fills the viewport at 940px and above; only the ledger scrolls. No empty band under the table.
 
-### 6.6a Budgets — `/accounts/budgets`
-Focal: **the plan**. One page, MANAGE nav, whatever the month:
-
-1. Head: `Budgets`, one-line purpose, the current month on the right.
-2. Summary band: Planned · Spent · Left · Used bar (debit-red and "over" past 100%).
-3. Table: Category · Monthly budget (input, commits on blur/Enter) · This month · Left · Used bar.
-   Over-limit rows get a debit wash, an `over` badge and "₹x over"; unbudgeted rows read `—` and
-   *unbudgeted*. Income categories are listed but need no limit.
-4. Amounts repeat every month, apply to debit spend only, and never roll over.
-
 ### 6.7 Rules — `/accounts/rules`
 Focal: what is automatic. Left: the rule list — numbered rows in the margin (priority is literal here), name,
 conditions line in `--ink-soft`, action line with category/account stamps, `Preview` and row actions.
@@ -452,8 +442,15 @@ arrives at once), so the margin carries a checkbox and the actions are named but
 lives in the ledger margin (§5.6) for matched transfers.
 
 ### 6.9 Categories — `/accounts/categories`
-Focal: order. A ledger table: margin (monogram), name, usage count, last used, row actions. Header has the
-count and `New category`. Inline create row rather than a modal — a category is one word.
+Focal: order **and the monthly plan**. One page owns both:
+
+1. Header: `Categories`, the purpose line, `Add category`.
+2. Summary band once a limit exists: Planned · Spent · Left · Used bar.
+3. Ledger table: Category · Share this month · Spent · Entries · Monthly budget (input,
+   commits on blur/Enter) · Used bar · Left. Over-limit rows get a debit wash, `over`
+   badge and "₹x over"; unbudgeted rows read `—` / *unbudgeted*. Row actions (edit,
+   delete) are always visible.
+4. Amounts repeat every month, apply to debit spend only, and never roll over.
 
 ### 6.12 Settings — `/settings`
 Focal: account hygiene. One folio of hairline-separated sections, each with a 15px title and a one-line

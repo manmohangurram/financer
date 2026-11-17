@@ -395,7 +395,7 @@ onMounted(loadAll);
           <template v-else>
             <p class="mt-1 text-[20px] leading-none text-ink">No budgets yet</p>
             <p class="mt-1.5 text-[11.5px] text-ink-mute">
-              <router-link to="/accounts/budgets" class="text-accent hover:text-accent-hover">Set monthly limits →</router-link>
+              <router-link to="/accounts/categories" class="text-accent hover:text-accent-hover">Set monthly limits →</router-link>
             </p>
           </template>
         </AppFolio>
