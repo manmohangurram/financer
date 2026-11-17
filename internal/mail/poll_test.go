@@ -272,3 +272,47 @@ func TestParseFlexibleDate(t *testing.T) {
 		}
 	}
 }
+
+func TestGeneratedTemplateAppliesToExistingQueue(t *testing.T) {
+	mailRepo, account, uid, cleanup := newMailEnv(t)
+	defer cleanup()
+	seedReviewRule(t, mailRepo, uid, "newbank@example.com")
+
+	oldRaw := "Your card XX2467 was debited INR 42.50 on 17 NOV 2026."
+	recv := "2026-11-17T10:00:00Z"
+	if _, err := mailRepo.InsertMessage(uid, &repo.NewMailMessage{
+		MailAccountID: account.ID, MessageID: "<old>", FromAddr: "newbank@example.com",
+		ReceivedAt: &recv, Subject: "Debited", RawText: oldRaw, BodyText: oldRaw,
+		Status: repo.MailStatusUnparsed,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	src := &fakeSource{
+		headers: []MailHeader{header(1, "<new>", "newbank@example.com")},
+		bodies:  map[uint32]string{1: "Your card XX2467 was debited INR 99.00 on 18 NOV 2026."},
+	}
+	gen := func(ctx context.Context, userID, sender string, samples []LLMSample) ([]TemplateSpec, error) {
+		return []TemplateSpec{debitTemplate(sender)}, nil
+	}
+	if _, err := PollAccount(context.Background(), src, mailRepo, account, gen, 3); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := mailRepo.ListMessages(uid, nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old *repo.MailMessageRow
+	for _, row := range rows {
+		if row.MessageID == "<old>" {
+			old = row
+		}
+	}
+	if old == nil {
+		t.Fatal("old message missing")
+	}
+	if old.Status != repo.MailStatusPending || old.TemplateID == nil {
+		t.Fatalf("existing row was not reparsed: status=%s template=%v", old.Status, old.TemplateID)
+	}
+}

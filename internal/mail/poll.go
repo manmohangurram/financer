@@ -182,6 +182,9 @@ func pollAccount(
 							templateIsActive = stored.Status == "active"
 							sourceName = "template"
 							_ = store.RecordTemplateResult(stored.ID, true)
+							// The new template applies to mail already waiting in the
+							// queue, not only to mail from now on.
+							applyTemplateToExisting(store, account.UserID, header.FromAddr, tpl, stored, rules, header.MessageID)
 							break
 						}
 					}
@@ -228,6 +231,41 @@ func pollAccount(
 		return nil, err
 	}
 	return summary, nil
+}
+
+// applyTemplateToExisting re-parses the sender's pending/unparsed rows with a
+// template that was just learned, so the queue clears without another poll.
+func applyTemplateToExisting(store repo.MailRepo, userID, sender string, tpl *Template,
+	stored *repo.MailTemplateRow, rules []*repo.MailRuleRow, currentMessageID string) {
+	rows, err := store.RecentMessagesFromSender(userID, sender, 200)
+	if err != nil {
+		return
+	}
+	for _, row := range rows {
+		if row.MessageID == currentMessageID || row.RawText == nil {
+			continue
+		}
+		if row.Status != repo.MailStatusPending && row.Status != repo.MailStatusUnparsed {
+			continue
+		}
+		match, matched := tpl.Extract(row.Subject, *row.RawText)
+		if !matched || !match.Complete || match.Extraction == nil || match.NeedsReview {
+			continue
+		}
+		b, err := json.Marshal(match.Extraction)
+		if err != nil {
+			continue
+		}
+		parsed := string(b)
+		status := repo.MailStatusPending
+		if stored.Status == "active" && match.Extraction.AccountHint != nil {
+			header := &MailHeader{FromAddr: row.FromAddr, Subject: row.Subject}
+			if firstRule(rules, repo.MailRuleActionAuto, header, *row.RawText) != nil {
+				status = repo.MailStatusAuto
+			}
+		}
+		_ = store.UpdateMessageExtraction(userID, row.ID, &parsed, status, match.Extraction.Confidence, &stored.ID)
+	}
 }
 
 func firstRule(rules []*repo.MailRuleRow, action repo.MailRuleAction, header *MailHeader, body string) *repo.MailRuleRow {

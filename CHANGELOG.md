@@ -14,6 +14,9 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
   (transactions, accounts, transfers, rule runs, mail approve/reject) and every route
   change now reloads the ACCOUNTS block, and focusing the window re-syncs it too. No
   more stale credit/debit figures after booking an entry.
+- **A newly learned template is applied to the queue immediately.** When the poll
+  generates and stores a template, the sender's existing review/unparsed rows are
+  re-parsed at once (AUTO rows become bookable) instead of waiting for another poll.
 - **Collapsed sidebar accounts are readable.** The bare coloured dots are now
   monogram chips (E / S / P), each with a credit/debit status dot and a tooltip that
   names the account and shows its balance; the selected account keeps its ring.
