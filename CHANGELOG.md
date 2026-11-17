@@ -6,6 +6,50 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) with an `-alpha` suff
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
+## [0.7.0-alpha] — 2026-11-17
+
+Mail ingestion is now template-first: stored, guarded regex templates parse bank alerts, and the
+user's self-hosted LiteLLM (DeepSeek) is asked for a template only when parsing fails. The Inbox is a
+split-pane reviewer and Settings is tabbed.
+
+### Added
+
+- **Learned parsing templates** (`mail_templates`): one sender can have several guarded variants. A
+  generated template starts `provisional` and becomes `active` after the configured sample count; a
+  working template is never overwritten. Every candidate must compile on RE2 and parse every sample
+  before it is stored.
+- **Per-user Inbox AI settings** (`user_llm_settings`): LiteLLM base URL, model alias (required, no
+  default), API key encrypted with `FINANCER_SECRET_KEY`, timeout, enabled toggle, and thresholds for
+  samples, failures, generation cooldown and auto-poll throttle. Keyed endpoints: `GET/PUT
+  /api/me/llm`, `POST /api/me/llm/test`; the key is never returned (only `apiKeySet`).
+- **Asynchronous polling**: `POST /api/mail/poll` returns `202` with `started` or `throttled`, starts
+  on login and when the Inbox opens, and is throttled per user (`?force=1` to force). The background
+  poller still runs every `FINANCER_MAIL_POLL_SECS`.
+- **Editable mailboxes**: `PUT /api/mail/accounts/{id}` changes label/host/username/password
+  (optional, empty keeps the stored one) and polling on/off.
+- **Field overrides on approve**: name, amount, type, date, account and categories can be corrected
+  before approving; the corrected extraction is stored in `approved_json` as template evidence.
+- **Split-pane Inbox**: mailbox tabs, status filters, email pane plus editable extraction with inline
+  validation, and `A` / `R` / `J` / `K` keyboard shortcuts.
+- **Tabbed Settings**: Account, Appearance, Security, Inbox AI, Mailboxes and API keys, URL-addressable
+  via `/settings?tab=…`.
+
+### Changed
+
+- **Mail is fetched from all senders.** The mailbox-level sender allowlist is removed; mail rules
+  (`IGNORE` / `REVIEW` / `AUTO`) decide disposition, first match wins.
+- **`AUTO` is gated**: a transaction is created automatically only with an active template, a complete
+  extraction (amount, direction, date) and a resolvable account hint. Ambiguous or partial rows stay in
+  `PENDING` / `UNPARSED` for review.
+- Parsing order: `IGNORE` rules → stored templates → template generation → deterministic regex hints for
+  pre-filling the review form.
+
+### Migrations
+
+- `000002_mail_templates` adds `mail_templates` and `user_llm_settings`, adds
+  `mail_messages.template_id` and drops `mail_accounts.sender_allowlist`. Existing 0.6 databases upgrade
+  in place; back up `/data` first.
+
 ## [0.6.0-alpha] — 2026-11-17
 
 The schema is now a single baseline. **This release requires a fresh database**;
