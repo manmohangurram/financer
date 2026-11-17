@@ -18,6 +18,13 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
   booking, and every match logs `mail matched` with `source=existing`.
 - Poll logs now include `mail poll start` (full flag, cursor) and `mail poll complete`
   with `last_uid`.
+- **Separate log lines per trigger:** `poll now start/complete`, `full poll
+  start/complete` and `auto poll start/complete` (plus matching `failed` lines), each
+  with account, user, cursor, matched/stored/skipped.
+- **Debug-level trace of matching:** `rule evaluate` logs every rule's fields and
+  whether it matched for a message; `mail extraction` logs amount, direction, date,
+  account, merchant, status, confidence and extractor; `mail skipped` logs
+  already-stored and no-rule-match reasons. Enable with `FINANCER_LOG_LEVEL=debug`.
 
 ## [0.10.5] — 2026-11-17
 

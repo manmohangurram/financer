@@ -146,12 +146,26 @@ func pollAccount(
 	for i := range headers {
 		header := &headers[i]
 		if known[header.MessageID] {
+			slog.Debug("mail skipped", "message_id", header.MessageID, "reason", "already stored")
 			summary.Skipped++
 			continue
 		}
 		rawText, err := source.Body(header.UID)
 		if err != nil {
 			return nil, err
+		}
+		// Debug: which rules were compared and what each field saw.
+		for _, rule := range rules {
+			if !rule.Enabled {
+				continue
+			}
+			slog.Debug("rule evaluate",
+				"message_id", header.MessageID, "from", header.FromAddr,
+				"rule", rule.ID, "action", string(rule.Action),
+				"from_pattern", rule.FromPattern,
+				"subject", header.Subject, "subject_contains", rule.SubjectContains,
+				"body_contains", rule.BodyContains,
+				"matched", RuleMatches(rule, header, rawText))
 		}
 
 		// Ignore rules run first: never fetch an LLM or parse junk mail.
@@ -174,6 +188,7 @@ func pollAccount(
 		reviewRule := firstRule(rules, repo.MailRuleActionReview, header, rawText)
 		autoRule := firstRule(rules, repo.MailRuleActionAuto, header, rawText)
 		if reviewRule == nil && autoRule == nil {
+			slog.Debug("mail skipped", "message_id", header.MessageID, "reason", "no rule matched", "from", header.FromAddr)
 			summary.Skipped++
 			continue
 		}
@@ -243,6 +258,24 @@ func pollAccount(
 		confidence := 0.0
 		if extraction != nil {
 			confidence = extraction.Confidence
+		}
+		if extraction != nil {
+			date := ""
+			if extraction.OccurredAt != nil {
+				date = *extraction.OccurredAt
+			}
+			account := ""
+			if extraction.AccountHint != nil {
+				account = *extraction.AccountHint
+			}
+			slog.Debug("mail extraction",
+				"message_id", header.MessageID, "amount", extraction.Amount,
+				"direction", extraction.Direction, "date", date, "account", account,
+				"merchant", extraction.Merchant, "status", string(status),
+				"confidence", confidence, "extractor", sourceName)
+		} else {
+			slog.Debug("mail extraction", "message_id", header.MessageID,
+				"status", string(status), "extractor", sourceName, "empty", true)
 		}
 		ruleID := ""
 		ruleAction := ""

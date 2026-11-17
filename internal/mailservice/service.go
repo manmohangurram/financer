@@ -467,7 +467,7 @@ func (s *Service) PollNow(userID, id string) (*mail.PollSummary, error) {
 	if account == nil {
 		return nil, errors.NotFound("mail account " + id + " not found")
 	}
-	summary, err := s.pollAccount(context.Background(), account)
+	summary, err := s.pollAccount(context.Background(), account, "poll_now")
 	if err != nil {
 		return nil, err
 	}
@@ -493,21 +493,26 @@ func (s *Service) PollUserAsync(userID string, force bool) string {
 	s.lastPoll[userID] = time.Now()
 	s.throttleMu.Unlock()
 
+	trigger := "auto"
+	if force {
+		trigger = "poll_now"
+	}
+	label := pollLabel(trigger)
 	go func() {
-		n, err := s.pollUser(userID)
+		n, err := s.pollUser(userID, trigger)
 		if err != nil {
-			slog.Warn("auto poll failed", "user", userID, "err", err)
+			slog.Warn(label+" failed", "user", userID, "err", err)
 			return
 		}
 		if n > 0 {
-			slog.Info("auto poll complete", "user", userID, "mailboxes", n)
+			slog.Info(label+" complete", "user", userID, "mailboxes", n)
 		}
 		s.autoCreate(userID)
 	}()
 	return "started"
 }
 
-func (s *Service) pollUser(userID string) (int, error) {
+func (s *Service) pollUser(userID, trigger string) (int, error) {
 	accounts, err := s.repo.ListAccounts(userID)
 	if err != nil {
 		return 0, err
@@ -517,8 +522,8 @@ func (s *Service) pollUser(userID string) (int, error) {
 		if !account.Enabled {
 			continue
 		}
-		if _, err := s.pollAccount(context.Background(), account); err != nil {
-			slog.Warn("mail poll failed", "account", account.ID, "user", userID, "err", err)
+		if _, err := s.pollAccount(context.Background(), account, trigger); err != nil {
+			slog.Warn(pollLabel(trigger)+" failed", "account", account.ID, "user", userID, "err", err)
 			if markErr := s.repo.MarkPolled(account.ID, err.Error()); markErr != nil {
 				slog.Warn("could not record poll failure", "account", account.ID, "err", markErr)
 			}
@@ -532,12 +537,24 @@ func (s *Service) pollUser(userID string) (int, error) {
 	return polled, nil
 }
 
-func (s *Service) pollAccount(ctx context.Context, account *repo.MailAccountRow) (*mail.PollSummary, error) {
-	return s.pollAccountMode(ctx, account, false)
+func (s *Service) pollAccount(ctx context.Context, account *repo.MailAccountRow, trigger string) (*mail.PollSummary, error) {
+	return s.pollAccountMode(ctx, account, false, trigger)
+}
+
+// pollLabel gives each trigger its own log line.
+func pollLabel(trigger string) string {
+	switch trigger {
+	case "full_poll":
+		return "full poll"
+	case "poll_now":
+		return "poll now"
+	default:
+		return "auto poll"
+	}
 }
 
 // pollAccountMode connects and polls; full scans the whole INBOX.
-func (s *Service) pollAccountMode(ctx context.Context, account *repo.MailAccountRow, full bool) (*mail.PollSummary, error) {
+func (s *Service) pollAccountMode(ctx context.Context, account *repo.MailAccountRow, full bool, trigger string) (*mail.PollSummary, error) {
 	if s.secret == nil {
 		return nil, errors.BadRequest("FINANCER_SECRET_KEY is not set")
 	}
@@ -545,7 +562,8 @@ func (s *Service) pollAccountMode(ctx context.Context, account *repo.MailAccount
 	if err != nil {
 		return nil, err
 	}
-	slog.Info("mail poll start", "account", account.ID, "user", account.UserID,
+	label := pollLabel(trigger)
+	slog.Info(label+" start", "account", account.ID, "user", account.UserID,
 		"full", full, "last_uid", account.LastUID)
 	source, err := mail.ConnectIMAP(account, password)
 	if err != nil {
@@ -567,7 +585,7 @@ func (s *Service) pollAccountMode(ctx context.Context, account *repo.MailAccount
 			slog.Warn("could not advance mail cursor", "account", account.ID, "err", err)
 		}
 	}
-	slog.Info("mail poll complete", "account", account.ID, "user", account.UserID, "full", full,
+	slog.Info(label+" complete", "account", account.ID, "user", account.UserID, "full", full,
 		"last_uid", summary.MaxUID, "matched", summary.Matched, "stored", summary.Stored, "skipped", summary.Skipped)
 	return summary, nil
 }
@@ -899,7 +917,7 @@ func (s *Service) PollFullAsync(userID string) string {
 			if !account.Enabled {
 				continue
 			}
-			if _, err := s.pollAccountMode(context.Background(), account, true); err != nil {
+			if _, err := s.pollAccountMode(context.Background(), account, true, "full_poll"); err != nil {
 				slog.Warn("full poll failed", "account", account.ID, "user", userID, "err", err)
 				_ = s.repo.MarkPolled(account.ID, err.Error())
 				continue
@@ -981,8 +999,8 @@ func (s *Service) PollOnce() (int, error) {
 	}
 	polled := 0
 	for _, account := range accounts {
-		if _, err := s.pollAccount(context.Background(), account); err != nil {
-			slog.Warn("mail poll failed", "account", account.ID, "user", account.UserID, "err", err)
+		if _, err := s.pollAccount(context.Background(), account, "auto"); err != nil {
+			slog.Warn("auto poll failed", "account", account.ID, "user", account.UserID, "err", err)
 			if markErr := s.repo.MarkPolled(account.ID, err.Error()); markErr != nil {
 				slog.Warn("could not record poll failure", "account", account.ID, "err", markErr)
 			}
