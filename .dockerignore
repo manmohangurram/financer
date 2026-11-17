@@ -1,10 +1,4 @@
 .git
-# Rust artifacts are not part of the Go image; the Rust reference stays in the repo only.
-target/
-Cargo.toml
-Cargo.lock
-.cargo/
-src/
 *.exe
 .gitignore
 data/

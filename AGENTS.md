@@ -1,12 +1,12 @@
 # Financer — Project Rules
 
-Financer: a personal finance tracker. Go backend (Gin, plain HTTP/JSON, pure-Go SQLite) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SQLite storage. API types are hand-written Go structs in `internal/model/*.go`, serialized by `encoding/json`. The Rust implementation under `src/` is retained as a reference until the Go service has proven itself in production; it is no longer the deployed backend.
+Financer: a personal finance tracker. Go backend (Gin, plain HTTP/JSON, pure-Go SQLite) + Vue 3 (Vite, TypeScript, Tailwind CSS v4 + daisyUI v5) frontend, SQLite storage. API types are hand-written Go structs in `internal/model/*.go`, serialized by `encoding/json`.
 
 ## Documentation Index
 
 - **Commands & verification & standards** — [skills/STANDARDS.md](skills/STANDARDS.md)
 - **For skill routing & stack/PR workflows** — see the global pi skills (`~/.pi/agent/skills/`) as needed
-- **Architecture** (request flow, layering, API types, rule engine, server aggregation, frontend client, data scoping) — [architecture/REQUEST_FLOW.md](architecture/REQUEST_FLOW.md), [architecture/LAYERING.md](architecture/LAYERING.md), [architecture/API_TYPES.md](architecture/API_TYPES.md), [architecture/RULE_ENGINE.md](architecture/RULE_ENGINE.md), [architecture/SERVER_AGGREGATION.md](architecture/SERVER_AGGREGATION.md), [architecture/FRONTEND_CLIENT.md](architecture/FRONTEND_CLIENT.md), [architecture/DATA_SCOPING.md](architecture/DATA_SCOPING.md). These describe the shared design; the Rust file paths map 1:1 to `internal/` (`repo/traits` → `internal/repo`, `repo/sqlite` → `internal/repo/sqlite`, `service` → `internal/*service`, `http` → `internal/server`).
+- **Architecture** (request flow, layering, API types, rule engine, server aggregation, frontend client, data scoping) — [architecture/REQUEST_FLOW.md](architecture/REQUEST_FLOW.md), [architecture/LAYERING.md](architecture/LAYERING.md), [architecture/API_TYPES.md](architecture/API_TYPES.md), [architecture/RULE_ENGINE.md](architecture/RULE_ENGINE.md), [architecture/SERVER_AGGREGATION.md](architecture/SERVER_AGGREGATION.md), [architecture/FRONTEND_CLIENT.md](architecture/FRONTEND_CLIENT.md), [architecture/DATA_SCOPING.md](architecture/DATA_SCOPING.md)
 - **Frontend structure** — [architecture/FRONTEND_STRUCTURE.md](architecture/FRONTEND_STRUCTURE.md)
 - **Naming conventions** — [architecture/NAMING_CONVENTIONS.md](architecture/NAMING_CONVENTIONS.md)
 - **Conventions & gotchas** (Tailwind/daisyUI, migrations, env vars, commits, PR format) — [architecture/CONVENTIONS_GOTCHAS.md](architecture/CONVENTIONS_GOTCHAS.md)
