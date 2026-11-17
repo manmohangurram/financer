@@ -14,13 +14,17 @@ per sender.
 
 ### Normal poll
 
-- For each message in the recent window: fetch the body, evaluate the user's mail
-  rules (IGNORE first, then REVIEW/AUTO).
+- Each mailbox keeps a **UID cursor** (`last_uid`). A poll asks for every UID after
+  the last one seen — no date window — so mail that arrived during downtime is picked
+  up. A fresh mailbox (cursor 0) scans the whole INBOX once.
+- For each message: fetch the body, evaluate the user's mail rules (IGNORE first, then
+  REVIEW/AUTO).
 - **No rule matches → the message is skipped and not stored.** It is counted as
   `skipped`.
 - IGNORE matches are stored as `IGNORED` so they are not reprocessed; REVIEW and
   AUTO matches keep today's behaviour (templates, AUTO requires active template +
   account hint, otherwise review).
+- New rules are re-applied to mail already waiting in review automatically.
 
 ### Full poll
 

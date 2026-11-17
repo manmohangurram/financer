@@ -58,7 +58,7 @@ func (r *MailRepo) UpdateAccount(userID, id, label, host string, port int64, use
 }
 
 const mailAccountColumns = `id, user_id, label, imap_host, imap_port, username, secret_enc,
-	enabled, last_polled_at, last_error, created_at`
+	enabled, last_polled_at, last_error, last_uid, created_at`
 
 func (r *MailRepo) ListAccounts(userID string) ([]*repo.MailAccountRow, error) {
 	rows, err := r.db.Query(
@@ -90,7 +90,7 @@ func scanMailAccounts(rows *sql.Rows) ([]*repo.MailAccountRow, error) {
 		var lastPolled sql.NullString
 		if err := rows.Scan(
 			&a.ID, &a.UserID, &a.Label, &a.IMAPHost, &a.IMAPPort, &a.Username, &a.SecretEnc,
-			&enabled, &lastPolled, &a.LastError, &a.CreatedAt,
+			&enabled, &lastPolled, &a.LastError, &a.LastUID, &a.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -116,6 +116,14 @@ func (r *MailRepo) MarkPolled(accountID, errMsg string) error {
 	_, err := r.db.Exec(
 		"UPDATE mail_accounts SET last_polled_at = ?, last_error = ? WHERE id = ?",
 		tim.NowGoTS(), errMsg, accountID,
+	)
+	return err
+}
+
+// UpdateLastUID advances the incremental poll cursor for a mailbox.
+func (r *MailRepo) UpdateLastUID(accountID string, uid uint32) error {
+	_, err := r.db.Exec(
+		"UPDATE mail_accounts SET last_uid = MAX(last_uid, ?) WHERE id = ?", uid, accountID,
 	)
 	return err
 }
@@ -480,7 +488,7 @@ func (r *MailRepo) ListAccountsPage(userID string, limit int64, cursor *repo.Mai
 	if limit < 1 {
 		limit = 100
 	}
-	query := "SELECT id, user_id, label, imap_host, imap_port, username, secret_enc, enabled, last_polled_at, last_error, CAST(created_at AS TEXT) FROM mail_accounts WHERE user_id = ?"
+	query := "SELECT id, user_id, label, imap_host, imap_port, username, secret_enc, enabled, last_polled_at, last_error, last_uid, CAST(created_at AS TEXT) FROM mail_accounts WHERE user_id = ?"
 	args := []any{userID}
 	if cursor != nil {
 		query += " AND (created_at > ? OR (created_at = ? AND id > ?))"

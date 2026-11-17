@@ -88,6 +88,28 @@ func (s *IMAPSource) HeadersAll() ([]MailHeader, error) {
 	return s.fetchHeadersLocked(data.AllUIDs())
 }
 
+// HeadersAfterUID returns envelopes with a UID above the last seen one
+// (incremental polling). SEARCH returns UIDs only; envelopes are fetched for
+// the new tail.
+func (s *IMAPSource) HeadersAfterUID(lastUID uint32) ([]MailHeader, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == nil {
+		return nil, apierrors.BadGateway("imap session closed")
+	}
+	data, err := s.client.UIDSearch(&imap.SearchCriteria{}, nil).Wait()
+	if err != nil {
+		return nil, apierrors.BadGateway(fmt.Sprintf("imap SEARCH ALL failed: %v", err))
+	}
+	var fresh []imap.UID
+	for _, uid := range data.AllUIDs() {
+		if uint32(uid) > lastUID {
+			fresh = append(fresh, imap.UID(uid))
+		}
+	}
+	return s.fetchHeadersLocked(fresh)
+}
+
 // fetchHeadersLocked fetches envelopes in chunks so a large mailbox does not
 // arrive as one response. The caller holds s.mu.
 func (s *IMAPSource) fetchHeadersLocked(all []imap.UID) ([]MailHeader, error) {

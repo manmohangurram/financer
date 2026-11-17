@@ -38,6 +38,7 @@ type PollSummary struct {
 	Matched int
 	Stored  int
 	Skipped int
+	MaxUID  uint32
 }
 
 // RuleMatches: every non-empty condition must hold; empty means "don't care".
@@ -93,6 +94,12 @@ func pollAccount(
 			return nil, fmt.Errorf("mail source does not support a full scan")
 		}
 		headers, err = fullSource.HeadersAll()
+	} else if uidSource, ok := source.(interface {
+		HeadersAfterUID(uint32) ([]MailHeader, error)
+	}); ok {
+		// Incremental: everything above the last seen UID. A fresh mailbox
+		// (cursor 0) therefore scans the whole INBOX once.
+		headers, err = uidSource.HeadersAfterUID(account.LastUID)
 	} else {
 		headers, err = source.Headers(WindowDays)
 	}
@@ -117,6 +124,11 @@ func pollAccount(
 	}
 
 	summary := &PollSummary{Matched: len(headers)}
+	for i := range headers {
+		if headers[i].UID > summary.MaxUID {
+			summary.MaxUID = headers[i].UID
+		}
+	}
 	// Small write batches keep a long poll from holding one large transaction
 	// while the rest of the app keeps reading and writing.
 	const batchSize = 5

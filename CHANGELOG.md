@@ -6,6 +6,19 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [Unreleased]
+
+### Changed
+
+- **Poll now is incremental by UID.** Each mailbox stores `last_uid` and polls fetch
+  every UID above it instead of a 2-day window; a first poll (cursor 0) scans the whole
+  INBOX. This picks up mail that arrived during downtime. Migration `000007`.
+- **Rules apply to mail already queued.** A new or edited rule re-evaluates the
+  existing review/unparsed rows immediately: IGNORE hides them, AUTO marks them for
+  booking, and every match logs `mail matched` with `source=existing`.
+- Poll logs now include `mail poll start` (full flag, cursor) and `mail poll complete`
+  with `last_uid`.
+
 ## [0.10.5] — 2026-11-17
 
 ### Added

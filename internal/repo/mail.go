@@ -32,6 +32,7 @@ type MailAccountRow struct {
 	Enabled      bool
 	LastPolledAt *string
 	LastError    string
+	LastUID      uint32
 	CreatedAt    string
 }
 
@@ -151,6 +152,7 @@ type MailRepo interface {
 	DeleteAccount(userID, id string) (bool, error)
 	ListPollableAccounts() ([]*MailAccountRow, error)
 	MarkPolled(accountID, errMsg string) error
+	UpdateLastUID(accountID string, uid uint32) error
 	KnownMessageIDs(userID string, ids []string) ([]string, error)
 	InsertMessage(userID string, msg *NewMailMessage) (bool, error)
 	InsertMessagesBatch(userID string, msgs []*NewMailMessage) (int, error)

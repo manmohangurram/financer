@@ -471,6 +471,7 @@ func (s *Service) PollNow(userID, id string) (*mail.PollSummary, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.ReapplyRules(userID)
 	s.autoCreate(userID)
 	return summary, nil
 }
@@ -544,6 +545,8 @@ func (s *Service) pollAccountMode(ctx context.Context, account *repo.MailAccount
 	if err != nil {
 		return nil, err
 	}
+	slog.Info("mail poll start", "account", account.ID, "user", account.UserID,
+		"full", full, "last_uid", account.LastUID)
 	source, err := mail.ConnectIMAP(account, password)
 	if err != nil {
 		return nil, err
@@ -559,8 +562,13 @@ func (s *Service) pollAccountMode(ctx context.Context, account *repo.MailAccount
 	if err != nil {
 		return nil, err
 	}
+	if summary.MaxUID > 0 {
+		if err := s.repo.UpdateLastUID(account.ID, summary.MaxUID); err != nil {
+			slog.Warn("could not advance mail cursor", "account", account.ID, "err", err)
+		}
+	}
 	slog.Info("mail poll complete", "account", account.ID, "user", account.UserID, "full", full,
-		"matched", summary.Matched, "stored", summary.Stored, "skipped", summary.Skipped)
+		"last_uid", summary.MaxUID, "matched", summary.Matched, "stored", summary.Stored, "skipped", summary.Skipped)
 	return summary, nil
 }
 
@@ -799,6 +807,85 @@ func (s *Service) storeTemplate(userID, sender string, spec mail.TemplateSpec, s
 	})
 }
 
+// ReapplyRules evaluates the current rules against mail already waiting in the
+// queue, so a rule added after the mail arrived still takes effect. Returns the
+// number of rows whose disposition changed.
+func (s *Service) ReapplyRules(userID string) int {
+	rows, err := s.queuedMessages(userID)
+	if err != nil {
+		slog.Warn("reapply rules: could not list mail", "user", userID, "err", err)
+		return 0
+	}
+	if len(rows) == 0 {
+		return 0
+	}
+	rules, err := s.repo.ListRules(userID)
+	if err != nil {
+		slog.Warn("reapply rules: could not list rules", "user", userID, "err", err)
+		return 0
+	}
+	changed := 0
+	for _, row := range rows {
+		body := ""
+		if row.RawText != nil {
+			body = *row.RawText
+		}
+		header := &mail.MailHeader{FromAddr: row.FromAddr, Subject: row.Subject}
+		if rule := matchRule(rules, repo.MailRuleActionIgnore, header, body); rule != nil {
+			if _, err := s.repo.ResolveMessage(userID, row.ID, repo.MailStatusIgnored, nil, nil); err == nil {
+				changed++
+				slog.Info("mail matched", "user", userID, "rule", rule.ID, "action", string(rule.Action),
+					"message_id", row.MessageID, "from", row.FromAddr, "subject", row.Subject,
+					"status", string(repo.MailStatusIgnored), "source", "existing")
+			}
+			continue
+		}
+		if rule := matchRule(rules, repo.MailRuleActionAuto, header, body); rule != nil {
+			// Only book when the extraction is complete; autoCreate verifies the
+			// account and returns failures to review.
+			if row.ParsedJSON != nil {
+				if _, err := s.repo.ResolveMessage(userID, row.ID, repo.MailStatusAuto, nil, nil); err == nil {
+					changed++
+					slog.Info("mail matched", "user", userID, "rule", rule.ID, "action", string(rule.Action),
+						"message_id", row.MessageID, "from", row.FromAddr, "subject", row.Subject,
+						"status", string(repo.MailStatusAuto), "source", "existing")
+				}
+			}
+			continue
+		}
+		if rule := matchRule(rules, repo.MailRuleActionReview, header, body); rule != nil {
+			slog.Debug("mail matched", "user", userID, "rule", rule.ID, "action", string(rule.Action),
+				"message_id", row.MessageID, "from", row.FromAddr, "status", string(row.Status), "source", "existing")
+		}
+	}
+	if changed > 0 {
+		s.autoCreate(userID)
+	}
+	return changed
+}
+
+// queuedMessages returns the rows still waiting for a decision.
+func (s *Service) queuedMessages(userID string) ([]*repo.MailMessageRow, error) {
+	var out []*repo.MailMessageRow
+	for _, status := range []repo.MailStatus{repo.MailStatusPending, repo.MailStatusUnparsed} {
+		rows, err := s.repo.ListMessages(userID, &status, 5000)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rows...)
+	}
+	return out, nil
+}
+
+func matchRule(rules []*repo.MailRuleRow, action repo.MailRuleAction, header *mail.MailHeader, body string) *repo.MailRuleRow {
+	for _, rule := range rules {
+		if rule.Enabled && rule.Action == action && mail.RuleMatches(rule, header, body) {
+			return rule
+		}
+	}
+	return nil
+}
+
 // PollFullAsync scans the whole mailbox of every enabled account in the
 // background; matched mail is stored in batches by the poll.
 func (s *Service) PollFullAsync(userID string) string {
@@ -819,6 +906,7 @@ func (s *Service) PollFullAsync(userID string) string {
 			}
 			_ = s.repo.MarkPolled(account.ID, "")
 		}
+		s.ReapplyRules(userID)
 		s.autoCreate(userID)
 	}()
 	return "started"
@@ -1023,6 +1111,7 @@ func (s *Service) CreateRule(userID string, req model.ReqMailRule) (*model.MailR
 	if err != nil {
 		return nil, err
 	}
+	go s.ReapplyRules(userID)
 	return ruleWire(row), nil
 }
 
@@ -1038,6 +1127,7 @@ func (s *Service) UpdateRule(userID, id string, req model.ReqMailRule) error {
 	if !ok {
 		return errors.NotFound("mail rule " + id + " not found")
 	}
+	go s.ReapplyRules(userID)
 	return nil
 }
 
