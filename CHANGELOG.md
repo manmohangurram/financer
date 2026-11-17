@@ -6,7 +6,7 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
-## [Unreleased]
+## [0.11.0] — 2026-11-17
 
 ### Added
 
@@ -19,11 +19,17 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
   date) before saving. Backed by `POST /api/mail/templates/validate`.
 - Templates are saved with the rule and re-applied to queued mail; deleting the rule
   removes its template.
+- **Three-step rule modal.** Match → Template → Booking in an 880×660 dialog whose size
+  is identical on every step. Step 2 is a field rail plus one field editor
+  (Amount, Direction, Date, Account, Merchant) with the test block pinned; pattern lists
+  scroll inside the editor once a field has more than four patterns. `Back` (or `Cancel`
+  on step 1) sits on the left, `Skip template` and `Continue` on the right.
 
 ### Changed
 
 - A template without an `account` pattern is no longer flagged “account differs from
   regex hint”; the deterministic hint only cross-checks fields the template declares.
+- Rules that carry a template show a `template` stamp in the rules list.
 
 ## [0.10.8] — 2026-11-17
 
