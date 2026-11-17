@@ -54,6 +54,11 @@ Field rules:
   between variants; they must not be used as a second copy of the rule engine.
 - patterns are Go RE2 regexes: no lookaround, no backreferences.
 - amount and date are required; debit or credit is required; account and merchant are optional.
+- Give BOTH debit and credit patterns, each matching only the operative wording (e.g.
+  "has been debited" / "has been credited"). They must never both match one sample; if
+  the mail contains both words in boilerplate, anchor the pattern to the real sentence.
+- Omit the account pattern when you are not sure it is present; a wrong account pattern
+  is worse than none, and account is optional.
 - Use named capture groups amount, account, merchant, date where applicable.
 - The samples below are COMPLETE raw RFC822 messages with headers. Patterns run against
   that exact text, so they must match the raw message (quoted-printable line breaks,
@@ -142,24 +147,12 @@ func validateCandidates(content string, samples []LLMSample) ([]TemplateSpec, []
 	var reasons []string
 	seen := map[string]bool{}
 	for _, spec := range payload.Templates {
-		tpl, err := CompileTemplate(spec)
-		if err != nil {
-			reasons = append(reasons, err.Error())
+		acceptedSpec, failed := firstWorkable(spec, samples)
+		if failed != "" {
+			reasons = append(reasons, failed)
 			continue
 		}
-		failed := extractFailure(tpl, samples)
-		if failed != "" {
-			// Guards only choose between variants; a guard that misses a sample
-			// should not sink an otherwise valid template. Retry without them.
-			relaxed := spec
-			relaxed.Guards = TemplateGuards{}
-			if tplRelaxed, relaxErr := CompileTemplate(relaxed); relaxErr == nil && extractFailure(tplRelaxed, samples) == "" {
-				spec = relaxed
-			} else {
-				reasons = append(reasons, failed)
-				continue
-			}
-		}
+		spec = acceptedSpec
 		key := spec.Name + "|" + spec.Guards.SubjectContains + "|" + spec.Guards.BodyContains + "|" + spec.Patterns.Amount
 		if seen[key] {
 			continue
@@ -168,6 +161,39 @@ func validateCandidates(content string, samples []LLMSample) ([]TemplateSpec, []
 		accepted = append(accepted, spec)
 	}
 	return accepted, reasons
+}
+
+// firstWorkable tries the template as generated, then with the optional pieces
+// removed one at a time: guards choose variants, account is optional, so neither
+// should sink a template whose amount/date/direction parse every sample.
+func firstWorkable(spec TemplateSpec, samples []LLMSample) (TemplateSpec, string) {
+	noGuards := spec
+	noGuards.Guards = TemplateGuards{}
+	noAccount := spec
+	noAccount.Patterns.Account = ""
+	both := noGuards
+	both.Patterns.Account = ""
+
+	var last string
+	seen := map[string]bool{}
+	for _, variant := range []TemplateSpec{spec, noGuards, noAccount, both} {
+		key := variant.Guards.SubjectContains + "|" + variant.Guards.BodyContains + "|" + variant.Patterns.Account
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		tpl, err := CompileTemplate(variant)
+		if err != nil {
+			last = err.Error()
+			continue
+		}
+		if failure := extractFailure(tpl, samples); failure != "" {
+			last = failure
+			continue
+		}
+		return variant, ""
+	}
+	return spec, last
 }
 
 // extractFailure returns why a compiled template cannot parse every sample.

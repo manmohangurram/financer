@@ -164,3 +164,21 @@ func TestGenerateTemplatesRelaxesBadGuards(t *testing.T) {
 		t.Fatalf("guards should be cleared: %+v", got[0].Guards)
 	}
 }
+
+func TestGenerateTemplatesDropsBrokenAccountPattern(t *testing.T) {
+	spec := debitTemplate("alerts@bank.com")
+	spec.Patterns.Account = `(?i)card ending (?P<account>\d{4})` // sample uses "A/c XX2467"
+	srv, _ := fakeLiteLLM(t, testSpecJSON(spec), http.StatusOK)
+	got, err := GenerateTemplates(context.Background(), LLMSettings{
+		BaseURL: srv.URL, Model: "deepseek", APIKey: "test-key", Timeout: 5 * time.Second,
+	}, []LLMSample{{
+		From: "alerts@bank.com", Subject: "Debited",
+		Body: "Your A/c XX2467 has been debited INR 378.64 on 17 NOV 2026.",
+	}})
+	if err != nil {
+		t.Fatalf("account-less retry should be accepted: %v", err)
+	}
+	if got[0].Patterns.Account != "" {
+		t.Fatalf("account pattern should be removed: %q", got[0].Patterns.Account)
+	}
+}
