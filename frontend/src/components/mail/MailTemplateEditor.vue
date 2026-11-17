@@ -11,6 +11,7 @@ import {
 } from '@/lib/mailTemplate';
 
 const patterns = defineModel<TemplatePatterns>({ required: true });
+const emit = defineEmits<{ (e: 'tested'): void }>();
 
 const selected = ref(FIELD_VIEWS[0].key);
 const sampleSubject = ref('');
@@ -87,6 +88,7 @@ async function test() {
       body: sample.value,
       patterns: cleanedTemplate(patterns.value)
     });
+    if (result.value?.complete) emit('tested');
   } catch (e: any) {
     testError.value = e?.message || 'Could not test the template';
   }

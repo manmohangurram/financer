@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import AppModal from '@/components/AppModal.vue';
-import AppInput from '@/components/AppInput.vue';
+import AppStamp from '@/components/ui/AppStamp.vue';
 import MailTemplateEditor from '@/components/mail/MailTemplateEditor.vue';
 import { mail } from '@/lib/api/client';
 import { cleanedTemplate, emptyTemplate, templateProblem, type TemplatePatterns } from '@/lib/mailTemplate';
@@ -26,6 +26,7 @@ const form = ref({
   categoryIds: [...(props.rule?.categoryIds || [])] as string[],
   template: (props.rule?.template ? JSON.parse(JSON.stringify(props.rule.template)) : null) as TemplatePatterns | null
 });
+const tested = ref(false);
 const saving = ref(false);
 const confirmingDelete = ref(false);
 const error = ref('');
@@ -68,6 +69,7 @@ function next() {
 
 function skipTemplate() {
   form.value.template = null;
+  tested.value = false;
   error.value = '';
   step.value = 2;
 }
@@ -137,8 +139,8 @@ async function remove() {
 </script>
 
 <template>
-  <AppModal :title="editing ? 'Edit mail rule' : 'New mail rule'" xwide steady @close="emit('close')">
-    <div class="flex h-full min-h-0 flex-col px-6 pt-3.5 pb-4">
+  <AppModal :title="editing ? 'Edit mail rule' : 'New mail rule'" roomy steady @close="emit('close')">
+    <div class="flex h-full min-h-0 flex-col px-[26px] pt-[18px] pb-[14px]">
       <ol class="flex shrink-0 items-center border-b border-rule pb-3.5" aria-label="Rule steps">
         <li
           v-for="(label, index) in steps"
@@ -164,60 +166,66 @@ async function remove() {
         </li>
       </ol>
 
-      <div class="flex min-h-0 flex-1 flex-col pt-4" :class="step === 1 ? 'overflow-hidden' : 'overflow-y-auto'">
+      <div class="flex min-h-0 flex-1 flex-col pt-4" :class="step === 0 ? 'overflow-y-auto' : 'overflow-hidden'">
         <p v-if="error" role="alert" class="mb-3 shrink-0 rounded-control border border-debit/30 bg-debit/5 px-3 py-2 text-[12.5px] text-debit">{{ error }}</p>
 
         <!-- Step 1: match -->
-        <div v-if="step === 0" class="flex flex-col gap-4">
-          <p class="m-0 text-[13px] text-ink-mute">
+        <div v-if="step === 0" class="flex flex-col gap-5">
+          <p class="m-0 text-[13px] leading-[1.5] text-ink-mute">
             Only mail that matches this rule is stored. Leave a field empty to ignore it — matching is case-insensitive.
           </p>
           <div class="flex flex-col gap-1.5">
-            <AppInput v-model="form.fromPattern" label="From contains" placeholder="alerts@hdfcbank.net" />
-            <span class="text-[11.5px] text-ink-mute">
+            <label class="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-mute" for="rule-from">From contains</label>
+            <input id="rule-from" v-model="form.fromPattern" placeholder="alerts@hdfcbank.net" class="h-10 w-full rounded-[4px] border border-rule bg-page-sunk px-3 text-[14px] text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20" />
+            <span class="mt-1.5 text-[11.5px] leading-[1.5] text-ink-mute">
               A substring of the sender address. Use <code class="font-mono">hdfcbank</code> to cover more than one address.
             </span>
           </div>
-          <div class="flex flex-col gap-1.5">
-            <AppInput v-model="form.subjectContains" label="Subject contains" placeholder="Debit Alert" />
-            <span class="text-[11.5px] text-ink-mute">Optional.</span>
+          <div class="flex flex-col gap-1.5 border-t border-rule-soft pt-[18px]">
+            <label class="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-mute" for="rule-subject">Subject contains</label>
+            <input id="rule-subject" v-model="form.subjectContains" placeholder="Debit Alert" class="h-10 w-full rounded-[4px] border border-rule bg-page-sunk px-3 text-[14px] text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20" />
+            <span class="mt-1.5 text-[11.5px] leading-[1.5] text-ink-mute">Optional.</span>
           </div>
-          <div class="flex flex-col gap-1.5">
-            <AppInput v-model="form.bodyContains" label="Body contains" placeholder="debited" />
-            <span class="text-[11.5px] text-ink-mute">Optional. Checked against the plain-text body.</span>
+          <div class="flex flex-col gap-1.5 border-t border-rule-soft pt-[18px]">
+            <label class="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-mute" for="rule-body">Body contains</label>
+            <input id="rule-body" v-model="form.bodyContains" placeholder="debited" class="h-10 w-full rounded-[4px] border border-rule bg-page-sunk px-3 text-[14px] text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20" />
+            <span class="mt-1.5 text-[11.5px] leading-[1.5] text-ink-mute">Optional. Checked against the plain-text body.</span>
           </div>
         </div>
 
         <!-- Step 2: template -->
         <div v-else-if="step === 1 && form.template" class="min-h-0 flex-1">
-          <MailTemplateEditor v-model="form.template" />
+          <MailTemplateEditor v-model="form.template" @tested="tested = true" />
         </div>
 
         <!-- Step 3: booking -->
-        <div v-else class="flex flex-col gap-5">
-          <div class="flex flex-wrap items-center gap-2 rounded-control border border-rule bg-page-sunk px-3.5 py-2.5 text-[12.5px]">
+        <div v-else class="flex min-h-0 flex-1 flex-col gap-6">
+          <div class="flex flex-wrap items-center gap-2.5 rounded-control border border-rule bg-page-sunk px-3.5 py-2.5 text-[12.5px]">
             <span class="font-mono text-ink-soft">{{ form.fromPattern || '—' }}</span>
-            <span class="text-ink-faint">·</span>
-            <span>Template</span>
-            <span v-if="summary.hasTemplate" class="stamp text-accent border-accent/40">{{ summary.fields }} fields</span>
-            <span v-else class="stamp text-ink-mute">none</span>
+            <span class="text-ink-faint" aria-hidden="true">·</span>
+            <span class="text-ink-mute">Template</span>
+            <AppStamp v-if="summary.hasTemplate" tone="accent">{{ summary.fields }} fields</AppStamp>
+            <AppStamp v-else>none</AppStamp>
+            <span class="text-ink-faint" aria-hidden="true">·</span>
+            <AppStamp v-if="tested" tone="credit">tested</AppStamp>
+            <AppStamp v-else>not tested</AppStamp>
           </div>
 
-          <div class="grid gap-6 sm:grid-cols-2">
-            <div class="flex flex-col gap-1.5">
+          <div class="grid gap-8 sm:grid-cols-2">
+            <section class="flex flex-col">
               <h4 class="m-0 text-[11px] font-medium uppercase tracking-[0.07em] text-ink-mute">Where it goes</h4>
-              <label class="mt-2 flex flex-col gap-1.5">
+              <label class="mt-4 flex flex-col gap-1.5">
                 <span class="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-mute">Book to account</span>
-                <select v-model="form.accountId" class="select select-bordered w-full text-[13.5px]">
+                <select v-model="form.accountId" class="select select-bordered h-10 w-full text-[13.5px]">
                   <option value="">No fixed account</option>
                   <option v-for="a in accounts || []" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
                 </select>
               </label>
-              <span class="text-[11.5px] text-ink-mute">Used when the mail has no ending digits.</span>
+              <span class="mt-1.5 text-[11.5px] text-ink-mute">Used when the mail has no ending digits.</span>
 
-              <div v-if="(categories || []).length" class="mt-4 flex flex-col gap-1.5">
+              <div class="mt-5 flex flex-col gap-1.5">
                 <span class="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-mute">Categories</span>
-                <div class="flex flex-wrap gap-1.5">
+                <div v-if="(categories || []).length" class="flex flex-wrap gap-1.5">
                   <button
                     v-for="c in categories"
                     :key="c.id"
@@ -228,38 +236,65 @@ async function remove() {
                     @click="toggleCategory(c.id)"
                   >{{ c.name }}</button>
                 </div>
+                <span v-else class="text-[11.5px] text-ink-mute">No categories yet — add one under Categories.</span>
               </div>
-            </div>
+            </section>
 
-            <div class="flex flex-col gap-2">
+            <section class="flex flex-col">
               <h4 class="m-0 text-[11px] font-medium uppercase tracking-[0.07em] text-ink-mute">What happens</h4>
-              <label
-                v-for="option in [
-                  { value: 'REVIEW', title: 'Review', text: 'Wait in the Inbox for approval. Safest.' },
-                  { value: 'AUTO', title: 'Auto', text: 'Book immediately when the template extracts cleanly.' },
-                  { value: 'IGNORE', title: 'Ignore', text: 'Never store or surface this mail.' }
-                ]"
-                :key="option.value"
-                class="flex cursor-pointer items-start gap-2.5 rounded-control border px-3 py-2.5"
-                :class="form.action === option.value ? 'border-accent/50 bg-accent-wash' : 'border-rule'"
-              >
-                <input v-model="form.action" type="radio" :value="option.value" class="radio radio-sm mt-0.5" />
-                <span class="flex flex-col">
-                  <span class="text-[13px] font-medium text-ink">{{ option.title }}</span>
-                  <span class="text-[11.5px] text-ink-mute">{{ option.text }}</span>
-                </span>
-              </label>
-            </div>
+              <div role="radiogroup" aria-label="Rule action" class="mt-4 flex flex-col gap-2">
+                <label
+                  v-for="option in [
+                    { value: 'REVIEW', title: 'Review', text: 'Wait in the Inbox for approval. Safest.' },
+                    { value: 'AUTO', title: 'Auto', text: 'Book immediately when the template extracts cleanly.' },
+                    { value: 'IGNORE', title: 'Ignore', text: 'Never store or surface this mail.' }
+                  ]"
+                  :key="option.value"
+                  class="flex cursor-pointer items-start gap-3 rounded-control border px-3.5 py-3.5 transition-colors"
+                  :class="form.action === option.value ? 'border-accent/50 bg-accent-wash' : 'border-rule hover:bg-page-sunk/60'"
+                >
+                  <input v-model="form.action" type="radio" :value="option.value" class="peer sr-only" />
+                  <span
+                    class="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border transition-colors"
+                    :class="form.action === option.value ? 'border-accent' : 'border-rule-strong'"
+                    aria-hidden="true"
+                  >
+                    <span v-if="form.action === option.value" class="h-2 w-2 rounded-full bg-accent" />
+                  </span>
+                  <span class="flex flex-col">
+                    <span class="text-[13px] font-medium text-ink">{{ option.title }}</span>
+                    <span class="text-[11.5px] text-ink-mute">{{ option.text }}</span>
+                  </span>
+                </label>
+              </div>
+            </section>
           </div>
 
-          <label class="flex items-center gap-2 border-t border-rule pt-4 text-[13px] text-ink">
-            <input v-model="form.enabled" type="checkbox" class="checkbox checkbox-sm" />
-            Rule is enabled
-          </label>
+          <div class="mt-auto flex items-center justify-between gap-4 border-t border-rule pt-5">
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="form.enabled"
+                aria-label="Rule is enabled"
+                class="relative h-5 w-9 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                :class="form.enabled ? 'bg-accent' : 'bg-rule-strong'"
+                @click="form.enabled = !form.enabled"
+              >
+                <span
+                  class="absolute top-0.5 h-4 w-4 rounded-full bg-page transition-all"
+                  :class="form.enabled ? 'left-[18px]' : 'left-0.5'"
+                  aria-hidden="true"
+                />
+              </button>
+              <span class="text-[13px] text-ink">Rule is enabled</span>
+            </div>
+            <span class="text-[11.5px] text-ink-mute">You can change all of this later.</span>
+          </div>
         </div>
       </div>
 
-      <div class="mt-3 flex shrink-0 items-center justify-between gap-2 border-t border-rule pt-3">
+      <div class="mt-3 flex shrink-0 items-center justify-between gap-2 border-t border-rule pt-[14px]">
         <div class="flex items-center gap-2">
           <button v-if="step === 0" type="button" class="btn btn-sm btn-ghost" @click="emit('close')">Cancel</button>
           <button v-else type="button" class="btn btn-sm btn-ghost" @click="back">Back</button>
