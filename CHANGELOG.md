@@ -6,6 +6,24 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.15.1] — 2026-11-18
+
+### Fixed
+
+- **Reference numbers are read from the `Chq./Ref.No.` column by x-position.** The
+  narration-token fallback could pick a card mask or a UPI handle (`PAYTMQR…`), producing
+  473 duplicated ref values across the imported statements. The column is now preferred,
+  with the narration used only when the column is absent.
+- **Blank references no longer block an import.** Some statements leave the reference
+  blank (interest credits, cash deposits); the review step now notes
+  “N rows have no reference number” instead of refusing.
+
+### Data
+
+- Backfilled the references on the 3,369 transactions imported earlier: **3,348 carry the
+  statement's own reference**, 21 are blank in the PDF, and duplicate ref values fell from
+  473 to 22 (the remaining ones are genuine repeats, e.g. an EMI debit and its reversal).
+
 ## [0.15.0] — 2026-11-18
 
 ### Added

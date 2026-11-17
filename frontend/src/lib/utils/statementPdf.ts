@@ -76,6 +76,7 @@ function cleanName(narration: string): string {
 }
 
 interface ColumnHeader {
+  refX: number | null;
   debitX: number | null;
   creditX: number | null;
   balanceX: number | null;
@@ -86,9 +87,10 @@ function readHeader(lines: StatementLine[]): ColumnHeader | null {
     const lower = line.text.toLowerCase();
     if (!/withdraw|deposit|debit|credit|balance/.test(lower)) continue;
     if (!/narration|description|particular|date/i.test(lower)) continue;
-    const h: ColumnHeader = { debitX: null, creditX: null, balanceX: null };
+    const h: ColumnHeader = { refX: null, debitX: null, creditX: null, balanceX: null };
     for (const item of line.items) {
       const t = item.s.toLowerCase();
+      if (/chq|ref/.test(t) && h.refX === null) h.refX = item.x;
       if (/withdraw|debit/.test(t) && h.debitX === null) h.debitX = item.x;
       if (/deposit|credit/.test(t) && h.creditX === null) h.creditX = item.x;
       if (/balance/.test(t) && h.balanceX === null) h.balanceX = item.x;
@@ -153,11 +155,20 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
     const pre = pending.join(' ').replace(/\s+/g, ' ').trim();
     pending = [];
 
-    // The reference number sits between the date and the value date, usually as
-    // a long digit run; names and dates are not candidates.
-    const tokens = (inline.match(/\b[A-Za-z0-9]{6,}\b/g) || []).filter((t) => /\d/.test(t));
-    tokens.sort((a, b) => b.length - a.length);
-    const refNo = tokens[0] ?? '';
+    // Prefer the reference column's own x-position (right under Chq./Ref.No.);
+    // fall back to the longest digit-bearing token in the narration.
+    let refNo = '';
+    if (useColumns && header && header.refX !== null) {
+      const hit = line.items.find(
+        (it) => Math.abs(it.x - header.refX!) <= 40 && /^[A-Za-z0-9]{6,}$/.test(it.s.trim())
+      );
+      if (hit) refNo = hit.s.trim();
+    }
+    if (!refNo) {
+      const tokens = (inline.match(/\b[A-Za-z0-9]{6,}\b/g) || []).filter((t) => /\d/.test(t));
+      tokens.sort((a, b) => b.length - a.length);
+      refNo = tokens[0] ?? '';
+    }
 
     const post: string[] = [];
     while (i + 1 < rowsIn.length) {
@@ -312,9 +323,6 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
   }
 
   const missingRefs = rows.filter((r) => !r.refNo).length;
-  if (!problem && missingRefs > 0 && rows.length > missingRefs) {
-    problem = `${missingRefs} of ${rows.length} rows have no reference number.`;
-  }
   return { rows, opening, closing, credits, debits, valid: !problem, problem, pages: 1, layout, missingRefs };
 }
 

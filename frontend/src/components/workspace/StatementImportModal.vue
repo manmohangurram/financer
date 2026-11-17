@@ -304,6 +304,9 @@ async function importRows() {
             <span class="text-ink-mute">Book into</span>
             <span class="font-medium text-ink">{{ accounts.find((a) => a.id === accountId)?.nickname || accounts.find((a) => a.id === accountId)?.bankName || '—' }}</span>
           </div>
+          <p v-if="parsed.missingRefs" class="m-0 text-[11.5px] text-ink-mute">
+            {{ parsed.missingRefs }} {{ parsed.missingRefs === 1 ? 'row has' : 'rows have' }} no reference number — the statement leaves it blank for those.
+          </p>
 
           <div v-if="checking" class="rounded-control border border-rule bg-page-sunk px-3.5 py-2.5 text-[12.5px] text-ink-mute">
             Checking for transactions already in this account…
