@@ -28,6 +28,7 @@ import (
 	"github.com/mohan9182/financer/internal/mailservice"
 	mcpserver "github.com/mohan9182/financer/internal/mcp"
 	"github.com/mohan9182/financer/internal/model"
+	"github.com/mohan9182/financer/internal/repo"
 	"github.com/mohan9182/financer/internal/ruleservice"
 	"github.com/mohan9182/financer/internal/transactionservice"
 	"github.com/mohan9182/financer/internal/transferservice"
@@ -542,8 +543,9 @@ func (a *API) listCategories(c *gin.Context) {
 type reqCategory struct {
 	IDs        []string `json:"ids"`
 	Categories []struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID            string   `json:"id"`
+		Name          string   `json:"name"`
+		MonthlyBudget *float64 `json:"monthlyBudget"`
 	} `json:"categories"`
 }
 
@@ -554,11 +556,15 @@ func (a *API) createCategories(c *gin.Context) {
 		writeError(c, errors.BadRequest(err.Error()))
 		return
 	}
-	names := make([]string, 0, len(in.Categories))
+	inputs := make([]repo.CategoryCreateInput, 0, len(in.Categories))
 	for _, cat := range in.Categories {
-		names = append(names, cat.Name)
+		input := repo.CategoryCreateInput{Name: cat.Name}
+		if cat.MonthlyBudget != nil {
+			input.MonthlyBudget = *cat.MonthlyBudget
+		}
+		inputs = append(inputs, input)
 	}
-	res := a.categorySvc.Create(uid, names)
+	res := a.categorySvc.Create(uid, inputs)
 	c.JSON(http.StatusCreated, res)
 }
 
@@ -569,11 +575,11 @@ func (a *API) updateCategories(c *gin.Context) {
 		writeError(c, errors.BadRequest(err.Error()))
 		return
 	}
-	pairs := make([][2]string, 0, len(in.Categories))
+	inputs := make([]repo.CategoryUpdateInput, 0, len(in.Categories))
 	for _, cat := range in.Categories {
-		pairs = append(pairs, [2]string{cat.ID, cat.Name})
+		inputs = append(inputs, repo.CategoryUpdateInput{ID: cat.ID, Name: cat.Name, MonthlyBudget: cat.MonthlyBudget})
 	}
-	res := a.categorySvc.Update(uid, pairs)
+	res := a.categorySvc.Update(uid, inputs)
 	c.JSON(http.StatusOK, res)
 }
 

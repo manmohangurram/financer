@@ -2,12 +2,12 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { accounts as accountsApi, categories, mail } from '@/lib/api/client';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { parseExtraction, type Extraction, type MailMessage, type MailMessageDetail } from '@/lib/types/mail';
 import MailboxFormModal from '@/components/mail/MailboxFormModal.vue';
+import MailQueue from '@/components/mail/MailQueue.vue';
 import EmailReader from '@/components/mail/EmailReader.vue';
 import SectionHeader from '@/components/accounts/SectionHeader.vue';
-import { Inbox as InboxIcon, Plus, RefreshCw, Settings2 } from '@lucide/vue';
+import { Plus, RefreshCw, Settings2 } from '@lucide/vue';
 
 interface MailAccount {
   id: string;
@@ -54,13 +54,6 @@ const formErrors = ref<string[]>([]);
 const PAGE_SIZE = 20;
 let refreshTimer: number | null = null;
 
-const FILTERS = [
-  { key: 'review', label: 'Needs review' },
-  { key: 'unparsed', label: 'Unparsed' },
-  { key: 'auto', label: 'Auto' },
-  { key: 'all', label: 'All' }
-] as const;
-
 const total = ref(0);
 const pageToken = ref('');
 const nextToken = ref('');
@@ -97,9 +90,18 @@ function resetPaging() {
   pageToken.value = '';
 }
 
-watch([filter, activeAccount, search], () => {
+watch([filter, activeAccount], () => {
   resetPaging();
   load();
+});
+
+let searchTimer: number | null = null;
+watch(search, () => {
+  if (searchTimer) window.clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => {
+    resetPaging();
+    load();
+  }, 300);
 });
 
 const selected = computed(() => messages.value.find((m) => m.id === selectedId.value) || null);
@@ -120,20 +122,6 @@ const accountOptions = computed(() =>
 function mailboxName(id: string): string {
   const a = mailboxes.value.find((x) => x.id === id);
   return a ? a.label || a.username : 'Mailbox';
-}
-
-function amountOf(m: MailMessage): string {
-  const p = parseExtraction(m.parsedJson);
-  if (!p?.amount) return '';
-  const sign = p.direction === 'CREDIT' ? '+' : '−';
-  return `${sign} ${formatCurrency(p.amount)}`;
-}
-
-function stampClass(status: string): string {
-  if (status === 'AUTO') return 'badge-success';
-  if (status === 'UNPARSED') return 'badge-error';
-  if (status === 'PENDING') return 'badge-warning';
-  return '';
 }
 
 function prepForm(m: MailMessage) {
@@ -165,28 +153,39 @@ async function select(m: MailMessage) {
   }
 }
 
-async function load() {
-  loading.value = true;
-  error.value = '';
+let loadSeq = 0;
+
+async function loadMeta() {
   try {
-    const [acc, msgs, catRes, finAccounts] = await Promise.all([
+    const [acc, catRes, finAccounts] = await Promise.all([
       mail().listAccounts({}),
-      mail().listMessages({
-        status: statusParam(),
-        limit: PAGE_SIZE,
-        pageToken: pageToken.value || undefined,
-        accountId: activeAccount.value !== 'all' ? activeAccount.value : undefined,
-        search: search.value.trim() || undefined
-      }),
       categories().listCategories({ pageSize: 200 }),
       accountsApi().listAccounts({})
     ]);
     mailboxes.value = acc.accounts || [];
+    cats.value = catRes.categories || [];
+    accounts.value = finAccounts.accounts || [];
+  } catch (e: any) {
+    error.value = e?.message || 'Could not load mailboxes';
+  }
+}
+
+async function load(opts: { silent?: boolean } = {}) {
+  const seq = ++loadSeq;
+  if (!opts.silent) loading.value = true;
+  error.value = '';
+  try {
+    const msgs = await mail().listMessages({
+      status: statusParam(),
+      limit: PAGE_SIZE,
+      pageToken: pageToken.value || undefined,
+      accountId: activeAccount.value !== 'all' ? activeAccount.value : undefined,
+      search: search.value.trim() || undefined
+    });
+    if (seq !== loadSeq) return;
     messages.value = msgs.messages || [];
     total.value = msgs.total || 0;
     nextToken.value = msgs.nextPageToken || '';
-    cats.value = catRes.categories || [];
-    accounts.value = finAccounts.accounts || [];
     if (selectedId.value && !messages.value.some((m) => m.id === selectedId.value)) {
       selectedId.value = '';
       detail.value = null;
@@ -196,9 +195,10 @@ async function load() {
       if (first) await select(first);
     }
   } catch (e: any) {
-    error.value = e?.message || 'Failed to load the inbox';
+    if (seq === loadSeq) error.value = e?.message || 'Failed to load the inbox';
+  } finally {
+    if (seq === loadSeq) loading.value = false;
   }
-  loading.value = false;
 }
 
 function startRefresh() {
@@ -206,11 +206,12 @@ function startRefresh() {
   let ticks = 0;
   refreshTimer = window.setInterval(async () => {
     ticks += 1;
-    await load();
+    await load({ silent: true });
     if (ticks >= 5 || !checking.value) {
       if (refreshTimer) window.clearInterval(refreshTimer);
       refreshTimer = null;
       checking.value = false;
+      await loadMeta();
     }
   }, 3000);
 }
@@ -307,11 +308,13 @@ function toggleCategory(id: string) {
 }
 
 onMounted(async () => {
+  await loadMeta();
   await load();
   poll(false);
 });
 onUnmounted(() => {
   if (refreshTimer) window.clearInterval(refreshTimer);
+  if (searchTimer) window.clearTimeout(searchTimer);
 });
 </script>
 
@@ -341,108 +344,23 @@ onUnmounted(() => {
 
     <div class="grid min-h-0 flex-1 overflow-hidden rounded-card border border-rule bg-page lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
       <!-- Queue -->
-      <section class="flex max-h-[52vh] min-h-0 flex-col border-b border-rule lg:max-h-none lg:border-b-0 lg:border-r" aria-label="Mail queue">
-        <div class="border-b border-rule bg-paper px-2 pt-1">
-          <div class="tabs tabs-border w-full overflow-x-auto" role="tablist" aria-label="Mailboxes">
-            <button
-              role="tab"
-              class="tab whitespace-nowrap text-[12.5px]"
-              :class="activeAccount === 'all' ? 'tab-active' : ''"
-              @click="activeAccount = 'all'"
-            >
-              All mailboxes
-            </button>
-            <button
-              v-for="a in mailboxes"
-              :key="a.id"
-              role="tab"
-              class="tab whitespace-nowrap text-[12.5px]"
-              :class="activeAccount === a.id ? 'tab-active' : ''"
-              @click="activeAccount = a.id"
-            >
-              {{ a.label || a.username }}
-              <span v-if="a.lastError" class="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-debit" :title="a.lastError"></span>
-            </button>
-          </div>
-        </div>
+      <MailQueue
+        v-model:filter="filter"
+        v-model:active-account="activeAccount"
+        v-model:search="search"
+        :messages="messages"
+        :mailboxes="mailboxes"
+        :loading="loading"
+        :page-number="history.length + 1"
+        :page-label="pageLabel"
+        :selected-id="selectedId"
+        :has-prev="history.length > 0"
+        :has-next="!!nextToken"
+        @select="select"
+        @page="changePage"
+        @add-mailbox="showMailboxForm = true"
+      />
 
-        <div class="flex flex-wrap items-center gap-2 border-b border-rule-soft px-3 py-2">
-          <div class="tabs tabs-sm" role="tablist" aria-label="Queue filter">
-            <button
-              v-for="f in FILTERS"
-              :key="f.key"
-              role="tab"
-              class="tab text-[12px]"
-              :class="filter === f.key ? 'tab-active' : ''"
-              @click="filter = f.key"
-            >
-              {{ f.label }}
-            </button>
-          </div>
-          <input
-            v-model="search"
-            type="search"
-            placeholder="Search sender or subject"
-            aria-label="Search mail"
-            class="input input-sm input-bordered ml-auto w-[200px] text-[12.5px]"
-          />
-        </div>
-
-        <div class="inbox-scroll min-h-0 flex-1 overflow-y-auto">
-          <div v-if="loading" class="py-16 text-center text-[13px] text-ink-mute">Loading…</div>
-          <div v-else-if="!messages.length" class="flex flex-col items-center gap-2 px-6 py-16 text-center">
-            <InboxIcon class="h-8 w-8 text-ink-faint" aria-hidden="true" />
-            <template v-if="!mailboxes.length">
-              <p class="text-[13px] text-ink-mute">No mailboxes yet.</p>
-              <p class="text-[12px] text-ink-faint">Link one to start reading bank alerts.</p>
-              <button class="btn btn-sm btn-primary mt-1" @click="showMailboxForm = true">Add mailbox</button>
-            </template>
-            <template v-else>
-              <p class="text-[13px] text-ink-mute">Nothing to review here.</p>
-              <p class="text-[12px] text-ink-faint">New mail appears automatically after a poll.</p>
-            </template>
-          </div>
-          <button
-            v-for="m in messages"
-            :key="m.id"
-            class="flex w-full gap-2.5 border-b border-rule-soft px-3.5 py-3 text-left transition-colors"
-            :class="selectedId === m.id ? 'bg-page-sunk shadow-[inset_2px_0_0_var(--accent)]' : 'bg-page hover:bg-page-sunk/60'"
-            :aria-current="selectedId === m.id ? 'true' : undefined"
-            @click="select(m)"
-          >
-            <span
-              class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
-              :class="m.status === 'UNPARSED' ? 'bg-debit' : m.status === 'AUTO' ? 'bg-credit' : 'bg-stamp'"
-              aria-hidden="true"
-            ></span>
-            <span class="min-w-0 flex-1">
-              <span class="flex items-baseline justify-between gap-2">
-                <span class="truncate text-[13px] font-medium text-ink">{{ m.fromName || m.fromAddr }}</span>
-                <span class="mono shrink-0 text-[11.5px]" :class="parseExtraction(m.parsedJson)?.direction === 'CREDIT' ? 'text-credit' : 'text-debit'">
-                  {{ amountOf(m) }}
-                </span>
-              </span>
-              <span class="mt-0.5 block truncate text-[12.5px] text-ink-soft">{{ m.subject || '(no subject)' }}</span>
-              <span class="mt-1 flex items-center justify-between gap-2 text-[11px] text-ink-mute">
-                <span class="truncate">{{ m.bodyPreview || m.fromAddr }}</span>
-                <span class="flex shrink-0 items-center gap-2">
-                  <span>{{ m.receivedAt ? formatDate(m.receivedAt) : '—' }}</span>
-                  <span class="badge badge-xs badge-outline" :class="stampClass(m.status)">{{ m.status }}</span>
-                </span>
-              </span>
-            </span>
-          </button>
-        </div>
-
-        <div class="flex items-center justify-between gap-2 border-t border-rule-soft bg-paper px-3 py-1.5 text-[11px] text-ink-mute">
-          <span>{{ pageLabel }}</span>
-          <span class="flex items-center gap-1">
-            <button class="btn btn-ghost btn-xs px-1.5" :disabled="!history.length" aria-label="Previous page" @click="changePage(-1)">‹</button>
-            <span class="tabular px-1">{{ history.length + 1 }}</span>
-            <button class="btn btn-ghost btn-xs px-1.5" :disabled="!nextToken" aria-label="Next page" @click="changePage(1)">›</button>
-          </span>
-        </div>
-      </section>
 
       <!-- Detail: email on top, booking form below -->
       <section class="inbox-scroll min-h-0 overflow-y-auto" aria-label="Message and booking">

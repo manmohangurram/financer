@@ -154,7 +154,7 @@ func Build(svc Services, uid, scope string) *mcp.Server {
 		if !h.canWrite() {
 			return errJSON("read-only API key; cannot create categories"), nil, nil
 		}
-		return okResult(h.svc.Categories.Create(h.uid, in.Names)), nil, nil
+		return okResult(h.svc.Categories.Create(h.uid, categoryInputs(in.Names))), nil, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -164,11 +164,11 @@ func Build(svc Services, uid, scope string) *mcp.Server {
 		if !h.canWrite() {
 			return errJSON("read-only API key; cannot update categories"), nil, nil
 		}
-		pairs := make([][2]string, 0, len(in.Categories))
+		inputs := make([]repo.CategoryUpdateInput, 0, len(in.Categories))
 		for _, c := range in.Categories {
-			pairs = append(pairs, [2]string{c.ID, c.Name})
+			inputs = append(inputs, repo.CategoryUpdateInput{ID: c.ID, Name: c.Name})
 		}
-		return okResult(h.svc.Categories.Update(h.uid, pairs)), nil, nil
+		return okResult(h.svc.Categories.Update(h.uid, inputs)), nil, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -432,4 +432,14 @@ func normalizeOccurredAt(v string) string {
 		return tim.FromUTC(d.UTC())
 	}
 	return v
+}
+
+func categoryInputs(names []string) []repo.CategoryCreateInput {
+	out := make([]repo.CategoryCreateInput, 0, len(names))
+	for _, n := range names {
+		if n != "" {
+			out = append(out, repo.CategoryCreateInput{Name: n})
+		}
+	}
+	return out
 }

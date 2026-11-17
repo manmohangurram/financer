@@ -262,7 +262,8 @@ func paths() map[string]any {
 				"tags": []any{"mail"}, "summary": "List stored mail",
 				"parameters": []any{
 					map[string]any{"name": "status", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"pending", "unparsed", "ignored", "auto", "rejected", "review", "all"}}},
-					map[string]any{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer"}},
+					map[string]any{"name": "pageSize", "in": "query", "schema": map[string]any{"type": "integer", "maximum": 100}},
+					map[string]any{"name": "limit", "in": "query", "deprecated": true, "schema": map[string]any{"type": "integer", "maximum": 100}},
 					map[string]any{"name": "accountId", "in": "query", "schema": map[string]any{"type": "string"}},
 					map[string]any{"name": "search", "in": "query", "schema": map[string]any{"type": "string"}},
 					map[string]any{"name": "pageToken", "in": "query", "schema": map[string]any{"type": "string"}},
@@ -429,10 +430,14 @@ func components() map[string]any {
 			"accountId": str(), "categoryIds": ref("[]Category"), "externalId": str(),
 		}),
 		"ReqCategoriesCreate": obj(map[string]any{
-			"categories": map[string]any{"type": "array", "items": obj(map[string]any{"id": str(), "name": str()})},
+			"categories": map[string]any{"type": "array", "items": obj(map[string]any{
+				"name": str(), "monthlyBudget": map[string]any{"type": "number"},
+			})},
 		}),
 		"ReqCategoriesUpdate": obj(map[string]any{
-			"categories": map[string]any{"type": "array", "items": obj(map[string]any{"id": str(), "name": str()})},
+			"categories": map[string]any{"type": "array", "items": obj(map[string]any{
+				"id": str(), "name": str(), "monthlyBudget": map[string]any{"type": "number", "nullable": true},
+			})},
 		}),
 		"ReqCategoriesDelete": obj(map[string]any{"ids": map[string]any{"type": "array", "items": str()}}),
 		"ReqTransfer": obj(map[string]any{
@@ -498,6 +503,7 @@ func components() map[string]any {
 		"ListMailMessages": obj(map[string]any{
 			"messages":      ref("[]MailMessage"),
 			"total":         map[string]any{"type": "integer"},
+			"totalCount":    map[string]any{"type": "integer"},
 			"nextPageToken": str(),
 		}),
 		"MailRule": obj(map[string]any{

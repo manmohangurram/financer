@@ -42,6 +42,8 @@ category is a **name and a monthly budget**. Analysis belongs to Spending.
 ### API
 
 - `GET /api/categories` includes `monthlyBudget` (number, 0 = none).
+- `POST /api/categories` and `PUT /api/categories` accept `monthlyBudget`, so a
+  category and its limit are one call (omitted on update keeps the stored value).
 - `PUT /api/categories/{id}/budget` with `{ "monthlyBudget": number }`:
   - 200 with the updated `Category`;
   - 400 for negative, NaN/Inf or above 1,000,000,000;

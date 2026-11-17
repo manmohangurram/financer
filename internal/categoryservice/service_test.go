@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mohan9182/financer/internal/db"
+	"github.com/mohan9182/financer/internal/repo"
 	"github.com/mohan9182/financer/internal/repo/sqlite"
 )
 
@@ -21,7 +22,7 @@ func setup(t *testing.T) (*Service, string, string, func()) {
 		t.Fatal(err)
 	}
 	svc := New(sqlite.NewCategoryRepo(dbs.Write))
-	if res := svc.Create(uid, []string{"Food"}); !res.Success {
+	if res := svc.Create(uid, []repo.CategoryCreateInput{{Name: "Food"}}); !res.Success {
 		t.Fatalf("create category: %+v", res)
 	}
 	list, _, err := svc.List(uid, 10, "")

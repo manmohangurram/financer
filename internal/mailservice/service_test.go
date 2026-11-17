@@ -467,3 +467,72 @@ func TestMessagesListOmitsBodyAndGetReturnsIt(t *testing.T) {
 		t.Fatal("unknown message must return an error")
 	}
 }
+
+func TestMessagesCursorPagination(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	ids := map[string]bool{}
+	for _, id := range []string{"<p1>", "<p2>", "<p3>"} {
+		ids[seedMessage(t, e, id, "1234")] = true
+	}
+
+	page1, total, next, err := e.svc.Messages(e.uid, nil, "", "", "", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 3 || len(page1) != 2 || next == "" {
+		t.Fatalf("page1: total=%d rows=%d next=%q", total, len(page1), next)
+	}
+	seen := map[string]bool{}
+	for _, m := range page1 {
+		if seen[m.ID] {
+			t.Fatalf("duplicate row %s on page1", m.ID)
+		}
+		if !ids[m.ID] {
+			t.Fatalf("unexpected row %s", m.ID)
+		}
+		seen[m.ID] = true
+	}
+
+	page2, total2, next2, err := e.svc.Messages(e.uid, nil, "", "", next, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total2 != 3 || len(page2) != 1 || next2 != "" {
+		t.Fatalf("page2: total=%d rows=%d next=%q", total2, len(page2), next2)
+	}
+	if seen[page2[0].ID] {
+		t.Fatalf("page2 repeated %s", page2[0].ID)
+	}
+
+	if _, _, _, err := e.svc.Messages(e.uid, nil, "", "", "not-a-token", 2); err == nil {
+		t.Fatal("invalid pageToken must be rejected")
+	}
+}
+
+func TestMessagesFilters(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	seedMessage(t, e, "<f1>", "1234")
+
+	// "review" is the union of pending and unparsed.
+	rows, _, _, err := e.svc.Messages(e.uid, ptr("review"), "", "swiggy", "", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("search should not match: %+v", rows)
+	}
+	rows, _, _, err = e.svc.Messages(e.uid, ptr("review"), "", "debited", "", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("subject search = %d rows", len(rows))
+	}
+	if _, _, _, err := e.svc.Messages(e.uid, ptr("nonsense"), "", "", "", 20); err == nil {
+		t.Fatal("unknown status must be rejected")
+	}
+}
+
+func ptr(s string) *string { return &s }

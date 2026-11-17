@@ -8,6 +8,30 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
 
 ## [Unreleased]
 
+### Fixed
+
+- **SSRF in Inbox AI settings:** the base URL is validated for link-local/metadata
+  targets and the resolved addresses are checked again immediately before the
+  request; mailbox hosts use the same shared guard.
+- Inbox polling no longer blanks the queue: background refreshes are silent, and
+  mailboxes/categories/accounts are fetched once rather than on every 3-second tick.
+- Search is debounced (300 ms) and stale list/detail responses are dropped, so an
+  older request cannot overwrite a newer one.
+- Creating or renaming a category together with its budget is one request; the
+  fragile create-then-find-by-name path is gone.
+- Email bodies render at most 400 paragraph blocks; the reader keeps its fixed
+  height.
+- New mail rules join the end of the list instead of all sharing position 0, and
+  deleting one is a two-step inline confirm rather than a native dialog.
+
+### Added
+
+- Cursor-pagination tests for the mail queue (disjoint pages, final page, invalid
+  token, status union, search).
+- Mail rules can target an account and categories (AUTO pre-booking), matching the
+  backend fields.
+- `idx_mail_messages_user_sender` (migration `000005`) for LLM sample lookups.
+
 ### Changed
 
 - **Inbox AI wording is provider-neutral.** The settings tab now talks about an
@@ -16,9 +40,10 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
   accepted as-is; a base URL still gets `/chat/completions` appended. The connection
   test prompt contains the word “json” so JSON-mode providers accept it.
 - Inbox queue is cursor-paginated: `GET /api/mail/messages` takes `pageToken`,
-  `limit` (default 20), `accountId` and `search`, and returns `total` +
-  `nextPageToken`. Filters (status, mailbox, search) now run in SQL, so each page is
-  a real 20-row fetch; approve/reject refreshes and returns to the first page.
+  `pageSize` (default 20; `limit` still accepted), `accountId` and `search`, and
+  returns `total`/`totalCount` + `nextPageToken`. Filters (status, mailbox, search)
+  now run in SQL, so each page is a real 20-row fetch; approve/reject refreshes and
+  returns to the first page.
 - Inbox account picker lists the user's financial accounts (with ending digits), not
   their mailboxes.
 - The email body has a fixed-height scroll area, so long mail never pushes the

@@ -66,8 +66,9 @@ type ReqCategory struct {
 }
 
 type ReqCat struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	MonthlyBudget *float64 `json:"monthlyBudget,omitempty"`
 }
 
 type ListCategoriesQuery struct {

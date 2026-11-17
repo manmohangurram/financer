@@ -38,26 +38,18 @@ function openEditItem(item: any) {
   showItemModal.value = true;
 }
 
-async function saveBudget(id: string, raw: string | number | undefined) {
-  const value = raw === '' || raw === undefined ? 0 : Number(raw);
-  if (!Number.isFinite(value) || value < 0) throw new Error('Monthly budget must be zero or a positive amount.');
-  await categories().setCategoryBudget({ id, monthlyBudget: value });
-}
-
 async function submitItem(payload: any) {
   error.value = '';
   try {
     const name = String(payload.name || '').trim();
     if (!name) throw new Error('Name is required');
+    const raw = payload.monthlyBudget;
+    const budget = raw === '' || raw === undefined || raw === null ? 0 : Number(raw);
+    if (!Number.isFinite(budget) || budget < 0) throw new Error('Monthly budget must be zero or a positive amount.');
     if (editingItem.value) {
-      await categories().updateCategories({ categories: [{ id: editingItem.value.id, name }] });
-      await saveBudget(editingItem.value.id, payload.monthlyBudget);
+      await categories().updateCategories({ categories: [{ id: editingItem.value.id, name, monthlyBudget: budget }] });
     } else {
-      await categories().createCategories({ categories: [{ name }] });
-      // The bulk create endpoint returns no ids, so resolve the new row by name.
-      const resp = await categories().listCategories({ pageSize: 10000 });
-      const created = (resp.categories || []).find((c: any) => c.name === name);
-      if (created) await saveBudget(created.id, payload.monthlyBudget);
+      await categories().createCategories({ categories: [{ name, monthlyBudget: budget }] });
     }
     showItemModal.value = false;
     await loadAll();

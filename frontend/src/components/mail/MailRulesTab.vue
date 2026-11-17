@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { Plus } from '@lucide/vue';
-import { mail } from '@/lib/api/client';
+import { accounts, categories, mail } from '@/lib/api/client';
 import MailRuleFormModal from '@/components/mail/MailRuleFormModal.vue';
 
 const rules = ref<any[]>([]);
+const accountList = ref<any[]>([]);
+const categoryList = ref<any[]>([]);
 const loading = ref(true);
 const error = ref('');
 const showForm = ref(false);
@@ -22,7 +24,14 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    rules.value = (await mail().listRules({})).rules || [];
+    const [ruleResp, accResp, catResp] = await Promise.all([
+      mail().listRules({}),
+      accounts().listAccounts({}),
+      categories().listCategories({ pageSize: 1000 })
+    ]);
+    rules.value = ruleResp.rules || [];
+    accountList.value = accResp.accounts || [];
+    categoryList.value = catResp.categories || [];
   } catch (e: any) {
     error.value = e?.message || 'Failed to load mail rules';
   }
@@ -92,5 +101,5 @@ onMounted(load);
     </div>
   </section>
 
-  <MailRuleFormModal v-if="showForm" :rule="editing" @close="showForm = false" @saved="load" />
+  <MailRuleFormModal v-if="showForm" :rule="editing" :accounts="accountList" :categories="categoryList" @close="showForm = false" @saved="load" />
 </template>

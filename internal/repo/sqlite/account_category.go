@@ -147,12 +147,12 @@ func (r *CategoryRepo) Create(userID string, inputs []repo.CategoryCreateInput) 
 		id := uuid.New().String()
 		now := nowGoTS()
 		if _, err := r.db.Exec(
-			"INSERT INTO categories (id, user_id, name, created_at) VALUES (?, ?, ?, ?)",
-			id, userID, input.Name, now,
+			"INSERT INTO categories (id, user_id, name, monthly_budget, created_at) VALUES (?, ?, ?, ?, ?)",
+			id, userID, input.Name, input.MonthlyBudget, now,
 		); err != nil {
 			return nil, err
 		}
-		out = append(out, &repo.CategoryRow{ID: id, Name: input.Name, CreatedAt: now})
+		out = append(out, &repo.CategoryRow{ID: id, Name: input.Name, MonthlyBudget: input.MonthlyBudget, CreatedAt: now})
 	}
 	return out, nil
 }
@@ -167,8 +167,8 @@ func (r *CategoryRepo) Update(userID string, inputs []repo.CategoryUpdateInput) 
 	var errs []string
 	for _, input := range inputs {
 		res, err := r.db.Exec(
-			"UPDATE categories SET name = COALESCE(NULLIF(?, ''), name) WHERE id = ? AND user_id = ?",
-			input.Name, input.ID, userID,
+			"UPDATE categories SET name = COALESCE(NULLIF(?, ''), name), monthly_budget = COALESCE(?, monthly_budget) WHERE id = ? AND user_id = ?",
+			input.Name, input.MonthlyBudget, input.ID, userID,
 		)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("category %s: %v", input.ID, err))

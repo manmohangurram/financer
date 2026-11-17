@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { ChevronDown, Code2, Loader2 } from '@lucide/vue';
 import { formatDate } from '@/lib/utils/format';
+import { stampClass } from '@/lib/utils/mail';
 import type { MailMessageDetail } from '@/lib/types/mail';
 
 const props = defineProps<{
@@ -21,15 +22,10 @@ watch(
 const sender = computed(() => props.message?.fromName || props.message?.fromAddr || 'Unknown sender');
 const paragraphs = computed(() => {
   const body = props.message?.bodyText || '';
-  return body.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  // A pathological message is capped at parse time; cap the DOM nodes too so a
+  // wall of one-line paragraphs cannot stall the reader.
+  return body.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean).slice(0, 400);
 });
-
-function stampClass(status: string): string {
-  if (status === 'AUTO') return 'badge-success';
-  if (status === 'UNPARSED') return 'badge-error';
-  if (status === 'PENDING') return 'badge-warning';
-  return '';
-}
 </script>
 
 <template>

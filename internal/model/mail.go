@@ -113,6 +113,7 @@ type WireMailAccounts struct {
 type WireMailMessages struct {
 	Messages      []*MailMessage `json:"messages"`
 	Total         int64          `json:"total"`
+	TotalCount    int64          `json:"totalCount"`
 	NextPageToken string         `json:"nextPageToken"`
 }
 

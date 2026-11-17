@@ -53,12 +53,14 @@ type CategoryRow struct {
 }
 
 type CategoryCreateInput struct {
-	Name string
+	Name          string
+	MonthlyBudget float64
 }
 
 type CategoryUpdateInput struct {
-	ID   string
-	Name string
+	ID            string
+	Name          string
+	MonthlyBudget *float64
 }
 
 type ListCategoriesResult struct {

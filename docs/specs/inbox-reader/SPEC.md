@@ -64,8 +64,10 @@ Parsing happens once, at ingest, in the mail poll:
 
 ### API
 
-- `GET /api/mail/messages` is cursor-paginated (`limit` default 20, `pageToken`,\n  `accountId`, `search`) and returns `total` + `nextPageToken`; rows are **without**\n  `rawText` (payload size) and
-  with `fromName` plus `bodyPreview` (first non-empty line, ≤140 chars).
+- `GET /api/mail/messages` is cursor-paginated (`pageSize` default 20, `pageToken`,
+  `accountId`, `search`) and returns `total`/`totalCount` + `nextPageToken`; rows are
+  **without** `rawText` (payload size) and with `fromName` plus `bodyPreview` (first
+  non-empty line, ≤140 chars).
 - `GET /api/mail/messages/{id}` returns the full message: `bodyText` (parsed) and
   `rawText` (source). Rows stored before this feature return a lazily parsed
   `bodyText` derived from `rawText`.

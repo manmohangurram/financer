@@ -41,16 +41,11 @@ func (s *Service) List(userID string, pageSize int64, pageToken string) ([]*mode
 // SetBudget stores a category's recurring monthly limit. 0 clears it; the
 // amount is rounded to paise and validated so bad input never reaches SQLite.
 func (s *Service) SetBudget(userID, id string, budget float64) (*model.CategoryResponse, error) {
-	if math.IsNaN(budget) || math.IsInf(budget, 0) {
-		return nil, errors.BadRequest("monthlyBudget must be a number")
+	normalised, err := normaliseBudget(budget)
+	if err != nil {
+		return nil, err
 	}
-	if budget < 0 {
-		return nil, errors.BadRequest("monthlyBudget cannot be negative")
-	}
-	if budget > maxMonthlyBudget {
-		return nil, errors.BadRequest(fmt.Sprintf("monthlyBudget must be at most %d", maxMonthlyBudget))
-	}
-	budget = math.Round(budget*100) / 100
+	budget = normalised
 	ok, err := s.repo.SetBudget(userID, id, budget)
 	if err != nil {
 		return nil, err
@@ -73,24 +68,35 @@ func (s *Service) SetBudget(userID, id string, budget float64) (*model.CategoryR
 	}, nil
 }
 
-func (s *Service) Create(userID string, names []string) *model.BulkResult {
-	var inputs []repo.CategoryCreateInput
-	for _, n := range names {
-		if n == "" {
+func (s *Service) Create(userID string, inputs []repo.CategoryCreateInput) *model.BulkResult {
+	clean := make([]repo.CategoryCreateInput, 0, len(inputs))
+	for _, in := range inputs {
+		if in.Name == "" {
 			continue
 		}
-		inputs = append(inputs, repo.CategoryCreateInput{Name: n})
+		budget, err := normaliseBudget(in.MonthlyBudget)
+		if err != nil {
+			return &model.BulkResult{Success: false, Message: err.Error()}
+		}
+		in.MonthlyBudget = budget
+		clean = append(clean, in)
 	}
-	if _, err := s.repo.Create(userID, inputs); err != nil {
+	if _, err := s.repo.Create(userID, clean); err != nil {
 		return &model.BulkResult{Success: false, Message: "some categories failed", FailedIDs: []string{err.Error()}}
 	}
 	return &model.BulkResult{Success: true, Message: "categories created successfully"}
 }
 
-func (s *Service) Update(userID string, pairs [][2]string) *model.BulkResult {
-	var inputs []repo.CategoryUpdateInput
-	for _, p := range pairs {
-		inputs = append(inputs, repo.CategoryUpdateInput{ID: p[0], Name: p[1]})
+func (s *Service) Update(userID string, inputs []repo.CategoryUpdateInput) *model.BulkResult {
+	for i := range inputs {
+		if inputs[i].MonthlyBudget == nil {
+			continue
+		}
+		budget, err := normaliseBudget(*inputs[i].MonthlyBudget)
+		if err != nil {
+			return &model.BulkResult{Success: false, Message: err.Error()}
+		}
+		inputs[i].MonthlyBudget = &budget
 	}
 	errs, err := s.repo.Update(userID, inputs)
 	if err != nil {
@@ -100,6 +106,20 @@ func (s *Service) Update(userID string, pairs [][2]string) *model.BulkResult {
 		return &model.BulkResult{Success: false, Message: "some updates failed", FailedIDs: errs}
 	}
 	return &model.BulkResult{Success: true, Message: "categories updated successfully"}
+}
+
+// normaliseBudget validates a monthly limit and rounds it to paise.
+func normaliseBudget(budget float64) (float64, error) {
+	if math.IsNaN(budget) || math.IsInf(budget, 0) {
+		return 0, errors.BadRequest("monthlyBudget must be a number")
+	}
+	if budget < 0 {
+		return 0, errors.BadRequest("monthlyBudget cannot be negative")
+	}
+	if budget > maxMonthlyBudget {
+		return 0, errors.BadRequest(fmt.Sprintf("monthlyBudget must be at most %d", maxMonthlyBudget))
+	}
+	return math.Round(budget*100) / 100, nil
 }
 
 func (s *Service) Delete(userID string, ids []string) *model.BulkResult {

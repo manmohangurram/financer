@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +21,7 @@ import (
 	"github.com/mohan9182/financer/internal/llmsettings"
 	"github.com/mohan9182/financer/internal/mail"
 	"github.com/mohan9182/financer/internal/model"
+	"github.com/mohan9182/financer/internal/netguard"
 	"github.com/mohan9182/financer/internal/repo"
 	"github.com/mohan9182/financer/internal/transactionservice"
 )
@@ -667,6 +667,20 @@ func (s *Service) CreateRule(userID string, req model.ReqMailRule) (*model.MailR
 	if err != nil {
 		return nil, err
 	}
+	// New rules join the end of the list unless a position was requested.
+	if input.Position == 0 {
+		rules, err := s.repo.ListRules(userID)
+		if err != nil {
+			return nil, err
+		}
+		var max int64
+		for _, r := range rules {
+			if r.Position > max {
+				max = r.Position
+			}
+		}
+		input.Position = max + 1
+	}
 	row, err := s.repo.CreateRule(userID, input)
 	if err != nil {
 		return nil, err
@@ -774,28 +788,11 @@ func occurredAtStored(date *string) string {
 // validateHost refuses link-local and metadata addresses; private ranges are
 // allowed (LAN mail servers are a valid use case).
 func validateHost(raw string) (string, error) {
-	host := strings.ToLower(strings.TrimSpace(raw))
-	if host == "" {
-		return "", errors.BadRequest("imapHost is required")
-	}
-	if strings.ContainsAny(host, " \t\r\n/@") {
-		return "", errors.BadRequest("imapHost must be a bare hostname")
-	}
-	if ip := net.ParseIP(host); ip != nil && isBlocked(ip) {
-		return "", errors.BadRequest("imapHost resolves to a link-local or metadata address")
+	host, err := netguard.Hostname(raw)
+	if err != nil {
+		return "", err
 	}
 	return host, nil
-}
-
-func isBlocked(ip net.IP) bool {
-	if v4 := ip.To4(); v4 != nil {
-		return v4[0] == 169 && v4[1] == 254
-	}
-	if v6 := ip.To16(); v6 != nil {
-		seg := uint16(v6[0])<<8 | uint16(v6[1])
-		return seg&0xffc0 == 0xfe80 || seg&0xfe00 == 0xfc00
-	}
-	return false
 }
 
 // validatePort accepts only implicit TLS (993), which is what is implemented.

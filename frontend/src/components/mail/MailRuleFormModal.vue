@@ -4,7 +4,11 @@ import AppModal from '@/components/AppModal.vue';
 import AppInput from '@/components/AppInput.vue';
 import { mail } from '@/lib/api/client';
 
-const props = defineProps<{ rule?: any | null }>();
+const props = defineProps<{
+  rule?: any | null;
+  accounts?: any[];
+  categories?: any[];
+}>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 
 const editing = !!props.rule;
@@ -13,10 +17,19 @@ const form = ref({
   subjectContains: props.rule?.subjectContains || '',
   bodyContains: props.rule?.bodyContains || '',
   action: props.rule?.action || 'REVIEW',
-  enabled: props.rule?.enabled ?? true
+  enabled: props.rule?.enabled ?? true,
+  accountId: props.rule?.accountId || '',
+  categoryIds: [...(props.rule?.categoryIds || [])] as string[]
 });
 const saving = ref(false);
+const confirmingDelete = ref(false);
 const error = ref('');
+
+function toggleCategory(id: string) {
+  form.value.categoryIds = form.value.categoryIds.includes(id)
+    ? form.value.categoryIds.filter((x) => x !== id)
+    : [...form.value.categoryIds, id];
+}
 
 async function submit() {
   error.value = '';
@@ -33,8 +46,8 @@ async function submit() {
       subjectContains: form.value.subjectContains.trim(),
       bodyContains: form.value.bodyContains.trim(),
       action: form.value.action,
-      accountId: props.rule?.accountId || null,
-      categoryIds: props.rule?.categoryIds || []
+      accountId: form.value.accountId || null,
+      categoryIds: form.value.categoryIds
     };
     if (editing) await mail().updateRule({ id: props.rule.id, ...payload });
     else await mail().createRule(payload);
@@ -47,7 +60,11 @@ async function submit() {
 }
 
 async function remove() {
-  if (!props.rule || !confirm('Delete this mail rule?')) return;
+  if (!props.rule) return;
+  if (!confirmingDelete.value) {
+    confirmingDelete.value = true;
+    return;
+  }
   saving.value = true;
   try {
     await mail().deleteRule({ id: props.rule.id });
@@ -73,6 +90,32 @@ async function remove() {
       <AppInput v-model="form.bodyContains" label="Body contains" placeholder="debited" />
 
       <label class="flex flex-col gap-1.5">
+        <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Book to account (optional)</span>
+        <select v-model="form.accountId" class="select select-bordered w-full text-[13.5px]">
+          <option value="">No fixed account</option>
+          <option v-for="a in accounts || []" :key="a.id" :value="a.id">{{ a.nickname || a.bankName }}</option>
+        </select>
+        <span class="text-[11.5px] text-ink-mute">AUTO uses this account when the mail has no ending digits.</span>
+      </label>
+
+      <div v-if="(categories || []).length" class="flex flex-col gap-1.5">
+        <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Categories (optional)</span>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="c in categories"
+            :key="c.id"
+            type="button"
+            class="btn btn-xs"
+            :class="form.categoryIds.includes(c.id) ? 'btn-primary' : 'btn-outline'"
+            :aria-pressed="form.categoryIds.includes(c.id)"
+            @click="toggleCategory(c.id)"
+          >
+            {{ c.name }}
+          </button>
+        </div>
+      </div>
+
+      <label class="flex flex-col gap-1.5">
         <span class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Action</span>
         <select v-model="form.action" class="select select-bordered w-full text-[13.5px]">
           <option value="REVIEW">Review — wait in the Inbox</option>
@@ -87,7 +130,9 @@ async function remove() {
       </label>
 
       <div class="flex items-center justify-between border-t border-rule pt-3">
-        <button v-if="editing" type="button" class="btn btn-sm btn-outline border-debit/30 text-debit hover:bg-debit/10" :disabled="saving" @click="remove">Delete</button>
+        <button v-if="editing" type="button" class="btn btn-sm btn-outline border-debit/30 text-debit hover:bg-debit/10" :disabled="saving" @click="remove">
+          {{ confirmingDelete ? 'Confirm delete' : 'Delete' }}
+        </button>
         <span v-else></span>
         <div class="flex items-center gap-2">
           <button type="button" class="btn btn-sm btn-ghost" @click="emit('close')">Cancel</button>

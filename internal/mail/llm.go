@@ -7,11 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/mohan9182/financer/internal/netguard"
 )
 
-// LLMSettings is the transport configuration for one user's LiteLLM proxy.
+// LLMSettings is the transport configuration for one user's OpenAI-compatible
+// endpoint (LiteLLM, DeepSeek direct, OpenAI, Ollama).
 type LLMSettings struct {
 	BaseURL string
 	APIKey  string
@@ -144,6 +148,13 @@ func chat(ctx context.Context, settings LLMSettings, messages []map[string]strin
 		return "", err
 	}
 	endpoint := chatEndpoint(settings.BaseURL)
+	target, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("building LLM request: %w", err)
+	}
+	if err := netguard.Resolve(target.Hostname()); err != nil {
+		return "", err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("building LLM request: %w", err)

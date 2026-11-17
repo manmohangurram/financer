@@ -13,6 +13,7 @@ import (
 	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/mail"
 	"github.com/mohan9182/financer/internal/model"
+	"github.com/mohan9182/financer/internal/netguard"
 	"github.com/mohan9182/financer/internal/repo"
 	tim "github.com/mohan9182/financer/internal/time"
 )
@@ -174,6 +175,9 @@ func validateBaseURL(raw string) error {
 	}
 	if u.User != nil {
 		return errors.BadRequest("base URL must not contain credentials")
+	}
+	if netguard.IsBlockedHost(u.Hostname()) {
+		return errors.BadRequest("base URL must not target a link-local or metadata address")
 	}
 	return nil
 }
