@@ -6,6 +6,29 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) with an `-alpha` suff
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
 
+## [Unreleased]
+
+### Added
+
+- **Inbox email reader** — the stored message is parsed at ingest (MIME decoded,
+  quoted-printable/base64, charsets) and shown as readable text above the booking
+  form; `text/html` is converted to text so remote markup is never rendered. An
+  "Original message" toggle reveals the raw source.
+- `GET /api/mail/messages/{id}` returns one message with `bodyText` and `rawText`;
+  rows stored before the parser existed are parsed on demand.
+- `mail_messages.body_text` and `mail_messages.from_name` (migration `000003_mail_body`).
+
+### Changed
+
+- The content column is fluid; pages are no longer capped at 1180px.
+- The Inbox is a full-bleed split view: queue with its own visible scrollbar, and a
+  detail column that stacks the email card over the booking card (email on top,
+  fields below). Form controls use daisyUI `input`/`select`/`btn`/`badge`.
+- `GET /api/mail/messages` no longer returns the raw message body; it returns
+  `fromName` and a one-line `bodyPreview` instead.
+- Keyboard shortcut hints (`A` / `R` / `J` / `K`) and their global handlers were
+  removed from the Inbox; the actions are the named buttons.
+
 ## [0.7.0-alpha] — 2026-11-17
 
 Mail ingestion is now template-first: stored, guarded regex templates parse bank alerts, and the

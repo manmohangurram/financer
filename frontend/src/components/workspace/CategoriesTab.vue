@@ -59,7 +59,7 @@ const total = computed(() => rows.value.reduce((s, r) => s + r.amount, 0));
       </span>
       <span class="tabular w-[92px] text-right text-[12.5px] font-medium text-ink">{{ formatCurrency(row.amount) }}</span>
       <span class="tabular w-[52px] text-right text-[12px] text-ink-mute">{{ row.txns }}</span>
-      <span class="flex w-[64px] shrink-0 justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      <span class="flex w-[64px] shrink-0 justify-end gap-0.5 text-ink-mute">
         <AppButton variant="icon" size="sm" label="Edit category" @click="emit('edit', row)">
           <Pencil class="h-[14px] w-[14px]" stroke-width="1.7" />
         </AppButton>

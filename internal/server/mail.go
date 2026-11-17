@@ -131,6 +131,15 @@ func (a *API) listMailMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, model.WireMailMessages{Messages: msgs})
 }
 
+func (a *API) getMailMessage(c *gin.Context) {
+	msg, err := a.mailSvc.Get(c.GetString(userIDKey), c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, msg)
+}
+
 func (a *API) mailAct(c *gin.Context) {
 	uid := c.GetString(userIDKey)
 	var in model.ReqMailAction

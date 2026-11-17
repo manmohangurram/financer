@@ -38,7 +38,7 @@ func TestMigrationsApply(t *testing.T) {
 	if len(versions) == 0 || !strings.HasPrefix(versions[0], "000001_initial_schema") {
 		t.Fatalf("applied migrations = %v, want the baseline first", versions)
 	}
-	if versions[len(versions)-1] != "000002_mail_templates.up.sql" {
+	if versions[len(versions)-1] != "000003_mail_body.up.sql" {
 		t.Fatalf("last migration = %q", versions[len(versions)-1])
 	}
 
@@ -49,6 +49,7 @@ func TestMigrationsApply(t *testing.T) {
 		`SELECT clean_name, external_id FROM transactions`,
 		`SELECT scope FROM user_keys`,
 		`SELECT parsed_json, transaction_id FROM mail_messages`,
+		`SELECT body_text, from_name, template_id FROM mail_messages`,
 	} {
 		r, err := dbs.Write.Query(q)
 		if err != nil {

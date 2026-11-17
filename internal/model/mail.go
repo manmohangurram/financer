@@ -37,12 +37,15 @@ type MailMessage struct {
 	MessageID     string  `json:"messageId"`
 	MailAccountID string  `json:"mailAccountId"`
 	FromAddr      string  `json:"fromAddr"`
+	FromName      string  `json:"fromName"`
 	Subject       string  `json:"subject"`
 	ReceivedAt    *string `json:"receivedAt"`
 	Status        string  `json:"status"`
 	ParsedJSON    *string `json:"parsedJson"`
 	Confidence    float64 `json:"confidence"`
-	RawText       *string `json:"rawText"`
+	BodyPreview   string  `json:"bodyPreview"`
+	BodyText      *string `json:"bodyText,omitempty"`
+	RawText       *string `json:"rawText,omitempty"`
 	TransactionID *string `json:"transactionId"`
 }
 

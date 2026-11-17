@@ -43,9 +43,12 @@ function baseOptions() {
 
 function render() {
   if (!host.value) return;
-  const merged = { ...baseOptions(), ...props.options, chart: { ...baseOptions().chart, ...(props.options.chart as object) } };
+  const base = baseOptions();
+  const merged = { ...base, ...props.options, chart: { ...base.chart, ...(props.options.chart as object) } } as Record<string, unknown> & { chart: Record<string, unknown> };
+  // ApexCharts reads the type from `chart.type`; a top-level `type` is ignored.
+  merged.chart.type = merged.chart.type ?? props.type;
   if (!chart) {
-    chart = new ApexCharts(host.value, { ...merged, series: props.series, type: props.type } as never);
+    chart = new ApexCharts(host.value, { ...merged, series: props.series } as never);
     void chart.render();
   } else {
     void chart.updateOptions({ ...merged, series: props.series } as never, false, false);

@@ -96,7 +96,7 @@ onMounted(loadAll);
         <span class="tabular w-[110px] text-right text-[13px] font-medium" :class="isCredit(acc.type) ? 'text-debit' : 'text-ink'">
           {{ isCredit(acc.type) ? '−' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
         </span>
-        <span class="flex w-[64px] shrink-0 justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        <span class="flex w-[64px] shrink-0 justify-end gap-0.5 text-ink-mute">
           <AppButton variant="icon" size="sm" label="Edit account" @click="openEditAccount(acc)">
             <Pencil class="h-[14px] w-[14px]" stroke-width="1.7" />
           </AppButton>

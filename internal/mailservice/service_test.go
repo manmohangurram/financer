@@ -432,3 +432,38 @@ func TestMailboxValidation(t *testing.T) {
 		t.Fatal("missing FINANCER_SECRET_KEY must be refused")
 	}
 }
+
+func TestMessagesListOmitsBodyAndGetReturnsIt(t *testing.T) {
+	e := setup(t)
+	defer e.cleanup()
+	msgID := seedMessage(t, e, "<detail>", "1234")
+
+	list, err := e.svc.Messages(e.uid, nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("messages = %d", len(list))
+	}
+	if list[0].RawText != nil {
+		t.Fatal("list rows must not carry the raw message")
+	}
+	if list[0].BodyText != nil {
+		t.Fatal("list rows must not carry the full body")
+	}
+
+	full, err := e.svc.Get(e.uid, msgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.BodyText == nil || *full.BodyText != "body" {
+		t.Fatalf("bodyText = %v", full.BodyText)
+	}
+	if full.RawText == nil || *full.RawText != "body" {
+		t.Fatalf("rawText = %v", full.RawText)
+	}
+
+	if _, err := e.svc.Get(e.uid, "missing"); err == nil {
+		t.Fatal("unknown message must return an error")
+	}
+}

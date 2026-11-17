@@ -175,6 +175,7 @@ func (a *API) Handler() *gin.Engine {
 			mail.POST("/accounts/:id/poll", a.pollMailAccount)
 			mail.POST("/poll", a.pollMailUser)
 			mail.GET("/messages", a.listMailMessages)
+			mail.GET("/messages/:id", a.getMailMessage)
 			mail.POST("/messages", a.mailAct)
 			mail.GET("/rules", a.listMailRules)
 			mail.POST("/rules", a.createMailRule)

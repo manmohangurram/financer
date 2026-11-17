@@ -40,7 +40,7 @@ function onApply(f: TransactionFilters) {
 </script>
 
 <template>
-  <div class="relative flex-1 min-w-[400px]">
+  <div class="relative min-w-[280px] flex-1 max-w-[460px]">
     <div
       class="flex items-center gap-1.5 flex-wrap px-2.5 py-1.5 rounded-card bg-page border border-rule transition-colors"
       @click="inputEl?.focus()"

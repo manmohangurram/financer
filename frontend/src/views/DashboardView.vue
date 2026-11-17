@@ -96,7 +96,12 @@ onMounted(load);
     </section>
 
     <div class="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_1.15fr]">
-      <AppFolio title="Accounts" :subtitle="`${accountList.length} linked`" class="min-h-0" body-class="flex min-h-0 flex-1 flex-col gap-0 overflow-auto">
+      <AppFolio
+        title="Accounts"
+        :subtitle="`${accountList.length} linked`"
+        class="min-h-0"
+        :body-class="accountList.length ? 'flex min-h-0 flex-1 flex-col gap-0 overflow-auto' : 'flex min-h-0 flex-1 items-center justify-center'"
+      >
         <div v-if="loading" class="flex flex-col gap-3">
           <span v-for="i in 3" :key="i" class="block h-9 animate-pulse rounded-control bg-page-sunk" />
         </div>
@@ -122,7 +127,11 @@ onMounted(load);
             </span>
           </router-link>
         </div>
-        <AppEmpty v-else title="No accounts yet." hint="Add one to start booking entries." />
+        <AppEmpty v-else title="No accounts yet." hint="Add one to start booking entries.">
+          <template #action>
+            <router-link to="/accounts/manage"><AppButton size="sm">Add account</AppButton></router-link>
+          </template>
+        </AppEmpty>
       </AppFolio>
 
     <AppFolio title="Recent entries" flush class="flex min-h-0 flex-col" body-class="flex min-h-0 flex-1 flex-col">
@@ -137,13 +146,14 @@ onMounted(load);
         ]"
         :loading="loading"
         :empty="!recent.length"
+        :margin="false"
       >
         <tr v-for="t in recent" :key="t.id" class="group">
-          <td class="m-cell">
-            <AppTick v-if="t.linkedTransferId" state="done" label="Matched transfer" class="mx-auto" />
-          </td>
           <td class="border-b border-rule-soft px-3 py-2.5">
-            <span class="block truncate text-[13px] text-ink">{{ t.name }}</span>
+            <span class="flex items-center gap-1.5">
+              <AppTick v-if="t.linkedTransferId" state="done" label="Matched transfer" />
+              <span class="truncate text-[13px] text-ink">{{ t.name }}</span>
+            </span>
             <span class="block text-[11px] text-ink-mute">{{ shortDate(t.occurredAt) }}</span>
           </td>
           <td class="hidden border-b border-rule-soft px-3 py-2.5 text-[12px] text-ink-soft md:table-cell">{{ accountName(t.accountId) }}</td>
@@ -160,12 +170,10 @@ onMounted(load);
         </template>
         <template v-if="recent.length" #footer>
           <tr>
-            <td class="m-cell"></td>
-            <!-- the Account column disappears under md, so the span changes with it -->
-            <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute md:hidden">Carried forward · {{ recent.length }} latest</td>
-            <td class="hidden bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute md:table-cell" colspan="2">
+            <td class="bg-page-sunk px-3 py-2.5 text-[12px] text-ink-mute">
               Carried forward · {{ recent.length }} of the latest entries
             </td>
+            <td class="hidden bg-page-sunk px-3 py-2.5 md:table-cell"></td>
             <td class="tabular bg-page-sunk px-3 py-2.5 text-right font-display text-[15px] text-ink">{{ formatCurrency(pageSum) }}</td>
           </tr>
         </template>
