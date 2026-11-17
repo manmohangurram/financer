@@ -101,6 +101,107 @@ func TestAdoptsSqlxMigrationHistory(t *testing.T) {
 	}
 }
 
+func TestAdoptsSqlxHistoryWithPartialTracker(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "financer.db")
+
+	// Simulate a database whose first Go boot recorded only migrations 1–4
+	// before failing on an ALTER that a real sqlx history already covers.
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE _financer_applied_migrations (version TEXT PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE _sqlx_migrations (
+		version BIGINT PRIMARY KEY, description TEXT NOT NULL,
+		installed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		success BOOLEAN NOT NULL, checksum BLOB NOT NULL, execution_time BIGINT NOT NULL
+	)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"000001_users", "000002_accounts", "000003_transactions_transfers", "000004_categories_rules"} {
+		if _, err := raw.Exec(`INSERT INTO _financer_applied_migrations (version) VALUES (?)`, name+".up.sql"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := migrate.MigrationsFS.ReadDir("db/migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upCount := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".up.sql") {
+			continue
+		}
+		upCount++
+		stem := strings.TrimSuffix(e.Name(), ".up.sql")
+		parts := strings.SplitN(stem, "_", 2)
+		var version int64
+		if _, err := fmt.Sscanf(parts[0], "%d", &version); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := raw.Exec(
+			`INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) VALUES (?, ?, 1, ?, 0)`,
+			version, parts[1], []byte{},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw.Close()
+
+	dbs, err := Open(path)
+	if err != nil {
+		t.Fatalf("opening a partially tracked sqlx database: %v", err)
+	}
+	defer dbs.Write.Close()
+	defer dbs.Read.Close()
+	var count int
+	if err := dbs.Write.QueryRow(`SELECT COUNT(*) FROM _financer_applied_migrations`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != upCount {
+		t.Fatalf("adopted %d migrations, want %d", count, upCount)
+	}
+}
+
+func TestMigrationReplayIsIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "financer.db")
+	dbs, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dbs.Write.Close()
+	dbs.Read.Close()
+
+	// Forget the Go tracker, leaving a fully migrated schema with no sqlx
+	// history: replaying every migration must succeed by skipping existing
+	// columns, dropped tables and existing indexes.
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`DELETE FROM _financer_applied_migrations`); err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	again, err := Open(path)
+	if err != nil {
+		t.Fatalf("replaying migrations on an already-migrated database: %v", err)
+	}
+	defer again.Write.Close()
+	defer again.Read.Close()
+	var count int
+	if err := again.Write.QueryRow(`SELECT COUNT(*) FROM _financer_applied_migrations`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count == 0 {
+		t.Fatal("migrations were not recorded after replay")
+	}
+}
+
 func TestWALModeActive(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "financer.db")
