@@ -1,12 +1,12 @@
 # Changelog
 
 All notable changes to Financer. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
-versions are [SemVer](https://semver.org/spec/v2.0.0.html) with an `-alpha` suffix while the project is pre-1.0.
+versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are `vX.Y.Z`.
 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
-git log (`git log --oneline v0.2.0-alpha..v0.3.0-alpha`).
+git log (`git log --oneline v0.7.0..v0.8.0`).
 
-## [Unreleased]
+## [0.8.0] — 2026-11-17
 
 ### Added
 
