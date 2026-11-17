@@ -6,6 +6,16 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.14.2] — 2026-11-17
+
+### Fixed
+
+- **PDF import in production.** The embedded web server served `.mjs` files as
+  `application/octet-stream`, so the browser refused to load
+  `pdf.worker.min-*.mjs` (“Setting up fake worker failed”). `.mjs` (and `.json`,
+  `.webmanifest`, `.wasm`, `.woff`, `.txt`) now get their proper content types.
+  Covered by `TestMimeFor`.
+
 ## [0.14.1] — 2026-11-17
 
 ### Added

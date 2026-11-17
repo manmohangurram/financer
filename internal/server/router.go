@@ -701,20 +701,30 @@ func quote(s string) string {
 
 func mimeFor(p string) string {
 	switch strings.ToLower(path.Ext(p)) {
-	case ".js":
+	case ".js", ".mjs":
 		return "text/javascript"
 	case ".css":
 		return "text/css"
+	case ".json", ".map":
+		return "application/json"
+	case ".webmanifest":
+		return "application/manifest+json"
+	case ".wasm":
+		return "application/wasm"
+	case ".txt":
+		return "text/plain; charset=utf-8"
 	case ".png":
 		return "image/png"
 	case ".svg":
 		return "image/svg+xml"
+	case ".webp":
+		return "image/webp"
 	case ".woff2":
 		return "font/woff2"
+	case ".woff":
+		return "font/woff"
 	case ".ico":
 		return "image/x-icon"
-	case ".map":
-		return "application/json"
 	}
 	return "application/octet-stream"
 }
