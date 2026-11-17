@@ -84,3 +84,24 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: frontend
+
+  # The image is only published on tags, so validate the Dockerfile on every PR.
+  # Both build stages run on BUILDPLATFORM and cross-compile; the arm64 runtime
+  # base is only pulled, so no QEMU is needed.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (arm64, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

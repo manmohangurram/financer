@@ -4,13 +4,13 @@
 
 Run verification in this order after backend changes, then frontend changes.
 
-**Backend (Rust, from repo root):**
+**Backend (Go, from repo root):**
 ```bash
-cargo run            # starts API on :8080; config from FINANCER_* env (schema applied at boot)
-cargo build --locked
-cargo clippy --all-targets -- -D warnings
-cargo test           # unit + repo (SQLite tempfile) + HTTP integration tests (SQLite)
-cargo audit          # dependency advisories; ignores documented in .cargo/audit.toml
+go run ./cmd/financer  # starts API on :8080; config from FINANCER_* env (schema applied at boot)
+go build ./...
+go vet ./...
+go test ./...          # unit + repo (SQLite tempfile) + HTTP/MCP integration tests
+go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 ```
 
 **Frontend (from `frontend/`):**
@@ -22,7 +22,9 @@ npm test            # vitest — pure helpers/composables under src/lib
 
 ## Verification checklist
 
-After any change run `cargo build --locked && cargo clippy --all-targets -- -D warnings && cargo test && cargo audit` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
+After any change run `gofmt -l cmd internal migrate.go` (must print nothing), `go vet ./...`, `go build ./...`, `go test ./...`, `govulncheck ./...` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
+
+> The Rust reference under `src/` is not the deployed backend; its `cargo` commands are only needed if you are changing that reference code. The Go gates above are the merge gate.
 
 ## Review before every PR
 
@@ -88,7 +90,18 @@ Real example — sqlx query binds:
 - **Builder setters** for optional service deps (`with_rule`, `with_transfer_rule`) instead of many-arg constructors.
 - Let `cargo clippy --all-targets -- -D warnings` be the final arbiter; where clippy and a local preference differ, follow clippy.
 
-## Engineering standards (Rust)
+### Go style: general (deployed backend)
+
+- **Errors, not panics.** Return `error`; map infrastructure failures to `*errors.Error` (`internal/errors`) at the service boundary so handlers render `{code, message}`. `panic` only for impossible init-time states (e.g. `crypto/rand` failure).
+- **Interfaces live with the consumer.** Services declare the narrow interface they need (`RuleApplier`, `TransferApplier`); SQLite repos are concrete types. Widen only when a second implementation exists.
+- **Constructors + optional deps.** `New(...) *Service`, with `WithRule` / `WithTransferRule`-style setters for optional collaborators.
+- **Nil means "not found".** Repo getters return `(*Row, error)` with `nil, nil` for a missing row; lists return slices, empty (`[]T{}`) where the wire contract requires `[]` rather than `null`.
+- **Timestamps stay strings in storage.** Use `internal/time` (`NowGoTS`, `TSRFC3339`, `LocalDayStart/End`, `LocalKey`); never `time.Now()` inline for stored values.
+- **Let `gofmt` and `go vet` be the arbiters.** Prefer stdlib; wrap errors with context (`fmt.Errorf("…: %w", err)`) and keep exported docs to package-level comments.
+
+## Engineering standards (Rust reference)
+
+The Rust implementation under `src/` is retained as a reference until the Go service has proven itself in production. The conventions below applied to it and still map closely onto the Go packages (`repo/traits` → `internal/repo`, `sqlite` → `internal/repo/sqlite`, `service` → `internal/*service`, `http` → `internal/server`).
 
 The conventions big-engineering orgs apply, adapted to this codebase. Repo-specific naming and gotchas live in `architecture/NAMING_CONVENTIONS.md` and `architecture/CONVENTIONS_GOTCHAS.md` — those win where they disagree; these are the general baseline.
 
@@ -139,7 +152,7 @@ The conventions big-engineering orgs apply, adapted to this codebase. Repo-speci
 
 - **Repos tested** against a SQLite tempfile.
 - **Behavior over implementation**; test the public service/repo API.
-- **`cargo clippy --all-targets -- -D warnings` and `cargo test` must pass** before any PR (see Verification above).
+- **`go test ./...` must pass** before any PR (see Verification above).
 - One smoke/assert test minimum for non-trivial logic; not every helper needs a suite.
 
 ### General

@@ -68,7 +68,7 @@ There is no config directory — configuration is env-only. Migrations and the t
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | PR gate: gofmt/vet/build/test/govulncheck + frontend type-check/vitest/build |
+| `.github/workflows/ci.yml` | PR gate: gofmt/vet/build/test/govulncheck + frontend type-check/vitest/build + arm64 image build |
 | `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR on tag |
 | `.github/workflows/prune-packages.yml` | Weekly: delete old image versions from GHCR (keeps the newest 5 releases) |
 | `Dockerfile` | Multi-stage build (frontend + Go + runtime) |
