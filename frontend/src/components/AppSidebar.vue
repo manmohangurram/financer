@@ -50,6 +50,23 @@ const userInitials = computed(() =>
 const isDark = computed(() => themeResolved.value === 'dark');
 const isNegative = (balance?: number) => (balance ?? 0) < 0;
 
+function accountLabel(acc: { nickname?: string; bankName?: string }): string {
+  return acc.nickname || acc.bankName || 'Account';
+}
+
+function accountInitials(acc: { nickname?: string; bankName?: string }): string {
+  return accountLabel(acc)
+    .split(/\s+/)
+    .map((part) => part[0] || '')
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function accountTitle(acc: { nickname?: string; bankName?: string; balance?: number }): string {
+  return `${accountLabel(acc)} · ${formatCurrency(acc.balance ?? 0)}`;
+}
+
 function toggleCollapsed() {
   collapsed.value = !collapsed.value;
   try {
@@ -174,12 +191,22 @@ onUnmounted(() => {
             v-for="acc in accountSlice.shown"
             :key="acc.id"
             type="button"
-            :title="acc.nickname || acc.bankName"
-            :aria-label="acc.nickname || acc.bankName"
-            class="mx-auto my-1 block h-2.5 w-2.5 rounded-full transition-colors"
-            :class="[isNegative(acc.balance) ? 'bg-debit' : 'bg-credit', accountStore.state.selectedAccountId === acc.id ? 'ring-2 ring-accent/60' : '']"
+            :title="accountTitle(acc)"
+            :aria-label="accountTitle(acc)"
+            class="relative mx-auto my-1 flex h-7 w-7 items-center justify-center rounded-[4px] border text-[10px] font-semibold uppercase transition-colors"
+            :class="[
+              isNegative(acc.balance) ? 'border-debit/40 text-debit' : 'border-rule text-ink-soft',
+              accountStore.state.selectedAccountId === acc.id ? 'bg-page-sunk ring-2 ring-accent/60' : 'bg-page hover:bg-page-sunk'
+            ]"
             @click="goToAccount(acc.id)"
-          ></button>
+          >
+            {{ accountInitials(acc) }}
+            <span
+              class="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-paper"
+              :class="isNegative(acc.balance) ? 'bg-debit' : 'bg-credit'"
+              aria-hidden="true"
+            ></span>
+          </button>
         </template>
 
         <template v-else>
