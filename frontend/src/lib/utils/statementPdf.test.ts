@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStatement, parseStatementText } from './statementPdf';
+import { detectColumns, defaultMapping, parseStatement, parseStatementText } from './statementPdf';
 
 const STATEMENT = `--- PAGE 1 ---
 Page 1 of 1
@@ -24,8 +24,18 @@ describe('parseStatementText', () => {
     expect(out.problem).toBeUndefined();
 
     expect(out.rows[0]).toMatchObject({ amount: 4000, type: 'CREDIT', occurredAt: '2021-08-24' });
-    expect(out.rows[1]).toMatchObject({ amount: 599, type: 'DEBIT', occurredAt: '2021-08-26', name: 'KFC SAPPHIRE COR' });
-    expect(out.rows[2]).toMatchObject({ amount: 100, type: 'DEBIT', occurredAt: '2021-08-27', name: 'SITARA GUESTLINE' });
+    expect(out.rows[1]).toMatchObject({
+      amount: 599,
+      type: 'DEBIT',
+      occurredAt: '2021-08-26',
+      name: 'KFC SAPPHIRE COR'
+    });
+    expect(out.rows[2]).toMatchObject({
+      amount: 100,
+      type: 'DEBIT',
+      occurredAt: '2021-08-27',
+      name: 'SITARA GUESTLINE'
+    });
   });
 
   it('flags a statement whose balances do not add up', () => {
@@ -85,18 +95,40 @@ describe('statement column layouts', () => {
 describe('positioned columns (new HDFC layout)', () => {
   const mk = (x: number, s: string) => ({ x, s });
   const lines = [
-    { text: 'Date Narration Chq./Ref.No. Value Dt Withdrawal Amt. Deposit Amt. Closing Balance', items: [
-      mk(40, 'Date'), mk(144, 'Narration'), mk(284, 'Chq./Ref.No.'), mk(362, 'Value Dt'),
-      mk(405, 'Withdrawal Amt.'), mk(491, 'Deposit Amt.'), mk(564, 'Closing Balance')
-    ] },
-    { text: '01/04/26 UPI-A 0000316604154309 01/04/26 50,000.00 232,229.71', items: [
-      mk(34, '01/04/26'), mk(72, 'UPI-A'), mk(289, '0000316604154309'), mk(362, '01/04/26'),
-      mk(438, '50,000.00'), mk(591, '232,229.71')
-    ] },
-    { text: '01/04/26 UPI-B 0000064559085757 01/04/26 1,591.00 233,820.71', items: [
-      mk(34, '01/04/26'), mk(72, 'UPI-B'), mk(289, '0000064559085757'), mk(362, '01/04/26'),
-      mk(520, '1,591.00'), mk(591, '233,820.71')
-    ] }
+    {
+      text: 'Date Narration Chq./Ref.No. Value Dt Withdrawal Amt. Deposit Amt. Closing Balance',
+      items: [
+        mk(40, 'Date'),
+        mk(144, 'Narration'),
+        mk(284, 'Chq./Ref.No.'),
+        mk(362, 'Value Dt'),
+        mk(405, 'Withdrawal Amt.'),
+        mk(491, 'Deposit Amt.'),
+        mk(564, 'Closing Balance')
+      ]
+    },
+    {
+      text: '01/04/26 UPI-A 0000316604154309 01/04/26 50,000.00 232,229.71',
+      items: [
+        mk(34, '01/04/26'),
+        mk(72, 'UPI-A'),
+        mk(289, '0000316604154309'),
+        mk(362, '01/04/26'),
+        mk(438, '50,000.00'),
+        mk(591, '232,229.71')
+      ]
+    },
+    {
+      text: '01/04/26 UPI-B 0000064559085757 01/04/26 1,591.00 233,820.71',
+      items: [
+        mk(34, '01/04/26'),
+        mk(72, 'UPI-B'),
+        mk(289, '0000064559085757'),
+        mk(362, '01/04/26'),
+        mk(520, '1,591.00'),
+        mk(591, '233,820.71')
+      ]
+    }
   ];
 
   it('uses the header x positions to tell debit from credit', () => {
@@ -105,6 +137,56 @@ describe('positioned columns (new HDFC layout)', () => {
     expect(out.rows[0]).toMatchObject({ amount: 50000, type: 'DEBIT', occurredAt: '2026-04-01' });
     expect(out.rows[1]).toMatchObject({ amount: 1591, type: 'CREDIT' });
     expect(out.layout).toBe('columns');
+    expect(out.valid).toBe(true);
+  });
+
+  it('exposes the printed columns and the mapping it used', () => {
+    const out = parseStatement(lines);
+    expect(out.columns.map((c) => c.label)).toEqual([
+      'Date',
+      'Narration',
+      'Chq./Ref.No.',
+      'Value Dt',
+      'Withdrawal Amt.',
+      'Deposit Amt.',
+      'Closing Balance'
+    ]);
+    expect(out.columns.map((c) => c.key)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    expect(out.mapping).toMatchObject({ mode: 'two', debit: 'E', credit: 'F', balance: 'G', ref: 'C' });
+    const detected = defaultMapping(out.columns);
+    expect(detected).toEqual(out.mapping);
+  });
+
+  it('treats an explicit mapping as authoritative', () => {
+    const map = defaultMapping(detectColumns(lines))!;
+    const swapped = parseStatement(lines, undefined, { ...map, debit: 'F', credit: 'E' });
+    expect(swapped.rows[0]).toMatchObject({ type: 'CREDIT' });
+    expect(swapped.valid).toBe(false);
+    expect(swapped.problem).toMatch(/Balance breaks|do not add up/);
+  });
+
+  it('reads a single amount column and takes direction from the balance', () => {
+    const mk = (x: number, s: string) => ({ x, s });
+    const single = [
+      {
+        text: 'Date Narration Amount Balance',
+        items: [mk(40, 'Date'), mk(120, 'Narration'), mk(380, 'Amount'), mk(520, 'Balance')]
+      },
+      {
+        text: '01/04/26 UPI-A 01/04/26 1,000.00 1,000.00',
+        items: [mk(34, '01/04/26'), mk(72, 'UPI-A'), mk(300, '01/04/26'), mk(400, '1,000.00'), mk(540, '1,000.00')]
+      },
+      {
+        text: '02/04/26 UPI-B 02/04/26 500.00 500.00',
+        items: [mk(34, '02/04/26'), mk(72, 'UPI-B'), mk(300, '02/04/26'), mk(410, '500.00'), mk(540, '500.00')]
+      }
+    ];
+    const map = defaultMapping(detectColumns(single))!;
+    expect(map).toMatchObject({ mode: 'one', amount: 'C', balance: 'D', direction: 'balance' });
+    const out = parseStatement(single, undefined, map);
+    expect(out.rows).toHaveLength(2);
+    expect(out.rows[0]).toMatchObject({ amount: 1000, type: 'CREDIT' });
+    expect(out.rows[1]).toMatchObject({ amount: 500, type: 'DEBIT' });
     expect(out.valid).toBe(true);
   });
 });

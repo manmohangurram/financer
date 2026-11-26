@@ -1,0 +1,23 @@
+# Dashboard redesign — todo
+
+- [x] Explore current dashboard, API payloads, tokens and design skills
+- [x] Write SPEC.md and plan.md
+- [x] Backend: `Totals` repo method + month-bounds/transfer test
+- [x] Backend: `MonthTotals` service method
+- [x] Backend: extended dashboard wire types + `recentTotal`
+- [x] Backend: dashboard handler aggregation (composition, month, budget, chart buckets, recent)
+- [x] Backend: OpenAPI schema
+- [x] daisyUI audit report (`docs/audits/daisyui-usage.md`)
+- [x] daisyUI-first standard in `UI_STANDARDS.md` and `AGENTS.md`
+- [x] Frontend: net-worth band with top row + full-width In/Out/Net strip
+- [x] Frontend: 2×2 budget card (left-to-spend | bar, planned | spent)
+- [x] Frontend: accounts panel
+- [x] Frontend: smooth Apex spending line, no area fill, average rule + peak callout
+- [x] Frontend: recent entries with no selection column; account in the date line
+- [x] Frontend: DashboardView composition, loading/error/empty, responsive
+- [x] Docs: UI standards §5.8, §6.3, §8, §9
+- [x] Docs: UI test checklist dashboard section
+- [x] Docs: architecture notes
+- [x] Gate: gofmt, go vet, go build, go test, govulncheck
+- [x] Gate: vue-tsc, npm test, npm run build
+- [x] Visual: 1440 and 390, light and dark (Chrome, console clean, no horizontal overflow)

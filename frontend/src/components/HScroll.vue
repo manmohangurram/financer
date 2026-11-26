@@ -11,8 +11,9 @@ withDefaults(
     gap?: number; // spacing between items, px
     scrollAmount?: number; // px per arrow click
     align?: 'center' | 'start';
+    justify?: 'center' | 'start'; // where the row sits when it fits
   }>(),
-  { gap: 6, scrollAmount: 150, align: 'center' }
+  { gap: 6, scrollAmount: 150, align: 'center', justify: 'center' }
 );
 
 const scrollEl = ref<HTMLElement | null>(null);
@@ -49,7 +50,7 @@ onUnmounted(() => {
         :style="{ gap: `${gap}px` }"
         :class="[
           align === 'start' ? 'items-start' : 'items-center',
-          !canScrollLeft && !canScrollRight ? 'mx-auto' : ''
+          !canScrollLeft && !canScrollRight && justify === 'center' ? 'mx-auto' : ''
         ]"
       >
         <slot />

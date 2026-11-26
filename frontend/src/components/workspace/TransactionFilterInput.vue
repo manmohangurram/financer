@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import FilterTransactionsPopover from '@/components/workspace/FilterTransactionsPopover.vue';
-import { emptyFilters, buildFilterBubbles, removeFilterBubble, type FilterBubble, type TransactionFilters } from '@/lib/utils/transactionFilters';
+import {
+  emptyFilters,
+  buildFilterBubbles,
+  removeFilterBubble,
+  type FilterBubble,
+  type TransactionFilters
+} from '@/lib/utils/transactionFilters';
 import { Filter, ChevronDown, X } from '@lucide/vue';
 
 const props = defineProps<{ categories: any[] }>();
@@ -40,7 +46,7 @@ function onApply(f: TransactionFilters) {
 </script>
 
 <template>
-  <div class="relative min-w-[280px] flex-1 max-w-[460px]">
+  <div class="relative min-w-0 flex-1 max-w-[460px] sm:min-w-[280px]">
     <div
       class="flex items-center gap-1.5 flex-wrap px-2.5 py-1.5 rounded-card bg-page border border-rule transition-colors"
       @click="inputEl?.focus()"
@@ -51,12 +57,7 @@ function onApply(f: TransactionFilters) {
         class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-accent/10 text-accent text-[11.5px] font-medium"
       >
         {{ b.label }}
-        <button
-          type="button"
-          class="hover:text-ink shrink-0"
-          :aria-label="`Remove ${b.label}`"
-          @click.stop="remove(b)"
-        >
+        <button type="button" class="hover:text-ink shrink-0" :aria-label="`Remove ${b.label}`" @click.stop="remove(b)">
           <X class="w-3 h-3" />
         </button>
       </span>
@@ -92,4 +93,3 @@ function onApply(f: TransactionFilters) {
     />
   </div>
 </template>
-

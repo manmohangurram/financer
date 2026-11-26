@@ -106,7 +106,10 @@ async function loadAccounts() {
 
 // Balances move when transactions, transfers, rules or mail approvals happen,
 // and when the page changes; keep the ACCOUNTS block in sync.
-watch(() => route.path, () => loadAccounts());
+watch(
+  () => route.path,
+  () => loadAccounts()
+);
 
 function onAccountsChanged() {
   loadAccounts();
@@ -127,9 +130,12 @@ onUnmounted(() => {
 <template>
   <aside
     data-testid="sidebar"
-    class="fixed md:static z-[58] h-full bg-paper border-r border-rule flex flex-col flex-shrink-0 transition-[width,transform] duration-300"
+    class="fixed md:static z-[58] h-full bg-rail border-r border-rule flex flex-col flex-shrink-0 transition-[width,transform] duration-300"
     :inert="isSmall && !open"
-    :class="[open ? 'translate-x-0' : '-translate-x-full md:translate-x-0', collapsed ? 'w-[68px] min-w-[68px]' : 'w-[244px] min-w-[244px]']"
+    :class="[
+      open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+      collapsed ? 'w-[68px] min-w-[68px]' : 'w-[244px] min-w-[244px]'
+    ]"
   >
     <!-- the mark: a folio page whose margin carries the clerk's tick -->
     <router-link
@@ -141,20 +147,27 @@ onUnmounted(() => {
       <svg viewBox="0 0 64 64" class="w-[26px] h-[26px] shrink-0" aria-hidden="true">
         <rect x="8" y="5" width="48" height="54" rx="5" fill="none" stroke="currentColor" stroke-width="4.5" />
         <rect x="12" y="9" width="13" height="46" rx="2" fill="currentColor" />
-        <polyline points="14,31 17.5,35 22,25.5" fill="none" stroke="var(--page)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+        <polyline
+          points="14,31 17.5,35 22,25.5"
+          fill="none"
+          stroke="var(--page)"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
         <line x1="30" y1="20" x2="50" y2="20" stroke="currentColor" stroke-width="3" />
         <line x1="30" y1="32" x2="44" y2="32" stroke="currentColor" stroke-width="3" />
         <line x1="30" y1="44" x2="47" y2="44" stroke="currentColor" stroke-width="3" />
       </svg>
-      <span v-if="!collapsed" class="font-display text-[21px] leading-none tracking-[-0.02em]">financer</span>
+      <span v-if="!collapsed" class="font-display text-[19px] leading-none tracking-[-0.02em]">financer</span>
     </router-link>
 
-    <nav class="flex-1 overflow-y-auto py-2" :class="collapsed ? 'px-2' : 'px-2.5'">
+    <nav class="flex-1 overflow-y-auto py-2" :class="collapsed ? 'px-2' : 'px-2.5'" aria-label="Sections">
       <template v-for="(section, i) in NAV_SECTIONS" :key="section.label ?? `section-${i}`">
         <div v-if="collapsed && i > 0" class="mx-auto my-3 h-px w-6 bg-rule"></div>
         <div
           v-else-if="section.label"
-          class="px-2 pb-1 pt-1 text-label font-medium uppercase tracking-[0.06em] text-ink-faint"
+          class="px-2 pb-1 pt-1 text-label font-medium uppercase tracking-[0.1em] text-ink-faint"
           :class="i > 0 ? 'pt-4' : 'pt-0.5'"
         >
           {{ section.label }}
@@ -165,9 +178,9 @@ onUnmounted(() => {
           :key="item.to"
           :to="item.to"
           :title="item.label"
-          class="group relative flex h-8 items-center gap-2.5 rounded-control text-[13px] font-medium transition-colors"
+          class="group relative flex h-11 items-center gap-2.5 rounded-control text-[13px] font-medium transition-colors lg:h-8"
           :class="[
-            activeHref === item.to ? 'bg-page-sunk text-ink' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink',
+            activeHref === item.to ? 'bg-accent/10 text-ink' : 'text-ink-soft hover:bg-page-sunk/70 hover:text-ink',
             collapsed ? 'justify-center px-0' : 'px-2.5'
           ]"
           @click="closeDrawer"
@@ -177,14 +190,16 @@ onUnmounted(() => {
             class="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent"
             aria-hidden="true"
           ></span>
-          <component :is="item.icon" class="w-[17px] h-[17px] shrink-0" stroke-width="1.6" />
+          <component :is="item.icon" class="w-[17px] h-[17px] shrink-0" stroke-width="1.6" aria-hidden="true" />
           <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
         </router-link>
       </template>
 
       <template v-if="accountList.length">
         <div v-if="collapsed" class="mx-auto my-3 h-px w-6 bg-rule"></div>
-        <div v-else class="px-2 pb-1.5 pt-5 text-label font-medium uppercase tracking-[0.06em] text-ink-faint">Accounts</div>
+        <div v-else class="px-2 pb-1.5 pt-5 text-label font-medium uppercase tracking-[0.1em] text-ink-faint">
+          Accounts
+        </div>
 
         <template v-if="collapsed">
           <button
@@ -193,10 +208,12 @@ onUnmounted(() => {
             type="button"
             :title="accountTitle(acc)"
             :aria-label="accountTitle(acc)"
-            class="relative mx-auto my-1 flex h-7 w-7 items-center justify-center rounded-[4px] border text-[10px] font-semibold uppercase transition-colors"
+            class="relative mx-auto my-1 flex h-10 w-10 items-center justify-center lg:h-7 lg:w-7 rounded-[8px] border text-[10px] font-semibold uppercase transition-colors"
             :class="[
               isNegative(acc.balance) ? 'border-debit/40 text-debit' : 'border-rule text-ink-soft',
-              accountStore.state.selectedAccountId === acc.id ? 'bg-page-sunk ring-2 ring-accent/60' : 'bg-page hover:bg-page-sunk'
+              accountStore.state.selectedAccountId === acc.id
+                ? 'bg-page-sunk ring-2 ring-accent/60'
+                : 'bg-page hover:bg-page-sunk'
             ]"
             @click="goToAccount(acc.id)"
           >
@@ -214,13 +231,16 @@ onUnmounted(() => {
             v-for="acc in accountSlice.shown"
             :key="acc.id"
             type="button"
-            class="flex h-7 w-full items-center gap-2.5 rounded-control px-2 text-left transition-colors"
+            class="flex h-10 w-full items-center gap-2.5 rounded-control px-2 text-left transition-colors lg:h-7"
             :class="accountStore.state.selectedAccountId === acc.id ? 'bg-page-sunk' : 'hover:bg-page-sunk/70'"
             @click="goToAccount(acc.id)"
           >
-            <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="isNegative(acc.balance) ? 'bg-debit' : 'bg-credit'"></span>
+            <span
+              class="h-1.5 w-1.5 shrink-0 rounded-full"
+              :class="isNegative(acc.balance) ? 'bg-debit' : 'bg-credit'"
+            ></span>
             <span class="min-w-0 flex-1 truncate text-[13px] text-ink-soft">{{ acc.nickname || acc.bankName }}</span>
-            <span class="tabular shrink-0 text-[12px] font-medium" :class="isNegative(acc.balance) ? 'text-debit' : 'text-credit'">
+            <span class="num shrink-0 text-[11.5px]" :class="isNegative(acc.balance) ? 'text-debit' : 'text-credit'">
               {{ formatCurrency(acc.balance ?? 0) }}
             </span>
           </button>
@@ -240,22 +260,22 @@ onUnmounted(() => {
       <div class="flex items-center gap-1" :class="collapsed ? 'flex-col' : ''">
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-control text-ink-mute transition-colors hover:bg-page-sunk hover:text-ink"
+          class="flex h-10 w-10 items-center justify-center rounded-control text-ink-mute transition-colors hover:bg-page-sunk hover:text-ink lg:h-8 lg:w-8"
           :aria-label="isDark ? 'Switch to paper theme' : 'Switch to night theme'"
           :title="isDark ? 'Paper theme' : 'Night theme'"
           @click="toggleTheme"
         >
-          <Sun v-if="isDark" class="h-[15px] w-[15px]" stroke-width="1.6" />
-          <Moon v-else class="h-[15px] w-[15px]" stroke-width="1.6" />
+          <Sun v-if="isDark" class="h-[15px] w-[15px]" stroke-width="1.6" aria-hidden="true" />
+          <Moon v-else class="h-[15px] w-[15px]" stroke-width="1.6" aria-hidden="true" />
         </button>
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-control text-ink-mute transition-colors hover:bg-page-sunk hover:text-ink"
+          class="flex h-10 w-10 items-center justify-center rounded-control text-ink-mute transition-colors hover:bg-page-sunk hover:text-ink lg:h-8 lg:w-8"
           :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
           @click="toggleCollapsed"
         >
-          <PanelLeftOpen v-if="collapsed" class="h-[15px] w-[15px]" stroke-width="1.6" />
-          <PanelLeftClose v-else class="h-[15px] w-[15px]" stroke-width="1.6" />
+          <PanelLeftOpen v-if="collapsed" class="h-[15px] w-[15px]" stroke-width="1.6" aria-hidden="true" />
+          <PanelLeftClose v-else class="h-[15px] w-[15px]" stroke-width="1.6" aria-hidden="true" />
         </button>
         <span v-if="!collapsed" class="ml-auto pr-1 font-mono text-[10px] text-ink-faint">{{ themeMode }}</span>
       </div>
@@ -268,33 +288,43 @@ onUnmounted(() => {
           @click="userMenuOpen = !userMenuOpen"
         >
           <span
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-rule bg-page-sunk text-[11px] font-semibold text-ink-soft"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-rule bg-page-sunk text-[11px] font-semibold text-ink-soft"
           >
             {{ userInitials }}
           </span>
           <template v-if="!collapsed">
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] font-medium text-ink">{{ auth.state.user?.name || 'Account' }}</span>
+              <span class="block truncate text-[13px] font-medium text-ink">{{
+                auth.state.user?.name || 'Account'
+              }}</span>
               <span class="block truncate text-[11px] text-ink-mute">{{ auth.state.user?.email || '' }}</span>
             </span>
-            <ChevronUp class="h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform" :class="userMenuOpen ? 'rotate-180' : ''" />
+            <ChevronUp
+              class="h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform"
+              :class="userMenuOpen ? 'rotate-180' : ''"
+            />
           </template>
         </button>
 
-        <Popover v-if="userMenuOpen" right @close="userMenuOpen = false" panel-class="w-44">
+        <Popover v-if="userMenuOpen" right label="User menu" @close="userMenuOpen = false" panel-class="w-44">
           <div class="py-1">
             <button
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink-soft transition-colors hover:bg-page-sunk hover:text-ink"
-              @click="router.push('/settings'); userMenuOpen = false"
+              type="button"
+              class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink-soft transition-colors hover:bg-page-sunk hover:text-ink lg:min-h-0"
+              @click="
+                router.push('/settings');
+                userMenuOpen = false;
+              "
             >
-              <Settings2 class="h-[15px] w-[15px]" stroke-width="1.6" />
+              <Settings2 class="h-[15px] w-[15px]" stroke-width="1.6" aria-hidden="true" />
               Settings
             </button>
             <button
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink-soft transition-colors hover:bg-page-sunk hover:text-debit"
+              type="button"
+              class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-ink-soft transition-colors hover:bg-page-sunk hover:text-debit lg:min-h-0"
               @click="handleLogout"
             >
-              <LogOut class="h-[15px] w-[15px]" stroke-width="1.6" />
+              <LogOut class="h-[15px] w-[15px]" stroke-width="1.6" aria-hidden="true" />
               Log out
             </button>
           </div>

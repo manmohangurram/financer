@@ -38,7 +38,7 @@ func TestMigrationsApply(t *testing.T) {
 	if len(versions) == 0 || !strings.HasPrefix(versions[0], "000001_initial_schema") {
 		t.Fatalf("applied migrations = %v, want the baseline first", versions)
 	}
-	if versions[len(versions)-1] != "000008_transaction_ref.up.sql" {
+	if versions[len(versions)-1] != "000009_drop_mail.up.sql" {
 		t.Fatalf("last migration = %q", versions[len(versions)-1])
 	}
 
@@ -48,8 +48,6 @@ func TestMigrationsApply(t *testing.T) {
 		`SELECT total_credit, total_debit, ending_numbers FROM accounts`,
 		`SELECT clean_name, external_id FROM transactions`,
 		`SELECT scope FROM user_keys`,
-		`SELECT parsed_json, transaction_id FROM mail_messages`,
-		`SELECT body_text, from_name, template_id FROM mail_messages`,
 	} {
 		r, err := dbs.Write.Query(q)
 		if err != nil {
@@ -59,12 +57,24 @@ func TestMigrationsApply(t *testing.T) {
 		r.Close()
 	}
 
+	// Email ingest is gone: its tables must not survive the migration run.
+	for _, table := range []string{"mail_messages", "mail_rules", "mail_accounts", "mail_templates", "user_llm_settings"} {
+		var exists bool
+		if err := dbs.Write.QueryRow(
+			`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)`, table,
+		).Scan(&exists); err != nil {
+			t.Fatal(err)
+		}
+		if exists {
+			t.Errorf("table %s still exists", table)
+		}
+	}
+
 	for _, idx := range []string{
 		"idx_transactions_user_occurred",
 		"idx_transactions_user_account_occurred",
 		"idx_transactions_external_id",
 		"idx_transaction_categories_category",
-		"idx_mail_messages_user_created",
 		"idx_rules_user_priority",
 		"idx_user_keys_key_hash",
 		"idx_transfer_links_debit",

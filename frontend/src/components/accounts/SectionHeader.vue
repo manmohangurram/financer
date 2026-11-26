@@ -1,15 +1,13 @@
 <script setup lang="ts">
-defineProps<{ title: string; subtitle?: string }>();
+import AppPageHeader from '@/components/ui/AppPageHeader.vue';
+
+// Kept for the existing pages that already use it; it is AppPageHeader, so the
+// app has exactly one page-head implementation.
+defineProps<{ title: string; subtitle?: string; eyebrow?: string }>();
 </script>
 
 <template>
-  <div class="flex items-end justify-between gap-4">
-    <div class="min-w-0">
-      <h1 class="text-[22px] leading-none text-ink">{{ title }}</h1>
-      <p v-if="subtitle" class="mt-1 truncate text-[12.5px] text-ink-mute">{{ subtitle }}</p>
-    </div>
-    <div class="flex shrink-0 items-center gap-2">
-      <slot name="actions"></slot>
-    </div>
-  </div>
+  <AppPageHeader :title="title" :subtitle="subtitle" :eyebrow="eyebrow">
+    <slot name="actions" />
+  </AppPageHeader>
 </template>

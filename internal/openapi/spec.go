@@ -23,7 +23,6 @@ func Spec() map[string]any {
 			tag("rules", "Auto-categorization rules"),
 			tag("analytics", "Dashboard & spending"),
 			tag("settings", "Profile, password, avatar, API keys"),
-			tag("mail", "Mailbox ingest"),
 		},
 		"paths":      paths(),
 		"components": components(),
@@ -221,112 +220,6 @@ func paths() map[string]any {
 				"responses": map[string]any{"200": okResp("Spending", "Spending"), "401": errRef("unauthenticated")},
 			},
 		},
-		"/api/mail/accounts": map[string]any{
-			"get":  paginated("mail", "List linked mailboxes", "ListMailAccounts"),
-			"post": op("mail", "Link a mailbox", "ReqMailAccount", okResp("Mailbox", "MailAccount")),
-		},
-		"/api/mail/accounts/{id}": map[string]any{
-			"put": map[string]any{
-				"tags": []any{"mail"}, "summary": "Edit a mailbox (empty password keeps the stored one)",
-				"parameters": []any{idParam()},
-				"requestBody": map[string]any{"required": true, "content": map[string]any{
-					"application/json": map[string]any{"schema": ref("ReqUpdateMailAccount")}}},
-				"responses": map[string]any{"200": okResp("Mailbox", "MailAccount"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
-			},
-			"delete": map[string]any{
-				"tags": []any{"mail"}, "summary": "Remove a mailbox",
-				"parameters": []any{idParam()},
-				"responses":  map[string]any{"204": noContent("Removed"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/mail/poll": map[string]any{
-			"post": map[string]any{
-				"tags": []any{"mail"}, "summary": "Start an asynchronous poll for the user's mailboxes",
-				"parameters": []any{
-					map[string]any{"name": "force", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"1", "true"}}},
-				},
-				"responses": map[string]any{"202": okResp("Poll status", "PollStatus"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/me/llm": map[string]any{
-			"get": op("settings", "Read per-user Inbox AI settings (API key never returned)", "", okResp("Settings", "LLMSettings")),
-			"put": map[string]any{
-				"tags": []any{"settings"}, "summary": "Update per-user Inbox AI settings",
-				"requestBody": map[string]any{"required": true, "content": map[string]any{
-					"application/json": map[string]any{"schema": ref("ReqLLMSettings")}}},
-				"responses": map[string]any{"200": okResp("Settings", "LLMSettings"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/me/llm/test": map[string]any{
-			"post": op("settings", "Test the configured LiteLLM endpoint", "", okResp("Result", "LLMTestResult")),
-		},
-		"/api/mail/accounts/{id}/poll": map[string]any{
-			"post": map[string]any{
-				"tags": []any{"mail"}, "summary": "Poll one mailbox now",
-				"parameters": []any{idParam()},
-				"responses":  map[string]any{"200": okResp("Poll summary", "PollSummary"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/mail/poll/full": map[string]any{
-			"post": map[string]any{
-				"tags": []any{"mail"}, "summary": "Start a background poll of the whole mailbox",
-				"responses": map[string]any{"202": okResp("Poll status", "PollStatus"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/mail/ai-parse": map[string]any{
-			"get": op("mail", "Read the AI re-parse job state", "", okResp("Status", "AIParseStatus")),
-			"post": map[string]any{
-				"tags": []any{"mail"}, "summary": "Re-parse pending mail per sender with the model",
-				"responses": map[string]any{"202": okResp("Status", "AIParseStatus"), "409": errRef("conflict"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/mail/messages": map[string]any{
-			"get": map[string]any{
-				"tags": []any{"mail"}, "summary": "List stored mail",
-				"parameters": []any{
-					map[string]any{"name": "status", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"pending", "unparsed", "ignored", "auto", "rejected", "review", "all"}}},
-					map[string]any{"name": "pageSize", "in": "query", "schema": map[string]any{"type": "integer", "maximum": 100}},
-					map[string]any{"name": "limit", "in": "query", "deprecated": true, "schema": map[string]any{"type": "integer", "maximum": 100}},
-					map[string]any{"name": "accountId", "in": "query", "schema": map[string]any{"type": "string"}},
-					map[string]any{"name": "search", "in": "query", "schema": map[string]any{"type": "string"}},
-					map[string]any{"name": "pageToken", "in": "query", "schema": map[string]any{"type": "string"}},
-				},
-				"responses": map[string]any{"200": okResp("Messages", "ListMailMessages"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
-			},
-			"post": op("mail", "Approve or reject messages", "ReqMailAction", okResp("Outcome", "MailActionOutcome")),
-			"delete": map[string]any{
-				"tags": []any{"mail"}, "summary": "Delete stored mail by id, or every message with all=true",
-				"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": ref("ReqMailDelete")}}},
-				"responses":   map[string]any{"200": okResp("Deleted", "MailDeleteResult"), "400": errRef("invalid_argument"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/mail/messages/{id}": map[string]any{
-			"get": map[string]any{
-				"tags": []any{"mail"}, "summary": "Read one message with its parsed body and raw source",
-				"parameters": []any{idParam()},
-				"responses":  map[string]any{"200": okResp("Message", "MailMessage"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/mail/rules": map[string]any{
-			"get":  paginated("mail", "List mail rules", "ListMailRules"),
-			"post": op("mail", "Create a mail rule", "ReqMailRule", okResp("Rule", "MailRule")),
-		},
-		"/api/mail/rules/{id}": map[string]any{
-			"put": map[string]any{
-				"tags": []any{"mail"}, "summary": "Update a mail rule",
-				"parameters":  []any{idParam()},
-				"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": ref("ReqMailRule")}}},
-				"responses":   map[string]any{"204": noContent("Updated"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
-			},
-			"delete": map[string]any{
-				"tags": []any{"mail"}, "summary": "Delete a mail rule",
-				"parameters": []any{idParam()},
-				"responses":  map[string]any{"204": noContent("Deleted"), "404": errRef("not_found"), "401": errRef("unauthenticated")},
-			},
-		},
-		"/api/mail/templates/validate": map[string]any{
-			"post": op("mail", "Test manual template patterns against a sample mail", "ReqMailTemplateValidate", okResp("Validation", "MailTemplateValidation")),
-		},
 	}
 }
 
@@ -411,7 +304,43 @@ func components() map[string]any {
 			"totalBalance":  map[string]any{"type": "number"},
 			"totalIncome":   map[string]any{"type": "number"},
 			"totalExpenses": map[string]any{"type": "number"},
+			"cash":          map[string]any{"type": "number"},
+			"savings":       map[string]any{"type": "number"},
+			"debt":          map[string]any{"type": "number"},
 			"accounts":      ref("[]Account"),
+			"month":         ref("DashboardMonth"),
+			"recent":        ref("[]Transaction"),
+			"recentTotal":   map[string]any{"type": "number"},
+		}),
+		"DashboardMonth": obj(map[string]any{
+			"label":            str(),
+			"from":             str(),
+			"to":               str(),
+			"daysLeft":         map[string]any{"type": "integer"},
+			"income":           map[string]any{"type": "number"},
+			"expenses":         map[string]any{"type": "number"},
+			"net":              map[string]any{"type": "number"},
+			"averagePerDay":    map[string]any{"type": "number"},
+			"previousLabel":    str(),
+			"previousExpenses": map[string]any{"type": "number"},
+			"expenseChangePct": map[string]any{"type": "number"},
+			"topCategory":      ref("DashboardTopCategory"),
+			"peakBucket":       ref("SpendingBucket"),
+			"budget":           ref("DashboardBudget"),
+			"buckets":          map[string]any{"type": "array", "items": ref("SpendingBucket")},
+		}),
+		"DashboardBudget": obj(map[string]any{
+			"planned":    map[string]any{"type": "number"},
+			"spent":      map[string]any{"type": "number"},
+			"left":       map[string]any{"type": "number"},
+			"used":       map[string]any{"type": "number"},
+			"hasBudgets": map[string]any{"type": "boolean"},
+			"overCount":  map[string]any{"type": "integer"},
+		}),
+		"DashboardTopCategory": obj(map[string]any{
+			"name":   str(),
+			"amount": map[string]any{"type": "number"},
+			"share":  map[string]any{"type": "number"},
 		}),
 		"SpendingBucket": obj(map[string]any{
 			"key": str(), "label": str(), "amount": map[string]any{"type": "number"},
@@ -480,144 +409,6 @@ func components() map[string]any {
 		}),
 		"ReqCounterpart":      obj(map[string]any{"transactionId": str(), "toAccountId": str()}),
 		"TransferCounterpart": obj(map[string]any{"debitTransactionId": str(), "creditTransactionId": str()}),
-		"MailAccount": obj(map[string]any{
-			"id": str(), "label": str(), "imapHost": str(),
-			"imapPort": map[string]any{"type": "integer"}, "username": str(),
-			"enabled":      map[string]any{"type": "boolean"},
-			"lastPolledAt": nullable(str()), "lastError": str(),
-		}),
-		"ReqMailAccount": obj(map[string]any{
-			"label": str(), "imapHost": str(), "imapPort": map[string]any{"type": "integer"},
-			"username": str(), "password": str(),
-		}),
-		"ReqUpdateMailAccount": obj(map[string]any{
-			"label": str(), "imapHost": str(), "imapPort": map[string]any{"type": "integer"},
-			"username": str(), "password": str(), "enabled": map[string]any{"type": "boolean"},
-		}),
-		"PollStatus": obj(map[string]any{
-			"status": map[string]any{"type": "string", "enum": []any{"started", "throttled"}},
-		}),
-		"AIParseStatus": obj(map[string]any{
-			"running":       map[string]any{"type": "boolean"},
-			"totalSenders":  map[string]any{"type": "integer"},
-			"doneSenders":   map[string]any{"type": "integer"},
-			"currentSender": str(),
-			"startedAt":     str(),
-			"finishedAt":    str(),
-			"error":         str(),
-		}),
-		"LLMSettings": obj(map[string]any{
-			"baseUrl": str(), "model": str(),
-			"timeoutSecs":             map[string]any{"type": "integer"},
-			"enabled":                 map[string]any{"type": "boolean"},
-			"apiKeySet":               map[string]any{"type": "boolean"},
-			"minSamples":              map[string]any{"type": "integer"},
-			"failureThreshold":        map[string]any{"type": "integer"},
-			"cooldownMinutes":         map[string]any{"type": "integer"},
-			"autoPollThrottleMinutes": map[string]any{"type": "integer"},
-			"reasoningEnabled":        map[string]any{"type": "boolean"},
-			"reasoningEffort":         str(),
-			"updatedAt":               str(),
-		}),
-		"ReqLLMSettings": obj(map[string]any{
-			"baseUrl": str(), "model": str(),
-			"apiKey":                  map[string]any{"type": "string", "nullable": true},
-			"timeoutSecs":             map[string]any{"type": "integer"},
-			"enabled":                 map[string]any{"type": "boolean"},
-			"minSamples":              map[string]any{"type": "integer"},
-			"failureThreshold":        map[string]any{"type": "integer"},
-			"cooldownMinutes":         map[string]any{"type": "integer"},
-			"autoPollThrottleMinutes": map[string]any{"type": "integer"},
-			"reasoningEnabled":        map[string]any{"type": "boolean"},
-			"reasoningEffort":         map[string]any{"type": "string", "enum": []any{"", "low", "medium", "high"}},
-		}),
-		"LLMTestResult": obj(map[string]any{
-			"ok": map[string]any{"type": "boolean"}, "message": str(),
-		}),
-		"ListMailAccounts": obj(map[string]any{"accounts": ref("[]MailAccount"), "nextPageToken": str()}),
-		"MailMessage": obj(map[string]any{
-			"id": str(), "messageId": str(), "mailAccountId": str(),
-			"fromAddr": str(), "fromName": str(), "subject": str(),
-			"receivedAt": nullable(str()), "status": str(), "parsedJson": nullable(str()),
-			"confidence":    map[string]any{"type": "number"},
-			"bodyPreview":   str(),
-			"bodyText":      nullable(str()),
-			"rawText":       nullable(str()),
-			"transactionId": nullable(str()),
-		}),
-		"ListMailMessages": obj(map[string]any{
-			"messages":      ref("[]MailMessage"),
-			"total":         map[string]any{"type": "integer"},
-			"totalCount":    map[string]any{"type": "integer"},
-			"nextPageToken": str(),
-		}),
-		"MailRule": obj(map[string]any{
-			"id": str(), "position": map[string]any{"type": "integer"},
-			"enabled": map[string]any{"type": "boolean"}, "fromPattern": str(),
-			"subjectContains": str(), "bodyContains": str(),
-			"action":      map[string]any{"type": "string", "enum": []any{"IGNORE", "REVIEW", "AUTO"}},
-			"accountId":   nullable(str()),
-			"categoryIds": map[string]any{"type": "array", "items": str()},
-			"template":    ref("MailTemplatePatterns"),
-		}),
-		"ReqMailRule": obj(map[string]any{
-			"position": map[string]any{"type": "integer"}, "enabled": map[string]any{"type": "boolean"},
-			"fromPattern": str(), "subjectContains": str(), "bodyContains": str(),
-			"action":      map[string]any{"type": "string", "enum": []any{"IGNORE", "REVIEW", "AUTO"}},
-			"accountId":   nullable(str()),
-			"categoryIds": map[string]any{"type": "array", "items": str()},
-			"template":    ref("MailTemplatePatterns"),
-		}),
-		"MailTemplatePatterns": obj(map[string]any{
-			"amount":   map[string]any{"type": "array", "items": str()},
-			"debit":    map[string]any{"type": "array", "items": str()},
-			"credit":   map[string]any{"type": "array", "items": str()},
-			"account":  map[string]any{"type": "array", "items": str()},
-			"merchant": map[string]any{"type": "array", "items": str()},
-			"date":     map[string]any{"type": "array", "items": str()},
-		}),
-		"ReqMailTemplateValidate": obj(map[string]any{
-			"subject": str(), "body": str(), "patterns": ref("MailTemplatePatterns"),
-		}),
-		"ReqMailDelete": obj(map[string]any{
-			"ids": map[string]any{"type": "array", "items": str()},
-			"all": map[string]any{"type": "boolean"},
-		}),
-		"MailDeleteResult": obj(map[string]any{"deleted": map[string]any{"type": "integer"}}),
-		"MailTemplateValidation": obj(map[string]any{
-			"fields": map[string]any{"type": "array", "items": obj(map[string]any{
-				"field": str(),
-				"patterns": map[string]any{"type": "array", "items": obj(map[string]any{
-					"pattern": str(), "matched": map[string]any{"type": "boolean"},
-					"value": str(), "error": str(),
-				})},
-			})},
-			"amount":    map[string]any{"type": "number"},
-			"direction": str(), "account": str(), "merchant": str(), "date": str(),
-			"complete": map[string]any{"type": "boolean"},
-			"reason":   str(),
-		}),
-		"ListMailRules": obj(map[string]any{"rules": ref("[]MailRule"), "nextPageToken": str()}),
-		"ReqMailAction": obj(map[string]any{
-			"messages": map[string]any{"type": "array", "items": obj(map[string]any{
-				"id": str(), "action": map[string]any{"type": "string", "enum": []any{"APPROVE", "REJECT"}},
-				"accountId":   nullable(str()),
-				"categoryIds": map[string]any{"type": "array", "items": str()},
-				"name":        nullable(str()),
-				"amount":      map[string]any{"type": "number", "nullable": true},
-				"type":        nullable(map[string]any{"type": "string", "enum": []any{"DEBIT", "CREDIT"}}),
-				"occurredAt":  nullable(str()),
-			})},
-		}),
-		"MailActionOutcome": obj(map[string]any{
-			"succeeded": map[string]any{"type": "array", "items": str()},
-			"failed":    map[string]any{"type": "array", "items": obj(map[string]any{"id": str(), "error": str()})},
-		}),
-		"PollSummary": obj(map[string]any{
-			"matched": map[string]any{"type": "integer"},
-			"stored":  map[string]any{"type": "integer"},
-			"skipped": map[string]any{"type": "integer"},
-		}),
 	}
 	return map[string]any{
 		"schemas":         s,

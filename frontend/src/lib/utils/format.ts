@@ -1,5 +1,21 @@
 export function formatCurrency(amount: number): string {
-  const formatter = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatter = new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  return `₹${formatter.format(amount)}`;
+}
+
+/**
+ * The Nocturne display format: Indian grouping, paise only when the amount has
+ * them. Balances and totals are whole rupees, so they read as data, not cents.
+ */
+export function formatAmount(amount: number): string {
+  const hasPaise = Math.abs(amount % 1) > 0.004;
+  const formatter = new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: hasPaise ? 2 : 0,
+    maximumFractionDigits: hasPaise ? 2 : 0
+  });
   return `₹${formatter.format(amount)}`;
 }
 
@@ -39,5 +55,9 @@ export function defaultSpendingRange(
   if (days <= 366) return { range: '1Y' };
   const end = new Date(d);
   end.setFullYear(end.getFullYear() + 1);
-  return { range: 'CUSTOM', start: toLocalDateString(d), end: toLocalDateString(end) };
+  return {
+    range: 'CUSTOM',
+    start: toLocalDateString(d),
+    end: toLocalDateString(end)
+  };
 }

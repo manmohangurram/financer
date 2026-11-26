@@ -4,9 +4,7 @@ import { getAccessToken } from './transport';
 // FINANCER_DOMAIN_URL env (empty → same-origin). VITE_API_URL/PROD fallbacks
 // cover dev and non-container production builds.
 export const API_BASE: string =
-  (window as any).__API_BASE__ ||
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? '' : 'http://localhost:8080');
+  (window as any).__API_BASE__ || import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 export interface AccountServiceClient {
   createAccount: (req: unknown) => Promise<any>;
@@ -40,36 +38,90 @@ export interface RuleServiceClient {
   runRule: (req: unknown) => Promise<any>;
 }
 
-export interface MailServiceClient {
-  listAccounts: (req: unknown) => Promise<any>;
-  createAccount: (req: unknown) => Promise<any>;
-  updateAccount: (req: unknown) => Promise<any>;
-  deleteAccount: (req: unknown) => Promise<any>;
-  pollAccount: (req: unknown) => Promise<any>;
-  pollAll: (req: unknown) => Promise<any>;
-  pollFull: (req: unknown) => Promise<any>;
-  aiParse: (req: unknown) => Promise<any>;
-  aiParseStatus: (req: unknown) => Promise<any>;
-  getMessage: (req: unknown) => Promise<any>;
-  listMessages: (req: unknown) => Promise<any>;
-  act: (req: unknown) => Promise<any>;
-  listRules: (req: unknown) => Promise<any>;
-  createRule: (req: unknown) => Promise<any>;
-  updateRule: (req: unknown) => Promise<any>;
-  deleteRule: (req: unknown) => Promise<any>;
-  validateTemplate: (req: unknown) => Promise<any>;
-}
-
 export interface TransferServiceClient {
   linkTransfers: (req: unknown) => Promise<any>;
   unlinkTransfers: (req: unknown) => Promise<any>;
   createCounterpart: (req: unknown) => Promise<any>;
 }
 
-
 export interface AnalyticsServiceClient {
-  dashboard: (req: unknown) => Promise<any>;
+  dashboard: (req: unknown) => Promise<DashboardData>;
   spending: (req: unknown) => Promise<any>;
+}
+
+export interface DashboardBucket {
+  key: string;
+  label: string;
+  amount: number;
+}
+
+export interface DashboardTopCategory {
+  name: string;
+  amount: number;
+  share: number;
+}
+
+export interface DashboardBudget {
+  planned: number;
+  spent: number;
+  left: number;
+  used: number;
+  hasBudgets: boolean;
+  overCount: number;
+}
+
+export interface DashboardMonth {
+  label: string;
+  from: string;
+  to: string;
+  daysLeft: number;
+  income: number;
+  expenses: number;
+  net: number;
+  averagePerDay: number;
+  previousLabel: string;
+  previousExpenses: number;
+  expenseChangePct: number;
+  topCategory?: DashboardTopCategory;
+  peakBucket?: DashboardBucket;
+  budget: DashboardBudget;
+  buckets: DashboardBucket[];
+}
+
+export interface DashboardAccount {
+  id: string;
+  bankName: string;
+  nickname: string;
+  balance: number;
+  type: string;
+  endingNumbers?: string;
+  createdAt: string;
+}
+
+export interface DashboardTransaction {
+  id: string;
+  name: string;
+  amount: number;
+  type: string;
+  occurredAt: string;
+  accountId: string;
+  createdAt: string;
+  linkedTransferId: string;
+  categoryIds?: string[];
+  refNo: string;
+}
+
+export interface DashboardData {
+  totalBalance: number;
+  totalIncome: number;
+  totalExpenses: number;
+  cash: number;
+  savings: number;
+  debt: number;
+  accounts: DashboardAccount[];
+  month: DashboardMonth;
+  recent: DashboardTransaction[];
+  recentTotal: number;
 }
 
 export interface ProfileServiceClient {
@@ -85,31 +137,25 @@ export interface UserKeyServiceClient {
   deleteKey: (req: unknown) => Promise<any>;
 }
 
-export interface LLMSettingsClient {
-  get: (req: unknown) => Promise<any>;
-  update: (req: unknown) => Promise<any>;
-  test: (req: unknown) => Promise<any>;
-}
-
 let _accounts: AccountServiceClient | null = null;
 let _categories: CategoryServiceClient | null = null;
 let _transactions: TransactionServiceClient | null = null;
 let _rules: RuleServiceClient | null = null;
-let _mail: MailServiceClient | null = null;
 let _transfers: TransferServiceClient | null = null;
 let _analytics: AnalyticsServiceClient | null = null;
 let _profile: ProfileServiceClient | null = null;
 let _userKeys: UserKeyServiceClient | null = null;
-let _llm: LLMSettingsClient | null = null;
 
 function api(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string) {
   return (req: unknown) => {
     const rest: Record<string, any> = { ...(req || {}) };
-    let url = API_BASE + path.replace(/\{([^}]+)\}/g, (_, k: string) => {
-      const v = rest[k];
-      delete rest[k];
-      return encodeURIComponent(v ?? '');
-    });
+    let url =
+      API_BASE +
+      path.replace(/\{([^}]+)\}/g, (_, k: string) => {
+        const v = rest[k];
+        delete rest[k];
+        return encodeURIComponent(v ?? '');
+      });
     let body: string | undefined;
 
     if (method === 'GET') {
@@ -137,7 +183,7 @@ function api(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string) {
         throw err;
       }
       // Mutations that can move a balance tell the shell to refresh the sidebar.
-      if (method !== 'GET' && /^\/api\/(transactions|accounts|transfer-links|rules|mail\/messages|mail\/accounts)/.test(path)) {
+      if (method !== 'GET' && /^\/api\/(transactions|accounts|transfer-links|rules)/.test(path)) {
         window.dispatchEvent(new CustomEvent('financer:accounts-changed'));
       }
       return data;
@@ -183,31 +229,6 @@ export function transactions(): TransactionServiceClient {
   return _transactions;
 }
 
-export function mail(): MailServiceClient {
-  if (!_mail) {
-    _mail = {
-      listAccounts: api('GET', '/api/mail/accounts'),
-      createAccount: api('POST', '/api/mail/accounts'),
-      updateAccount: api('PUT', '/api/mail/accounts/{id}'),
-      deleteAccount: api('DELETE', '/api/mail/accounts/{id}'),
-      pollAccount: api('POST', '/api/mail/accounts/{id}/poll'),
-      pollAll: api('POST', '/api/mail/poll'),
-      pollFull: api('POST', '/api/mail/poll/full'),
-      aiParse: api('POST', '/api/mail/ai-parse'),
-      aiParseStatus: api('GET', '/api/mail/ai-parse'),
-      listMessages: api('GET', '/api/mail/messages'),
-      getMessage: api('GET', '/api/mail/messages/{id}'),
-      act: api('POST', '/api/mail/messages'),
-      listRules: api('GET', '/api/mail/rules'),
-      createRule: api('POST', '/api/mail/rules'),
-      updateRule: api('PUT', '/api/mail/rules/{id}'),
-      deleteRule: api('DELETE', '/api/mail/rules/{id}'),
-      validateTemplate: api('POST', '/api/mail/templates/validate')
-    };
-  }
-  return _mail;
-}
-
 export function rules(): RuleServiceClient {
   if (!_rules) {
     _rules = {
@@ -232,7 +253,6 @@ export function transfers(): TransferServiceClient {
   }
   return _transfers;
 }
-
 
 export function analytics(): AnalyticsServiceClient {
   if (!_analytics) {
@@ -265,17 +285,6 @@ export function apiKeys(): UserKeyServiceClient {
     };
   }
   return _userKeys;
-}
-
-export function llm(): LLMSettingsClient {
-  if (!_llm) {
-    _llm = {
-      get: api('GET', '/api/me/llm'),
-      update: api('PUT', '/api/me/llm'),
-      test: api('POST', '/api/me/llm/test')
-    };
-  }
-  return _llm;
 }
 
 function getAuthHeaders(): Record<string, string> {

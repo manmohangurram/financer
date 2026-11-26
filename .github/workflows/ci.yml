@@ -63,6 +63,12 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # Prettier is part of the merge gate, not a preference: an unformatted file
+      # fails here before type-check and build spend any time on it.
+      - name: Format
+        run: npm run format:check
+        working-directory: frontend
+
       # Cache vite's transform cache + vue-tsc incremental build info so
       # type-check and build reuse prior work across runs.
       - name: Cache vite + vue-tsc

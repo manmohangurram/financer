@@ -12,7 +12,11 @@ const props = defineProps<{
   accounts?: any[];
 }>();
 
-const emit = defineEmits<{ (e: 'edit', txn: any): void; (e: 'bulk-delete', ids: string[]): void; (e: 'transfer', txn: any): void }>();
+const emit = defineEmits<{
+  (e: 'edit', txn: any): void;
+  (e: 'bulk-delete', ids: string[]): void;
+  (e: 'transfer', txn: any): void;
+}>();
 
 const filters = defineModel<TransactionFilters>('filters', { default: emptyFilters });
 
@@ -43,7 +47,10 @@ function bulkDelete() {
 
 <template>
   <div>
-    <div v-if="selectedIds.length > 0" class="flex items-center justify-between mb-3 px-4 py-2.5 rounded-card bg-accent/10 border border-primary-500/30">
+    <div
+      v-if="selectedIds.length > 0"
+      class="flex items-center justify-between mb-3 px-4 py-2.5 rounded-card bg-accent/10 border border-accent/30"
+    >
       <span class="text-[13px] text-accent font-medium">{{ selectedIds.length }} selected</span>
       <div class="flex gap-2">
         <button @click="selectedIds = []" class="ns-quiet border border-rule">Cancel</button>

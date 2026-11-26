@@ -6,7 +6,6 @@ import AccountsView from '@/views/AccountsView.vue';
 import AccountsManageView from '@/views/AccountsManageView.vue';
 import SpendingView from '@/views/SpendingView.vue';
 import RulesView from '@/views/RulesView.vue';
-import InboxView from '@/views/InboxView.vue';
 import CategoriesView from '@/views/CategoriesView.vue';
 import ProfileView from '@/views/ProfileView.vue';
 import UiKitView from '@/views/UiKitView.vue';
@@ -26,7 +25,6 @@ const router = createRouter({
         { path: 'accounts/manage', name: 'accounts-manage', component: AccountsManageView },
         { path: 'accounts/spending', name: 'spending', component: SpendingView },
         { path: 'accounts/rules', name: 'rules', component: RulesView },
-        { path: 'inbox', name: 'inbox', component: InboxView },
         { path: 'accounts/categories', name: 'categories', component: CategoriesView },
         { path: 'settings', name: 'settings', component: ProfileView },
         // Not in the nav: the primitives, in every state, for looking at.

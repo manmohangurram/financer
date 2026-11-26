@@ -5,6 +5,7 @@
 Run verification in this order after backend changes, then frontend changes.
 
 **Backend (Go, from repo root):**
+
 ```bash
 go run ./cmd/financer  # starts API on :8080; config from FINANCER_* env (schema applied at boot)
 go build ./...
@@ -14,6 +15,7 @@ go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 ```
 
 **Frontend (from `frontend/`):**
+
 ```bash
 npm run dev        # vite dev server on :5173, calls the backend directly (CORS, no proxy)
 npm run build       # vue-tsc -b (type check) && vite build → static frontend/dist/
@@ -22,11 +24,12 @@ npm test            # vitest — pure helpers/composables under src/lib
 
 ## Verification checklist
 
-After any change run `gofmt -l cmd internal migrate.go` (must print nothing), `go vet ./...`, `go build ./...`, `go test ./...`, `govulncheck ./...` (repo root) and `npm run build && npm test` (`frontend/`). Browser smoke test for UI changes (console must be clean).
+After any change run `gofmt -l cmd internal migrate.go` (must print nothing), `go vet ./...`, `go build ./...`, `go test ./...`, `govulncheck ./...` (repo root) and `npm run format:check && npm run build && npm test` (`frontend/`). Formatting is mandatory before a push — CI fails the PR otherwise. Browser smoke test for UI changes (console must be clean).
 
 ## Review before every PR
 
 Before opening a pull request for a branch, run these review skills and fold any fixes into the branch:
+
 - `ponytail-review` — over-engineering scan (delete/stdlib/native/yagni/shrink).
 - `code-simplification` — reduce complexity without changing behavior.
 - `code-review-and-quality` — correctness, security, maintainability.
@@ -37,11 +40,11 @@ Before opening a pull request for a branch, run these review skills and fold any
 
 ### No noise comments
 
-**Default to no comment.** A comment is maintenance cost the moment it is written — it can go stale, and it competes with the code for attention. Before adding one, ask *does the code already say this?* If yes, don't write it. When in doubt, leave it out.
+**Default to no comment.** A comment is maintenance cost the moment it is written — it can go stale, and it competes with the code for attention. Before adding one, ask _does the code already say this?_ If yes, don't write it. When in doubt, leave it out.
 
 - **Cut** comments that restate the code: `// increment count`, `// Create a user`.
 - **Cut** doc comments that rename the function/field they sit above: `// Set the rule-resolved name` above `ApplyRuleResult`.
-- **Keep** a comment only when it carries non-obvious *why* or intent the code can't express: return-meaning on an opaque type, data-scoping/shape notes, security rationale, a load-bearing edge case.
+- **Keep** a comment only when it carries non-obvious _why_ or intent the code can't express: return-meaning on an opaque type, data-scoping/shape notes, security rationale, a load-bearing edge case.
 - **Keep** package comments (`// Package x ...`) and section separators where they aid navigation — terse, not prose.
 
 Rule of thumb: if deleting the comment loses no understanding, delete it.
@@ -95,7 +98,7 @@ Rule of thumb: if deleting the comment loses no understanding, delete it.
 
 - See `architecture/NAMING_CONVENTIONS.md` (full words, no stutter, role-not-shape, predicate booleans).
 - **Locals** short but clear; `row`, `req`, `repo`, `svc`, `txn`, `uid` are fine when unambiguous.
-- **Acronyms keep their case**: `userID`, `IMAPHost`, `APIKey`.
+- **Acronyms keep their case**: `userID`, `HTTPClient`, `APIKey`.
 
 ### Testing
 

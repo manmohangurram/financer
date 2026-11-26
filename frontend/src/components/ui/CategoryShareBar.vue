@@ -38,7 +38,11 @@ function onLeave() {
         :key="item.name"
         type="button"
         class="rounded-[3px] transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        :style="{ flex: `${item.amount / total} 1 0`, height: `${height}px`, background: `var(--chart-${Math.min(i, 7)})` }"
+        :style="{
+          flex: `${item.amount / total} 1 0`,
+          height: `${height}px`,
+          background: `var(--chart-${Math.min(i, 7)})`
+        }"
         :aria-label="`${item.name}: ${formatCurrency(item.amount)} (${share(item.amount).toFixed(0)}%)`"
         @mouseenter="onEnter(item, $event)"
         @mousemove="onMove"

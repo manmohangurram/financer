@@ -5,7 +5,6 @@ import { reactive } from 'vue';
 export interface ChartPalette {
   accent: string;
   accentSoft: string;
-  accentQuiet: string;
   ink: string;
   inkMute: string;
   faint: string;
@@ -21,30 +20,24 @@ function token(name: string, fallback: string): string {
   return v || fallback;
 }
 
+function isDark(): boolean {
+  return document.documentElement.dataset.theme === 'dark';
+}
+
 export function readChartPalette(): ChartPalette {
+  const dark = isDark();
   return {
-    accent: token('--accent', 'oklch(0.455 0.075 205)'),
-    accentSoft: token('--accent-wash', 'oklch(0.94 0.02 205)'),
-    // accent at 28% — the receded state when another day is picked
-    accentQuiet: 'oklch(0.455 0.075 205 / 0.28)',
-    ink: token('--ink', 'oklch(0.255 0.02 245)'),
-    inkMute: token('--ink-mute', 'oklch(0.585 0.014 245)'),
-    faint: token('--ink-faint', 'oklch(0.7 0.01 245)'),
-    rule: token('--rule-soft', 'oklch(0 0 0 / 0.07)'),
-    page: token('--page', 'oklch(0.995 0.003 85)'),
-    credit: token('--credit', 'oklch(0.505 0.1 155)'),
-    debit: token('--debit', 'oklch(0.52 0.15 28)'),
-    // rank-ordered ink ramp: darkest = biggest share, grey tail for "Others"
-    ramp: [
-      token('--accent', 'oklch(0.36 0.045 205)'),
-      'oklch(0.44 0.045 205)',
-      'oklch(0.52 0.04 205)',
-      'oklch(0.60 0.035 205)',
-      'oklch(0.67 0.03 205)',
-      'oklch(0.74 0.025 205)',
-      'oklch(0.81 0.02 205)',
-      'oklch(0.68 0.01 245)'
-    ]
+    accent: token('--accent', dark ? '#7dd3fc' : '#0369a1'),
+    accentSoft: token('--accent-wash', dark ? 'rgba(125,211,252,.12)' : '#e0f2fe'),
+    ink: token('--ink', dark ? '#e9eef6' : '#0f1620'),
+    inkMute: token('--ink-mute', dark ? '#8b99ab' : '#6b7891'),
+    faint: token('--ink-faint', dark ? '#5f6d80' : '#98a3b6'),
+    rule: token('--rule-soft', dark ? 'rgba(255,255,255,.05)' : 'rgba(15,22,32,.06)'),
+    page: token('--page', dark ? '#111823' : '#ffffff'),
+    credit: token('--credit', dark ? '#4ade80' : '#047857'),
+    debit: token('--debit', dark ? '#fb7185' : '#be123c'),
+    // rank-ordered ramp: biggest share first, grey tail for "Others"
+    ramp: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => token(`--chart-${i}`, dark ? '#7dd3fc' : '#0369a1'))
   };
 }
 

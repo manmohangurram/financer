@@ -2,7 +2,7 @@
 
 Status: approved
 Owner: Spending, Categories
-Related: `docs/specs/inbox-reader/SPEC.md`
+Related: `docs/specs/nocturne-redesign/SPEC.md`
 
 ## Objective
 
@@ -28,13 +28,13 @@ category is a **name and a monthly budget**. Analysis belongs to Spending.
 ### Spending page
 
 - The **Largest** stat is replaced by a **Budget · <month>** card:
-  - remaining amount (or amount *over*) in the display face,
+  - remaining amount (or amount _over_) in the display face,
   - a progress bar (accent, debit when over),
   - `<spent> of <planned> · <n>% used`.
   - No budgets yet: "No budgets yet" with a link to Categories.
 - The right-hand card becomes **Budget by category** when at least one budget
   exists: budgeted categories first (spent / limit, left/over, progress bar), then
-  unbudgeted categories with spend only (grey dot, *unbudgeted*).
+  unbudgeted categories with spend only (grey dot, _unbudgeted_).
 - Without budgets, the existing range-based **Where it went** share list stays.
 - Budget progress always uses the **current calendar month**, independent of the
   7D/1M/6M/1Y range that drives the chart and ledger.
