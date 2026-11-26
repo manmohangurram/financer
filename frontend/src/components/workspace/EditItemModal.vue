@@ -17,7 +17,12 @@ const props = defineProps<{
   categories: any[];
   defaultAccountId: string;
 }>();
-const emit = defineEmits<{ (e: 'close'): void; (e: 'submit', payload: any): void; (e: 'delete'): void; (e: 'unlink'): void }>();
+const emit = defineEmits<{
+  (e: 'close'): void;
+  (e: 'submit', payload: any): void;
+  (e: 'delete'): void;
+  (e: 'unlink'): void;
+}>();
 
 const txnForm = ref(
   props.type === 'transaction' && props.editingItem
@@ -30,7 +35,15 @@ const txnForm = ref(
         categoryIds: props.editingItem.categoryIds || [],
         refNo: props.editingItem.refNo || ''
       }
-    : { name: '', amount: 0, type: 'DEBIT', accountId: props.defaultAccountId, occurredAt: toLocalDateString(new Date()), categoryIds: [] as string[], refNo: '' }
+    : {
+        name: '',
+        amount: 0,
+        type: 'DEBIT',
+        accountId: props.defaultAccountId,
+        occurredAt: toLocalDateString(new Date()),
+        categoryIds: [] as string[],
+        refNo: ''
+      }
 );
 
 const ruleForm = ref(
@@ -39,10 +52,18 @@ const ruleForm = ref(
         name: props.editingItem.name,
         priority: props.editingItem.priority || 0,
         logic: props.editingItem.logic || 'OR',
-        conditions: props.editingItem.conditions?.length ? props.editingItem.conditions : [{ matchField: 'NAME', operator: 'CONTAINS', pattern: '' }],
+        conditions: props.editingItem.conditions?.length
+          ? props.editingItem.conditions
+          : [{ matchField: 'NAME', operator: 'CONTAINS', pattern: '' }],
         outputs: (props.editingItem.actions || []).map(fromRuleAction).filter(Boolean) as RuleOutput[]
       }
-    : { name: '', priority: 0, logic: 'OR', conditions: [{ matchField: 'NAME', operator: 'CONTAINS', pattern: '' }], outputs: [emptyOutput()] }
+    : {
+        name: '',
+        priority: 0,
+        logic: 'OR',
+        conditions: [{ matchField: 'NAME', operator: 'CONTAINS', pattern: '' }],
+        outputs: [emptyOutput()]
+      }
 );
 
 const catForm = ref({
@@ -57,7 +78,11 @@ const titles: Record<ModalType, string> = { transaction: 'transaction', rule: 'r
 
 function handleSubmit() {
   if (props.type === 'transaction') {
-    emit('submit', { ...txnForm.value, amount: roundMoney(txnForm.value.amount), occurredAt: { seconds: dateToUnixSeconds(txnForm.value.occurredAt), nanos: 0 } });
+    emit('submit', {
+      ...txnForm.value,
+      amount: roundMoney(txnForm.value.amount),
+      occurredAt: { seconds: dateToUnixSeconds(txnForm.value.occurredAt), nanos: 0 }
+    });
   } else if (props.type === 'rule') {
     emit('submit', { ...ruleForm.value, actions: ruleForm.value.outputs.map(toRuleAction) });
   } else {
@@ -80,7 +105,9 @@ function handleSubmit() {
             type="button"
             class="ns-quiet text-debit"
             @click="emit('unlink')"
-          >Unlink transfer</button>
+          >
+            Unlink transfer
+          </button>
           <button v-if="editingItem" type="button" class="ns-quiet text-debit" @click="emit('delete')">Delete</button>
         </div>
         <div class="flex items-center gap-2">

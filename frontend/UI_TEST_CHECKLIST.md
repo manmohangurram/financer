@@ -23,7 +23,7 @@ Every run against the running backend before a release or after any backend/fron
 
 ## App shell / navigation
 
-- Sidebar shows **Dashboard**, **Accounts**, **Spending** and **Inbox**
+- Sidebar shows **Dashboard**, **Accounts** and **Spending**
 - User popup (bottom avatar) shows **Settings** and **Logout**
 - **Sidebar collapse:** the Collapse/Expand button (above the user box) narrows the sidebar to an icon rail and back; state persists on reload; auto-collapses below 1024px (resize the window); active nav highlight is a rounded rectangle in both states
 - **Theme toggle:** Settings → Appearance → Light/Dark switches instantly and persists on reload (no flash); both themes pass Lighthouse accessibility 100 on /accounts and /login
@@ -34,10 +34,14 @@ Every run against the running backend before a release or after any backend/fron
 
 ## Dashboard (`/dashboard`)
 
-- Login lands on Dashboard
-- Stat cards show Net Worth (accounts), Total Income, Total Expenses, and Account count matching the backend (`GET /api/dashboard` returns all values in one request; zero client-side math)
-- Account cards list the accounts (compact) with correct balances
-- Net Worth = account balance sum
+- Login lands on Dashboard; the page loads from one `GET /api/dashboard` request
+- **Net worth pair:** `totalBalance` matches the sum of account balances; `Savings` = current + savings accounts, `Owed` = loans + credit cards; the composition bar and legend show both amounts and percentages; `In`, `Out` and `Net` match `month.income`, `month.expenses` and `month.net`; `Out` shows the previous-month delta
+- **Budget card:** `Left to spend` equals `planned − spent`; the progress bar width equals `used`; the `N over` badge matches the number of over-limit categories; `Planned` and `Spent` align under the left-to-spend and progress-bar columns; over-budget shows the debit state
+- **Accounts card:** one row per account, correct type/ending/balance; `Manage` goes to `/accounts/manage`
+- **Spending:** total/average/day, largest category, previous-month note and the line chart match the server buckets; the average rule and highest-day callout are present; `Details →` opens Spending
+- **Recent entries:** 6 rows, newest first, entry + date + account, amount right-aligned; no selection/margin column; the carried-forward total equals `recentTotal`
+- Loading shows daisyUI skeletons, not a blank page; a failed request shows the error banner + Retry; no accounts shows the Add account empty state
+- Light and dark themes pass; 1440 and 390 have no horizontal scroll; console clean
 
 ## Spending (`/accounts/spending`)
 
@@ -65,7 +69,10 @@ Every run against the running backend before a release or after any backend/fron
 - Delete Transaction removes the row, counter decrements, balance moves back
 - Account filter buttons (All / each account) narrow the list
 - Pagination — next/prev work when more rows than page size
-- **Statement import is unsupported:** the Add Transaction modal offers manual entry only — there is no import tab, file picker or column mapping
+- **Statement import:** the Import button opens a three-step modal (Upload → Map columns → Review); the PDF is parsed in the browser and no file is uploaded
+- **Column mapping:** the Map step lists the statement's printed columns with a role chip on each; changing a role re-reads the rows; “Debit + Credit” and “One amount” switch the amount model; **Reset to detected** restores the header mapping
+- **Wrong mapping is rejected:** swap Debit/Credit (or unmap one amount column) → the error banner reports a balance break, the validation strip says the balances do not reconcile, and Continue is disabled
+- Statements with no printed header show the layout fallback select instead of the column table
 - `POST /api/transactions` with >1000 transactions is rejected with 400
 - `PUT /api/transactions` with >1000 transactions is rejected with 400
 - **Categories on a transaction:** create a transaction with a category; edit it and change the category — the row shows the new category (always-replace on update)
@@ -111,6 +118,7 @@ Every run against the running backend before a release or after any backend/fron
 - **Run now** runs a rule and reports matched/linked/created
 
 ### Rule actions (set name / set category)
+
 - Rule with "Set name" action → matching transactions display the canonical name (stored value untouched)
 - Rule with "Set category" action → matching transactions show the chosen category
 - Rule with both set-name + set-category applies both
@@ -121,32 +129,17 @@ Every run against the running backend before a release or after any backend/fron
 - RuleForm "Set category" select is populated with the user's categories
 
 ### Rule → Transactions propagation
+
 - Add a rule (set-name action) → the transactions list on /accounts **immediately shows the updated name** (same page, no reload)
 - Add a rule (set-category action) → matching transactions show the new category
 - Delete the rule → matching rows revert in the list
 
-## Inbox (`/inbox`)
-
-- With `FINANCER_SECRET_KEY` set, add a mailbox (host must be port 993); it appears in the list with no password shown
-- Mailboxes can be edited (label/host/username/password/on-off) and removed; no sender allowlist field
-- **Poll now** starts an asynchronous check; the Inbox shows “Checking mail…” and refreshes itself
-- Messages list can be filtered by status (`pending`, `unparsed`, `ignored`, `auto`, `rejected`, `all`); an unknown status shows an error
-- **Approve** a pending message → the split-pane form is pre-filled; correcting name/amount/type/date/account/categories persists with the approval and creates the transaction
-- Missing fields are highlighted with an error summary; approve is blocked until name, amount, date and account are present
-- **Reject** marks the row `rejected` and creates nothing
-- Auto create happens only for an active learned template with complete extraction and a unique account match; ambiguous rows stay in review
-- Mail rules: create/update/delete with at least one condition; first match by position wins (`IGNORE` / `REVIEW` / `AUTO`)
-- The email body is parsed (headers and quoted history removed) and shown above the booking form; "Original message" reveals the raw source
-- No keyboard shortcut hints or global A/R/J/K handlers; the actions are the named buttons
-
 ## Settings (`/settings`, user popup)
 
-- User popup → Settings opens the tabbed settings page; tabs are Account, Appearance, Security, Inbox AI, Mailboxes, API keys
-- Tabs are URL-addressable (`/settings?tab=inbox`), arrow-key navigable, and keep their panel state while switching
+- User popup → Settings opens the tabbed settings page; tabs are Account, Appearance, Security, API keys
+- Tabs are URL-addressable (`/settings?tab=keys`), arrow-key navigable, and keep their panel state while switching
 - Account: profile shows current name/email and avatar initials; edit + save updates sidebar/popup; upload avatar works for PNG/JPG/WebP and rejects other files
 - Security: wrong current password shows an inline error; a valid change succeeds, signs out other sessions, and the session stays valid; sign out all asks for confirmation
-- Inbox AI: base URL/model/API key save and round-trip (key never shown, only “configured”); Test connection reports success/failure; advanced thresholds persist
-- Mailboxes: add/edit/poll/remove a mailbox; password is optional on edit; polling-off hides it from automatic checks
 
 ## Errors / console
 
@@ -167,8 +160,8 @@ Every run against the running backend before a release or after any backend/fron
 
 Run this for **every** page, popup/modal, dropdown, and component state, in **both** Light and Dark themes. Toggle via Settings → Appearance (persists; no reload needed). Every text/color introduced on the screen must pass WCAG AA (≥ 4.5:1 body/labels, ≥ 3:1 large text/UI):
 
-- **Every page:** Dashboard, Accounts, Transactions (embedded), Accounts Manage, Rules, Categories, Spending, Inbox, Settings, Login, Signup
-- **Every popup/modal:** Add/Edit Transaction, Add/Edit Account, Transfer modal, ConfirmDialog, Add/Edit Rule, Add/Edit Category, Filter popup, Add Mailbox, Add/Edit Mail Rule, user popup
+- **Every page:** Dashboard, Accounts, Transactions (embedded), Accounts Manage, Rules, Categories, Spending, Settings, Login, Signup
+- **Every popup/modal:** Add/Edit Transaction, Add/Edit Account, Transfer modal, ConfirmDialog, Add/Edit Rule, Add/Edit Category, Filter popup, user popup
 - **Every state on each screen:** normal, hover, focus, active, disabled, loading/spinner, empty state, and **error states** (inline error banners, red-bordered invalid inputs, toast/notice messages)
 - **Text classes:** `text-text`, `text-text-secondary`, `text-subtle`, `text-faint`, `text-muted` on both themes (regression: light-theme error messages previously rendered near-black on a light banner → failed AA)
 - **Colored text:** income/expense/p&l values (`text-income`/`text-expense`), category badges (all 16 `CATEGORY_PALETTE` colors), primary/error/success buttons and their text
@@ -211,4 +204,4 @@ Run this for **every** page, popup/modal, dropdown, and component state, in **bo
 ## Data hygiene
 
 - Demo data is back to baseline (3 accounts, 18 transactions, 5 rules, 9 categories) after testing
-- Any account/transaction/rule/category/mailbox created during testing is deleted before shipping
+- Any account/transaction/rule/category created during testing is deleted before shipping

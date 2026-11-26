@@ -81,6 +81,51 @@ func TestDashboardTotals(t *testing.T) {
 	}
 }
 
+func TestMonthTotalsUsesLocalDateBoundsAndExcludesTransfers(t *testing.T) {
+	env := setupFull(t)
+	defer env.cleanup()
+	withLoc(t, "UTC")
+
+	// One debit inside November, one credit inside November, one debit in
+	// October, and a transfer between two savings accounts that must not count.
+	if _, err := env.svc.Create(env.uid, []Request{
+		{ID: "m-d1", Name: "Food", Amount: 100, Type: "DEBIT", AccountID: env.acctA, OccurredAt: "2026-11-02 10:00:00 +0000 UTC"},
+		{ID: "m-c1", Name: "Salary", Amount: 1000, Type: "CREDIT", AccountID: env.acctA, OccurredAt: "2026-11-03 10:00:00 +0000 UTC"},
+		{ID: "m-oct", Name: "Old", Amount: 200, Type: "DEBIT", AccountID: env.acctA, OccurredAt: "2026-10-31 10:00:00 +0000 UTC"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	third, err := env.accounts.Create(env.uid, "SBI", "Second savings", "SAVINGS", "3333")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.txns.Create(env.uid, []repo.CreateTransactionInput{
+		{Txn: &repo.TransactionRow{ID: "m-td", Name: "Move", Amount: 50, Type: "DEBIT", AccountID: env.acctA, OccurredAt: "2026-11-04 10:00:00 +0000 UTC", CreatedAt: "2026-11-04 10:00:00 +0000 UTC"}},
+		{Txn: &repo.TransactionRow{ID: "m-tc", Name: "Move", Amount: 50, Type: "CREDIT", AccountID: third.ID, OccurredAt: "2026-11-04 10:00:00 +0000 UTC", CreatedAt: "2026-11-04 10:00:00 +0000 UTC"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.txns.CreateLinks(env.uid, [][2]string{{"m-td", "m-tc"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	nov, err := env.svc.MonthTotals(env.uid, "2026-11-01", "2026-11-30")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nov.Income != 1000 || nov.Expenses != 100 {
+		t.Fatalf("november = %+v, want income 1000 expenses 100", nov)
+	}
+
+	oct, err := env.svc.MonthTotals(env.uid, "2026-10-01", "2026-10-31")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oct.Expenses != 200 {
+		t.Fatalf("october expenses = %v, want 200", oct.Expenses)
+	}
+}
+
 func TestSpendingBucketsUseConfiguredTimezone(t *testing.T) {
 	env := setupFull(t)
 	defer env.cleanup()

@@ -26,7 +26,6 @@ Financer tracks accounts, transactions, transfers, spending, and rules (auto-cat
 - [Tech stack](#tech-stack)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
-- [Inbox (email → transactions)](#inbox-email--transactions)
 - [Data, backups & upgrades](#data-backups--upgrades)
 - [Reverse proxy & HTTPS](#reverse-proxy--https)
 - [API](#api)
@@ -45,27 +44,26 @@ Financer tracks accounts, transactions, transfers, spending, and rules (auto-cat
 - **Rules** — conditions (name/amount/type/category/account; contains/starts-with/ends-with/equals/gt/lt/regex; AND/OR) with outputs (rename, set category, transfer to account). Rules are applied **at write time** and snapshot the resolved name + category onto the transaction; the raw bank string is preserved.
 - **Spending analytics** — server-computed buckets (7D/1M/6M/1Y/custom, day or month granularity), per-category debit/credit pies with drill-down, and transfer exclusion (debt accounts count as real spending).
 - **Dashboard** — one summary endpoint: net worth, income, expenses, and account cards.
-- **Inbox** — link an IMAP mailbox (app password, encrypted at rest), poll it on a timer, and turn bank-statement mail into transactions: disposition rules send each sender to Ignore / Review / Auto, and the Inbox approves or rejects what needs a person.
 - **API keys + MCP** — per-user API keys (scoped read / read_write) and an MCP server at `/mcp` for external AI agents.
 
 All finance math (aggregation, filtering, transfer resolution) lives in the backend; the frontend renders server-computed results.
 
 ## Tech stack
 
-| Layer | Stack |
-|---|---|
-| Backend | Go (Gin) — JWT (`golang-jwt`), OpenAPI at `/docs` + `/openapi.json`, MCP at `/mcp` |
-| Storage | **SQLite** (`glebarez/sqlite`, pure Go; migrations in `db/migrations/`) |
-| Frontend | Vue 3 + Vite + TypeScript |
-| Styling | Tailwind CSS v4 + daisyUI v5 (dark `financer` theme), `@lucide/vue` icons |
-| Packaging | Single container — Go binary serves API **and** built SPA |
+| Layer     | Stack                                                                              |
+| --------- | ---------------------------------------------------------------------------------- |
+| Backend   | Go (Gin) — JWT (`golang-jwt`), OpenAPI at `/docs` + `/openapi.json`, MCP at `/mcp` |
+| Storage   | **SQLite** (`glebarez/sqlite`, pure Go; migrations in `db/migrations/`)            |
+| Frontend  | Vue 3 + Vite + TypeScript                                                          |
+| Styling   | Tailwind CSS v4 + daisyUI v5 (dark `financer` theme), `@lucide/vue` icons          |
+| Packaging | Single container — Go binary serves API **and** built SPA                          |
 
 ## Quick start
 
 The image is published to GitHub Container Registry for `linux/arm64`:
 
-| Tag | Storage |
-|---|---|
+| Tag                                      | Storage    |
+| ---------------------------------------- | ---------- |
 | `ghcr.io/manmohangurram/financer:latest` | **SQLite** |
 
 [`docker-compose.yml`](docker-compose.yml) runs it as a single container.
@@ -77,7 +75,6 @@ docker compose up -d
 ```
 
 Copy [`.env.example`](.env.example) to `.env` to set the port, data directory, image tag and timezone:
-
 
 ```bash
 cp .env.example .env
@@ -106,26 +103,25 @@ If the GHCR package is private, authenticate with a **classic PAT** that has the
 echo $CR_PAT | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
 
-Alternatively, make only the package public (GitHub → your profile → *Packages* → *financer* → *Package settings* → *Change visibility*) while keeping the repo private.
+Alternatively, make only the package public (GitHub → your profile → _Packages_ → _financer_ → _Package settings_ → _Change visibility_) while keeping the repo private.
 
 ## Configuration
 
 Configuration is **entirely environment variables** — there is no config file. Every setting has a built-in default except `FINANCER_JWT_SECRET`, which is required. Blank/unset vars keep the default.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `FINANCER_JWT_SECRET` | **required** | Token signing secret (e.g. `openssl rand -hex 32`) |
-| `FINANCER_ADDR` | `0.0.0.0:8080` | Listen address |
-| `FINANCER_DATA_DIR` | `/data` | Runtime data root |
-| `FINANCER_STATIC_DIR` | `frontend/dist` | Built SPA location (the image sets `/app/frontend/dist`) |
-| `FINANCER_DOMAIN_URL` | *(empty)* | External URL, if the SPA is served from a different origin |
-| `FINANCER_TIMEZONE` | `Asia/Kolkata` | IANA timezone for day/month bucketing and date ranges |
-| `FINANCER_SQLITE_PATH` | `/data/financer.db` | SQLite file (WAL mode is enabled at boot) |
-| `FINANCER_SECRET_KEY` | *(unset)* | 32-byte hex key (64 chars) encrypting mailbox passwords; the mail feature needs it |
-| `FINANCER_MAIL_POLL_SECS` | `300` | How often the background poll runs (minimum 30) |
-| `FINANCER_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
-| `FINANCER_LOG_FILE` | *(empty)* | Append logs to this file instead of stderr; rotates at 10 MB and keeps at most 3 files (older ones are deleted) |
-| `FINANCER_ALLOW_INSECURE_HTTP` | `false` | `1`/`true`/`yes` only behind a TLS-terminating proxy; otherwise credential endpoints require HTTPS (loopback exempt) |
+| Variable                       | Default             | Purpose                                                                                                              |
+| ------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `FINANCER_JWT_SECRET`          | **required**        | Token signing secret (e.g. `openssl rand -hex 32`)                                                                   |
+| `FINANCER_ADDR`                | `0.0.0.0:8080`      | Listen address                                                                                                       |
+| `FINANCER_DATA_DIR`            | `/data`             | Runtime data root                                                                                                    |
+| `FINANCER_STATIC_DIR`          | `frontend/dist`     | Built SPA location (the image sets `/app/frontend/dist`)                                                             |
+| `FINANCER_DOMAIN_URL`          | _(empty)_           | External URL, if the SPA is served from a different origin                                                           |
+| `FINANCER_TIMEZONE`            | `Asia/Kolkata`      | IANA timezone for day/month bucketing and date ranges                                                                |
+| `FINANCER_SQLITE_PATH`         | `/data/financer.db` | SQLite file (WAL mode is enabled at boot)                                                                            |
+| `FINANCER_MAIL_POLL_SECS`      | `300`               | How often the background poll runs (minimum 30)                                                                      |
+| `FINANCER_LOG_LEVEL`           | `info`              | `debug` / `info` / `warn` / `error`                                                                                  |
+| `FINANCER_LOG_FILE`            | _(empty)_           | Append logs to this file instead of stderr; rotates at 10 MB and keeps at most 3 files (older ones are deleted)      |
+| `FINANCER_ALLOW_INSECURE_HTTP` | `false`             | `1`/`true`/`yes` only behind a TLS-terminating proxy; otherwise credential endpoints require HTTPS (loopback exempt) |
 
 **Frontend API base:** in the container the frontend is built same-origin, so it talks to the API on whatever host serves the page. For local dev set `VITE_API_URL` (see [`frontend/.env.example`](frontend/.env.example)).
 
@@ -133,46 +129,14 @@ Configuration is **entirely environment variables** — there is no config file.
 
 **SQLite** — zero-dependency, single file at `/data/financer.db`. Migrations in `db/migrations/` run automatically at boot.
 
-## Inbox (email → transactions)
-
-The server reads bank-statement mail over IMAP and turns it into transactions.
-
-1. Generate the credential key once — it encrypts the stored mailbox passwords and is **not** the JWT secret:
-
-   ```bash
-   openssl rand -hex 32     # -> FINANCER_SECRET_KEY, 64 hex characters
-   ```
-
-   Without it the mailbox endpoints refuse to store credentials (`FINANCER_SECRET_KEY is not set`).
-2. In the app: **Inbox → Add mailbox** — IMAP host, port, username and an app password.
-   - **Port 993 only** (implicit TLS). STARTTLS on 143 is not supported yet and is rejected with a clear message.
-   - Use an **app password** from the provider, not the account password.
-   - No sender allowlist: every recent mail is scanned and your **mail rules** decide what is ignored, reviewed or auto-created.
-   - Private/LAN hosts are allowed, cloud metadata addresses are not.
-   - Mailboxes can be edited (host, username, password, polling on/off) or removed later.
-3. In **Settings → Inbox AI**, configure any OpenAI-compatible endpoint (base URL, model, API key — LiteLLM, DeepSeek, OpenAI, Ollama) and the template thresholds. Emails are parsed by stored regex templates; when parsing fails, Financer asks the model to **generate a template** from up to 3 samples — the model is not called per email.
-4. Polling runs in the background every `FINANCER_MAIL_POLL_SECS` (default 300s, minimum 30), and asynchronously on login and when the Inbox opens (throttled, default 5 minutes). “Poll now” forces it.
-5. Disposition rules decide what happens to each parsed match, first rule wins:
-
-   | Disposition | Effect |
-   |---|---|
-   | `AUTO` | Creates the transaction only when the template is active, extraction is complete, and one account matches the last 4 digits |
-   | `REVIEW` | The row waits in the Inbox for approve / reject |
-   | `IGNORE` | Seen, never surfaced |
-
-   Provisional templates, ambiguous accounts, missing fields and regex/LLM disagreements land in `PENDING`/`UNPARSED` rather than guessing.
-6. Approving creates the transaction through the normal service path; you can correct name, amount, type, date, account and categories first, and the corrected values are kept as evidence for future template repair.
-
-**These routes require HTTPS** (loopback exempt): the mailbox password travels in the request body. Behind a reverse proxy, forward `X-Forwarded-Proto: https` — see [Reverse proxy & HTTPS](#reverse-proxy--https).
-
 ## Data, backups & upgrades
 
 Everything persists under the mounted `/data` volume:
 
-| Path | Contents |
-|---|---|
-| `/data/financer.db` (+ `-wal`, `-shm`) | SQLite database |
-| `/data/avatars/` | Uploaded profile pictures |
+| Path                                   | Contents                  |
+| -------------------------------------- | ------------------------- |
+| `/data/financer.db` (+ `-wal`, `-shm`) | SQLite database           |
+| `/data/avatars/`                       | Uploaded profile pictures |
 
 ### Backup
 
@@ -222,6 +186,7 @@ financer.example.com {
     reverse_proxy 127.0.0.1:8080
 }
 ```
+
 </details>
 
 <details>
@@ -243,6 +208,7 @@ server {
     }
 }
 ```
+
 </details>
 
 ## API
@@ -259,7 +225,7 @@ Manage personal API keys (for the MCP server and other clients) at `GET/POST /ap
 
 Statement import is **not supported**: the Go backend exposes no CSV/XLSX/PDF
 import routes, and the app has no import UI. Add transactions manually, via the
-API, or from bank-alert mail (see the inbox).
+API, or by importing a bank statement.
 
 ## MCP server
 
@@ -280,7 +246,7 @@ Authenticate with a per-user API key (created in **Settings → API keys**):
 
 Tools include `list_accounts`, `list_transactions`, `get_balance_summary`, `list_categories`, `list_rules`, `preview_rule`, plus write tools when the key has `read_write` scope.
 
-Mail is covered too: `list_mailboxes`, `list_mail_messages` (filter by `status`, `search`, account),
+Every tool is scoped to the API key's owner:
 `get_mail_message`, `act_on_mail` (bulk approve/reject), `reject_all_mail` (filtered, requires
 `"confirm": true`, max 200), `delete_mail_messages` (ids, or everything with `all` + `confirm`),
 and `list_mail_rules` / `create_mail_rule` / `update_mail_rule` / `delete_mail_rule` — including
@@ -337,8 +303,7 @@ internal/
   repo/                     # repo interfaces + row types
     sqlite/                 # SQLite implementations
   authservice/ userservice/ accountservice/ categoryservice/
-  transactionservice/ transferservice/ ruleservice/ mailservice/ keyservice/
-  mail/                     # IMAP source, alert extractor, credential crypto
+  transactionservice/ transferservice/ ruleservice/ keyservice/
   mcp/                      # MCP tool handlers
   openapi/                  # /openapi.json spec
   server/                   # Gin router, handlers, middleware

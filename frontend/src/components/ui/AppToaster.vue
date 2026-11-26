@@ -7,7 +7,11 @@ onBeforeUnmount(dismiss);
 </script>
 
 <template>
-  <div class="pointer-events-none fixed bottom-4 right-4 z-[80] flex flex-col gap-2" aria-live="polite" aria-atomic="true">
+  <div
+    class="pointer-events-none fixed bottom-4 right-4 z-[80] flex flex-col gap-2"
+    aria-live="polite"
+    aria-atomic="true"
+  >
     <div
       v-for="t in toasts"
       :key="t.id"
@@ -19,11 +23,19 @@ onBeforeUnmount(dismiss);
         v-if="t.action"
         type="button"
         class="text-[12px] font-medium text-accent hover:text-accent-hover"
-        @click="t.action.run(); dismiss()"
+        @click="
+          t.action.run();
+          dismiss();
+        "
       >
         {{ t.action.label }}
       </button>
-      <button type="button" class="text-ink-faint transition-colors hover:text-ink" aria-label="Dismiss" @click="dismiss()">
+      <button
+        type="button"
+        class="text-ink-faint transition-colors hover:text-ink"
+        aria-label="Dismiss"
+        @click="dismiss()"
+      >
         <X class="h-[14px] w-[14px]" stroke-width="1.8" />
       </button>
     </div>

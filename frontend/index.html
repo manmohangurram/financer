@@ -3,14 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Financer — a personal finance tracker for accounts, transactions, investments, and spending." />
+    <meta
+      name="description"
+      content="Financer — a personal finance tracker for accounts, transactions, investments, and spending."
+    />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Financer</title>
     <script>
       // Apply the persisted theme before the bundle loads to avoid a flash.
-      // Light (paper) is the default; 'system' follows the OS preference.
+      // Nocturne is dark-first; 'system' follows the OS preference.
       (function () {
-        var t = localStorage.getItem('financer-theme') || 'light';
+        var t = localStorage.getItem('financer-theme') || 'dark';
         if (t === 'system') {
           t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }

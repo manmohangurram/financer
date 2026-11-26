@@ -16,7 +16,13 @@ const props = withDefaults(
     rows?: number;
     id?: string;
   }>(),
-  { type: 'text', disabled: false, readonly: false, multiline: false, rows: 3 }
+  {
+    type: 'text',
+    disabled: false,
+    readonly: false,
+    multiline: false,
+    rows: 3
+  }
 );
 
 const model = defineModel<string | number>({ default: '' });
@@ -32,9 +38,7 @@ const describedBy = computed(() => {
 const classes = computed(() => [
   'w-full rounded-control border bg-page-sunk px-3 text-[14px] text-ink placeholder:text-ink-faint',
   'transition-colors focus:outline-none',
-  props.error
-    ? 'border-debit focus:border-debit'
-    : 'border-rule focus:border-accent focus:ring-2 focus:ring-accent/20',
+  props.error ? 'border-debit focus:border-debit' : 'border-rule focus:border-accent focus:ring-2 focus:ring-accent/20',
   props.readonly ? 'border-rule-soft bg-transparent' : '',
   'disabled:cursor-not-allowed disabled:opacity-60'
 ]);
@@ -42,7 +46,7 @@ const classes = computed(() => [
 
 <template>
   <div class="flex flex-col gap-1.5">
-    <label v-if="label" :for="fieldId" class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
+    <label v-if="label" :for="fieldId" class="text-label font-medium uppercase tracking-[0.1em] text-ink-mute">
       {{ label }}
     </label>
 
@@ -54,7 +58,7 @@ const classes = computed(() => [
       :placeholder="placeholder"
       :disabled="disabled"
       :readonly="readonly"
-      :class="[...classes, 'py-2 leading-normal']"
+      :class="['textarea', ...classes, 'py-2 leading-normal']"
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="describedBy"
     ></textarea>
@@ -68,12 +72,16 @@ const classes = computed(() => [
       :autocomplete="autocomplete"
       :disabled="disabled"
       :readonly="readonly"
-      :class="[...classes, 'h-[38px]']"
+      :class="['input', ...classes, 'h-[38px]']"
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="describedBy"
     />
 
-    <p v-if="error" :id="`${fieldId}-error`" class="text-[12px] text-debit">{{ error }}</p>
-    <p v-else-if="hint" :id="`${fieldId}-hint`" class="text-[12px] text-ink-mute">{{ hint }}</p>
+    <p v-if="error" :id="`${fieldId}-error`" class="text-[12px] text-debit">
+      {{ error }}
+    </p>
+    <p v-else-if="hint" :id="`${fieldId}-hint`" class="text-[12px] text-ink-mute">
+      {{ hint }}
+    </p>
   </div>
 </template>

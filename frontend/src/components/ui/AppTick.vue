@@ -28,7 +28,16 @@ const tone = computed(
     @click="emit('click', $event)"
   >
     <svg viewBox="0 0 20 20" class="h-[18px] w-[18px]" aria-hidden="true">
-      <circle v-if="state === 'idle'" cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2" />
+      <circle
+        v-if="state === 'idle'"
+        cx="10"
+        cy="10"
+        r="6.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-dasharray="2 2"
+      />
       <polyline
         v-else-if="state === 'done'"
         points="4,10.5 8,14.5 16,5.5"

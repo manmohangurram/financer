@@ -22,7 +22,9 @@ const rows = computed(() =>
   </div>
 
   <div v-else class="flex flex-col">
-    <div class="flex items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
+    <div
+      class="flex items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.1em] text-ink-mute"
+    >
       <span class="flex-1">Category</span>
       <span class="w-[160px] text-right">Monthly budget</span>
     </div>
@@ -35,7 +37,7 @@ const rows = computed(() =>
       @click="emit('edit', row)"
     >
       <span class="min-w-0 flex-1 truncate text-[13px] text-ink">{{ row.name }}</span>
-      <span class="tabular w-[160px] text-right text-[13px]" :class="row.budget > 0 ? 'text-ink' : 'text-ink-faint'">
+      <span class="num w-[160px] text-right text-[13px]" :class="row.budget > 0 ? 'text-ink' : 'text-ink-faint'">
         {{ row.budget > 0 ? formatCurrency(row.budget) : 'No budget' }}
       </span>
     </button>

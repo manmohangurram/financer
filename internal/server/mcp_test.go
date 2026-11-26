@@ -18,8 +18,6 @@ import (
 	"github.com/mohan9182/financer/internal/categoryservice"
 	"github.com/mohan9182/financer/internal/db"
 	"github.com/mohan9182/financer/internal/keyservice"
-	"github.com/mohan9182/financer/internal/mailservice"
-	"github.com/mohan9182/financer/internal/repo"
 	"github.com/mohan9182/financer/internal/repo/sqlite"
 	"github.com/mohan9182/financer/internal/ruleservice"
 	"github.com/mohan9182/financer/internal/transactionservice"
@@ -28,12 +26,11 @@ import (
 )
 
 type testServer struct {
-	api      *API
-	keySvc   *keyservice.Service
-	mailRepo repo.MailRepo
-	uid      string
-	url      string
-	close    func()
+	api    *API
+	keySvc *keyservice.Service
+	uid    string
+	url    string
+	close  func()
 }
 
 func newTestServer(t *testing.T) *testServer {
@@ -47,7 +44,6 @@ func newTestServer(t *testing.T) *testServer {
 	categories := sqlite.NewCategoryRepo(dbs.Write)
 	txns := sqlite.NewTransactionRepo(dbs.Write)
 	rules := sqlite.NewRuleRepo(dbs.Write)
-	mails := sqlite.NewMailRepo(dbs.Write)
 	keys := sqlite.NewUserKeyRepo(dbs.Write)
 
 	uid, err := users.Create("mcp@test.com", "hash", "MCP")
@@ -68,18 +64,17 @@ func newTestServer(t *testing.T) *testServer {
 	transferRuleSvc := ruleservice.NewTransferRuleService(rules, txns, accounts, transferSvc)
 	txnSvc := transactionservice.New(txns, accounts, categories).WithRule(ruleSvc).WithTransferRule(transferRuleSvc)
 	keySvc := keyservice.New(keys)
-	mailSvc := mailservice.New(mails, nil, txnSvc, accountSvc, nil)
 
 	api := New(Deps{
 		Auth: authSvc, User: userSvc, Account: accountSvc, Category: categorySvc,
 		Transaction: txnSvc, Transfer: transferSvc, Rule: ruleSvc,
-		TransferRule: transferRuleSvc, Mail: mailSvc, Keys: keySvc,
+		TransferRule: transferRuleSvc, Keys: keySvc,
 		JWTSecret: "secret", StaticDir: t.TempDir(), AvatarDir: t.TempDir(),
 		AllowInsecure: true,
 	})
 	srv := httptest.NewServer(api.Handler())
 	return &testServer{
-		api: api, keySvc: keySvc, mailRepo: mails, uid: uid, url: srv.URL,
+		api: api, keySvc: keySvc, uid: uid, url: srv.URL,
 		close: func() {
 			srv.Close()
 			dbs.Write.Close()
@@ -266,7 +261,7 @@ func TestOpenAPISpecAndDocs(t *testing.T) {
 	paths := spec["paths"].(map[string]any)
 	for _, want := range []string{
 		"/api/auth/signup", "/api/transactions", "/api/rules", "/api/dashboard",
-		"/api/spending", "/api/me/keys", "/api/mail/accounts",
+		"/api/spending", "/api/me/keys",
 	} {
 		if _, ok := paths[want]; !ok {
 			t.Errorf("spec missing path %s", want)

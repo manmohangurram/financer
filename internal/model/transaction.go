@@ -68,12 +68,55 @@ type WireTxnPreview struct {
 	OccurredAt  string   `json:"occurredAt"`
 }
 
-// WireDashboard is the GET /api/dashboard response.
+// WireDashboard is the GET /api/dashboard response: the account position plus
+// the current month at a glance.
 type WireDashboard struct {
 	TotalBalance  float64            `json:"totalBalance"`
 	TotalIncome   float64            `json:"totalIncome"`
 	TotalExpenses float64            `json:"totalExpenses"`
+	Cash          float64            `json:"cash"`
+	Savings       float64            `json:"savings"`
+	Debt          float64            `json:"debt"`
 	Accounts      []*AccountResponse `json:"accounts"`
+	Month         WireDashboardMonth `json:"month"`
+	Recent        []WireTxn          `json:"recent"`
+	RecentTotal   float64            `json:"recentTotal"`
+}
+
+// WireDashboardMonth is the current calendar month, rendered server-side.
+type WireDashboardMonth struct {
+	Label            string                    `json:"label"`
+	From             string                    `json:"from"`
+	To               string                    `json:"to"`
+	DaysLeft         int                       `json:"daysLeft"`
+	Income           float64                   `json:"income"`
+	Expenses         float64                   `json:"expenses"`
+	Net              float64                   `json:"net"`
+	AveragePerDay    float64                   `json:"averagePerDay"`
+	PreviousLabel    string                    `json:"previousLabel"`
+	PreviousExpenses float64                   `json:"previousExpenses"`
+	ExpenseChangePct float64                   `json:"expenseChangePct"`
+	TopCategory      *WireDashboardTopCategory `json:"topCategory,omitempty"`
+	PeakBucket       *WireSpendingBucket       `json:"peakBucket,omitempty"`
+	Budget           WireDashboardBudget       `json:"budget"`
+	Buckets          []WireSpendingBucket      `json:"buckets"`
+}
+
+// WireDashboardBudget is the overall plan for the month.
+type WireDashboardBudget struct {
+	Planned    float64 `json:"planned"`
+	Spent      float64 `json:"spent"`
+	Left       float64 `json:"left"`
+	Used       float64 `json:"used"`
+	HasBudgets bool    `json:"hasBudgets"`
+	OverCount  int     `json:"overCount"`
+}
+
+// WireDashboardTopCategory is the largest debit category in the month.
+type WireDashboardTopCategory struct {
+	Name   string  `json:"name"`
+	Amount float64 `json:"amount"`
+	Share  float64 `json:"share"`
 }
 
 // WireSpendingBucket is one day/month spending bucket.

@@ -10,10 +10,17 @@ const props = defineProps<{ accounts: any[]; categories: any[]; defaultAccountId
 const emit = defineEmits<{ (e: 'close'): void; (e: 'imported'): void }>();
 
 const txnForm = ref<{
-  name: string; amount: number; type: 'DEBIT' | 'CREDIT';
-  accountId: string; occurredAt: string; categoryIds: string[]; refNo: string;
+  name: string;
+  amount: number;
+  type: 'DEBIT' | 'CREDIT';
+  accountId: string;
+  occurredAt: string;
+  categoryIds: string[];
+  refNo: string;
 }>({
-  name: '', amount: 0, type: 'DEBIT',
+  name: '',
+  amount: 0,
+  type: 'DEBIT',
   accountId: props.defaultAccountId,
   occurredAt: toLocalDateString(new Date()),
   categoryIds: [],
@@ -70,7 +77,11 @@ async function submitManual(force = false) {
     <div class="px-5 py-4">
       <form class="flex flex-col gap-4" @submit.prevent="submitManual()">
         <TransactionForm v-model="txnForm" :accounts="accounts" :categories="categories" />
-        <div v-if="duplicateWarning" role="alert" class="flex flex-col gap-2 rounded-control border border-stamp/40 bg-stamp/5 px-3 py-2.5">
+        <div
+          v-if="duplicateWarning"
+          role="alert"
+          class="flex flex-col gap-2 rounded-control border border-stamp/40 bg-stamp/5 px-3 py-2.5"
+        >
           <p class="m-0 text-[12.5px] text-ink">
             A transaction with this account, date, type and amount already exists.
           </p>

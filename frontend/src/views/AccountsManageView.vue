@@ -8,7 +8,7 @@ import AppStamp from '@/components/ui/AppStamp.vue';
 import AccountFormModal from '@/components/accounts/AccountFormModal.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { accounts } from '@/lib/api/client';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatAmount } from '@/lib/utils/format';
 import { isCredit, accountTypeIcon } from '@/lib/utils/accountType';
 import { Plus, Pencil, Trash2 } from '@lucide/vue';
 
@@ -26,13 +26,25 @@ async function loadAll() {
   try {
     const resp = await accounts().listAccounts({});
     accountList.value = resp.accounts || [];
-  } catch (e: any) { error.value = e?.message || 'Failed to load accounts'; }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to load accounts';
+  }
   loading.value = false;
 }
 
-const TYPE_LABELS: Record<string, string> = { CURRENT: 'current', SAVINGS: 'savings', LOAN: 'loan', CREDIT_CARD: 'card' };
+const TYPE_LABELS: Record<string, string> = {
+  CURRENT: 'current',
+  SAVINGS: 'savings',
+  LOAN: 'loan',
+  CREDIT_CARD: 'card'
+};
 function typeLabel(type: string): string {
-  return TYPE_LABELS[type] ?? String(type || '').replace(/_/g, ' ').toLowerCase();
+  return (
+    TYPE_LABELS[type] ??
+    String(type || '')
+      .replace(/_/g, ' ')
+      .toLowerCase()
+  );
 }
 
 function openCreateAccount() {
@@ -43,14 +55,18 @@ function openEditAccount(acc: any) {
   editingAccount.value = acc;
   showModal.value = true;
 }
-function requestDeleteAccount(acc: any) { confirmDelete.value = acc; }
+function requestDeleteAccount(acc: any) {
+  confirmDelete.value = acc;
+}
 async function confirmDeleteNow() {
   if (!confirmDelete.value) return;
   error.value = '';
   try {
     await accounts().deleteAccount({ id: confirmDelete.value.id });
     await loadAll();
-  } catch (e: any) { error.value = e?.message || 'Failed to delete account'; }
+  } catch (e: any) {
+    error.value = e?.message || 'Failed to delete account';
+  }
   confirmDelete.value = null;
 }
 
@@ -68,10 +84,14 @@ onMounted(loadAll);
       </template>
     </SectionHeader>
 
-    <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">{{ error }}</div>
+    <div v-if="error" class="rounded-card border border-debit/40 px-4 py-2.5 text-[13px] text-debit">
+      {{ error }}
+    </div>
 
     <AppFolio v-if="!loading && accountList.length" flush>
-      <div class="flex items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
+      <div
+        class="flex items-center gap-3 border-b border-rule px-4 py-2.5 text-label font-medium uppercase tracking-[0.1em] text-ink-mute"
+      >
         <span class="w-7"></span>
         <span class="flex-1">Account</span>
         <span class="w-[120px]">Type</span>
@@ -84,17 +104,23 @@ onMounted(loadAll);
         :key="acc.id"
         class="group flex items-center gap-3 border-b border-rule-soft px-4 py-[9px] last:border-0 hover:bg-page-sunk/60"
       >
-        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-rule bg-page-sunk text-ink-soft">
+        <span
+          class="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-rule bg-page-sunk text-ink-soft"
+        >
           <component :is="accountTypeIcon(acc.type)" class="h-[15px] w-[15px]" stroke-width="1.7" />
         </span>
         <span class="min-w-0 flex-1">
           <span class="block truncate text-[13px] text-ink">{{ acc.nickname || acc.bankName }}</span>
           <span class="block truncate text-[11px] text-ink-mute">{{ acc.bankName }}</span>
         </span>
-        <span class="w-[120px]"><AppStamp :tone="isCredit(acc.type) ? 'debit' : 'neutral'">{{ typeLabel(acc.type) }}</AppStamp></span>
-        <span class="tabular w-[74px] text-[12px] text-ink-soft">{{ acc.endingNumbers ? '···' + acc.endingNumbers : '—' }}</span>
-        <span class="tabular w-[110px] text-right text-[13px] font-medium" :class="isCredit(acc.type) ? 'text-debit' : 'text-ink'">
-          {{ isCredit(acc.type) ? '−' : '' }}{{ formatCurrency(Math.abs(acc.balance ?? 0)) }}
+        <span class="w-[120px]"
+          ><AppStamp :tone="isCredit(acc.type) ? 'debit' : 'neutral'">{{ typeLabel(acc.type) }}</AppStamp></span
+        >
+        <span class="num w-[74px] text-[11.5px] text-ink-soft">{{
+          acc.endingNumbers ? '···' + acc.endingNumbers : '—'
+        }}</span>
+        <span class="num w-[110px] text-right text-[13px]" :class="isCredit(acc.type) ? 'text-debit' : 'text-ink'">
+          {{ isCredit(acc.type) ? '−' : '' }}{{ formatAmount(Math.abs(acc.balance ?? 0)) }}
         </span>
         <span class="flex w-[64px] shrink-0 justify-end gap-0.5 text-ink-mute">
           <AppButton variant="icon" size="sm" label="Edit account" @click="openEditAccount(acc)">
@@ -112,17 +138,14 @@ onMounted(loadAll);
       </div>
     </AppFolio>
     <AppFolio v-else flush>
-      <div class="px-4 py-8"><AppEmpty title="No accounts yet." hint="Add one to start booking entries.">
-        <template #action><AppButton size="sm" @click="openCreateAccount">Add account</AppButton></template>
-      </AppEmpty></div>
+      <div class="px-4 py-8">
+        <AppEmpty title="No accounts yet." hint="Add one to start booking entries.">
+          <template #action><AppButton size="sm" @click="openCreateAccount">Add account</AppButton></template>
+        </AppEmpty>
+      </div>
     </AppFolio>
 
-    <AccountFormModal
-      v-if="showModal"
-      :account="editingAccount"
-      @close="showModal = false"
-      @saved="loadAll"
-    />
+    <AccountFormModal v-if="showModal" :account="editingAccount" @close="showModal = false" @saved="loadAll" />
 
     <ConfirmDialog
       v-if="confirmDelete"

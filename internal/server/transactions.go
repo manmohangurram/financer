@@ -121,8 +121,20 @@ func (a *API) listTransactions(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	items := make([]model.WireTxn, 0, len(res.Rows))
-	for _, row := range res.Rows {
+	items := wireTransactions(res.Rows)
+	c.JSON(http.StatusOK, model.WireTxnList{
+		Transactions:  items,
+		NextPageToken: res.NextPageToken,
+		TotalCount:    res.TotalCount,
+	})
+}
+
+// wireTransactions converts repository rows to the public transaction shape.
+// The dashboard's recent list and GET /api/transactions share it so clean
+// names, transfer links and category links render identically.
+func wireTransactions(rows []repo.ListRow) []model.WireTxn {
+	items := make([]model.WireTxn, 0, len(rows))
+	for _, row := range rows {
 		name := row.Txn.Name
 		if row.Txn.CleanName != nil {
 			name = *row.Txn.CleanName
@@ -145,11 +157,7 @@ func (a *API) listTransactions(c *gin.Context) {
 			RefNo:            row.Txn.RefNo,
 		})
 	}
-	c.JSON(http.StatusOK, model.WireTxnList{
-		Transactions:  items,
-		NextPageToken: res.NextPageToken,
-		TotalCount:    res.TotalCount,
-	})
+	return items
 }
 
 func (a *API) checkDuplicateTransactions(c *gin.Context) {

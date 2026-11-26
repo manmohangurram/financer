@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { emptyFilters, hasActiveFilters, buildFilterBubbles, removeFilterBubble, type TransactionFilters } from '@/lib/utils/transactionFilters';
+import {
+  emptyFilters,
+  hasActiveFilters,
+  buildFilterBubbles,
+  removeFilterBubble,
+  type TransactionFilters
+} from '@/lib/utils/transactionFilters';
 
 describe('transactionFilters', () => {
   it('emptyFilters defaults names to an empty array and type to empty', () => {

@@ -24,8 +24,6 @@ import (
 	"github.com/mohan9182/financer/internal/categoryservice"
 	"github.com/mohan9182/financer/internal/errors"
 	"github.com/mohan9182/financer/internal/keyservice"
-	"github.com/mohan9182/financer/internal/llmsettings"
-	"github.com/mohan9182/financer/internal/mailservice"
 	mcpserver "github.com/mohan9182/financer/internal/mcp"
 	"github.com/mohan9182/financer/internal/model"
 	"github.com/mohan9182/financer/internal/repo"
@@ -47,9 +45,7 @@ type Deps struct {
 	Transfer      *transferservice.Service
 	Rule          *ruleservice.Service
 	TransferRule  *ruleservice.TransferRuleService
-	Mail          *mailservice.Service
 	Keys          *keyservice.Service
-	LLM           *llmsettings.Service
 	JWTSecret     string
 	StaticDir     string
 	AvatarDir     string
@@ -66,9 +62,7 @@ type API struct {
 	transferSvc   *transferservice.Service
 	ruleSvc       *ruleservice.Service
 	transferRule  *ruleservice.TransferRuleService
-	mailSvc       *mailservice.Service
 	keySvc        *keyservice.Service
-	llmSvc        *llmsettings.Service
 	mcpServices   mcpserver.Services
 	jwtSecret     string
 	staticDir     string
@@ -87,9 +81,7 @@ func New(d Deps) *API {
 		transferSvc:  d.Transfer,
 		ruleSvc:      d.Rule,
 		transferRule: d.TransferRule,
-		mailSvc:      d.Mail,
 		keySvc:       d.Keys,
-		llmSvc:       d.LLM,
 		mcpServices: mcpserver.Services{
 			Accounts:      d.Account,
 			Transactions:  d.Transaction,
@@ -97,7 +89,6 @@ func New(d Deps) *API {
 			Rules:         d.Rule,
 			Transfers:     d.Transfer,
 			TransferRules: d.TransferRule,
-			Mail:          d.Mail,
 		},
 		jwtSecret:     d.JWTSecret,
 		staticDir:     d.StaticDir,
@@ -135,10 +126,6 @@ func (a *API) Handler() *gin.Engine {
 		api.POST("/me/keys", a.createKey)
 		api.DELETE("/me/keys/:id", a.deleteKey)
 
-		api.GET("/me/llm", a.getLLMSettings)
-		api.PUT("/me/llm", a.updateLLMSettings)
-		api.POST("/me/llm/test", a.testLLMSettings)
-
 		api.GET("/accounts", a.listAccounts)
 		api.POST("/accounts", a.createAccount)
 		api.PUT("/accounts/:id", a.updateAccount)
@@ -169,28 +156,6 @@ func (a *API) Handler() *gin.Engine {
 
 		api.GET("/dashboard", a.dashboard)
 		api.GET("/spending", a.spending)
-
-		mail := api.Group("/mail", a.requireHTTPS())
-		{
-			mail.GET("/accounts", a.listMailAccounts)
-			mail.POST("/accounts", a.createMailAccount)
-			mail.DELETE("/accounts/:id", a.deleteMailAccount)
-			mail.PUT("/accounts/:id", a.updateMailAccount)
-			mail.POST("/accounts/:id/poll", a.pollMailAccount)
-			mail.POST("/poll", a.pollMailUser)
-			mail.POST("/poll/full", a.pollMailFull)
-			mail.POST("/ai-parse", a.startAIParse)
-			mail.GET("/ai-parse", a.getAIParseStatus)
-			mail.GET("/messages", a.listMailMessages)
-			mail.GET("/messages/:id", a.getMailMessage)
-			mail.POST("/messages", a.mailAct)
-			mail.DELETE("/messages", a.deleteMailMessages)
-			mail.GET("/rules", a.listMailRules)
-			mail.POST("/rules", a.createMailRule)
-			mail.PUT("/rules/:id", a.updateMailRule)
-			mail.DELETE("/rules/:id", a.deleteMailRule)
-			mail.POST("/templates/validate", a.validateMailTemplate)
-		}
 	}
 
 	// Avatars are served without auth (mirrors Rust).
@@ -359,8 +324,6 @@ func (a *API) authLogin(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	// Freshness on login; never blocks the response.
-	a.mailSvc.PollUserAsync(out.UserID, false)
 	c.JSON(http.StatusOK, out)
 }
 

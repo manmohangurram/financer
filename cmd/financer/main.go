@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	stdtime "time"
 
 	"github.com/mohan9182/financer/internal/accountservice"
 	"github.com/mohan9182/financer/internal/auth"
@@ -14,9 +13,7 @@ import (
 	"github.com/mohan9182/financer/internal/config"
 	"github.com/mohan9182/financer/internal/db"
 	"github.com/mohan9182/financer/internal/keyservice"
-	"github.com/mohan9182/financer/internal/llmsettings"
 	"github.com/mohan9182/financer/internal/logging"
-	"github.com/mohan9182/financer/internal/mailservice"
 	"github.com/mohan9182/financer/internal/repo/sqlite"
 	"github.com/mohan9182/financer/internal/ruleservice"
 	"github.com/mohan9182/financer/internal/server"
@@ -57,8 +54,6 @@ func main() {
 		"static_dir", cfg.Server.StaticDir,
 		"sqlite_path", cfg.Storage.SQLite.Path,
 		"timezone", time.Loc.String(),
-		"mail_poll_secs", cfg.Server.MailPollSecs,
-		"secret_key_set", cfg.Server.SecretKey != nil,
 		"allow_insecure_http", cfg.Server.AllowInsecureHTTP,
 		"log_level", cfg.Server.LogLevel,
 		"log_file", cfg.Server.LogFile,
@@ -88,10 +83,7 @@ func main() {
 	categoryRepo := sqlite.NewCategoryRepo(dbs.Write)
 	txnRepo := sqlite.NewTransactionRepo(dbs.Write)
 	ruleRepo := sqlite.NewRuleRepo(dbs.Write)
-	mailRepo := sqlite.NewMailRepo(dbs.Write)
 	keyRepo := sqlite.NewUserKeyRepo(dbs.Write)
-	llmRepo := sqlite.NewLLMSettingsRepo(dbs.Write)
-	llmSvc := llmsettings.New(llmRepo, cfg.Server.SecretKey)
 
 	authSvc := authservice.New(userRepo, jwt)
 	userSvc := userservice.New(userRepo, jwt, avatarDir)
@@ -105,20 +97,12 @@ func main() {
 		WithRule(ruleSvc).
 		WithTransferRule(transferRuleSvc)
 
-	mailSvc := mailservice.New(mailRepo, cfg.Server.SecretKey, txnSvc, accountSvc, llmSvc)
-	if n, err := mailSvc.CleanupUnmatched(); err != nil {
-		slog.Warn("mail cleanup failed", "err", err)
-	} else if n > 0 {
-		slog.Info("mail cleanup complete", "deleted", n)
-	}
-	mailSvc.Spawn(stdtime.Duration(cfg.Server.MailPollSecs) * stdtime.Second)
 	keySvc := keyservice.New(keyRepo)
 
 	api := server.New(server.Deps{
 		Auth: authSvc, User: userSvc, Account: accountSvc, Category: categorySvc,
 		Transaction: txnSvc, Transfer: transferSvc, Rule: ruleSvc,
-		TransferRule: transferRuleSvc, Mail: mailSvc, Keys: keySvc,
-		LLM:       llmSvc,
+		TransferRule: transferRuleSvc, Keys: keySvc,
 		JWTSecret: cfg.Server.JWTSecret, StaticDir: cfg.Server.StaticDir,
 		AvatarDir: avatarDir, DomainURL: cfg.Server.DomainURL,
 		AllowInsecure: cfg.Server.AllowInsecureHTTP,

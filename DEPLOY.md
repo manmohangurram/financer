@@ -24,10 +24,10 @@ The binary is self-contained: SQL migrations are embedded (`go:embed db/migratio
 
 ### At runtime (env)
 
-| Env var | Purpose |
-|---|---|
+| Env var               | Purpose                                                                                                                                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FINANCER_DOMAIN_URL` | External URL the app is served at. When set, the server injects `<script>window.__API_BASE__=...` into the served `index.html`, and the frontend uses it as the API base. **Empty/omitted → same-origin** (default). |
-| `FINANCER_STATIC_DIR` | Where the built frontend lives (image default `/app/frontend/dist`). Omit → API-only mode (dev). |
+| `FINANCER_STATIC_DIR` | Where the built frontend lives (image default `/app/frontend/dist`). Omit → API-only mode (dev).                                                                                                                     |
 
 Frontend resolution order (`frontend/src/lib/api/client.ts`):
 
@@ -54,11 +54,11 @@ VITE_API_URL=http://localhost:8080 npm run dev
 
 The runtime image copies these from the build:
 
-| Path in image | From | Purpose |
-|---|---|---|
-| `/app/financer` | builder stage | the compiled Go binary |
-| `/app/frontend/dist` | frontend stage | the built SPA |
-| `/data` (volume) | — | runtime data: DB, avatars |
+| Path in image        | From           | Purpose                   |
+| -------------------- | -------------- | ------------------------- |
+| `/app/financer`      | builder stage  | the compiled Go binary    |
+| `/app/frontend/dist` | frontend stage | the built SPA             |
+| `/data` (volume)     | —              | runtime data: DB, avatars |
 
 There is no config directory — configuration is env-only. Migrations and the timezone database live inside the binary.
 
@@ -66,15 +66,15 @@ There is no config directory — configuration is env-only. Migrations and the t
 
 ## 3. Required repo files for CI/CD
 
-| File | Purpose |
-|---|---|
-| `.github/workflows/ci.yml` | PR gate: gofmt/vet/build/test/govulncheck + frontend type-check/vitest/build |
-| `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR when a `v*` tag is created |
-| `.github/workflows/prune-packages.yml` | Weekly: delete old image versions from GHCR (keeps the newest 5 releases) |
-| `Dockerfile` | Multi-stage build (frontend + Go + runtime) |
-| `.dockerignore` | Exclude `target/`, `data/`, `node_modules/`, `.git` from build context |
-| `go.mod` / `go.sum` | Pinned Go toolchain version and module checksums |
-| `db/migrations/` | Embedded single-baseline schema — applied at boot on a fresh database |
+| File                                   | Purpose                                                                      |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
+| `.github/workflows/ci.yml`             | PR gate: gofmt/vet/build/test/govulncheck + frontend type-check/vitest/build |
+| `.github/workflows/docker-publish.yml` | Release: build + push the arm64 image to GHCR when a `v*` tag is created     |
+| `.github/workflows/prune-packages.yml` | Weekly: delete old image versions from GHCR (keeps the newest 5 releases)    |
+| `Dockerfile`                           | Multi-stage build (frontend + Go + runtime)                                  |
+| `.dockerignore`                        | Exclude `target/`, `data/`, `node_modules/`, `.git` from build context       |
+| `go.mod` / `go.sum`                    | Pinned Go toolchain version and module checksums                             |
+| `db/migrations/`                       | Embedded single-baseline schema — applied at boot on a fresh database        |
 
 ---
 
@@ -87,7 +87,7 @@ The image is **linux/arm64 only**. The build is a **pure-Go cross-build**: `CGO_
 - **arm64 on an arm runner** → native build (what CI does)
 - **any other build host** → the Dockerfile cross-compiles the arm64 binary; the build fails fast if a different `TARGETARCH` is requested
 
-The final image is Alpine with `ca-certificates` (outbound IMAP TLS needs system roots). Timezones are embedded in the binary, so `tzdata` is not installed.
+The final image is Alpine with `ca-certificates` (outbound HTTPS needs system roots). Timezones are embedded in the binary, so `tzdata` is not installed.
 
 ### Via GitHub Actions (recommended)
 
@@ -100,13 +100,13 @@ git push origin v1.0.0
 
 The workflow (`docker-publish.yml`) builds and pushes one image, on an arm runner:
 
-| Platform | Runner |
-|---|---|
+| Platform      | Runner             |
+| ------------- | ------------------ |
 | `linux/arm64` | `ubuntu-24.04-arm` |
 
-| Tag | Storage |
-|---|---|
-| `:v1.0.0`, `:latest` | SQLite |
+| Tag                  | Storage |
+| -------------------- | ------- |
+| `:v1.0.0`, `:latest` | SQLite  |
 
 1. Builds `linux/arm64` on the native arm runner
 2. Pushes and tags `ghcr.io/<owner>/<image>` as above
@@ -168,20 +168,19 @@ No per-arch tag needed — the published image **is** the arm64 one.
 
 Configuration is env-only (no config file). See the table in `README.md`.
 
-| Env var | Required | Notes |
-|---|---|---|
-| `FINANCER_JWT_SECRET` | **yes** | token signing secret; the server refuses to start without it |
-| `FINANCER_ADDR` | no | listen address (default `0.0.0.0:8080`) |
-| `FINANCER_DATA_DIR` | no | runtime data root (default `/data`, bind a volume) |
-| `FINANCER_STATIC_DIR` | no | built SPA location (image default `/app/frontend/dist`) |
-| `FINANCER_DOMAIN_URL` | no | set only if the SPA is served from a different host |
-| `FINANCER_TIMEZONE` | no | IANA zone (default `Asia/Kolkata`); resolved from embedded tzdata |
-| `FINANCER_SQLITE_PATH` | no | SQLite file (default `/data/financer.db`); WAL mode is enabled at boot |
-| `FINANCER_SECRET_KEY` | for the Inbox | 64 hex chars (`openssl rand -hex 32`); encrypts mailbox passwords, and must stay stable — changing it makes stored passwords unreadable |
-| `FINANCER_MAIL_POLL_SECS` | no | background mail poll interval, seconds (default `300`, min `30`) |
-| `FINANCER_LOG_LEVEL` | no | `debug`, `info` (default), `warn`, `error` |
-| `FINANCER_LOG_FILE` | no | append logs to a file instead of stderr; rotates at 10 MB and keeps at most 3 files (`financer.log`, `.1`, `.2` — the oldest is deleted). With the default volume use `/data/financer.log`, otherwise read `docker logs` |
-| `FINANCER_ALLOW_INSECURE_HTTP` | no | set to `1` only behind a trusted proxy that terminates TLS; otherwise mailbox/auth endpoints require HTTPS (loopback is exempt) |
+| Env var                        | Required | Notes                                                                                                                                                                                                                    |
+| ------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `FINANCER_JWT_SECRET`          | **yes**  | token signing secret; the server refuses to start without it                                                                                                                                                             |
+| `FINANCER_ADDR`                | no       | listen address (default `0.0.0.0:8080`)                                                                                                                                                                                  |
+| `FINANCER_DATA_DIR`            | no       | runtime data root (default `/data`, bind a volume)                                                                                                                                                                       |
+| `FINANCER_STATIC_DIR`          | no       | built SPA location (image default `/app/frontend/dist`)                                                                                                                                                                  |
+| `FINANCER_DOMAIN_URL`          | no       | set only if the SPA is served from a different host                                                                                                                                                                      |
+| `FINANCER_TIMEZONE`            | no       | IANA zone (default `Asia/Kolkata`); resolved from embedded tzdata                                                                                                                                                        |
+| `FINANCER_SQLITE_PATH`         | no       | SQLite file (default `/data/financer.db`); WAL mode is enabled at boot                                                                                                                                                   |
+| `FINANCER_MAIL_POLL_SECS`      | no       | background mail poll interval, seconds (default `300`, min `30`)                                                                                                                                                         |
+| `FINANCER_LOG_LEVEL`           | no       | `debug`, `info` (default), `warn`, `error`                                                                                                                                                                               |
+| `FINANCER_LOG_FILE`            | no       | append logs to a file instead of stderr; rotates at 10 MB and keeps at most 3 files (`financer.log`, `.1`, `.2` — the oldest is deleted). With the default volume use `/data/financer.log`, otherwise read `docker logs` |
+| `FINANCER_ALLOW_INSECURE_HTTP` | no       | set to `1` only behind a trusted proxy that terminates TLS; otherwise auth endpoints require HTTPS (loopback is exempt)                                                                                                  |
 
 ---
 
@@ -208,12 +207,11 @@ Back up the old file first if you may need it. The new container applies
 
 ## 8. Troubleshooting
 
-| Symptom | Cause / fix |
-|---|---|
+| Symptom                                                 | Cause / fix                                                                                                                         |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Frontend calls `localhost:8080` instead of the site URL | `VITE_API_URL` baked into a dev build; rebuild with `VITE_API_URL=`. In Docker the frontend is built with empty base → same-origin. |
-| 404 on `/api/...` after deploy | Wrong `DOMAIN_URL` injection; or unknown API path (SPA returns 404 JSON for unknown `/api/*`). |
-| `no matching manifest for linux/arm64` locally | buildx builder missing: `docker buildx create --use`. |
-| `cgo: C compiler not found` while building | Something re-enabled CGO; the SQLite stack is pure Go — keep `CGO_ENABLED=0`. |
-| Wrong timestamps / `UTC` instead of the configured zone | The zone name is invalid; the IANA database is embedded, so only the name can be wrong. |
-| IMAP polling fails with `x509: certificate signed by unknown authority` | The runtime image is missing `ca-certificates` (the provided Dockerfile installs it). |
-| Full dependency rebuild on every release | The registry build cache expires after 7 days of inactivity; a tag push after that gap rebuilds the deps once. |
+| 404 on `/api/...` after deploy                          | Wrong `DOMAIN_URL` injection; or unknown API path (SPA returns 404 JSON for unknown `/api/*`).                                      |
+| `no matching manifest for linux/arm64` locally          | buildx builder missing: `docker buildx create --use`.                                                                               |
+| `cgo: C compiler not found` while building              | Something re-enabled CGO; the SQLite stack is pure Go — keep `CGO_ENABLED=0`.                                                       |
+| Wrong timestamps / `UTC` instead of the configured zone | The zone name is invalid; the IANA database is embedded, so only the name can be wrong.                                             |
+| Full dependency rebuild on every release                | The registry build cache expires after 7 days of inactivity; a tag push after that gap rebuilds the deps once.                      |

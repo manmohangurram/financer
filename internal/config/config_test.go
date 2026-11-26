@@ -34,25 +34,6 @@ func TestFromEnvDefaults(t *testing.T) {
 	}
 }
 
-func TestSecretKeyValidation(t *testing.T) {
-	if _, err := validateSecretKey(""); err == nil {
-		t.Fatal("expected error for empty key")
-	}
-	if _, err := validateSecretKey("z"); err == nil {
-		t.Fatal("expected error for non-hex")
-	}
-	if _, err := validateSecretKey(repeat("a", 63)); err == nil {
-		t.Fatal("expected error for 63 chars")
-	}
-	got, err := validateSecretKey(repeat("A", 64))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != repeat("a", 64) {
-		t.Errorf("key not lowercased: %q", got)
-	}
-}
-
 func repeat(s string, n int) string {
 	out := ""
 	for i := 0; i < n; i++ {

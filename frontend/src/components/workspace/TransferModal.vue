@@ -17,7 +17,8 @@ const search = ref('');
 const error = ref('');
 const submitting = ref('');
 
-const accName = (id: string) => props.accounts.find((a) => a.id === id)?.nickname || props.accounts.find((a) => a.id === id)?.bankName || '';
+const accName = (id: string) =>
+  props.accounts.find((a) => a.id === id)?.nickname || props.accounts.find((a) => a.id === id)?.bankName || '';
 const ms = (t: any) => (typeof t.occurredAt === 'number' ? t.occurredAt * 1000 : new Date(t.occurredAt || 0).getTime());
 const DAY = 86400000;
 
@@ -45,7 +46,9 @@ const candidates = computed(() => {
   return (props.txns || [])
     .filter(
       (t) =>
-        t.accountId === toId.value && t.type === 'CREDIT' && !t.linkedTransferId &&
+        t.accountId === toId.value &&
+        t.type === 'CREDIT' &&
+        !t.linkedTransferId &&
         Math.abs(ms(t) - ms(source.value)) <= 5 * DAY &&
         Math.abs(t.amount - source.value.amount) <= source.value.amount * 0.1
     )
@@ -122,19 +125,29 @@ async function createCounterpart() {
             <span class="font-medium">{{ t.name }}</span>
             <span class="text-ink-mute"> · {{ formatCurrency(t.amount) }} · {{ formatDate(t.occurredAt) }}</span>
           </button>
-          <div v-if="!sourceOptions.length" class="px-3 py-3 text-[12px] text-ink-mute">No unlinked debit transactions in {{ accName(fromId) }}</div>
+          <div v-if="!sourceOptions.length" class="px-3 py-3 text-[12px] text-ink-mute">
+            No unlinked debit transactions in {{ accName(fromId) }}
+          </div>
         </div>
       </div>
       <div v-else-if="source" class="rounded-control border border-rule bg-page-sunk/50 px-3 py-2.5">
-        <div class="mb-0.5 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Source</div>
+        <div class="mb-0.5 text-label font-medium uppercase tracking-[0.1em] text-ink-mute">Source</div>
         <div class="text-[13px] text-ink font-medium">{{ source.name }}</div>
-        <div class="text-[12px] text-ink-mute">{{ formatCurrency(source.amount) }} · {{ formatDate(source.occurredAt) }} · {{ accName(fromId) }}</div>
+        <div class="text-[12px] text-ink-mute">
+          {{ formatCurrency(source.amount) }} · {{ formatDate(source.occurredAt) }} · {{ accName(fromId) }}
+        </div>
       </div>
 
       <div v-if="source && fromId !== toId">
-        <span class="mb-1.5 block text-label font-medium uppercase tracking-[0.06em] text-ink-mute">Matches in {{ accName(toId) }}</span>
+        <span class="mb-1.5 block text-label font-medium uppercase tracking-[0.1em] text-ink-mute"
+          >Matches in {{ accName(toId) }}</span
+        >
         <div v-if="candidates.length" class="flex flex-col gap-1.5">
-          <div v-for="c in candidates" :key="c.id" class="flex items-center justify-between gap-3 rounded-control border border-rule px-3 py-2">
+          <div
+            v-for="c in candidates"
+            :key="c.id"
+            class="flex items-center justify-between gap-3 rounded-control border border-rule px-3 py-2"
+          >
             <div class="min-w-0">
               <div class="text-[12.5px] text-ink truncate">{{ c.name }}</div>
               <div class="text-[11.5px] text-ink-mute">
@@ -156,7 +169,12 @@ async function createCounterpart() {
 
       <div class="flex items-center justify-end gap-2 border-t border-rule pt-3">
         <button type="button" class="ns-quiet" @click="emit('close')">Cancel</button>
-        <button type="button" class="ns-primary" :disabled="!source || toId === fromId || !!submitting" @click="createCounterpart">
+        <button
+          type="button"
+          class="ns-primary"
+          :disabled="!source || toId === fromId || !!submitting"
+          @click="createCounterpart"
+        >
           <Plus class="h-4 w-4" />
           {{ submitting === 'create' ? 'Creating…' : 'Create counterpart' }}
         </button>

@@ -44,7 +44,10 @@ function baseOptions() {
 function render() {
   if (!host.value) return;
   const base = baseOptions();
-  const merged = { ...base, ...props.options, chart: { ...base.chart, ...(props.options.chart as object) } } as Record<string, unknown> & { chart: Record<string, unknown> };
+  const merged = { ...base, ...props.options, chart: { ...base.chart, ...(props.options.chart as object) } } as Record<
+    string,
+    unknown
+  > & { chart: Record<string, unknown> };
   // ApexCharts reads the type from `chart.type`; a top-level `type` is ignored.
   merged.chart.type = merged.chart.type ?? props.type;
   if (!chart) {
@@ -59,7 +62,9 @@ onMounted(() => {
   render();
   if (props.fill && host.value) {
     // A percentage height re-resolves on layout: nudge Apex when the card resizes.
-    observer = new ResizeObserver(() => chart?.updateOptions({ chart: { height: currentHeight() } } as never, false, false));
+    observer = new ResizeObserver(() =>
+      chart?.updateOptions({ chart: { height: currentHeight() } } as never, false, false)
+    );
     observer.observe(host.value);
   }
 });

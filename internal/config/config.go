@@ -4,10 +4,8 @@
 package config
 
 import (
-	"encoding/hex"
 	"errors"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -23,8 +21,6 @@ type Server struct {
 	DomainURL         string
 	JWTSecret         string
 	Timezone          string
-	SecretKey         *string
-	MailPollSecs      int
 	AllowInsecureHTTP bool
 	LogLevel          string
 	LogFile           string
@@ -54,7 +50,6 @@ func Default() Config {
 			DomainURL:         "",
 			JWTSecret:         "",
 			Timezone:          "Asia/Kolkata",
-			MailPollSecs:      300,
 			AllowInsecureHTTP: false,
 			LogLevel:          "info",
 			LogFile:           "",
@@ -94,22 +89,10 @@ func FromEnv() (Config, error) {
 	if v := os.Getenv("FINANCER_TIMEZONE"); v != "" {
 		cfg.Server.Timezone = v
 	}
-	if v := os.Getenv("FINANCER_SECRET_KEY"); v != "" {
-		k, err := validateSecretKey(v)
-		if err != nil {
-			return Config{}, err
-		}
-		cfg.Server.SecretKey = &k
-	}
 	if v := os.Getenv("FINANCER_ALLOW_INSECURE_HTTP"); v != "" {
 		switch strings.ToLower(strings.TrimSpace(v)) {
 		case "1", "true", "yes":
 			cfg.Server.AllowInsecureHTTP = true
-		}
-	}
-	if v := os.Getenv("FINANCER_MAIL_POLL_SECS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 30 {
-			cfg.Server.MailPollSecs = n
 		}
 	}
 	if v := os.Getenv("FINANCER_LOG_LEVEL"); v != "" {
@@ -124,17 +107,5 @@ func FromEnv() (Config, error) {
 	if cfg.Server.JWTSecret == "" {
 		return Config{}, errors.New("FINANCER_JWT_SECRET is required — set it to a stable secret (e.g. `openssl rand -hex 32`)")
 	}
-	if cfg.Server.SecretKey != nil {
-		lower := strings.ToLower(*cfg.Server.SecretKey)
-		cfg.Server.SecretKey = &lower
-	}
 	return cfg, nil
-}
-
-func validateSecretKey(v string) (string, error) {
-	b, err := hex.DecodeString(v)
-	if err != nil || len(b) != 32 {
-		return "", errors.New("FINANCER_SECRET_KEY must be 32 bytes of hex (64 characters)")
-	}
-	return strings.ToLower(v), nil
 }

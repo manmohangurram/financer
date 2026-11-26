@@ -16,15 +16,28 @@ const emit = defineEmits<{ (e: 'select', index: number): void }>();
       <button
         type="button"
         class="flex shrink-0 items-center gap-2 rounded-control px-1 py-0.5 text-[12.5px] transition-colors"
-        :class="index === current ? 'font-semibold text-ink' : index < current ? 'text-ink-soft hover:text-ink' : 'text-ink-mute'"
+        :class="
+          index === current
+            ? 'font-semibold text-ink'
+            : index < current
+              ? 'text-ink-soft hover:text-ink'
+              : 'text-ink-mute'
+        "
         :disabled="index > current"
         :aria-current="index === current ? 'step' : undefined"
         @click="emit('select', index)"
       >
         <span
           class="grid h-[22px] w-[22px] place-items-center rounded-full border text-[11px]"
-          :class="index === current ? 'border-accent bg-accent text-page' : index < current ? 'border-accent text-accent' : 'border-rule-strong'"
-        >{{ index < current ? '✓' : index + 1 }}</span>
+          :class="
+            index === current
+              ? 'border-accent bg-accent text-page'
+              : index < current
+                ? 'border-accent text-accent'
+                : 'border-rule-strong'
+          "
+          >{{ index < current ? '✓' : index + 1 }}</span
+        >
         {{ label }}
       </button>
       <span v-if="index < steps.length - 1" class="mx-2.5 h-px flex-1 bg-rule" aria-hidden="true" />

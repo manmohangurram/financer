@@ -509,6 +509,8 @@ func (r *TransactionRepo) List(userID string, f *repo.TransactionListFilter) (*r
 	return &repo.ListTransactionResult{Rows: items, NextPageToken: nextToken, TotalCount: total}, nil
 }
 
+const spendingTransferScope = `(tl.id IS NULL OR a_self.type IN ('CREDIT_CARD','LOAN') OR a_other.type IN ('CREDIT_CARD','LOAN'))`
+
 func (r *TransactionRepo) SpendingRows(userID string, f *repo.SpendingFilter) ([]*repo.SpendingTxn, error) {
 	rangeSQL := ""
 	var rangeArgs []any
@@ -532,8 +534,7 @@ func (r *TransactionRepo) SpendingRows(userID string, f *repo.SpendingFilter) ([
 	          LEFT JOIN transfer_links tl ON tl.debit_transaction_id = t.id OR tl.credit_transaction_id = t.id
 	          LEFT JOIN accounts a_self ON a_self.id = t.account_id
 	          LEFT JOIN accounts a_other ON a_other.id = CASE WHEN tl.debit_transaction_id = t.id THEN tl.credit_transaction_id ELSE tl.debit_transaction_id END
-	          WHERE t.user_id = ? AND (tl.id IS NULL OR a_self.type IN ('CREDIT_CARD','LOAN') OR a_other.type IN ('CREDIT_CARD','LOAN'))
-	          ` + rangeSQL
+	          WHERE t.user_id = ? AND ` + spendingTransferScope + rangeSQL
 
 	args := make([]any, 0, len(rangeArgs)+1)
 	args = append(args, userID)
@@ -561,6 +562,22 @@ func (r *TransactionRepo) SpendingRows(userID string, f *repo.SpendingFilter) ([
 		out = append(out, &s)
 	}
 	return out, rows.Err()
+}
+
+// Totals returns credit/debit sums for a stored-time range, using the same
+// transfer exclusion as SpendingRows so the dashboard month and the spending
+// page can never disagree about what counts.
+func (r *TransactionRepo) Totals(userID, from, to string) (credit, debit float64, err error) {
+	query := `SELECT
+	            COALESCE(SUM(CASE WHEN t.type = 'CREDIT' THEN t.amount ELSE 0 END), 0),
+	            COALESCE(SUM(CASE WHEN t.type = 'DEBIT' THEN t.amount ELSE 0 END), 0)
+	          FROM transactions t
+	          LEFT JOIN transfer_links tl ON tl.debit_transaction_id = t.id OR tl.credit_transaction_id = t.id
+	          LEFT JOIN accounts a_self ON a_self.id = t.account_id
+	          LEFT JOIN accounts a_other ON a_other.id = CASE WHEN tl.debit_transaction_id = t.id THEN tl.credit_transaction_id ELSE tl.debit_transaction_id END
+	          WHERE t.user_id = ? AND t.occurred_at >= ? AND t.occurred_at < ? AND ` + spendingTransferScope
+	err = r.db.QueryRow(query, userID, from, to).Scan(&credit, &debit)
+	return credit, debit, err
 }
 
 func (r *TransactionRepo) CreateLinks(userID string, links [][2]string) ([]string, error) {

@@ -115,6 +115,9 @@ type TransactionRepo interface {
 	Delete(userID string, ids []string) ([]string, error)
 	List(userID string, f *TransactionListFilter) (*ListTransactionResult, error)
 	SpendingRows(userID string, f *SpendingFilter) ([]*SpendingTxn, error)
+	// Totals returns credit and debit sums in a stored-time range, excluding
+	// internal transfers with the same scope as SpendingRows.
+	Totals(userID, from, to string) (credit, debit float64, err error)
 	CreateLinks(userID string, links [][2]string) ([]string, error)
 	DeleteLinks(userID string, ids []string) ([]string, error)
 }

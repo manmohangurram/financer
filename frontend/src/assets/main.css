@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @plugin "daisyui";
 
 /* The app has two themes: "light" (paper, the default) and "dark" (the same
@@ -6,127 +6,163 @@
    frontend/UI_STANDARDS.md — no raw hex is used outside this file. */
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
-/* ---- raw tokens: paper & ink ------------------------------------------- */
+/* ---- Nocturne tokens ----------------------------------------------------
+   One system, two themes. `dark` is the product default; `light` is the same
+   surfaces on paper. Every value below is semantic: components never name a
+   raw colour. */
 :root {
-  --paper: oklch(0.965 0.008 85);
-  --page: oklch(0.995 0.003 85);
-  --page-sunk: oklch(0.945 0.01 85);
-  --ink: oklch(0.255 0.02 245);
-  --ink-soft: oklch(0.435 0.018 245);
-  --ink-mute: oklch(0.585 0.014 245);
-  --ink-faint: oklch(0.7 0.01 245);
+  --paper: #f4f6fa;
+  --page: #ffffff;
+  --page-sunk: #eef1f7;
+  --rail: #ffffff;
 
-  --rule: oklch(0.255 0.02 245 / 0.12);
-  --rule-soft: oklch(0.255 0.02 245 / 0.07);
-  --rule-strong: oklch(0.255 0.02 245 / 0.22);
-  --margin-rule: oklch(0.7 0.045 225);
+  --ink: #0f1620;
+  --ink-soft: #46536b;
+  --ink-mute: #6b7891;
+  --ink-faint: #98a3b6;
 
-  --accent: oklch(0.455 0.075 205);
-  --accent-hover: oklch(0.395 0.075 205);
-  --accent-wash: oklch(0.94 0.02 205);
-  --credit: oklch(0.505 0.1 155);
-  --debit: oklch(0.52 0.15 28);
-  --stamp: oklch(0.66 0.105 78);
-  --overlay: oklch(0.255 0.02 245 / 0.32);
-  --lift: 0 0 0 0.5px var(--rule), 0 6px 20px oklch(0.255 0.02 245 / 0.1);
+  --rule: rgba(15, 22, 32, 0.1);
+  --rule-soft: rgba(15, 22, 32, 0.06);
+  --rule-strong: rgba(15, 22, 32, 0.2);
+  --margin-rule: rgba(3, 105, 161, 0.3);
+
+  --accent: #0369a1;
+  --accent-hover: #075985;
+  --accent-wash: #e0f2fe;
+  --on-accent: #ffffff;
+  --credit: #047857;
+  --debit: #be123c;
+  --stamp: #b45309;
+  --overlay: rgba(15, 22, 32, 0.42);
+
+  --lift: 0 1px 2px rgba(15, 22, 32, 0.04), 0 12px 28px rgba(15, 22, 32, 0.06);
+  --canvas: radial-gradient(1100px 520px at 82% -12%, rgba(3, 105, 161, 0.06), transparent 62%), var(--paper);
+
+  /* chart ramp: one hue family, rank ordered, grey tail */
+  --chart-0: #0369a1;
+  --chart-1: #075985;
+  --chart-2: #0c4a6e;
+  --chart-3: #2a6f97;
+  --chart-4: #468faf;
+  --chart-5: #61a5c2;
+  --chart-6: #89c2d9;
+  --chart-7: #a9b4c2;
 
   color-scheme: light;
 }
 
-[data-theme="dark"] {
-  --paper: oklch(0.215 0.012 245);
-  --page: oklch(0.255 0.014 245);
-  --page-sunk: oklch(0.19 0.012 245);
-  --ink: oklch(0.935 0.01 85);
-  --ink-soft: oklch(0.79 0.01 85);
-  --ink-mute: oklch(0.64 0.012 85);
-  --ink-faint: oklch(0.52 0.012 85);
+[data-theme='dark'] {
+  --paper: #080b10;
+  --page: #111823;
+  --page-sunk: #0d141d;
+  --rail: #0b1018;
 
-  --rule: oklch(1 0 0 / 0.1);
-  --rule-soft: oklch(1 0 0 / 0.06);
-  --rule-strong: oklch(1 0 0 / 0.18);
-  --margin-rule: oklch(0.48 0.035 225);
+  --ink: #e9eef6;
+  --ink-soft: #a9b6c7;
+  --ink-mute: #8b99ab;
+  --ink-faint: #5f6d80;
 
-  --accent: oklch(0.72 0.08 205);
-  --accent-hover: oklch(0.79 0.08 205);
-  --accent-wash: oklch(0.3 0.03 205);
-  --credit: oklch(0.72 0.1 155);
-  --debit: oklch(0.68 0.14 28);
-  --stamp: oklch(0.76 0.09 78);
-  --overlay: oklch(0.1 0.01 245 / 0.6);
-  --lift: 0 0 0 0.5px var(--rule), 0 6px 20px oklch(0.1 0.01 245 / 0.55);
+  --rule: rgba(255, 255, 255, 0.08);
+  --rule-soft: rgba(255, 255, 255, 0.05);
+  --rule-strong: rgba(255, 255, 255, 0.16);
+  --margin-rule: rgba(125, 211, 252, 0.35);
+
+  --accent: #7dd3fc;
+  --accent-hover: #a5f3fc;
+  --accent-wash: rgba(125, 211, 252, 0.12);
+  --on-accent: #08111a;
+  --credit: #4ade80;
+  --debit: #fb7185;
+  --stamp: #fbbf24;
+  --overlay: rgba(3, 6, 10, 0.66);
+
+  --lift: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 48px rgba(0, 0, 0, 0.5);
+  --canvas: radial-gradient(1100px 520px at 82% -12%, rgba(125, 211, 252, 0.07), transparent 62%), var(--paper);
+
+  --chart-0: #7dd3fc;
+  --chart-1: #67c9f5;
+  --chart-2: #4fb8ec;
+  --chart-3: #3da3d8;
+  --chart-4: #2f8cbd;
+  --chart-5: #2b739c;
+  --chart-6: #2d5b7a;
+  --chart-7: #5f6d80;
 
   color-scheme: dark;
 }
 
 /* ---- daisyUI: keep its behaviour, replace its look ---------------------- */
 @plugin "daisyui/theme" {
-  name: "light";
+  name: 'light';
   default: true;
-  color-scheme: "light";
+  color-scheme: 'light';
   --color-base-100: var(--page);
   --color-base-200: var(--paper);
   --color-base-300: var(--page-sunk);
   --color-base-content: var(--ink);
   --color-primary: var(--accent);
-  --color-primary-content: var(--page);
+  --color-primary-content: var(--on-accent);
   --color-secondary: var(--credit);
-  --color-secondary-content: var(--page);
+  --color-secondary-content: var(--on-accent);
   --color-accent: var(--accent);
-  --color-accent-content: var(--page);
+  --color-accent-content: var(--on-accent);
   --color-neutral: var(--page-sunk);
   --color-neutral-content: var(--ink);
   --color-info: var(--accent);
+  --color-info-content: var(--on-accent);
   --color-success: var(--credit);
-  --color-success-content: var(--page);
+  --color-success-content: var(--on-accent);
   --color-warning: var(--stamp);
-  --color-warning-content: var(--page);
+  --color-warning-content: var(--on-accent);
   --color-error: var(--debit);
-  --color-error-content: var(--page);
-  --radius-selector: 4px;
-  --radius-field: 4px;
-  --radius-box: 6px;
+  --color-error-content: var(--on-accent);
+  --radius-selector: 8px;
+  --radius-field: 8px;
+  --radius-box: 14px;
   --border: 1px;
 }
 
 @plugin "daisyui/theme" {
-  name: "dark";
+  name: 'dark';
   default: false;
-  color-scheme: "dark";
+  color-scheme: 'dark';
   --color-base-100: var(--page);
   --color-base-200: var(--paper);
   --color-base-300: var(--page-sunk);
   --color-base-content: var(--ink);
   --color-primary: var(--accent);
-  --color-primary-content: var(--page);
+  --color-primary-content: var(--on-accent);
   --color-secondary: var(--credit);
-  --color-secondary-content: var(--page);
+  --color-secondary-content: var(--on-accent);
   --color-accent: var(--accent);
-  --color-accent-content: var(--page);
+  --color-accent-content: var(--on-accent);
   --color-neutral: var(--page-sunk);
   --color-neutral-content: var(--ink);
   --color-info: var(--accent);
+  --color-info-content: var(--on-accent);
   --color-success: var(--credit);
-  --color-success-content: var(--page);
+  --color-success-content: var(--on-accent);
   --color-warning: var(--stamp);
-  --color-warning-content: var(--page);
+  --color-warning-content: var(--on-accent);
   --color-error: var(--debit);
-  --color-error-content: var(--page);
-  --radius-selector: 4px;
-  --radius-field: 4px;
-  --radius-box: 6px;
+  --color-error-content: var(--on-accent);
+  --radius-selector: 8px;
+  --radius-field: 8px;
+  --radius-box: 14px;
   --border: 1px;
 }
 
 /* ---- utilities ---------------------------------------------------------- */
 @theme {
-  --font-display: "Newsreader Variable", Georgia, serif;
-  --font-ui: "IBM Plex Sans Variable", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: 'Newsreader Variable', Georgia, serif;
+  --font-ui: 'IBM Plex Sans Variable', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
   --color-paper: var(--paper);
   --color-page: var(--page);
   --color-page-sunk: var(--page-sunk);
+  --color-rail: var(--rail);
+  --color-on-accent: var(--on-accent);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-ink-mute: var(--ink-mute);
@@ -153,21 +189,11 @@
 
   --shadow-lift: var(--lift);
 
-  /* chart ramp: rank-ordered, darkest = biggest share (charts + legend read the same list) */
-  --chart-0: var(--accent);
-  --chart-1: oklch(0.44 0.045 205);
-  --chart-2: oklch(0.52 0.04 205);
-  --chart-3: oklch(0.60 0.035 205);
-  --chart-4: oklch(0.67 0.03 205);
-  --chart-5: oklch(0.74 0.025 205);
-  --chart-6: oklch(0.81 0.02 205);
-  --chart-7: oklch(0.68 0.01 245);
+  --radius-control: 8px;
+  --radius-card: 14px;
+  --radius-overlay: 18px;
 
-  --radius-control: 4px;
-  --radius-card: 6px;
-  --radius-overlay: 10px;
-
-  --text-label: 11px;
+  --text-label: 10.5px;
   --text-label--line-height: 1.2;
 }
 
@@ -279,6 +305,8 @@
 
   body {
     background-color: var(--paper);
+    background-image: var(--canvas);
+    background-attachment: fixed;
     color: var(--ink);
     font-family: var(--font-ui);
     font-size: 0.875rem;
@@ -302,6 +330,13 @@
   /* Money and any other column of digits. */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Every figure in Nocturne is mono + tabular: numbers should read as data. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.015em;
   }
 
   :focus-visible {

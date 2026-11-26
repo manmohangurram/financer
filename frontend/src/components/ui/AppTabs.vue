@@ -18,12 +18,12 @@ const model = defineModel<string>({ default: '' });
       type="button"
       role="tab"
       :aria-selected="model === item.key"
-      class="relative -mb-px pb-2 text-[13px] font-medium transition-colors"
+      class="relative -mb-px min-h-8 pb-2 text-[13px] font-medium transition-colors"
       :class="model === item.key ? 'text-ink' : 'text-ink-mute hover:text-ink-soft'"
       @click="model = item.key"
     >
       {{ item.label }}
-      <span v-if="item.count !== undefined" class="tabular ml-1 text-[11px] text-ink-faint">{{ item.count }}</span>
+      <span v-if="item.count !== undefined" class="num ml-1 text-[11px] text-ink-faint">{{ item.count }}</span>
       <span
         v-if="model === item.key"
         class="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-accent"

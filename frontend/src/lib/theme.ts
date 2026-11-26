@@ -14,7 +14,9 @@ const current = ref<Theme>(initTheme());
 
 function initTheme(): Theme {
   const t = localStorage.getItem(STORAGE_KEY);
-  return t === 'light' || t === 'dark' ? t : 'system';
+  if (t === 'light' || t === 'dark' || t === 'system') return t;
+  // Nocturne is dark-first: an unset preference means the dark canvas.
+  return 'dark';
 }
 
 export function resolveTheme(t: Theme): ResolvedTheme {

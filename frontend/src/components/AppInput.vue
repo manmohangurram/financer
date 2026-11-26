@@ -21,7 +21,7 @@ const slots = useSlots();
 
 <template>
   <label class="flex w-full flex-col gap-1.5">
-    <span v-if="label" class="text-label font-medium uppercase tracking-[0.06em] text-ink-mute">{{ label }}</span>
+    <span v-if="label" class="text-label font-medium uppercase tracking-[0.1em] text-ink-mute">{{ label }}</span>
     <span class="relative block">
       <slot name="icon" />
       <input
@@ -34,7 +34,7 @@ const slots = useSlots();
         :autocomplete="autocomplete"
         :required="required"
         :aria-invalid="!!error || invalid"
-        class="h-[38px] w-full rounded-control border bg-page-sunk px-3 text-[14px] text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+        class="input h-[38px] w-full rounded-control border bg-page-sunk px-3 text-[14px] text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
         :class="[slots.icon ? 'pl-9' : '', error || invalid ? 'border-debit' : 'border-rule']"
       />
       <slot name="dropdown" />

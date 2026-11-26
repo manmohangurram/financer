@@ -24,9 +24,17 @@ data/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/.tmp/
 frontend/*.tsbuildinfo
 frontend/vite.config.d.ts
 frontend/vite.config.js
+
+# Local scratch: built binary, dev database, throwaway probes
+.tmp/
+
+# Design artefacts: screenshots and rendered mockups are output, not source
+frontend/design/shots/
+frontend/design/preview/
 
 # Local tooling scratch
 .superpowers/

@@ -29,11 +29,47 @@ export interface StatementParse {
   pages: number;
   layout: StatementLayout;
   missingRefs: number;
+  autoCorrected?: boolean;
+  /** Printed columns found in the statement header (empty when there is none). */
+  columns: StatementColumn[];
+  /** The mapping actually used to read the rows. */
+  mapping: ColumnMapping | null;
 }
 
 export interface StatementLine {
   text: string;
   items: Array<{ x: number; s: string }>;
+}
+
+/** One column printed in the statement's own header row. */
+export interface StatementColumn {
+  key: string;
+  label: string;
+  x: number;
+}
+
+export type ColumnRole = 'date' | 'name' | 'ref' | 'debit' | 'credit' | 'amount' | 'balance' | 'ignore';
+
+/**
+ * How the reader should treat each printed column. `two` reads a Debit and a
+ * Credit column; `one` reads one amount column and takes the direction from a
+ * Dr/Cr marker or from the change in the running balance.
+ */
+export interface ColumnMapping {
+  mode: 'one' | 'two';
+  date: string;
+  name: string;
+  ref: string;
+  debit?: string;
+  credit?: string;
+  amount?: string;
+  balance: string;
+  direction?: 'marker' | 'balance';
+}
+
+export interface StatementDocument {
+  lines: StatementLine[];
+  pages: number;
 }
 
 type Direction = 'DEBIT' | 'CREDIT';
@@ -82,22 +118,111 @@ interface ColumnHeader {
   balanceX: number | null;
 }
 
-function readHeader(lines: StatementLine[]): ColumnHeader | null {
+function findHeaderLine(lines: StatementLine[]): StatementLine | null {
   for (const line of lines) {
     const lower = line.text.toLowerCase();
     if (!/withdraw|deposit|debit|credit|balance/.test(lower)) continue;
     if (!/narration|description|particular|date/i.test(lower)) continue;
-    const h: ColumnHeader = { refX: null, debitX: null, creditX: null, balanceX: null };
-    for (const item of line.items) {
-      const t = item.s.toLowerCase();
-      if (/chq|ref/.test(t) && h.refX === null) h.refX = item.x;
-      if (/withdraw|debit/.test(t) && h.debitX === null) h.debitX = item.x;
-      if (/deposit|credit/.test(t) && h.creditX === null) h.creditX = item.x;
-      if (/balance/.test(t) && h.balanceX === null) h.balanceX = item.x;
-    }
-    if (h.debitX !== null || h.creditX !== null || h.balanceX !== null) return h;
+    if (line.items.some((i) => /withdraw|deposit|debit|credit|balance/.test(i.s.toLowerCase()))) return line;
   }
   return null;
+}
+
+function readHeader(lines: StatementLine[]): ColumnHeader | null {
+  const line = findHeaderLine(lines);
+  if (!line) return null;
+  const h: ColumnHeader = { refX: null, debitX: null, creditX: null, balanceX: null };
+  for (const item of line.items) {
+    const t = item.s.toLowerCase();
+    if (/chq|ref/.test(t) && h.refX === null) h.refX = item.x;
+    if (/withdraw|debit/.test(t) && h.debitX === null) h.debitX = item.x;
+    if (/deposit|credit/.test(t) && h.creditX === null) h.creditX = item.x;
+    if (/balance/.test(t) && h.balanceX === null) h.balanceX = item.x;
+  }
+  if (h.debitX !== null || h.creditX !== null || h.balanceX !== null) return h;
+  return null;
+}
+
+/**
+ * The columns printed in the statement's own header, left to right. These are
+ * what the Map step lets the reader reassign; the keys A… are stable for the
+ * lifetime of one statement.
+ */
+export function detectColumns(lines: StatementLine[]): StatementColumn[] {
+  const line = findHeaderLine(lines);
+  if (!line) return [];
+  return line.items
+    .filter((i) => i.s.trim())
+    .sort((a, b) => a.x - b.x)
+    .map((i, index) => ({
+      key: String.fromCharCode(65 + index),
+      label: i.s.trim(),
+      x: i.x
+    }));
+}
+
+/** The mapping the printed headers imply. */
+export function defaultMapping(columns: StatementColumn[]): ColumnMapping | null {
+  if (columns.length === 0) return null;
+  const pick = (re: RegExp) => columns.find((c) => re.test(c.label));
+  const date = pick(/^date\b/i) ?? columns[0];
+  const name = pick(/narration|description|particular/i);
+  const ref = pick(/chq|ref/i);
+  const debit = pick(/withdraw|debit/i);
+  const credit = pick(/deposit|credit/i);
+  const amount = pick(/^amount/i);
+  const balance = pick(/balance/i);
+  if (!date || !balance) return null;
+  const base = {
+    date: date.key,
+    name: name?.key ?? '',
+    ref: ref?.key ?? '',
+    balance: balance.key
+  };
+  if (debit && credit) {
+    return { ...base, mode: 'two', debit: debit.key, credit: credit.key };
+  }
+  const amountCol = amount ?? debit ?? credit;
+  if (!amountCol) return null;
+  return { ...base, mode: 'one', amount: amountCol.key, direction: 'balance' };
+}
+
+interface Positions {
+  refX: number | null;
+  debitX: number | null;
+  creditX: number | null;
+  balanceX: number | null;
+  amountX: number | null;
+  mode: 'one' | 'two';
+  direction: 'marker' | 'balance';
+}
+
+function positionsFor(mapping: ColumnMapping, columns: StatementColumn[]): Positions {
+  const x = (key?: string) => columns.find((c) => c.key === key)?.x ?? null;
+  return {
+    refX: x(mapping.ref),
+    debitX: mapping.mode === 'two' ? x(mapping.debit) : null,
+    creditX: mapping.mode === 'two' ? x(mapping.credit) : null,
+    balanceX: x(mapping.balance),
+    amountX: mapping.mode === 'one' ? x(mapping.amount) : null,
+    mode: mapping.mode,
+    direction: mapping.direction ?? 'balance'
+  };
+}
+
+/** The role of a right-aligned amount: the rightmost column that starts at or before it. */
+function amountRole(x: number, p: Positions): 'debit' | 'credit' | 'balance' | 'amount' | null {
+  const starts: Array<[number, 'debit' | 'credit' | 'balance' | 'amount']> = [];
+  if (p.debitX !== null) starts.push([p.debitX, 'debit']);
+  if (p.creditX !== null) starts.push([p.creditX, 'credit']);
+  if (p.amountX !== null) starts.push([p.amountX, 'amount']);
+  if (p.balanceX !== null) starts.push([p.balanceX, 'balance']);
+  starts.sort((a, b) => a[0] - b[0]);
+  let hit: 'debit' | 'credit' | 'balance' | 'amount' | null = null;
+  for (const [start, role] of starts) {
+    if (x >= start - 8) hit = role;
+  }
+  return hit;
 }
 
 /** Nearest named column within a tolerance; amounts are right-aligned-ish. */
@@ -116,10 +241,15 @@ function toLines(text: string): StatementLine[] {
 }
 
 /** Parses statement lines (text or positioned items). */
-export function parseStatement(lines: StatementLine[] | string, forced?: StatementLayout): StatementParse {
+function parseOnce(lines: StatementLine[] | string, forced?: StatementLayout, mapping?: ColumnMapping): StatementParse {
   const rowsIn = typeof lines === 'string' ? toLines(lines) : lines;
+  const columns = detectColumns(rowsIn);
+  const activeMapping = mapping ?? (!forced ? defaultMapping(columns) : null);
+  const positions = activeMapping ? positionsFor(activeMapping, columns) : null;
   const header = readHeader(rowsIn);
-  const useColumns = !forced && !!header && rowsIn.some((l) => l.items.some((i) => i.x > 0));
+  const hasPositions = rowsIn.some((l) => l.items.some((i) => i.x > 0));
+  const useColumns = !!positions && hasPositions;
+  const useLegacyColumns = !useColumns && !forced && !!header && hasPositions;
   const parsed: Array<{
     date: string;
     narration: string;
@@ -158,10 +288,9 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
     // Prefer the reference column's own x-position (right under Chq./Ref.No.);
     // fall back to the longest digit-bearing token in the narration.
     let refNo = '';
-    if (useColumns && header && header.refX !== null) {
-      const hit = line.items.find(
-        (it) => Math.abs(it.x - header.refX!) <= 40 && /^[A-Za-z0-9]{6,}$/.test(it.s.trim())
-      );
+    const refX = useColumns ? (positions?.refX ?? null) : useLegacyColumns ? (header?.refX ?? null) : null;
+    if (refX !== null) {
+      const hit = line.items.find((it) => Math.abs(it.x - refX) <= 40 && /^[A-Za-z0-9]{6,}$/.test(it.s.trim()));
       if (hit) refNo = hit.s.trim();
     }
     if (!refNo) {
@@ -191,8 +320,43 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
     let credit = 0;
     let balance: number | undefined;
     let amountHint: number | undefined;
+    let mapped = false;
 
-    if (useColumns && header && numbers.length > 0 && numbers.some((n) => columnOf(n.x, header) !== null)) {
+    if (useColumns && positions && numbers.length > 0) {
+      let amountValue: number | undefined;
+      for (const n of numbers) {
+        const role = amountRole(n.x, positions);
+        if (!role) continue;
+        mapped = true;
+        if (positions.mode === 'two') {
+          if (role === 'debit') debit += Math.abs(n.v);
+          else if (role === 'credit') credit += Math.abs(n.v);
+          else if (role === 'balance') balance = n.v;
+        } else if (role === 'amount') {
+          amountValue = n.v;
+        } else if (role === 'balance') {
+          balance = n.v;
+        }
+      }
+      if (positions.mode === 'one' && amountValue !== undefined) {
+        const marker = text.match(MARKER)?.[1] ?? null;
+        if (positions.direction === 'marker' && marker) {
+          sawMarker = true;
+          if (marker.toLowerCase() === 'cr') credit = Math.abs(amountValue);
+          else debit = Math.abs(amountValue);
+        } else {
+          // Direction is resolved from the running balance below.
+          debit = -1;
+          amountHint = Math.abs(amountValue);
+        }
+      }
+    } else if (
+      useLegacyColumns &&
+      header &&
+      numbers.length > 0 &&
+      numbers.some((n) => columnOf(n.x, header) !== null)
+    ) {
+      mapped = true;
       for (const n of numbers) {
         switch (columnOf(n.x, header)) {
           case 'debit':
@@ -206,7 +370,9 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
             break;
         }
       }
-    } else {
+    }
+
+    if (!mapped) {
       const values = (tail.match(NUM) || []).map(num);
       const marker = tail.match(MARKER)?.[1] ?? null;
       if (values.length >= 3) {
@@ -249,7 +415,11 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
 
   const rows: ParsedTxn[] = [];
   let prev: number | null = null;
-  let layout: StatementLayout = useColumns ? 'columns' : 'amount-only';
+  let layout: StatementLayout = 'amount-only';
+  if (useColumns) {
+    layout =
+      positions?.mode === 'one' ? (positions.direction === 'marker' ? 'amount-marker' : 'amount-delta') : 'columns';
+  }
 
   for (const p of parsed) {
     let type: Direction | null = null;
@@ -312,8 +482,11 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
     }
   }
 
-  const first = parsed[0];
-  const opening = first && first.balance !== undefined && first.debit >= 0 ? round(first.balance - first.credit + first.debit) : undefined;
+  const firstRow = rows[0];
+  const opening =
+    firstRow && firstRow.balanceAfter !== undefined
+      ? round(firstRow.balanceAfter - (firstRow.type === 'CREDIT' ? firstRow.amount : -firstRow.amount))
+      : undefined;
   const closing = withBalance.length ? withBalance[withBalance.length - 1].balanceAfter : undefined;
 
   if (!problem && opening !== undefined && closing !== undefined) {
@@ -323,7 +496,46 @@ export function parseStatement(lines: StatementLine[] | string, forced?: Stateme
   }
 
   const missingRefs = rows.filter((r) => !r.refNo).length;
-  return { rows, opening, closing, credits, debits, valid: !problem, problem, pages: 1, layout, missingRefs };
+  return {
+    rows,
+    opening,
+    closing,
+    credits,
+    debits,
+    valid: !problem,
+    problem,
+    pages: 1,
+    layout,
+    missingRefs,
+    columns,
+    mapping: useColumns ? activeMapping : null
+  };
+}
+
+export function parseStatement(
+  lines: StatementLine[] | string,
+  forced?: StatementLayout,
+  mapping?: ColumnMapping
+): StatementParse {
+  const rowsIn = typeof lines === 'string' ? toLines(lines) : lines;
+  const header = readHeader(rowsIn);
+  const columnsUsable =
+    !!header && (header.debitX !== null || header.creditX !== null) && rowsIn.some((l) => l.items.some((i) => i.x > 0));
+
+  // An explicit mapping is authoritative: re-read with exactly those columns so
+  // a wrong choice shows up as a balance break rather than silently "fixing"
+  // itself. Automatic detection still wins over the legacy preset layouts.
+  if (mapping) {
+    const explicit = parseOnce(rowsIn, undefined, mapping);
+    return columnsUsable && forced && forced !== explicit.layout ? { ...explicit, autoCorrected: true } : explicit;
+  }
+  if (columnsUsable) {
+    const auto = parseOnce(rowsIn, undefined);
+    if (auto.valid && auto.rows.length > 0) {
+      return forced && forced !== auto.layout ? { ...auto, autoCorrected: true } : auto;
+    }
+  }
+  return parseOnce(rowsIn, forced);
 }
 
 /** Backwards-compatible text entry point. */
@@ -350,16 +562,34 @@ async function pdfLines(file: File): Promise<{ lines: StatementLine[]; pages: nu
     lines.push({ text: `--- PAGE ${p} ---`, items: [] });
     for (const [, items] of [...byY.entries()].sort((a, b) => b[0] - a[0])) {
       const sorted = items.sort((a, b) => a.x - b.x);
-      const text = sorted.map((i) => i.s).join(' ').replace(/\s+/g, ' ').trim();
+      const text = sorted
+        .map((i) => i.s)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
       if (text) lines.push({ text, items: sorted });
     }
   }
   return { lines, pages: doc.numPages };
 }
 
+/** Extracts a PDF once so later column changes can re-read without reparsing the file. */
+export async function readStatementDocument(file: File): Promise<StatementDocument> {
+  return pdfLines(file);
+}
+
+/** Parses an already-extracted document with an explicit column mapping. */
+export function parseDocument(doc: StatementDocument, mapping?: ColumnMapping): StatementParse {
+  return { ...parseStatement(doc.lines, undefined, mapping), pages: doc.pages };
+}
+
 /** Extracts a PDF and parses it. */
-export async function readStatement(file: File, forced?: StatementLayout): Promise<StatementParse> {
+export async function readStatement(
+  file: File,
+  forced?: StatementLayout,
+  mapping?: ColumnMapping
+): Promise<StatementParse> {
   const { lines, pages } = await pdfLines(file);
-  const out = { ...parseStatement(lines, forced), pages };
+  const out = { ...parseStatement(lines, forced, mapping), pages };
   return out;
 }

@@ -15,10 +15,21 @@ const emit = defineEmits<{
   (e: 'create'): void;
 }>();
 
-const matchFields: Record<string, string> = { NAME: 'Name', AMOUNT: 'Amount', TYPE: 'Type', CATEGORY: 'Category', ACCOUNT: 'Account' };
+const matchFields: Record<string, string> = {
+  NAME: 'Name',
+  AMOUNT: 'Amount',
+  TYPE: 'Type',
+  CATEGORY: 'Category',
+  ACCOUNT: 'Account'
+};
 const operators: Record<string, string> = {
-  CONTAINS: 'contains', STARTS_WITH: 'starts with', ENDS_WITH: 'ends with',
-  EQUALS: 'equals', GREATER_THAN: 'is >', LESS_THAN: 'is <', REGEX: 'matches'
+  CONTAINS: 'contains',
+  STARTS_WITH: 'starts with',
+  ENDS_WITH: 'ends with',
+  EQUALS: 'equals',
+  GREATER_THAN: 'is >',
+  LESS_THAN: 'is <',
+  REGEX: 'matches'
 };
 const running = ref<string | null>(null);
 
@@ -40,7 +51,10 @@ function condLines(rule: any) {
 function actionLines(rule: any) {
   const lines: string[] = [];
   for (const a of rule.actions || []) {
-    if (a.setName) lines.push(`${a.setNameOp === 'ADD_PREFIX' ? 'Prefix' : a.setNameOp === 'ADD_SUFFIX' ? 'Suffix' : 'Rename'} "${a.setName}"`);
+    if (a.setName)
+      lines.push(
+        `${a.setNameOp === 'ADD_PREFIX' ? 'Prefix' : a.setNameOp === 'ADD_SUFFIX' ? 'Suffix' : 'Rename'} "${a.setName}"`
+      );
     if (a.setCategoryId) lines.push(`Category: ${catName(a.setCategoryId)}`);
     if (a.setTransferAccountId) lines.push(`Transfer: ${accountName(a.setTransferAccountId)}`);
   }
@@ -66,7 +80,9 @@ async function runNow(rule: any) {
   </div>
 
   <div v-else class="flex flex-col">
-    <div class="grid grid-cols-[32px_minmax(0,1fr)_30%_26%_92px] items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.06em] text-ink-mute">
+    <div
+      class="grid grid-cols-[32px_minmax(0,1fr)_30%_26%_92px] items-center gap-3 border-b border-rule px-4 py-2 text-label font-medium uppercase tracking-[0.1em] text-ink-mute"
+    >
       <span class="text-center">#</span>
       <span>Rule</span>
       <span>Matches</span>
@@ -84,7 +100,9 @@ async function runNow(rule: any) {
       @keydown.enter.prevent="emit('edit', rule)"
       @keydown.space.prevent="emit('edit', rule)"
     >
-      <span class="flex h-6 w-8 shrink-0 items-center justify-center rounded-[3px] border border-rule bg-page-sunk text-[11px] font-medium text-ink-soft">
+      <span
+        class="flex h-6 w-8 shrink-0 items-center justify-center rounded-[3px] border border-rule bg-page-sunk text-[11px] font-medium text-ink-soft"
+      >
         {{ rule.priority || '—' }}
       </span>
 
@@ -96,17 +114,30 @@ async function runNow(rule: any) {
       </span>
 
       <span class="min-w-0">
-        <span v-for="(line, i) in condLines(rule).slice(0, 2)" :key="'c' + i" class="block truncate text-[11.5px] text-ink-soft">{{ line }}</span>
-        <span v-if="condLines(rule).length > 2" class="block text-[11px] text-ink-mute">+{{ condLines(rule).length - 2 }} more</span>
+        <span
+          v-for="(line, i) in condLines(rule).slice(0, 2)"
+          :key="'c' + i"
+          class="block truncate text-[11.5px] text-ink-soft"
+          >{{ line }}</span
+        >
+        <span v-if="condLines(rule).length > 2" class="block text-[11px] text-ink-mute"
+          >+{{ condLines(rule).length - 2 }} more</span
+        >
         <span v-if="!condLines(rule).length" class="block text-[11.5px] text-ink-faint">No conditions</span>
       </span>
 
       <span class="min-w-0">
-        <span v-for="(line, i) in actionLines(rule).slice(0, 2)" :key="'a' + i" class="flex items-center gap-1.5 truncate text-[11.5px] text-ink-soft">
+        <span
+          v-for="(line, i) in actionLines(rule).slice(0, 2)"
+          :key="'a' + i"
+          class="flex items-center gap-1.5 truncate text-[11.5px] text-ink-soft"
+        >
           <ArrowRight class="h-3 w-3 shrink-0 text-accent" stroke-width="2" />
           <span class="truncate">{{ line }}</span>
         </span>
-        <span v-if="actionLines(rule).length > 2" class="block text-[11px] text-ink-mute">+{{ actionLines(rule).length - 2 }} more</span>
+        <span v-if="actionLines(rule).length > 2" class="block text-[11px] text-ink-mute"
+          >+{{ actionLines(rule).length - 2 }} more</span
+        >
         <span v-if="!actionLines(rule).length" class="block text-[11.5px] text-ink-faint">No outputs</span>
       </span>
 

@@ -6,6 +6,87 @@ versions are [SemVer](https://semver.org/spec/v2.0.0.html) and release tags are 
 Entries are grouped by theme. An entry starts at the first tag it appeared in; earlier history lives in the
 git log (`git log --oneline v0.7.0..v0.8.0`).
 
+## [0.16.0] — 2026-11-27
+
+### Added
+
+- **Nocturne, the design system the app now runs on.** One canvas with one card layer, semantic tokens for
+  a light and a dark theme, serif titles over mono figures, and a component kit every page composes:
+  `AppPageHeader`, `AppFolio`, `AppMoneyBand`, `AppDateRange`, `AppChart`, `AppTable`, `AppPager`. No page
+  declares its own card, table or chart.
+- **A money band** opens both money pages: one figure, a row of facts, one bar, one note. On Accounts it has
+  three states (net worth, one account, one card's outstanding balance); on Spending it is the month's pace
+  against the plan.
+- **Pick the statement's columns instead of a preset.** The Map step now lists the
+  columns printed in the PDF (Date, Narration, Chq./Ref.No., Withdrawal, Deposit,
+  Closing Balance …) with a role on each: Date, Name, Reference, Debit, Credit,
+  Amount, Balance or Not used. Detected roles are pre-filled; changing one re-reads
+  the PDF and refreshes the preview immediately.
+- **One amount column or two.** A toggle switches between “Debit + Credit” and
+  “One amount”; the single-column mode takes the direction from the closing balance
+  or a Dr/Cr marker.
+- Unmapped columns are listed in a tray, and **Reset to detected** restores the
+  header's own mapping.
+- Statements with no printed header keep the layout fallback.
+- **A date-range picker on Spending.** The resolved dates are the control: click them, pick a start day and an
+  end day, Apply. Arrow keys move by day and week, Escape closes. The old `Custom` tab is gone.
+- Settings can change the account's **email address** as well as its password.
+
+### Changed
+
+- An explicit mapping is authoritative: the selected columns are used exactly as
+  chosen, so a wrong choice shows a balance break and blocks Continue rather than
+  being silently replaced by automatic detection.
+- **Spending** is a money band, a line chart and the month's budget on a 70/30 split, budgets as bubbles by
+  category, and one ledger table shared with Accounts (date · name · categories · amount).
+- **Budget bars turn amber at 70% and red at 90%** — the band, the category bars and the dashboard ring read
+  from the same rule.
+- **Accounts** opens with the same band and keeps `Manage · Import · Add` in the page head; the account cards
+  are gone, the filter chips carry their balances.
+- **One pager everywhere:** `‹ Prev · Page n of m · Next ›`. Entry counts (“1–10 of 47”, “12 entries”) are
+  gone from the app, and the numbered page strip with them.
+- The ledger sort reads `Amount ↓ / Amount ↑ / Refunds ↓ / Refunds ↑`, lives in the card head, and folds into
+  a single menu on a phone so the card keeps its title.
+- The dashboard budget line reads `₹4,723 of ₹58,500 planned` on one line, and `Open ledger →` is gone.
+- Charts load in their own chunk (`manualChunks`): the entry bundle fell from 1741 kB to 209 kB.
+
+### Removed
+
+- **The email/IMAP feature, entirely.** The inbox, mailboxes, templates, rule gating and the LLM settings —
+  `/api/mail/*`, `/api/me/llm*`, the eleven MCP mail tools, the `mail`, `mailservice`, `llmsettings` and
+  `netguard` packages, the Inbox page and its components, and the tables themselves (migration `000009`).
+  `FINANCER_SECRET_KEY` and `FINANCER_MAIL_POLL_SECS` are no longer read.
+
+### Fixed
+
+- The transactions toolbar no longer overflows on a phone: the filter takes its own
+  row and the Import/Add buttons wrap below it.
+- Account cards use the ledger tokens (no legacy daisyUI classes), and row actions
+  are visible on touch instead of hover-only.
+- A ledger's head no longer squeezes its own title off a phone screen.
+
+### Accessibility
+
+- Modals trap Tab, lock background scroll and return focus on close.
+- The app shell has a **Skip to content** link; the phone drawer moves focus in,
+  makes the page behind it inert, and closes on Escape.
+- Menus and popovers support arrow keys, Home/End and Escape.
+- Interactive targets are at least 44px on touch (modal close, primary buttons,
+  role chips, drawer rows, bottom navigation).
+- The date-range calendar is a real grid: one tab stop, arrow keys across days and weeks (following the month
+  edge), Escape to close, and focus back on the trigger.
+
+## [0.15.2] — 2026-11-18
+
+### Fixed
+
+- **Picking the wrong column layout no longer breaks the import.** When a statement has
+  its own header columns (Withdrawal/Deposit or Debit/Credit), those are authoritative: a
+  manually selected layout is ignored and the Map step says
+  “This statement has its own column headers — those were used instead of the selected
+  layout.” Previously, choosing “Amount · Dr/Cr · Balance” on a statement with no Dr/Cr
+  markers made most rows lose their direction, so the balances stopped reconciling.
+
 ## [0.15.1] — 2026-11-18
 
 ### Fixed
@@ -259,7 +340,7 @@ git log (`git log --oneline v0.7.0..v0.8.0`).
 - Poll logs now include `mail poll start` (full flag, cursor) and `mail poll complete`
   with `last_uid`.
 - **Separate log lines per trigger:** `poll now start/complete`, `full poll
-  start/complete` and `auto poll start/complete` (plus matching `failed` lines), each
+start/complete` and `auto poll start/complete` (plus matching `failed` lines), each
   with account, user, cursor, matched/stored/skipped.
 - **Debug-level trace of matching:** `rule evaluate` logs every rule's fields and
   whether it matched for a message; `mail extraction` logs amount, direction, date,
@@ -465,7 +546,7 @@ split-pane reviewer and Settings is tabbed.
 - **Per-user Inbox AI settings** (`user_llm_settings`): LiteLLM base URL, model alias (required, no
   default), API key encrypted with `FINANCER_SECRET_KEY`, timeout, enabled toggle, and thresholds for
   samples, failures, generation cooldown and auto-poll throttle. Keyed endpoints: `GET/PUT
-  /api/me/llm`, `POST /api/me/llm/test`; the key is never returned (only `apiKeySet`).
+/api/me/llm`, `POST /api/me/llm/test`; the key is never returned (only `apiKeySet`).
 - **Asynchronous polling**: `POST /api/mail/poll` returns `202` with `started` or `throttled`, starts
   on login and when the Inbox opens, and is throttled per user (`?force=1` to force). The background
   poller still runs every `FINANCER_MAIL_POLL_SECS`.
@@ -543,9 +624,9 @@ implementation is gone and the database is adopted in place.
 ### Changed
 
 - **The backend is Go.** Gin router, `glebarez/sqlite` (pure Go, WAL), one writer
-  + read pool, embedded migrations and timezone data. The `/api` contract,
-  SQLite schema, env vars and JWT/API-key formats are unchanged; an existing
-  database is adopted via its sqlx migration history. (#174)
+  - read pool, embedded migrations and timezone data. The `/api` contract,
+    SQLite schema, env vars and JWT/API-key formats are unchanged; an existing
+    database is adopted via its sqlx migration history. (#174)
 - **Rules still snapshot at write time**, and transfer rules create/link the
   missing counterpart on create.
 - **Mail ingest, API keys, MCP (`/mcp`) and OpenAPI (`/docs`, `/openapi.json`)

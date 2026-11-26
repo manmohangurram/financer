@@ -403,6 +403,30 @@ func (s *Service) Dashboard(userID string) (*Dashboard, error) {
 	return &Dashboard{TotalBalance: balance, TotalIncome: credit, TotalExpenses: debit}, nil
 }
 
+// MonthTotals is the credit/debit movement for an inclusive local date range,
+// excluding internal transfers. The dashboard uses it for "this month" and the
+// previous-month comparison.
+type MonthTotals struct {
+	Income   float64
+	Expenses float64
+}
+
+func (s *Service) MonthTotals(userID, from, to string) (*MonthTotals, error) {
+	fromTS, ok := tim.LocalDayStart(from)
+	if !ok {
+		return nil, errors.BadRequest("invalid from " + from)
+	}
+	toTS, ok := tim.LocalDayEnd(to)
+	if !ok {
+		return nil, errors.BadRequest("invalid to " + to)
+	}
+	credit, debit, err := s.txns.Totals(userID, fromTS, toTS)
+	if err != nil {
+		return nil, err
+	}
+	return &MonthTotals{Income: credit, Expenses: debit}, nil
+}
+
 // SpendingBucket is one day/month bucket of debit spending.
 type SpendingBucket struct {
 	Key    string
